@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     messages: anthropicMessages as Anthropic.MessageParam[],
   })
 
+  const encoder = new TextEncoder()
   const readable = new ReadableStream({
     async start(controller) {
       try {
@@ -35,13 +36,12 @@ export async function POST(req: NextRequest) {
             event.type === 'content_block_delta' &&
             event.delta.type === 'text_delta'
           ) {
-            controller.enqueue(new TextEncoder().encode(event.delta.text))
+            controller.enqueue(encoder.encode(event.delta.text))
           }
         }
+        controller.close()
       } catch (err) {
         controller.error(err)
-      } finally {
-        controller.close()
       }
     },
   })
