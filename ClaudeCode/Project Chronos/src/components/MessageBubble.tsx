@@ -29,7 +29,7 @@ export function MessageBubble({ message }: Props) {
         {isUser ? (
           <p className="text-sm whitespace-pre-wrap">{message.text}</p>
         ) : message.isStreaming && !message.text ? (
-          <div className="flex gap-1 py-1">
+          <div className="flex gap-1 py-1" role="status" aria-label="Loading response">
             <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
             <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
             <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" />

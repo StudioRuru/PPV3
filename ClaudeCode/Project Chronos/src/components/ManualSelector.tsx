@@ -11,6 +11,7 @@ interface Props {
 export function ManualSelector({ activeManual, onSelect, onDismiss }: Props) {
   const [manuals, setManuals] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/manuals')
@@ -23,10 +24,14 @@ export function ManualSelector({ activeManual, onSelect, onDismiss }: Props) {
     const name = e.target.value
     if (!name) return
     setLoading(true)
+    setFetchError(null)
     try {
       const res = await fetch(`/api/manuals?file=${encodeURIComponent(name)}`)
+      if (!res.ok) throw new Error(`Server returned ${res.status}`)
       const { base64 } = await res.json()
       onSelect(name, base64)
+    } catch {
+      setFetchError('Failed to load manual — try again.')
     } finally {
       setLoading(false)
     }
@@ -42,6 +47,9 @@ export function ManualSelector({ activeManual, onSelect, onDismiss }: Props) {
 
   return (
     <div className="flex items-center gap-2">
+      {fetchError && (
+        <span className="text-xs text-red-400">{fetchError}</span>
+      )}
       {!activeManual ? (
         <select
           onChange={handleChange}
