@@ -1,0 +1,385 @@
+meta:
+  category: "scenarios"
+  description: "Situation and context tags for narrative-driven prompt building — public scenarios, reactions, emotional contexts, and scene modifiers"
+
+subcategories:
+  public_context:
+    description: "Tags establishing public or social context for scenes"
+    tags:
+      - tag: "crowd"
+        notes: "Many people present in the background"
+      - tag: "crowded"
+        notes: "Dense crowd, close quarters"
+      - tag: "public"
+        notes: "In a public/social setting"
+      - tag: "onlookers"
+        notes: "People visibly watching or observing"
+      - tag: "audience"
+        notes: "Group of people watching a performance or event"
+      - tag: "bystander"
+        notes: "Uninvolved person nearby"
+      - tag: "busy"
+        notes: "Active, bustling environment"
+      - tag: "packed train"
+        notes: "Very crowded train interior"
+      - tag: "rush hour"
+        notes: "Peak commuting time"
+
+  reactions_emotional:
+    description: "Character emotional reactions and states for narrative scenes"
+    tags:
+      - tag: "embarrassed"
+        notes: "Feeling of self-consciousness or shame"
+      - tag: "flustered"
+        notes: "Nervous and confused"
+      - tag: "humiliated"
+        notes: "Feeling of deep embarrassment or degradation"
+      - tag: "ashamed"
+        notes: "Feeling guilty or embarrassed about something"
+      - tag: "mortified"
+        notes: "Extreme embarrassment"
+      - tag: "panicking"
+        notes: "In a state of panic"
+      - tag: "nervous"
+        notes: "Anxious, uncertain"
+      - tag: "reluctant"
+        notes: "Unwilling but complying"
+      - tag: "defiant"
+        notes: "Showing bold resistance"
+      - tag: "resigned"
+        notes: "Accepted the situation"
+      - tag: "aroused"
+        notes: "Sexually excited state"
+      - tag: "confused"
+        notes: "Uncertain about what is happening"
+      - tag: "shocked"
+        notes: "Sudden surprise or disbelief"
+      - tag: "crying"
+        notes: "Tears flowing"
+      - tag: "tears"
+        notes: "Visible tears"
+      - tag: "trembling"
+        notes: "Shaking from emotion or cold"
+      - tag: "sweating"
+        notes: "Visible perspiration from stress or heat"
+      - tag: "blushing"
+        notes: "Red-faced from embarrassment or arousal"
+      - tag: "body blush"
+        notes: "Reddish flush visible on the body"
+
+  physical_reactions:
+    description: "Physical states and bodily reactions"
+    tags:
+      - tag: "goosebumps"
+        notes: "Skin reaction from cold or excitement"
+      - tag: "shivering"
+        notes: "Trembling from cold"
+      - tag: "wet skin"
+        notes: "Skin glistening with water or sweat"
+      - tag: "shiny skin"
+        notes: "Skin appearing glossy"
+      - tag: "sweat"
+        notes: "Visible sweat on skin"
+      - tag: "sweatdrop"
+        notes: "Anime-style sweat drop indicating nervousness"
+      - tag: "steam"
+        notes: "Steam rising from body (bath or embarrassment)"
+      - tag: "heavy breathing"
+        notes: "Visible effort in breathing"
+      - tag: "panting"
+        notes: "Open-mouth breathing from exertion"
+
+  awareness_context:
+    description: "Tags describing the character's awareness state in a scene"
+    tags:
+      - tag: "caught"
+        notes: "Discovered in a compromising situation"
+      - tag: "exposed"
+        notes: "Unintentionally revealed or uncovered"
+      - tag: "noticed"
+        notes: "Others have become aware of the character"
+      - tag: "unaware"
+        notes: "Character doesn't realize what is happening"
+      - tag: "oblivious"
+        notes: "Completely unaware of surroundings or situation"
+      - tag: "looking around"
+        notes: "Character scanning the environment"
+      - tag: "hiding"
+        notes: "Trying to conceal oneself"
+      - tag: "peeking"
+        notes: "Looking covertly at something"
+      - tag: "watching"
+        notes: "Observing something intently"
+
+  scene_modifiers:
+    description: "Narrative modifiers that set the scene context"
+    tags:
+      - tag: "morning routine"
+        notes: "Getting ready in the morning"
+      - tag: "commuting"
+        notes: "Traveling to work or school"
+      - tag: "after hours"
+        notes: "Late at night, past normal hours"
+      - tag: "break time"
+        notes: "During a work or school break"
+      - tag: "changing"
+        notes: "In the process of changing clothes"
+      - tag: "exercising"
+        notes: "Physical activity"
+      - tag: "shopping"
+        notes: "In a store or mall"
+      - tag: "waiting"
+        notes: "Standing or sitting, waiting for something"
+      - tag: "walking"
+        notes: "In motion, traveling on foot"
+      - tag: "running"
+        notes: "Moving quickly on foot"
+      - tag: "falling"
+        notes: "In the act of falling"
+      - tag: "tripping"
+        notes: "Stumbling or about to fall"
+      - tag: "wind"
+        notes: "Wind affecting clothing and hair"
+      - tag: "wind lift"
+        notes: "Wind lifting skirt or clothing"
+      - tag: "rain"
+        notes: "Raining, causing wet clothes"
+      - tag: "splash"
+        notes: "Water splashing onto character"
+
+  actions_and_causes:
+    description: "Tags describing what caused the clothing state — intentional, accidental, forced, or environmental. Use in sequential tag stacking before state tags (see natural-language-hybrid.md)."
+    tags:
+      - tag: "clothing destroyed"
+        verified: false
+        notes: "General clothing destruction context. Hybrid — use in base prompt to set the narrative"
+      - tag: "wardrobe disaster"
+        verified: false
+        notes: "Multiple clothing failures happening at once. Hybrid — use in base prompt"
+      - tag: "clothes stolen"
+        verified: false
+        notes: "Clothing taken/missing. Hybrid — use in base prompt for missing-clothes scenarios"
+      - tag: "forced to strip"
+        verified: false
+        notes: "Coerced removal. Hybrid — pair with 'reluctant' and 'undressing'"
+      - tag: "losing clothes"
+        verified: false
+        notes: "Progressive clothing loss. Hybrid — pair with escalating state tags"
+      - tag: "stripped"
+        verified: true
+        notes: "Clothing forcibly removed. Verified Danbooru tag"
+      - tag: "stripping"
+        verified: true
+        notes: "In the act of removing clothing (performance context). Verified Danbooru tag"
+      - tag: "intentional exposure"
+        verified: false
+        notes: "Character deliberately exposing themselves. Hybrid — pair with exhibitionism-related tags"
+      - tag: "accidental exposure"
+        verified: false
+        notes: "Unintentional revealing. Hybrid — pair with 'wardrobe malfunction' and reaction tags"
+      - tag: "dare"
+        verified: false
+        notes: "Challenged to do something. Hybrid — pair with 'reluctant' or 'defiant'"
+      - tag: "bet lost"
+        verified: false
+        notes: "Consequence of losing a wager. Hybrid — pair with 'reluctant' and clothing removal"
+      - tag: "punishment"
+        verified: true
+        notes: "Punitive context. Verified Danbooru tag"
+      - tag: "exhibitionism"
+        verified: true
+        notes: "Deliberate public exposure. Verified Danbooru tag"
+      - tag: "body inspection"
+        verified: false
+        notes: "Being examined or inspected. Hybrid — pair with 'embarrassed' and exposure states"
+
+  netorare_ntr:
+    description: "Netorare / NTR / cheating relationship tags. Core scene-framing for infidelity narratives. Pair with wedding/engagement ring tags from accessories.yaml and pov framing tags."
+    tags:
+      - tag: "netorare"
+        verified: true
+        notes: "Canonical NTR tag (aliased from 'ntr' on Danbooru). Wife/girlfriend taken by another. Verified Danbooru tag"
+      - tag: "cheating (relationship)"
+        verified: true
+        notes: "Canonical Danbooru parens-with-space form. Generic infidelity. Verified Danbooru tag"
+      - tag: "netorase"
+        verified: true
+        notes: "Consensual NTR variant — husband willingly shares wife. Verified Danbooru tag"
+      - tag: "netorigaeshi"
+        verified: true
+        notes: "NTR revenge — wronged party retaliates. Verified Danbooru tag"
+      - tag: "reverse netorare"
+        verified: true
+        notes: "Wife steals husband from another woman. Implies netorare. Verified Danbooru tag"
+      - tag: "imminent netorare"
+        verified: true
+        notes: "About-to-happen NTR. Useful for tension/pre-act scenes. Verified Danbooru tag"
+      - tag: "before netorare"
+        verified: true
+        notes: "Pre-NTR scene framing. Useful for arc opening scenes. Verified Danbooru tag"
+      - tag: "netori"
+        verified: true
+        notes: "Inverse role — protagonist steals partner from another. Verified Danbooru tag"
+      - tag: "marriage proposal"
+        verified: true
+        notes: "Proposal scene context. Verified Danbooru tag"
+      - tag: "husband and wife"
+        verified: false
+        notes: "Marital pairing context. Hybrid — pair with 'wedding ring' for visual reinforcement"
+      - tag: "married"
+        verified: false
+        notes: "Marital status. Hybrid — pair with 'wedding ring'"
+      - tag: "wife"
+        verified: true
+        notes: "Wife role. Verified Danbooru tag"
+      - tag: "housewife"
+        verified: true
+        notes: "Domestic wife role. Verified Danbooru tag"
+      - tag: "another man"
+        verified: false
+        notes: "The third party in NTR. Hybrid — useful in base prompt with 1boy"
+      - tag: "stranger"
+        verified: false
+        notes: "Unknown third party. Hybrid — pairs with public NTR scenes"
+      - tag: "age difference"
+        verified: true
+        notes: "Common NTR pairing modifier (older man + young wife). Verified Danbooru tag"
+      - tag: "older man"
+        verified: true
+        notes: "Older male partner. Verified Danbooru tag"
+      - tag: "swinging (relationship)"
+        verified: true
+        notes: "Canonical Danbooru parens-with-space form. Adjacent fetish to NTR. Verified Danbooru tag"
+      - tag: "affair"
+        verified: false
+        notes: "Generic infidelity context. Hybrid — pair with 'cheating (relationship)'"
+      - tag: "infidelity"
+        verified: false
+        notes: "Generic infidelity. Hybrid — pair with 'cheating (relationship)'"
+
+  escalation_contexts:
+    description: "Tags that describe how a situation is getting worse or intensifying. Useful for story arcs and scene progression."
+    tags:
+      - tag: "increasing crowd"
+        verified: false
+        notes: "More people gathering. Hybrid — pair with 'crowd' or 'onlookers'"
+      - tag: "nowhere to hide"
+        verified: false
+        notes: "No escape or cover available. Hybrid — pair with 'exposed' and 'panicking'"
+      - tag: "more exposed"
+        verified: false
+        notes: "Situation worsening — additional exposure. Hybrid — pair with specific state tags"
+      - tag: "can't cover"
+        verified: false
+        notes: "Unable to cover exposure (hands full, restrained, etc.). Hybrid — pair with exposure states"
+      - tag: "being watched"
+        verified: false
+        notes: "Awareness of being observed. Hybrid — pair with 'onlookers' and reaction tags"
+      - tag: "phone cameras"
+        verified: false
+        notes: "People recording/photographing. Hybrid — pair with 'crowd' and 'humiliated'"
+      - tag: "spotlight"
+        verified: true
+        notes: "Literal or figurative spotlight drawing attention. Verified Danbooru tag"
+
+  mind_state:
+    description: "Altered mental-state framing for the 'Intelligence Loss' genre (see data/genres/intelligence-loss.yaml) — hypnosis, mind control, bimbofication, drug haze. Mind-control framing tags belong in the base prompt; map onto verified eye/expression tags from appearance.yaml/poses.yaml for the visual."
+    tags:
+      - tag: "mind control"
+        verified: true
+        notes: "Character's mind controlled by another. Verified Danbooru tag. Pair with '@_@'/'empty eyes'"
+      - tag: "hypnosis"
+        verified: true
+        notes: "Hypnotized state. Verified Danbooru tag. Pair with '@_@'/'spiral eyes' + 'unfocused eyes'"
+      - tag: "brainwashing"
+        verified: true
+        notes: "Brainwashed/reprogrammed. Verified Danbooru tag. Pair with 'empty eyes' + 'expressionless'"
+      - tag: "bimbofication"
+        verified: true
+        notes: "Transformation into a dumb, hypersexual bimbo. Verified Danbooru tag. Pair with 'heart-shaped pupils' + 'naughty face'"
+      - tag: "drugged"
+        verified: true
+        notes: "Under the influence of drugs. Verified Danbooru tag. Pair with 'dilated pupils' + 'drooling'"
+      - tag: "aphrodisiac"
+        verified: true
+        notes: "Affected by an arousal-inducing substance. Verified Danbooru tag. Pair with 'body blush' + 'aroused'"
+      - tag: "corruption"
+        verified: true
+        notes: "Moral/mental corruption. Verified Danbooru tag. Slow-burn framing for arcs"
+      - tag: "mind break"
+        verified: true
+        notes: "Psyche shattered past recovery — the terminal mental-state tag (Danbooru mind_break, ~1.4k posts). Pair with 'empty eyes'/'ahegao'/'thousand-yard stare'. Stronger than 'fucked silly'"
+      - tag: "soulless"
+        verified: true
+        notes: "Empty, vacant, no inner life. Verified but RARE on Danbooru (~24 posts) — low generation signal alone; always reinforce with 'empty eyes' + 'expressionless' + 'thousand-yard stare'"
+      - tag: "trance"
+        verified: false
+        notes: "Entranced, absent state. Hybrid — pair with '@_@' or 'unfocused eyes'"
+      - tag: "mindless"
+        verified: false
+        notes: "No will or thought of one's own. Hybrid — pair with 'empty eyes' + 'expressionless'"
+      - tag: "obedient"
+        verified: false
+        notes: "Compliant, will-less obedience. Hybrid — pair with 'mind control' or 'brainwashing'"
+      - tag: "empty-headed"
+        verified: false
+        notes: "Vacant, no thoughts. Hybrid — pair with 'empty eyes' + 'open mouth'"
+      - tag: "vacant expression"
+        verified: false
+        notes: "Blank, absent expression. Hybrid — pair with 'empty eyes' + 'parted lips'"
+      - tag: "dazed"
+        verified: false
+        notes: "Stunned, foggy, not all there. Hybrid — pair with 'unfocused eyes' + 'half-closed eyes'"
+
+  defeat_humbling:
+    description: "Defeat, humbling, and power-loss framing for before/after arcs (see data/genres/bimbodrain.yaml). The 'after' state of a fall from confidence/power."
+    tags:
+      - tag: "defeat"
+        verified: true
+        notes: "Being defeated/beaten. Verified Danbooru tag. Core 'after' framing for bimbodrain"
+      - tag: "defeated"
+        verified: true
+        notes: "State of having been defeated. Verified Danbooru tag"
+      - tag: "humiliation"
+        verified: true
+        notes: "Degradation/humbling. Verified Danbooru tag. Pair with 'defeated' + dignity-loss poses"
+      - tag: "power loss"
+        verified: false
+        notes: "Powers/abilities stripped away. Hybrid — pair with 'defeated' and torn costume tags"
+      - tag: "fallen"
+        verified: false
+        notes: "Brought low from a position of power. Hybrid — pair with 'defeat' + 'on the floor'"
+      - tag: "loser"
+        verified: false
+        notes: "The one who lost. Hybrid — contrast framing for the 'after' panel"
+
+  split_composition:
+    description: "Instant-loss and identity-split composition tags — base-prompt framing for two-state before/after images and self-separation visuals. Used by the Bimbodrain and Personality Excretion genres (data/genres/)."
+    tags:
+      - tag: "instant loss"
+        verified: true
+        notes: "Canonical Danbooru tag (instant_loss, ~6k posts) for the smug-to-defeated rapid cut. NOTE: 'instant loss 2koma' has 0 posts — use 'instant loss' + '2koma'. Core framing for instant-defeat arcs"
+      - tag: "2koma"
+        verified: true
+        notes: "Two-panel comic format (~46k posts). Top = before, bottom = after. Put in base prompt for single split images"
+      - tag: "before and after"
+        verified: false
+        notes: "Contrast pairing of two states. Hybrid — pair with '2koma'/'multiple views' in base"
+      - tag: "multiple views"
+        verified: true
+        notes: "Same character shown in multiple panels/poses. Verified Danbooru tag. Useful for split before/after layouts"
+      - tag: "dual persona"
+        verified: true
+        notes: "Two versions of the same character in one image (~59k posts). Ideal for showing the intact self beside the emptied husk, or the departed personality beside the body"
+      - tag: "multiple persona"
+        verified: true
+        notes: "Several incarnations of one character together. Verified Danbooru tag"
+      - tag: "dark persona"
+        verified: true
+        notes: "A corrupted/alternate self (~16k posts). Use when an overwriting persona replaces the original identity"
+      - tag: "doppelganger"
+        verified: true
+        notes: "A double/duplicate of the character (~449 posts). The separated/excreted self standing apart from the body"
+      - tag: "afterimage"
+        verified: true
+        notes: "Motion-trail double / fading silhouette (~17k posts). Renders the personality visibly separating or leaving the body"

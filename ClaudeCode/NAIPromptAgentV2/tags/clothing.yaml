@@ -1,0 +1,1240 @@
+meta:
+  category: "clothing"
+  description: "Comprehensive clothing tags for NovelAI V4.5 — with theme and exposure metadata for closet filtering"
+  theme_values: ["gothic", "office", "casual", "fantasy", "streetwear", "lingerie", "athletic", "traditional", "fetish", "school", "swimwear", "formal", "cosplay"]
+  exposure_values: ["full", "partial", "minimal", "none"]
+
+subcategories:
+
+  # ──────────────────────────────────────────────
+  #  TOPS
+  # ──────────────────────────────────────────────
+  tops:
+    description: "Shirts, blouses, sweaters, vests, crop tops, tube tops, and upper-body garments"
+    tags:
+      # --- Basic shirts ---
+      - tag: "shirt"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "white shirt"
+        theme: ["office", "school", "casual"]
+        exposure: "full"
+      - tag: "black shirt"
+        theme: ["gothic", "casual", "streetwear"]
+        exposure: "full"
+      - tag: "blue shirt"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "red shirt"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "pink shirt"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "striped shirt"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "plaid shirt"
+        aliases: ["checkered shirt"]
+        theme: ["casual", "streetwear"]
+        exposure: "full"
+      - tag: "t-shirt"
+        theme: ["casual", "streetwear", "athletic"]
+        exposure: "full"
+      - tag: "polo shirt"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "dress shirt"
+        notes: "Formal button-up dress shirt"
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "collared shirt"
+        theme: ["office", "school"]
+        exposure: "full"
+      - tag: "button-up shirt"
+        theme: ["casual", "office"]
+        exposure: "full"
+
+      # --- Blouses & feminine tops ---
+      - tag: "blouse"
+        theme: ["office", "casual", "formal"]
+        exposure: "full"
+      - tag: "white blouse"
+        theme: ["office", "school"]
+        exposure: "full"
+      - tag: "frilled shirt"
+        aliases: ["ruffled shirt"]
+        theme: ["gothic", "formal"]
+        exposure: "full"
+      - tag: "see-through top"
+        aliases: ["sheer top"]
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+
+      # --- Casual & cropped ---
+      - tag: "crop top"
+        notes: "Short top exposing midriff"
+        theme: ["casual", "streetwear", "athletic"]
+        exposure: "partial"
+      - tag: "tank top"
+        theme: ["casual", "athletic"]
+        exposure: "partial"
+      - tag: "camisole"
+        aliases: ["cami"]
+        theme: ["casual", "lingerie"]
+        exposure: "partial"
+      - tag: "tube top"
+        notes: "Strapless top wrapping the chest"
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "halterneck"
+        aliases: ["halter top"]
+        theme: ["casual", "formal"]
+        exposure: "partial"
+      - tag: "off-shoulder shirt"
+        aliases: ["off shoulder"]
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "off shoulder"
+        notes: "General off-shoulder style modifier"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "bare shoulders"
+        notes: "Indicates shoulders are exposed"
+        theme: ["casual", "formal", "lingerie"]
+        exposure: "partial"
+      - tag: "sleeveless shirt"
+        aliases: ["sleeveless"]
+        theme: ["casual", "athletic"]
+        exposure: "partial"
+      - tag: "midriff"
+        notes: "Exposed midriff area; combine with crop top or similar"
+        theme: ["casual", "athletic", "streetwear"]
+        exposure: "partial"
+
+      # --- Knits & sweaters ---
+      - tag: "sweater"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "white sweater"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "black sweater"
+        theme: ["casual", "gothic"]
+        exposure: "full"
+      - tag: "ribbed sweater"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "oversized sweater"
+        aliases: ["baggy sweater"]
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "sweater dress"
+        notes: "Long sweater worn as a dress"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "turtleneck"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "pullover"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "cardigan"
+        theme: ["casual", "school"]
+        exposure: "full"
+      - tag: "open cardigan"
+        theme: ["casual", "school"]
+        exposure: "partial"
+      - tag: "hoodie"
+        aliases: ["hooded sweater"]
+        theme: ["casual", "streetwear"]
+        exposure: "full"
+      - tag: "hood"
+        notes: "Hood up or visible hood"
+        theme: ["casual", "streetwear", "fantasy"]
+        exposure: "full"
+      - tag: "hood up"
+        theme: ["casual", "streetwear", "fantasy"]
+        exposure: "full"
+      - tag: "cropped hoodie"
+        theme: ["streetwear", "casual"]
+        exposure: "partial"
+
+      # --- Vests & layering ---
+      - tag: "vest"
+        aliases: ["waistcoat"]
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "sweater vest"
+        theme: ["school", "casual"]
+        exposure: "full"
+      - tag: "fur-trimmed vest"
+        theme: ["fantasy"]
+        exposure: "full"
+
+      # --- Corsets & structured ---
+      - tag: "corset"
+        theme: ["gothic", "fetish", "lingerie"]
+        exposure: "partial"
+      - tag: "underbust corset"
+        theme: ["gothic", "fetish"]
+        exposure: "partial"
+      - tag: "overbust corset"
+        theme: ["gothic", "fetish", "lingerie"]
+        exposure: "partial"
+      - tag: "bustier"
+        notes: "Strapless corset-like top"
+        theme: ["lingerie", "fetish", "formal"]
+        exposure: "partial"
+
+      # --- Sports & activewear tops ---
+      - tag: "sports bra"
+        theme: ["athletic"]
+        exposure: "partial"
+      - tag: "compression shirt"
+        notes: "Tight athletic top — compression fit"
+        theme: ["athletic"]
+        exposure: "partial"
+      - tag: "bikini top"
+        theme: ["swimwear"]
+        exposure: "minimal"
+
+      # --- Sleeve descriptors ---
+      - tag: "long sleeves"
+        theme: ["casual", "office", "formal"]
+        exposure: "full"
+      - tag: "short sleeves"
+        theme: ["casual", "school"]
+        exposure: "full"
+      - tag: "puffy sleeves"
+        aliases: ["puff sleeves"]
+        theme: ["gothic", "formal"]
+        exposure: "full"
+      - tag: "detached sleeves"
+        notes: "Sleeves not connected to the top"
+        theme: ["fantasy", "gothic", "fetish"]
+        exposure: "partial"
+      - tag: "wide sleeves"
+        theme: ["traditional", "fantasy"]
+        exposure: "full"
+      - tag: "rolled-up sleeves"
+        aliases: ["sleeves rolled up"]
+        theme: ["casual", "office"]
+        exposure: "partial"
+      - tag: "bell sleeves"
+        theme: ["gothic", "fantasy"]
+        exposure: "full"
+      - tag: "sleeves past wrists"
+        notes: "Extra-long sleeves covering hands"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "sleeves past fingers"
+        theme: ["casual"]
+        exposure: "full"
+
+      # --- Neckline descriptors ---
+      - tag: "cleavage"
+        notes: "Visible cleavage; implied by low-cut tops"
+        theme: ["lingerie", "fetish", "formal"]
+        exposure: "partial"
+      - tag: "plunging neckline"
+        theme: ["formal", "lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "v-neck"
+        theme: ["casual", "office"]
+        exposure: "partial"
+      - tag: "open collar"
+        theme: ["casual", "office"]
+        exposure: "partial"
+      - tag: "collarbone"
+        notes: "Exposed collarbone area"
+        theme: ["casual"]
+        exposure: "partial"
+
+  # ──────────────────────────────────────────────
+  #  BOTTOMS
+  # ──────────────────────────────────────────────
+  bottoms:
+    description: "Skirts, shorts, pants, leggings, and lower-body garments"
+    tags:
+      # --- Skirts ---
+      - tag: "skirt"
+        theme: ["casual", "office", "school"]
+        exposure: "partial"
+      - tag: "miniskirt"
+        aliases: ["mini skirt"]
+        theme: ["casual", "streetwear", "school"]
+        exposure: "minimal"
+      - tag: "microskirt"
+        aliases: ["micro skirt"]
+        theme: ["fetish", "streetwear"]
+        exposure: "minimal"
+      - tag: "pleated skirt"
+        theme: ["school", "casual"]
+        exposure: "partial"
+      - tag: "plaid skirt"
+        aliases: ["tartan skirt"]
+        theme: ["school", "gothic"]
+        exposure: "partial"
+      - tag: "pencil skirt"
+        theme: ["office", "formal"]
+        exposure: "partial"
+      - tag: "long skirt"
+        theme: ["casual", "traditional", "formal"]
+        exposure: "full"
+      - tag: "high-waist skirt"
+        theme: ["office", "casual"]
+        exposure: "partial"
+      - tag: "a-line skirt"
+        aliases: ["flared skirt"]
+        theme: ["casual", "formal"]
+        exposure: "partial"
+      - tag: "layered skirt"
+        theme: ["gothic", "formal"]
+        exposure: "partial"
+      - tag: "frilled skirt"
+        aliases: ["ruffled skirt"]
+        theme: ["gothic", "formal"]
+        exposure: "partial"
+      - tag: "side slit"
+        notes: "Skirt or dress with a side slit"
+        theme: ["formal", "fetish"]
+        exposure: "minimal"
+      - tag: "skirt lift"
+        notes: "Character lifting their own skirt"
+        theme: ["fetish"]
+        exposure: "minimal"
+      - tag: "skirt hold"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "white skirt"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "black skirt"
+        theme: ["office", "gothic"]
+        exposure: "partial"
+      - tag: "blue skirt"
+        theme: ["casual", "school"]
+        exposure: "partial"
+      - tag: "red skirt"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "denim skirt"
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "leather skirt"
+        theme: ["gothic", "fetish"]
+        exposure: "partial"
+      - tag: "tutu"
+        notes: "Ballet-style layered skirt"
+        theme: ["cosplay", "formal"]
+        exposure: "partial"
+      - tag: "overskirt"
+        theme: ["gothic", "formal"]
+        exposure: "partial"
+
+      # --- Shorts ---
+      - tag: "shorts"
+        theme: ["casual", "athletic"]
+        exposure: "partial"
+      - tag: "denim shorts"
+        aliases: ["jean shorts"]
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "bike shorts"
+        aliases: ["spats"]
+        notes: "Tight-fitting mid-thigh shorts"
+        theme: ["athletic"]
+        exposure: "partial"
+      - tag: "dolphin shorts"
+        theme: ["athletic"]
+        exposure: "minimal"
+      - tag: "hot pants"
+        aliases: ["short shorts"]
+        theme: ["casual", "streetwear", "fetish"]
+        exposure: "minimal"
+      - tag: "micro shorts"
+        notes: "Even shorter than hot pants — barely-there shorts"
+        theme: ["fetish", "streetwear"]
+        exposure: "minimal"
+      - tag: "gym shorts"
+        theme: ["athletic"]
+        exposure: "partial"
+
+      # --- Pants ---
+      - tag: "pants"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "jeans"
+        aliases: ["denim pants"]
+        theme: ["casual", "streetwear"]
+        exposure: "full"
+      - tag: "dress pants"
+        aliases: ["slacks"]
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "wide-leg pants"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "leggings"
+        theme: ["casual", "athletic"]
+        exposure: "partial"
+      - tag: "yoga pants"
+        theme: ["athletic"]
+        exposure: "partial"
+      - tag: "sweatpants"
+        theme: ["casual", "athletic"]
+        exposure: "full"
+      - tag: "leather pants"
+        theme: ["gothic", "fetish"]
+        exposure: "full"
+      - tag: "tight pants"
+        theme: ["casual", "fetish"]
+        exposure: "partial"
+      - tag: "tight jeans"
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "leggings under shorts"
+        notes: "Layered athletic look — leggings worn under shorts"
+        theme: ["athletic"]
+        exposure: "partial"
+      - tag: "low-rise pants"
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "high-waist pants"
+        theme: ["office", "casual"]
+        exposure: "full"
+      - tag: "overalls"
+        aliases: ["dungarees"]
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "suspenders"
+        aliases: ["braces"]
+        theme: ["formal", "office"]
+        exposure: "full"
+
+  # ──────────────────────────────────────────────
+  #  DRESSES
+  # ──────────────────────────────────────────────
+  dresses:
+    description: "Full dresses including casual, formal, themed, and cultural styles"
+    tags:
+      - tag: "dress"
+        theme: ["casual", "formal"]
+        exposure: "partial"
+      - tag: "white dress"
+        theme: ["casual", "formal"]
+        exposure: "partial"
+      - tag: "black dress"
+        theme: ["gothic", "formal"]
+        exposure: "partial"
+      - tag: "red dress"
+        theme: ["formal"]
+        exposure: "partial"
+      - tag: "sundress"
+        notes: "Light casual summer dress"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "cocktail dress"
+        theme: ["formal"]
+        exposure: "partial"
+      - tag: "evening gown"
+        aliases: ["evening dress"]
+        theme: ["formal"]
+        exposure: "partial"
+      - tag: "ball gown"
+        theme: ["formal", "fantasy"]
+        exposure: "partial"
+      - tag: "wedding dress"
+        aliases: ["bridal dress"]
+        theme: ["formal"]
+        exposure: "partial"
+      - tag: "bodycon dress"
+        aliases: ["tight dress"]
+        notes: "Body-hugging fitted dress"
+        theme: ["formal", "fetish"]
+        exposure: "partial"
+      - tag: "mini dress"
+        theme: ["casual", "streetwear"]
+        exposure: "minimal"
+      - tag: "short dress"
+        theme: ["casual"]
+        exposure: "minimal"
+      - tag: "strapless dress"
+        theme: ["formal"]
+        exposure: "partial"
+      - tag: "backless dress"
+        aliases: ["backless outfit"]
+        theme: ["formal", "fetish"]
+        exposure: "minimal"
+      - tag: "halter dress"
+        theme: ["casual", "formal"]
+        exposure: "partial"
+      - tag: "off-shoulder dress"
+        theme: ["formal"]
+        exposure: "partial"
+      - tag: "slip dress"
+        notes: "Thin spaghetti-strap dress resembling a slip"
+        theme: ["lingerie", "casual"]
+        exposure: "minimal"
+      - tag: "slit dress"
+        aliases: ["high-slit dress"]
+        theme: ["formal", "fetish"]
+        exposure: "minimal"
+      - tag: "see-through dress"
+        aliases: ["sheer dress"]
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "maid dress"
+        aliases: ["maid outfit"]
+        theme: ["cosplay"]
+        exposure: "partial"
+      - tag: "gothic lolita"
+        theme: ["gothic"]
+        exposure: "full"
+      - tag: "sweet lolita"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "china dress"
+        aliases: ["chinese dress", "qipao"]
+        theme: ["traditional"]
+        exposure: "partial"
+
+  # ──────────────────────────────────────────────
+  #  SCHOOL UNIFORMS
+  # ──────────────────────────────────────────────
+  uniforms_school:
+    description: "School uniforms, sailor outfits, gym wear"
+    tags:
+      - tag: "school uniform"
+        theme: ["school"]
+        exposure: "full"
+      - tag: "serafuku"
+        aliases: ["sailor uniform"]
+        notes: "Japanese sailor-style school uniform"
+        theme: ["school"]
+        exposure: "full"
+      - tag: "sailor collar"
+        theme: ["school"]
+        exposure: "full"
+      - tag: "blazer"
+        notes: "School blazer jacket"
+        theme: ["school", "office"]
+        exposure: "full"
+      - tag: "school blazer"
+        theme: ["school"]
+        exposure: "full"
+      - tag: "gym uniform"
+        aliases: ["PE uniform"]
+        theme: ["school", "athletic"]
+        exposure: "partial"
+      - tag: "buruma"
+        notes: "Japanese-style gym bloomers"
+        theme: ["school", "athletic"]
+        exposure: "minimal"
+      - tag: "cheerleader"
+        aliases: ["cheerleader uniform"]
+        theme: ["school", "athletic"]
+        exposure: "partial"
+      - tag: "school swimsuit"
+        aliases: ["sukumizu"]
+        notes: "Japanese school-issue swimsuit"
+        theme: ["school", "swimwear"]
+        exposure: "minimal"
+      - tag: "neck ribbon"
+        theme: ["school"]
+        exposure: "full"
+      - tag: "necktie"
+        aliases: ["tie"]
+        theme: ["school", "office", "formal"]
+        exposure: "full"
+      - tag: "bowtie"
+        aliases: ["bow tie"]
+        theme: ["school", "formal"]
+        exposure: "full"
+      - tag: "summer uniform"
+        theme: ["school"]
+        exposure: "partial"
+      - tag: "winter uniform"
+        theme: ["school"]
+        exposure: "full"
+
+  # ──────────────────────────────────────────────
+  #  WORK UNIFORMS
+  # ──────────────────────────────────────────────
+  uniforms_work:
+    description: "Professional, occupational, and service-industry uniforms"
+    tags:
+      - tag: "office lady"
+        aliases: ["OL"]
+        notes: "Japanese office worker style"
+        theme: ["office"]
+        exposure: "partial"
+      - tag: "business suit"
+        aliases: ["formal suit"]
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "suit"
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "skirt suit"
+        theme: ["office"]
+        exposure: "partial"
+      - tag: "nurse"
+        theme: ["cosplay"]
+        exposure: "partial"
+      - tag: "maid"
+        theme: ["cosplay"]
+        exposure: "partial"
+      - tag: "french maid"
+        theme: ["cosplay", "fetish"]
+        exposure: "minimal"
+      - tag: "waitress"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "police uniform"
+        theme: ["cosplay"]
+        exposure: "full"
+      - tag: "military uniform"
+        theme: ["cosplay"]
+        exposure: "full"
+      - tag: "lab coat"
+        notes: "White laboratory coat; scientist/doctor look"
+        theme: ["office"]
+        exposure: "full"
+      - tag: "apron"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "naked apron"
+        notes: "Wearing only an apron with nothing underneath"
+        theme: ["fetish"]
+        exposure: "minimal"
+
+  # ──────────────────────────────────────────────
+  #  OTHER UNIFORMS
+  # ──────────────────────────────────────────────
+  uniforms_other:
+    description: "Religious, ceremonial, idol, and miscellaneous uniforms"
+    tags:
+      - tag: "miko"
+        aliases: ["shrine maiden"]
+        notes: "Shinto shrine maiden outfit"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "nun"
+        theme: ["cosplay", "gothic"]
+        exposure: "full"
+      - tag: "bunny girl"
+        aliases: ["bunnysuit", "playboy bunny"]
+        notes: "Bunny-ear leotard outfit"
+        theme: ["cosplay", "fetish"]
+        exposure: "minimal"
+      - tag: "cat lingerie"
+        notes: "Cat-themed lingerie set"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "cow print"
+        notes: "Cow-pattern clothing or bikini"
+        theme: ["cosplay", "fetish"]
+        exposure: "minimal"
+
+  # ──────────────────────────────────────────────
+  #  OUTERWEAR
+  # ──────────────────────────────────────────────
+  outerwear:
+    description: "Jackets, coats, capes, cloaks, and layering outerwear"
+    tags:
+      - tag: "jacket"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "leather jacket"
+        theme: ["gothic", "streetwear"]
+        exposure: "full"
+      - tag: "denim jacket"
+        theme: ["casual", "streetwear"]
+        exposure: "full"
+      - tag: "bomber jacket"
+        theme: ["streetwear"]
+        exposure: "full"
+      - tag: "blazer"
+        theme: ["office", "school"]
+        exposure: "full"
+      - tag: "open jacket"
+        notes: "Jacket worn open/unbuttoned"
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "jacket on shoulders"
+        notes: "Jacket draped over shoulders"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "trench coat"
+        theme: ["office", "gothic"]
+        exposure: "full"
+      - tag: "fur coat"
+        theme: ["formal", "gothic"]
+        exposure: "full"
+      - tag: "cape"
+        theme: ["fantasy", "gothic"]
+        exposure: "full"
+      - tag: "cloak"
+        theme: ["fantasy", "gothic"]
+        exposure: "full"
+      - tag: "hooded cloak"
+        theme: ["fantasy"]
+        exposure: "full"
+
+  # ──────────────────────────────────────────────
+  #  SWIMWEAR
+  # ──────────────────────────────────────────────
+  swimwear:
+    description: "Bikinis, one-piece swimsuits, and beach wear"
+    tags:
+      - tag: "bikini"
+        theme: ["swimwear"]
+        exposure: "minimal"
+      - tag: "white bikini"
+        theme: ["swimwear"]
+        exposure: "minimal"
+      - tag: "black bikini"
+        theme: ["swimwear"]
+        exposure: "minimal"
+      - tag: "micro bikini"
+        notes: "Extremely minimal bikini"
+        theme: ["swimwear", "fetish"]
+        exposure: "minimal"
+      - tag: "string bikini"
+        theme: ["swimwear"]
+        exposure: "minimal"
+      - tag: "side-tie bikini bottom"
+        aliases: ["side-tie bikini"]
+        theme: ["swimwear"]
+        exposure: "minimal"
+      - tag: "one-piece swimsuit"
+        aliases: ["swimsuit"]
+        theme: ["swimwear"]
+        exposure: "partial"
+      - tag: "highleg swimsuit"
+        aliases: ["high-leg swimsuit"]
+        notes: "Swimsuit with high-cut leg openings"
+        theme: ["swimwear", "fetish"]
+        exposure: "minimal"
+      - tag: "slingshot swimsuit"
+        aliases: ["sling bikini"]
+        theme: ["swimwear", "fetish"]
+        exposure: "minimal"
+      - tag: "bikini top only"
+        notes: "Bikini top with non-bikini bottom (or none)"
+        theme: ["swimwear", "fetish"]
+        exposure: "minimal"
+      - tag: "bikini bottom only"
+        notes: "Bikini bottom with non-bikini top (or none)"
+        theme: ["swimwear", "fetish"]
+        exposure: "minimal"
+      - tag: "rash guard"
+        aliases: ["rashguard"]
+        notes: "Tight athletic swim/surf top — long-sleeve compression"
+        theme: ["swimwear", "athletic"]
+        exposure: "partial"
+      - tag: "wet clothes"
+        notes: "Clothing soaked with water"
+        theme: ["swimwear"]
+        exposure: "partial"
+      - tag: "tan lines"
+        aliases: ["tanlines"]
+        theme: ["swimwear"]
+        exposure: "partial"
+
+  # ──────────────────────────────────────────────
+  #  BODYSUITS & TIGHTS
+  # ──────────────────────────────────────────────
+  bodysuits_and_tights:
+    description: "One-piece bodysuits, leotards, jumpsuits, catsuits"
+    tags:
+      - tag: "bodysuit"
+        theme: ["fetish", "cosplay"]
+        exposure: "partial"
+      - tag: "leotard"
+        notes: "One-piece garment for dance/gymnastics"
+        theme: ["athletic", "cosplay"]
+        exposure: "partial"
+      - tag: "highleg leotard"
+        aliases: ["high-leg leotard"]
+        theme: ["athletic", "fetish"]
+        exposure: "minimal"
+      - tag: "catsuit"
+        notes: "Skin-tight full-body suit"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "latex bodysuit"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "plugsuit"
+        notes: "Tight-fitting sci-fi suit (Evangelion style)"
+        theme: ["cosplay"]
+        exposure: "partial"
+      - tag: "skinsuit"
+        notes: "Extremely form-fitting full-body suit"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "zentai"
+        notes: "Full-body covering suit including head"
+        theme: ["fetish"]
+        exposure: "full"
+      - tag: "unitard"
+        notes: "Full-leg leotard — leotard with leggings"
+        theme: ["athletic", "cosplay"]
+        exposure: "partial"
+      - tag: "wetsuit"
+        notes: "Surfing/diving full-body suit"
+        theme: ["athletic", "fetish"]
+        exposure: "partial"
+      - tag: "latex catsuit"
+        notes: "Latex full-body suit — most explicit fetish-catsuit form"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "leather catsuit"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "fishnet bodysuit"
+        notes: "Bodysuit made of fishnet/mesh"
+        theme: ["fetish", "lingerie"]
+        exposure: "minimal"
+      - tag: "armored leotard"
+        notes: "Fantasy/RPG variant with armor plates"
+        theme: ["fantasy", "cosplay"]
+        exposure: "partial"
+      - tag: "backless leotard"
+        theme: ["athletic", "fetish"]
+        exposure: "minimal"
+      - tag: "thong leotard"
+        theme: ["athletic", "fetish"]
+        exposure: "minimal"
+      - tag: "turtleneck leotard"
+        theme: ["athletic", "fetish"]
+        exposure: "partial"
+      - tag: "rubber suit"
+        notes: "Rubber full-body suit variant"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "armored bodysuit"
+        notes: "Sci-fi/fantasy bodysuit with armor plates"
+        theme: ["fantasy", "cosplay"]
+        exposure: "partial"
+      - tag: "pilot suit"
+        notes: "Sci-fi pilot suit (adjacent to plugsuit)"
+        theme: ["cosplay"]
+        exposure: "partial"
+      - tag: "spacesuit"
+        notes: "Sci-fi spacesuit"
+        theme: ["cosplay"]
+        exposure: "full"
+      - tag: "diving suit"
+        notes: "Adjacent to wetsuit — heavier diving variant"
+        theme: ["athletic", "cosplay"]
+        exposure: "partial"
+
+  # ──────────────────────────────────────────────
+  #  LINGERIE & UNDERWEAR
+  # ──────────────────────────────────────────────
+  lingerie:
+    description: "Underwear, bras, panties, lingerie sets, and intimate apparel"
+    tags:
+      - tag: "underwear"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "bra"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "white bra"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "black bra"
+        theme: ["lingerie", "gothic"]
+        exposure: "minimal"
+      - tag: "lace bra"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "panties"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "white panties"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "black panties"
+        theme: ["lingerie", "gothic"]
+        exposure: "minimal"
+      - tag: "lace panties"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "side-tie panties"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "thong"
+        aliases: ["g-string"]
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "lingerie"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "black lingerie"
+        theme: ["lingerie", "gothic"]
+        exposure: "minimal"
+      - tag: "white lingerie"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "red lingerie"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "lace"
+        notes: "Lace material on clothing"
+        theme: ["lingerie", "gothic"]
+        exposure: "partial"
+      - tag: "babydoll"
+        notes: "Short, loose-fitting lingerie top"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "chemise"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "teddy (lingerie)"
+        aliases: ["teddy"]
+        notes: "One-piece lingerie garment"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "crotchless"
+        notes: "Lingerie without crotch coverage"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "cupless"
+        notes: "Bra/lingerie without cup coverage"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "see-through"
+        aliases: ["sheer"]
+        notes: "Transparent/see-through material"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "garter belt"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "garter straps"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "string panties"
+        notes: "Side-tie / string-side panties"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "micro panties"
+        notes: "Extremely small underwear"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "see-through panties"
+        notes: "Sheer underwear"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "shimapan"
+        notes: "Iconic Japanese striped panties"
+        theme: ["lingerie", "school"]
+        exposure: "minimal"
+
+  # ──────────────────────────────────────────────
+  #  SLEEPWEAR
+  # ──────────────────────────────────────────────
+  sleepwear:
+    description: "Pajamas, nightgowns, robes, and bedtime attire"
+    tags:
+      - tag: "pajamas"
+        aliases: ["pyjamas"]
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "nightgown"
+        aliases: ["nightdress"]
+        theme: ["casual", "lingerie"]
+        exposure: "partial"
+      - tag: "negligee"
+        notes: "Sheer, decorative nightgown"
+        theme: ["lingerie"]
+        exposure: "minimal"
+      - tag: "bathrobe"
+        aliases: ["robe"]
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "towel"
+        notes: "Wrapped in a towel (post-bath)"
+        theme: ["casual"]
+        exposure: "minimal"
+      - tag: "naked sheet"
+        aliases: ["sheet"]
+        notes: "Covered only by a bedsheet"
+        theme: ["lingerie"]
+        exposure: "minimal"
+
+  # ──────────────────────────────────────────────
+  #  TRADITIONAL
+  # ──────────────────────────────────────────────
+  traditional:
+    description: "Cultural and traditional garments"
+    tags:
+      - tag: "kimono"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "yukata"
+        notes: "Casual summer kimono"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "hakama"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "obi"
+        notes: "Wide sash/belt for kimono"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "china dress"
+        aliases: ["qipao", "cheongsam"]
+        theme: ["traditional"]
+        exposure: "partial"
+      - tag: "hanbok"
+        notes: "Traditional Korean garment"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "sari"
+        aliases: ["saree"]
+        theme: ["traditional"]
+        exposure: "partial"
+      - tag: "belly dancer"
+        notes: "Belly dance outfit with exposed midriff"
+        theme: ["traditional", "fetish"]
+        exposure: "minimal"
+      - tag: "fundoshi"
+        notes: "Japanese loincloth — traditional male undergarment, often used on female characters as fetish-traditional"
+        theme: ["traditional", "fetish"]
+        exposure: "minimal"
+      - tag: "maedare"
+        notes: "Japanese decorative pelvic apron (front-only)"
+        theme: ["traditional", "fantasy"]
+        exposure: "minimal"
+      - tag: "tabard"
+        notes: "Front+back fabric panel garment, pelvic-curtain variant"
+        theme: ["fantasy", "traditional"]
+        exposure: "partial"
+
+  # ──────────────────────────────────────────────
+  #  COSPLAY & FANTASY
+  # ──────────────────────────────────────────────
+  cosplay_fantasy:
+    description: "Armor, fantasy outfits, magical girl costumes, RPG-inspired clothing"
+    tags:
+      - tag: "armor"
+        theme: ["fantasy"]
+        exposure: "full"
+      - tag: "plate armor"
+        aliases: ["full plate"]
+        theme: ["fantasy"]
+        exposure: "full"
+      - tag: "leather armor"
+        theme: ["fantasy"]
+        exposure: "partial"
+      - tag: "bikini armor"
+        notes: "Skimpy fantasy armor"
+        theme: ["fantasy", "fetish"]
+        exposure: "minimal"
+      - tag: "armored dress"
+        theme: ["fantasy"]
+        exposure: "partial"
+      - tag: "robe"
+        theme: ["fantasy"]
+        exposure: "full"
+      - tag: "hooded robe"
+        theme: ["fantasy"]
+        exposure: "full"
+      - tag: "witch hat"
+        theme: ["fantasy", "gothic"]
+        exposure: "full"
+      - tag: "witch"
+        theme: ["fantasy", "gothic"]
+        exposure: "partial"
+      - tag: "magical girl"
+        theme: ["cosplay"]
+        exposure: "partial"
+      - tag: "vampire"
+        theme: ["fantasy", "gothic"]
+        exposure: "partial"
+      - tag: "demon girl"
+        theme: ["fantasy", "gothic"]
+        exposure: "partial"
+      - tag: "succubus"
+        theme: ["fantasy", "fetish"]
+        exposure: "minimal"
+      - tag: "angel"
+        theme: ["fantasy"]
+        exposure: "partial"
+      - tag: "fallen angel"
+        theme: ["fantasy", "gothic"]
+        exposure: "partial"
+      - tag: "elf"
+        theme: ["fantasy"]
+        exposure: "partial"
+      - tag: "fairy"
+        theme: ["fantasy"]
+        exposure: "partial"
+      - tag: "cyberpunk"
+        notes: "Cyberpunk-style clothing aesthetic"
+        theme: ["streetwear", "fantasy"]
+        exposure: "partial"
+
+  # ──────────────────────────────────────────────
+  #  REVEALING MODIFIERS — cutouts, panels, exposure-focused garment shapes
+  # ──────────────────────────────────────────────
+  revealing_modifiers:
+    description: "Garment-shape modifiers that focus on exposure — cutouts, partial-coverage panels, naked-X family. Pair with tags from nudity.yaml for body-part visibility."
+    tags:
+      - tag: "revealing clothes"
+        notes: "Generic 'shameless outfit' descriptor — useful escalation tag"
+        theme: ["fetish"]
+        exposure: "minimal"
+      - tag: "cleavage cutout"
+        aliases: ["boob window", "cleavage window"]
+        notes: "Hole in chest of garment exposing cleavage"
+        theme: ["lingerie", "fetish", "formal"]
+        exposure: "minimal"
+      - tag: "navel cutout"
+        notes: "Hole exposing navel/midriff"
+        theme: ["fetish", "swimwear"]
+        exposure: "minimal"
+      - tag: "underboob cutout"
+        notes: "Cutout exposing underside of breasts"
+        theme: ["fetish", "lingerie"]
+        exposure: "minimal"
+      - tag: "side cutout"
+        notes: "Cutout on side of garment exposing torso/hip"
+        theme: ["fetish", "formal"]
+        exposure: "minimal"
+      - tag: "pelvic curtain"
+        notes: "Cloth panel at front/back of pelvis leaving thighs and hips bare"
+        theme: ["fantasy", "fetish"]
+        exposure: "minimal"
+      - tag: "loincloth"
+        notes: "Pelvic-curtain cousin — primitive/tribal pelvic cover"
+        theme: ["fantasy", "traditional"]
+        exposure: "minimal"
+      - tag: "breast curtain"
+        aliases: ["breast curtains"]
+        notes: "Loose fabric panels barely covering breasts"
+        theme: ["fetish", "fantasy"]
+        exposure: "minimal"
+      - tag: "breastless clothes"
+        notes: "Garment with no chest coverage at all"
+        theme: ["fetish"]
+        exposure: "none"
+      - tag: "sideless outfit"
+        notes: "Garment open down both sides"
+        theme: ["fetish"]
+        exposure: "minimal"
+      - tag: "cutout"
+        notes: "Generic cutout descriptor for vague designs"
+        theme: ["fetish", "formal"]
+        exposure: "partial"
+      - tag: "heart cutout"
+        notes: "Heart-shaped cutout (often chest)"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "naked towel"
+        notes: "Naked except for a towel — bath/post-shower scene"
+        theme: ["casual", "lingerie"]
+        exposure: "minimal"
+      - tag: "naked ribbon"
+        notes: "Naked except for decorative ribbon — gift/holiday scene"
+        theme: ["fetish"]
+        exposure: "none"
+      - tag: "naked sweater"
+        notes: "Naked except for an oversized sweater — boyfriend-shirt cousin"
+        theme: ["casual", "lingerie"]
+        exposure: "minimal"
+
+  # ──────────────────────────────────────────────
+  #  HARNESS & STRAPWEAR — strap-only garments
+  # ──────────────────────────────────────────────
+  harness_strapwear:
+    description: "Strap-only and harness-style garments. Used in fetish/club aesthetics. Pair with revealing_modifiers and lingerie."
+    tags:
+      - tag: "harness"
+        notes: "Strap-only 'garment' — body harness over skin or other clothing"
+        theme: ["fetish", "lingerie"]
+        exposure: "minimal"
+      - tag: "body harness"
+        notes: "Full-torso harness"
+        theme: ["fetish", "lingerie"]
+        exposure: "minimal"
+      - tag: "o-ring top"
+        notes: "Top featuring metal O-rings as primary structural element"
+        theme: ["fetish", "streetwear"]
+        exposure: "minimal"
+      - tag: "leather harness"
+        theme: ["fetish"]
+        exposure: "minimal"
+      - tag: "black harness"
+        theme: ["fetish", "gothic"]
+        exposure: "minimal"
+      - tag: "strap"
+        notes: "Generic single-strap component"
+        theme: ["fetish", "lingerie"]
+        exposure: "partial"
+      - tag: "straps"
+        notes: "Multiple straps — generic component"
+        theme: ["fetish", "lingerie"]
+        exposure: "partial"
+
+  # ──────────────────────────────────────────────
+  #  TIGHT MODIFIERS — paint-on / impossible-clothes family
+  # ──────────────────────────────────────────────
+  tight_modifiers:
+    description: "The 'impossible clothes' family — Danbooru's term for paint-on tight garments showing every body contour. Pair with materials.yaml > textures_effects (skin tight, taut clothes) and nudity.yaml > covered_visibility (covered nipples)."
+    tags:
+      - tag: "impossible clothes"
+        notes: "Generic paint-on parent tag for the impossible_* family"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "impossible shirt"
+        notes: "Paint-on shirt showing every contour"
+        theme: ["fetish", "casual"]
+        exposure: "partial"
+      - tag: "impossible bodysuit"
+        notes: "Paint-on full bodysuit"
+        theme: ["fetish", "cosplay"]
+        exposure: "partial"
+      - tag: "impossible dress"
+        notes: "Paint-on dress"
+        theme: ["formal", "fetish"]
+        exposure: "partial"
+      - tag: "impossible leotard"
+        notes: "Paint-on leotard"
+        theme: ["athletic", "fetish"]
+        exposure: "minimal"
+      - tag: "impossible swimsuit"
+        notes: "Paint-on one-piece swimsuit"
+        theme: ["swimwear", "fetish"]
+        exposure: "minimal"
+      - tag: "impossible sweater"
+        notes: "Paint-on sweater"
+        theme: ["casual", "fetish"]
+        exposure: "partial"
+      - tag: "impossible jacket"
+        notes: "Paint-on jacket"
+        theme: ["casual", "fetish"]
+        exposure: "partial"
+      - tag: "impossible skirt"
+        notes: "Paint-on skirt"
+        theme: ["casual", "fetish"]
+        exposure: "partial"
+      - tag: "impossible underwear"
+        notes: "Paint-on underwear"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "impossible vest"
+        notes: "Paint-on vest"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "impossible towel"
+        notes: "Paint-on/barely-there towel"
+        theme: ["fetish", "casual"]
+        exposure: "minimal"

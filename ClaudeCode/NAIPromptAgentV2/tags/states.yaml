@@ -1,0 +1,295 @@
+meta:
+  category: "states"
+  description: "Clothing states, conditions, interactions, motion descriptors, tools/agents, and temporal modifiers — torn, wet, pulled, lifted, disheveled, wardrobe malfunction, sliding off, scissors, cutting"
+
+subcategories:
+  clothing_removal:
+    description: "States of undress and clothing removal"
+    tags:
+      - tag: "undressing"
+        notes: "In the act of removing clothing"
+      - tag: "partially undressed"
+        notes: "Some clothing removed or loosened"
+      - tag: "clothes removed"
+        notes: "Clothing that has been taken off"
+      - tag: "unbuttoned"
+        notes: "Buttons unfastened on shirt or top"
+      - tag: "unzipped"
+        notes: "Zipper pulled down"
+      - tag: "open clothes"
+        notes: "Clothing hanging open, not fastened"
+      - tag: "open shirt"
+        notes: "Shirt hanging open, unbuttoned"
+      - tag: "loosened necktie"
+        notes: "Tie pulled loose from the collar"
+      - tag: "clothes on floor"
+        notes: "Discarded clothing visible on the ground"
+      - tag: "no bra"
+        notes: "Indicates bra has been removed or not worn"
+      - tag: "no panties"
+        notes: "Indicates panties have been removed or not worn"
+
+  clothing_interaction:
+    description: "Character interacting with their own clothing"
+    tags:
+      - tag: "clothes lift"
+        notes: "Lifting clothing to reveal what is underneath"
+      - tag: "shirt lift"
+        notes: "Lifting the shirt/top upward"
+      - tag: "skirt lift"
+        notes: "Lifting the skirt upward"
+      - tag: "dress lift"
+        notes: "Lifting the dress upward"
+      - tag: "clothes pull"
+        notes: "Pulling clothing to one side or down"
+      - tag: "shirt pull"
+        notes: "Pulling the shirt downward or to the side"
+      - tag: "skirt pull"
+        notes: "Pulling the skirt down or aside"
+      - tag: "bra pull"
+        notes: "Pulling the bra aside or down"
+      - tag: "panty pull"
+        notes: "Pulling panties aside or down"
+      - tag: "clothes grab"
+        notes: "Gripping or clutching at own clothing"
+      - tag: "collar pull"
+        notes: "Pulling at the collar"
+      - tag: "strap slip"
+        notes: "Shoulder strap slipping down"
+      - tag: "adjusting clothes"
+        notes: "Character adjusting or fixing their clothing"
+      - tag: "covering"
+        notes: "Using hands or objects to cover exposed areas"
+      - tag: "covering breasts"
+        notes: "Hands covering chest area"
+      - tag: "covering crotch"
+        notes: "Hands covering lower area"
+      - tag: "stocking pull"
+        notes: "Pulling stockings up or down"
+      - tag: "shoes removed"
+        notes: "Shoes off but visible nearby"
+      - tag: "shoe dangle"
+        notes: "Shoe dangling off the toes — foot-focus pose"
+      - tag: "unbuckled"
+        notes: "Strap or buckle undone — applies to sandals/heels/belts"
+      - tag: "high heels held"
+        notes: "Character carrying her shoes by hand"
+
+  clothing_damage:
+    description: "Damaged, torn, or distressed clothing"
+    tags:
+      - tag: "torn clothes"
+        notes: "The generic damage anchor (205k posts). Use garment-specific variants below when the worn garment is known — they render far more reliably."
+      # Garment-specific torn variants — all verified high-count Danbooru tags. Prefer these over generic 'torn clothes' for the garments the character actually wears.
+      - tag: "torn shirt"
+        notes: "Shirt/blouse with tears"
+      - tag: "torn dress"
+        notes: "Dress with tears (use for armored dress too, alongside 'broken armor')"
+      - tag: "torn skirt"
+        notes: "Skirt with tears"
+      - tag: "torn bodysuit"
+        notes: "Bodysuit/catsuit with tears"
+      - tag: "torn leotard"
+        notes: "Leotard with tears"
+      - tag: "torn pants"
+        notes: "Pants/trousers with tears"
+      - tag: "torn shorts"
+        notes: "Shorts with tears"
+      - tag: "torn jacket"
+        notes: "Jacket with tears"
+      - tag: "torn coat"
+        notes: "Coat with tears"
+      - tag: "torn cape"
+        notes: "Cape with tears"
+      - tag: "torn sleeves"
+        notes: "Sleeves with tears"
+      - tag: "torn gloves"
+        notes: "Gloves with tears"
+      - tag: "torn scarf"
+        notes: "Scarf with tears"
+      - tag: "torn thighhighs"
+        notes: "Thigh-high stockings with runs or tears"
+      - tag: "torn pantyhose"
+        notes: "Pantyhose with runs or tears"
+      - tag: "torn jeans"
+        notes: "Jeans with tears"
+      - tag: "torn panties"
+        notes: "Panties with tears"
+      - tag: "ripped"
+        notes: "General ripped clothing state"
+      - tag: "tattered"
+        notes: "Heavily worn / ragged look. NOTE: for a CLEAN cut/slash, keep this OUT of the positive and put it in the negative instead (see scene-themes.md)."
+      - tag: "battle damage"
+        notes: "Combat-damaged clothing (support tag, 1.2k). Pair with 'torn clothes' + garment variant — never use alone as the anchor."
+      - tag: "wardrobe malfunction"
+        notes: "Accidental clothing failure or exposure"
+      - tag: "clothes destroyed"
+        verified: false
+        notes: "Low-signal hybrid. Prefer 'torn clothes' + garment variant + 'partially undressed'/'nude' for extent."
+  combat_destruction:
+    description: "Verified tags for combat/weapon destruction scenes. See scene-themes.md and data/themes/ for reusable armor-break / clothing-slash templates. AVOID the dead tags 'armor break', 'split clothes', 'slashed clothes', 'sword slash', 'energy slash' — NAI does not know them."
+    tags:
+      - tag: "broken armor"
+        notes: "Verified (1.4k) — the correct tag for shattered armor. Pair with 'armor' + 'torn clothes'/garment variant. Replaces the dead 'armor break'."
+      - tag: "broken weapon"
+        notes: "Verified (2k) — a destroyed weapon"
+      - tag: "broken sword"
+        notes: "Verified (1.2k) — a shattered sword specifically"
+      - tag: "slashing"
+        notes: "Verified (2.2k) — the slashing action. Belongs in the BASE segment. Replaces the dead 'sword slash'/'energy slash'."
+      - tag: "open clothes"
+        notes: "Drives a CLEAN parting when clothing is cut. Pair with 'torn clothes' for a clean slice instead of a ragged mess."
+
+  clothing_conditions:
+    description: "Wet, transparent, and other clothing conditions"
+    tags:
+      - tag: "wet clothes"
+        notes: "Clothing soaked with water"
+      - tag: "wet shirt"
+        notes: "Shirt soaked, often becomes see-through"
+      - tag: "see-through"
+        aliases: ["sheer"]
+        notes: "Transparent or semi-transparent clothing"
+      - tag: "see-through shirt"
+        notes: "Shirt that is transparent"
+      - tag: "see-through skirt"
+        notes: "Skirt that is transparent"
+      - tag: "skin tight"
+        notes: "Extremely tight-fitting clothing showing body contours"
+      - tag: "tight clothes"
+        notes: "Clothing that is noticeably tight"
+      - tag: "wet"
+        notes: "General wet state"
+
+  clothing_disorder:
+    description: "Disheveled, messy, or disordered clothing states"
+    tags:
+      - tag: "disheveled"
+        notes: "Clothing and appearance in a state of disarray"
+      - tag: "disheveled clothes"
+        notes: "Clothing that is messy or out of place"
+      - tag: "clothes askew"
+        notes: "Clothing shifted out of proper position"
+      - tag: "wrinkled clothes"
+        notes: "Clothing with visible creases and wrinkles"
+      - tag: "rumpled"
+        notes: "Clothing that looks slept-in or crumpled"
+      - tag: "off shoulder"
+        notes: "Clothing that has slipped off one or both shoulders"
+      - tag: "strap slip"
+        notes: "Shoulder strap that has slipped down the arm"
+      - tag: "untucked"
+        notes: "Shirt pulled out of pants/skirt"
+
+  exposure_states:
+    description: "States involving exposure or visibility of undergarments/skin"
+    tags:
+      - tag: "panty peek"
+        aliases: ["pantyshot"]
+        notes: "Brief glimpse of underwear"
+      - tag: "bra visible"
+        notes: "Bra visible through or under clothing"
+      - tag: "sideboob"
+        notes: "Side of breast visible through loose clothing"
+      - tag: "underboob"
+        notes: "Lower curve of breast visible"
+      - tag: "cleavage"
+        notes: "Visible cleavage from neckline"
+      - tag: "navel"
+        notes: "Belly button visible"
+      - tag: "midriff"
+        notes: "Exposed stomach area"
+      - tag: "bare back"
+        notes: "Exposed back"
+      - tag: "bare legs"
+        notes: "Legs without legwear or pants"
+      - tag: "bare arms"
+        notes: "Arms without sleeves"
+      - tag: "bare shoulders"
+        notes: "Shoulders exposed"
+      - tag: "no shoes"
+        notes: "Feet without footwear"
+
+  motion_descriptors:
+    description: "Tags describing clothing in motion — sliding, falling, peeling, mid-action states. Mix verified Danbooru tags with hybrid descriptors for complex actions (see natural-language-hybrid.md)."
+    tags:
+      - tag: "clothes sliding off"
+        verified: false
+        notes: "Clothing slowly slipping down due to gravity. Hybrid descriptor — pair with verified state tags like 'partially undressed' or 'strap slip'"
+      - tag: "falling clothes"
+        verified: false
+        notes: "Clothing actively dropping from the body. Hybrid — pair with 'clothes removed' or 'partially undressed'"
+      - tag: "peeling off"
+        verified: false
+        notes: "Tight clothing being slowly removed, like peeling a layer. Hybrid — pair with 'undressing' or 'clothes pull'"
+      - tag: "mid-tear"
+        verified: false
+        notes: "Clothing captured in the act of tearing. Hybrid — pair with 'torn clothes' for grounding"
+      - tag: "mid-slip"
+        verified: false
+        notes: "Clothing in the process of slipping off. Hybrid — pair with 'strap slip' or 'off shoulder'"
+      - tag: "clothes fluttering"
+        verified: false
+        notes: "Loose clothing moving in the air. Hybrid — pair with 'wind' in base prompt"
+      - tag: "clinging clothes"
+        verified: false
+        notes: "Wet or tight clothing pressed against the body, showing contours. Hybrid — pair with 'wet clothes' or 'skin tight'"
+      - tag: "bunched up"
+        verified: false
+        notes: "Clothing gathered/pushed up in folds. Hybrid — pair with 'clothes lift' or 'shirt lift'"
+      - tag: "hanging by a thread"
+        verified: false
+        notes: "Clothing barely attached, about to fall. Hybrid — pair with 'torn clothes' and 'wardrobe malfunction'"
+      - tag: "resisting removal"
+        verified: false
+        notes: "Character gripping clothing to prevent it from coming off. Hybrid — pair with 'clothes grab' and 'reluctant'"
+
+  tools_and_agents:
+    description: "Tags for tools, objects, or forces causing clothing damage or removal. Verified tags are Danbooru-recognized; hybrid descriptors need pairing with verified state tags."
+    tags:
+      - tag: "scissors"
+        verified: true
+        notes: "Cutting tool. Verified Danbooru tag. Use with 'torn clothes' for clothing destruction scenes"
+      - tag: "knife"
+        verified: true
+        notes: "Blade/cutting tool. Verified Danbooru tag. More threatening than scissors"
+      - tag: "blade"
+        verified: true
+        notes: "Generic cutting edge. Verified Danbooru tag"
+      - tag: "box cutter"
+        verified: true
+        notes: "Utility knife. Verified Danbooru tag. Good for precision cutting scenarios"
+      - tag: "cutting"
+        verified: true
+        notes: "The action of cutting. Verified Danbooru tag. Pair with tool tag + result state"
+      - tag: "cutting clothes"
+        verified: false
+        notes: "Actively cutting clothing with a tool. Hybrid — always pair with a tool tag (scissors/knife) AND a result tag (torn clothes)"
+      - tag: "ripping clothes"
+        verified: false
+        notes: "Tearing clothing apart by force. Hybrid — pair with 'torn clothes'"
+      - tag: "pulling off clothes"
+        verified: false
+        notes: "Forcibly removing clothing. Hybrid — pair with 'clothes pull' and 'undressing'"
+      - tag: "snagged"
+        verified: false
+        notes: "Clothing caught on something. Hybrid — pair with 'torn clothes' or 'clothes askew'"
+
+  temporal_modifiers:
+    description: "Tags that modify the timing or progression of clothing states. Use in sequential tag stacking to control the 'moment' captured in the image."
+    tags:
+      - tag: "about to"
+        verified: false
+        notes: "Implies something is about to happen (e.g., 'about to fall'). Hybrid — use before the state tag it modifies"
+      - tag: "just happened"
+        verified: false
+        notes: "Implies something just occurred. Hybrid — use after the cause tag"
+      - tag: "in progress"
+        verified: false
+        notes: "Action actively happening right now. Hybrid — use between cause and result tags"
+      - tag: "aftermath"
+        verified: false
+        notes: "After the event has completed. Hybrid — use only result/state tags, skip cause tags"
+      - tag: "caught in the act"
+        verified: false
+        notes: "Discovered during an ongoing action. Hybrid — combine with 'caught' from scenarios.yaml"

@@ -1,0 +1,493 @@
+meta:
+  category: "nudity"
+  description: "Body-part exposure, anatomy, arousal cues, fluids, explicit acts/positions, and fetish-framing tags. Heavily used across saved arcs (maruzensky-exhibitionist, kitasan-black-sheer-idol, daiwa-scarlet-subway). Pair with clothing.yaml > revealing_modifiers and states.yaml > exposure_states. For non-native mind/personality concepts (mind break, bimbofication, intelligence loss) use data/genres/*.yaml, not raw tags."
+  exposure_values: ["full", "partial", "minimal", "none"]
+
+subcategories:
+
+  # ──────────────────────────────────────────────
+  #  ANATOMY — visible body parts
+  # ──────────────────────────────────────────────
+  anatomy:
+    description: "Visible anatomical parts. Use as state-level reinforcers when nudity or partial exposure is the focus."
+    tags:
+      - tag: "nipples"
+        verified: true
+        exposure: "none"
+        notes: "Visible nipples. Verified Danbooru tag"
+      - tag: "areolae"
+        verified: true
+        exposure: "none"
+        notes: "Visible areolae. Verified Danbooru tag"
+      - tag: "pussy"
+        verified: true
+        exposure: "none"
+        notes: "Mature anatomy tag. Verified Danbooru tag"
+      - tag: "anus"
+        verified: true
+        exposure: "none"
+        notes: "Mature anatomy tag. Verified Danbooru tag"
+      - tag: "pubic hair"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "shaved pubic hair"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "cleft of venus"
+        verified: true
+        exposure: "none"
+        notes: "Visible mons/labia outline (unclothed counterpart of cameltoe). Verified Danbooru tag"
+      - tag: "armpits"
+        verified: true
+        exposure: "partial"
+        notes: "Visible armpits. Verified Danbooru tag"
+      - tag: "ass visible"
+        verified: false
+        exposure: "minimal"
+        notes: "Buttocks visible/exposed. Hybrid — pair with 'from behind' or pose tags"
+      - tag: "thigh gap"
+        verified: true
+        exposure: "partial"
+        notes: "Verified Danbooru tag"
+      - tag: "ass"
+        verified: true
+        exposure: "minimal"
+        notes: "Buttocks. Verified Danbooru tag — pair with 'from behind'"
+      - tag: "sideboob"
+        verified: true
+        exposure: "minimal"
+        notes: "Breast visible from the side. Verified Danbooru tag"
+      - tag: "underboob"
+        verified: true
+        exposure: "minimal"
+        notes: "Underside of breast visible. Verified Danbooru tag"
+      - tag: "backboob"
+        verified: true
+        exposure: "minimal"
+        notes: "Breast visible from behind. Verified Danbooru tag"
+      - tag: "navel"
+        verified: true
+        exposure: "partial"
+        notes: "Visible navel/midriff. Verified Danbooru tag"
+      - tag: "stomach"
+        verified: true
+        exposure: "partial"
+        notes: "Visible stomach/midriff. Verified Danbooru tag"
+      - tag: "clitoris"
+        verified: true
+        exposure: "none"
+        notes: "Explicit anatomy. Verified Danbooru tag"
+      - tag: "labia"
+        verified: true
+        exposure: "none"
+        notes: "Explicit anatomy. Verified Danbooru tag"
+      - tag: "puffy nipples"
+        verified: true
+        exposure: "none"
+        notes: "Nipple shape descriptor. Verified Danbooru tag"
+      - tag: "inverted nipples"
+        verified: true
+        exposure: "none"
+        notes: "Nipple shape descriptor. Verified Danbooru tag"
+      - tag: "large areolae"
+        verified: true
+        exposure: "none"
+        notes: "Areola size descriptor. Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  STATES OF AROUSAL — visible body cues
+  # ──────────────────────────────────────────────
+  states_arousal:
+    description: "Body-state cues indicating arousal or stimulation. Pair with reactions_emotional from scenarios.yaml."
+    tags:
+      - tag: "erect nipples"
+        verified: true
+        exposure: "none"
+        notes: "Visibly hard nipples (uncovered). Verified Danbooru tag"
+      - tag: "pokies"
+        verified: true
+        exposure: "minimal"
+        notes: "Erect nipples poking through clothing. Pairs with 'covered nipples'. Verified Danbooru tag"
+      - tag: "blush"
+        verified: true
+        exposure: "full"
+        notes: "Facial flush. Verified Danbooru tag — pairs with 'body blush'"
+      - tag: "body blush"
+        verified: true
+        exposure: "full"
+        notes: "Flush across body/chest indicating arousal/heat. Verified Danbooru tag"
+      - tag: "steaming body"
+        verified: true
+        exposure: "full"
+        notes: "Heat/steam off the body — arousal or post-exertion. Verified Danbooru tag"
+      - tag: "heavy breathing"
+        verified: true
+        exposure: "full"
+        notes: "Panting/arousal cue. Verified Danbooru tag"
+      - tag: "naked sweat"
+        verified: true
+        exposure: "none"
+        notes: "Sweat on bare skin. Verified Danbooru tag"
+      - tag: "torogao"
+        verified: true
+        exposure: "full"
+        notes: "Melting/aroused expression. Verified Danbooru tag (see also data/genres intelligence-loss)"
+
+  # ──────────────────────────────────────────────
+  #  TOTAL EXPOSURE — full or near-full nudity states
+  # ──────────────────────────────────────────────
+  exposure_total:
+    description: "Top-level nudity state tags. Use as primary garment-replacement when no clothing is intended."
+    tags:
+      - tag: "nude"
+        verified: true
+        exposure: "none"
+        notes: "Fully unclothed. Verified Danbooru tag"
+      - tag: "completely nude"
+        verified: true
+        exposure: "none"
+        notes: "Fully unclothed, more emphatic than 'nude'. Verified Danbooru tag"
+      - tag: "topless"
+        verified: true
+        exposure: "minimal"
+        notes: "Top removed, bottom intact. Verified Danbooru tag"
+      - tag: "bottomless"
+        verified: true
+        exposure: "minimal"
+        notes: "Bottom removed, top intact. Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  SLIP STATES — accidental partial exposure
+  # ──────────────────────────────────────────────
+  slip_states:
+    description: "Accidental or wardrobe-malfunction exposure. Pair with reactions_emotional ('embarrassed', 'flustered')."
+    tags:
+      - tag: "nipple slip"
+        verified: true
+        exposure: "minimal"
+        notes: "One nipple accidentally exposed. Verified Danbooru tag"
+      - tag: "breast slip"
+        verified: true
+        exposure: "minimal"
+        notes: "Whole breast falling out of garment. Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  COVERED VISIBILITY — body visible through/under clothing
+  # ──────────────────────────────────────────────
+  covered_visibility:
+    description: "Anatomy still technically covered but visually present (paint-on / wet / sheer / cameltoe). Pair with materials.yaml > textures_effects (skin tight, wet clothes, see-through) and clothing.yaml > tight_modifiers."
+    tags:
+      - tag: "covered nipples"
+        verified: true
+        exposure: "minimal"
+        notes: "Garment so thin/tight nipples visible through it. Verified Danbooru tag"
+      - tag: "covered navel"
+        verified: true
+        exposure: "partial"
+        notes: "Navel outline visible through garment. Verified Danbooru tag"
+      - tag: "covered abs"
+        verified: true
+        exposure: "partial"
+        notes: "Ab outline visible through garment. Verified Danbooru tag"
+      - tag: "covered collarbone"
+        verified: true
+        exposure: "full"
+        notes: "Collarbone shape visible through garment. Verified Danbooru tag"
+      - tag: "cameltoe"
+        aliases: ["camel toe"]
+        verified: true
+        exposure: "minimal"
+        notes: "Visible mons through tight bottom. Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  EXHIBITIONISM & VOYEURISM — public-context exposure
+  # ──────────────────────────────────────────────
+  exhibitionism:
+    description: "Public-setting exposure framing. Pair with public_context tags from scenarios.yaml."
+    tags:
+      - tag: "public nudity"
+        verified: true
+        exposure: "none"
+        notes: "Nudity in public setting. Verified Danbooru tag"
+      - tag: "flashing"
+        verified: true
+        exposure: "minimal"
+        notes: "Brief deliberate exposure. Verified Danbooru tag"
+      - tag: "upskirt"
+        verified: true
+        exposure: "minimal"
+        notes: "Below-skirt view. Verified Danbooru tag"
+      - tag: "downblouse"
+        verified: true
+        exposure: "minimal"
+        notes: "Down-the-top view. Verified Danbooru tag"
+      - tag: "upshorts"
+        verified: true
+        exposure: "minimal"
+        notes: "Below-shorts view. Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  EXPLICIT — niche P2 (graphic anatomy poses)
+  # ──────────────────────────────────────────────
+  explicit:
+    description: "Niche graphic-anatomy tags. P2 tier — use sparingly and only when the scene specifically requires."
+    tags:
+      - tag: "spread pussy"
+        verified: true
+        exposure: "none"
+        notes: "Niche explicit anatomy. Verified Danbooru tag"
+      - tag: "spread anus"
+        verified: true
+        exposure: "none"
+        notes: "Niche explicit anatomy. Verified Danbooru tag"
+      - tag: "spread legs"
+        verified: true
+        exposure: "none"
+        notes: "Open-leg pose. Verified Danbooru tag"
+      - tag: "presenting"
+        verified: true
+        exposure: "none"
+        notes: "Displaying genitals/rear toward viewer. Verified Danbooru tag"
+      - tag: "spread ass"
+        verified: true
+        exposure: "none"
+        notes: "Niche explicit anatomy. Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  FLUIDS — bodily/sexual fluids (P2 explicit)
+  # ──────────────────────────────────────────────
+  fluids:
+    description: "Fluid tags for explicit or aroused scenes. Pair with states_arousal and sex_acts. Use sparingly — one or two reads cleaner than stacking."
+    tags:
+      - tag: "saliva"
+        verified: true
+        exposure: "full"
+        notes: "Visible saliva. Verified Danbooru tag (pairs with 'drooling', 'saliva trail')"
+      - tag: "drooling"
+        verified: true
+        exposure: "full"
+        notes: "Drool from mouth. Verified Danbooru tag"
+      - tag: "sweat"
+        verified: true
+        exposure: "full"
+        notes: "Visible sweat. Verified Danbooru tag"
+      - tag: "tears"
+        verified: true
+        exposure: "full"
+        notes: "Crying/welling tears. Verified Danbooru tag"
+      - tag: "pussy juice"
+        verified: true
+        exposure: "none"
+        notes: "Vaginal fluid. Verified Danbooru tag"
+      - tag: "female ejaculation"
+        verified: true
+        exposure: "none"
+        notes: "Explicit fluid. Verified Danbooru tag"
+      - tag: "cum"
+        verified: true
+        exposure: "none"
+        notes: "Semen. Verified Danbooru tag"
+      - tag: "cum on body"
+        verified: true
+        exposure: "none"
+        notes: "Semen on body. Verified Danbooru tag"
+      - tag: "cum on breasts"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "facial"
+        verified: true
+        exposure: "none"
+        notes: "Semen on face. Verified Danbooru tag"
+      - tag: "cum in mouth"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "cumdrip"
+        verified: true
+        exposure: "none"
+        notes: "Semen dripping. Verified Danbooru tag"
+      - tag: "bukkake"
+        verified: true
+        exposure: "none"
+        notes: "Heavy multi-source semen. Verified Danbooru tag"
+      - tag: "overflow"
+        verified: true
+        exposure: "none"
+        notes: "Fluid overflowing. Verified Danbooru tag"
+      - tag: "lactation"
+        verified: true
+        exposure: "none"
+        notes: "Milk from breasts. Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  SEX ACTS — explicit acts & positions (P2)
+  # ──────────────────────────────────────────────
+  sex_acts:
+    description: "Explicit act/position tags. P2 — use only when the scene is explicitly sexual. Count tags stay accurate (e.g. add a partner/penis tag when an act needs one)."
+    tags:
+      - tag: "sex"
+        verified: true
+        exposure: "none"
+        notes: "General sexual act. Verified Danbooru tag"
+      - tag: "vaginal"
+        verified: true
+        exposure: "none"
+        notes: "Vaginal penetration. Verified Danbooru tag"
+      - tag: "anal"
+        verified: true
+        exposure: "none"
+        notes: "Anal penetration. Verified Danbooru tag"
+      - tag: "oral"
+        verified: true
+        exposure: "none"
+        notes: "Oral sex (general). Verified Danbooru tag"
+      - tag: "fellatio"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "cunnilingus"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "paizuri"
+        verified: true
+        exposure: "none"
+        notes: "Breast sex. Verified Danbooru tag"
+      - tag: "handjob"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "footjob"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "fingering"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "masturbation"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "penis"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag — include when an act requires a partner"
+      - tag: "doggystyle"
+        verified: true
+        exposure: "none"
+        notes: "Position. Verified Danbooru tag"
+      - tag: "missionary"
+        verified: true
+        exposure: "none"
+        notes: "Position. Verified Danbooru tag"
+      - tag: "cowgirl position"
+        verified: true
+        exposure: "none"
+        notes: "Position. Verified Danbooru tag"
+      - tag: "girl on top"
+        verified: true
+        exposure: "none"
+        notes: "Position. Verified Danbooru tag"
+      - tag: "sex from behind"
+        verified: true
+        exposure: "none"
+        notes: "Position. Verified Danbooru tag"
+      - tag: "after sex"
+        verified: true
+        exposure: "none"
+        notes: "Aftermath framing. Verified Danbooru tag (pairs with 'afterglow', 'cumdrip')"
+      - tag: "afterglow"
+        verified: true
+        exposure: "full"
+        notes: "Post-climax glow. Verified Danbooru tag"
+      - tag: "group sex"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "threesome"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+
+  # ──────────────────────────────────────────────
+  #  FETISH MODIFIERS — kink framing tags
+  # ──────────────────────────────────────────────
+  fetish_modifiers:
+    description: "Fetish/kink framing. Verified Danbooru tags; for non-native concepts (mind break, bimbofication, intelligence loss) use data/genres/*.yaml instead. Keep to 1-2 per scene."
+    tags:
+      - tag: "bondage"
+        verified: true
+        exposure: "partial"
+        notes: "Restraint. Verified Danbooru tag"
+      - tag: "shibari"
+        verified: true
+        exposure: "partial"
+        notes: "Japanese rope bondage. Verified Danbooru tag (pairs with 'rope')"
+      - tag: "rope"
+        verified: true
+        exposure: "full"
+        notes: "Verified Danbooru tag"
+      - tag: "ball gag"
+        verified: true
+        exposure: "full"
+        notes: "Verified Danbooru tag"
+      - tag: "gag"
+        verified: true
+        exposure: "full"
+        notes: "Verified Danbooru tag"
+      - tag: "collar"
+        verified: true
+        exposure: "full"
+        notes: "Verified Danbooru tag (see also accessories.yaml > neck)"
+      - tag: "leash"
+        verified: true
+        exposure: "full"
+        notes: "Verified Danbooru tag (pairs with 'collar')"
+      - tag: "blindfold"
+        verified: true
+        exposure: "full"
+        notes: "Verified Danbooru tag"
+      - tag: "chastity belt"
+        verified: true
+        exposure: "minimal"
+        notes: "Verified Danbooru tag"
+      - tag: "pregnant"
+        verified: true
+        exposure: "partial"
+        notes: "Verified Danbooru tag"
+      - tag: "stomach bulge"
+        verified: true
+        exposure: "none"
+        notes: "Internal/penetration bulge. Verified Danbooru tag"
+      - tag: "x-ray"
+        verified: true
+        exposure: "none"
+        notes: "Cutaway showing internal penetration. Verified Danbooru tag (pairs with 'cross-section', 'internal cumshot')"
+      - tag: "cross-section"
+        verified: true
+        exposure: "none"
+        notes: "Internal cutaway view. Verified Danbooru tag"
+      - tag: "internal cumshot"
+        verified: true
+        exposure: "none"
+        notes: "Verified Danbooru tag"
+      - tag: "tentacles"
+        verified: true
+        exposure: "partial"
+        notes: "Verified Danbooru tag"
+      - tag: "feet"
+        verified: true
+        exposure: "partial"
+        notes: "Foot focus. Verified Danbooru tag (pairs with 'soles', 'barefoot')"
+      - tag: "soles"
+        verified: true
+        exposure: "partial"
+        notes: "Foot soles. Verified Danbooru tag"
+      - tag: "latex"
+        verified: true
+        exposure: "full"
+        notes: "Latex material/fetish. Verified Danbooru tag (see also materials.yaml)"

@@ -149,6 +149,23 @@ Read `references/negative-prompts.md`. Always include:
 
 Read `references/v45-syntax.md` for complete syntax rules.
 
+## Apply a Scene Theme
+
+A **scene theme** is a reusable template you layer onto a built scene to add a complex
+effect reliably. Offer it after the outfit/scene is assembled, or whenever the user asks
+for one (e.g., "make her armor break", "slash her clothes").
+
+1. List available themes in `data/themes/` (currently `armor-break`, `clothing-slash`).
+2. Read the chosen theme YAML **and** `references/scene-themes.md` for the apply algorithm.
+3. Follow the algorithm: effects → Base; anchors/support + garment-mapped `torn_<garment>`
+   → Character (drop the pristine garment tag); one focal-point emphasis; append the
+   clean-cut + safety + panel negatives to Undesired Content; suggest the theme's settings.
+4. Show the merged Base / Character / Undesired / Combined and note which garment tags were
+   replaced by torn variants.
+
+**Only use verified tags** — the theme files list `avoid_dead_tags` (e.g. `armor break`,
+`sword slash`, `split clothes`) that NAI does not know; never emit those.
+
 ## Persistence — Saving & Loading
 
 ### Saving Characters
@@ -245,12 +262,23 @@ When user wants settings recommendations, suggest:
 |---------|---------|-------|
 | Resolution | 832×1216 (portrait) | Use 1216×832 for landscape |
 | Guidance Scale | 5 | Lower (3-4) for more creative, higher (6-7) for more literal |
-| Sampler | Euler | Reliable default |
+| Sampler | Euler Ancestral | NAI-recommended for fresh content. **For reproducing a reference or exact image, use Euler / DPM++ 2M + a fixed seed** (deterministic). DPM++ 2M also recommended. |
 | Steps | 28 | Good balance of quality and speed |
+
+These defaults are **confirmed by top community images** (see `references/gallery-insights.md`),
+which also add two dials worth suggesting: **noise schedule `karras`** (92% of top images) and
+**cfg_rescale `0`** (the community default; raise to ~0.1–0.6 only for extra prompt-adherence).
+
+For recreating the **art style or exact recipe of an existing image**, see
+`../identify/references/style-recreation.md` (and use `/identify`'s Recreate Style
+mode — it can recover the full recipe from a NAI-generated PNG).
 
 ## Resources
 
 Read these files during operation:
 - All files in `tags/` — Tag catalogs for lookup
 - `data/artists/curated-artists.yaml` — Artist matching
+- `data/themes/` — Reusable scene themes (armor-break, clothing-slash)
+- `references/scene-themes.md` — Scene-theme apply algorithm + garment→torn map + verified combat vocabulary
+- `references/gallery-insights.md` — Community-proven settings/quality-tag/negative distributions scraped from the Explore gallery (additive evidence layer; SFW-general quality)
 - All files in `references/` — Syntax, weighting, output format, negatives, tag guide

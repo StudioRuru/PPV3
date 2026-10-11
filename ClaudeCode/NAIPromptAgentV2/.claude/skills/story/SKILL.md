@@ -102,6 +102,11 @@ Based on the user's response:
 2. Read `tags/states.yaml` for clothing state changes
 3. Read `tags/scenarios.yaml` for narrative context tags
 4. Determine what changes from the previous scene
+5. **If a scene calls for a combat-destruction beat** (armor breaking, clothing slashed —
+   often the climax), apply a scene theme from `data/themes/` using the apply algorithm in
+   `.claude/skills/prompt/references/scene-themes.md`: effects → Base, anchors + garment-mapped
+   `torn_<garment>` → Character, one focal emphasis, clean-cut/safety/panel negatives → Undesired.
+   Respect state accumulation (torn stays torn in later scenes) and only verified tags.
 
 ### Step 3: Show Scene Diff
 Present what changed from the previous scene:
@@ -280,5 +285,7 @@ Read these files during operation:
 - `data/artists/curated-artists.yaml` — Artist matching
 - `data/characters/` — Saved character profiles
 - `data/arcs/` — Saved story arcs
+- `data/themes/` — Reusable scene themes (armor-break, clothing-slash) for combat-destruction beats
+- `.claude/skills/prompt/references/scene-themes.md` — Scene-theme apply algorithm + garment→torn map
 - `.claude/skills/prompt/references/` — V4.5 syntax, auto-weighting, output format, negatives
 - `.claude/skills/prompt/references/appearance-interview.md` — Character Appearance Interview protocol

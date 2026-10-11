@@ -1,0 +1,290 @@
+meta:
+  category: "footwear"
+  description: "Footwear and legwear tags with theme and exposure metadata"
+
+subcategories:
+  heels:
+    description: "High heels and heeled footwear variants"
+    tags:
+      - tag: "high heels"
+        theme: ["formal", "office"]
+        exposure: "full"
+      - tag: "stiletto heels"
+        theme: ["formal", "fetish"]
+        exposure: "full"
+      - tag: "platform heels"
+        theme: ["streetwear", "gothic", "fetish"]
+        exposure: "full"
+      - tag: "wedge heels"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "pumps"
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "kitten heels"
+        theme: ["office", "casual"]
+        exposure: "full"
+      - tag: "strappy heels"
+        theme: ["formal", "casual"]
+        exposure: "partial"
+      - tag: "clear heels"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "block heels"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "heeled sandals"
+        theme: ["casual", "formal"]
+        exposure: "partial"
+      - tag: "peep-toe pumps"
+        notes: "Pumps with open front showing toes"
+        theme: ["formal", "office"]
+        exposure: "partial"
+      - tag: "open-toe shoes"
+        notes: "Generic open-front heels/shoes"
+        theme: ["formal", "casual"]
+        exposure: "partial"
+      - tag: "ankle strap heels"
+        notes: "Heels secured by ankle strap"
+        theme: ["formal", "fetish"]
+        exposure: "partial"
+
+  boots:
+    description: "Boots of all heights and styles"
+    tags:
+      - tag: "boots"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "knee boots"
+        theme: ["casual", "gothic"]
+        exposure: "full"
+      - tag: "thigh boots"
+        aliases: ["thigh-high boots"]
+        theme: ["gothic", "fetish", "fantasy"]
+        exposure: "full"
+      - tag: "over-the-knee boots"
+        notes: "Distinct from thigh boots — falls between knee and thigh height"
+        theme: ["gothic", "fetish"]
+        exposure: "full"
+      - tag: "ankle boots"
+        theme: ["casual", "streetwear"]
+        exposure: "full"
+      - tag: "combat boots"
+        theme: ["streetwear", "gothic"]
+        exposure: "full"
+      - tag: "high heel boots"
+        theme: ["gothic", "fetish"]
+        exposure: "full"
+      - tag: "lace-up boots"
+        theme: ["gothic", "casual"]
+        exposure: "full"
+      - tag: "cowboy boots"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "riding boots"
+        theme: ["casual", "fantasy"]
+        exposure: "full"
+      - tag: "platform boots"
+        theme: ["gothic", "streetwear"]
+        exposure: "full"
+      - tag: "armored boots"
+        theme: ["fantasy"]
+        exposure: "full"
+      - tag: "fur-trimmed boots"
+        theme: ["fantasy"]
+        exposure: "full"
+
+  shoes:
+    description: "Flat and low-heeled footwear"
+    tags:
+      - tag: "sneakers"
+        theme: ["casual", "streetwear", "athletic"]
+        exposure: "full"
+      - tag: "high-top sneakers"
+        theme: ["streetwear", "casual"]
+        exposure: "full"
+      - tag: "low-top sneakers"
+        theme: ["streetwear", "casual"]
+        exposure: "full"
+      - tag: "loafers"
+        theme: ["school", "casual"]
+        exposure: "full"
+      - tag: "mary janes"
+        theme: ["school", "gothic"]
+        exposure: "full"
+      - tag: "sandals"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "slippers"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "flats"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "uwabaki"
+        aliases: ["indoor shoes"]
+        notes: "Japanese indoor school shoes"
+        theme: ["school"]
+        exposure: "full"
+      - tag: "barefoot"
+        theme: ["casual", "fantasy"]
+        exposure: "partial"
+      - tag: "flip-flops"
+        theme: ["casual", "swimwear"]
+        exposure: "partial"
+      - tag: "dress shoes"
+        theme: ["formal", "office"]
+        exposure: "full"
+      - tag: "mules"
+        notes: "Open-back heeled or flat shoe"
+        theme: ["office", "casual"]
+        exposure: "partial"
+      - tag: "platform shoes"
+        notes: "Generic non-heel platform footwear"
+        theme: ["streetwear", "gothic"]
+        exposure: "full"
+      - tag: "ballet flats"
+        notes: "Flat slipper-style shoe — distinct from generic 'flats'"
+        theme: ["office", "casual"]
+        exposure: "full"
+      - tag: "espadrilles"
+        notes: "Casual woven-sole summer shoe"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "crocs"
+        notes: "Foam clogs"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "geta"
+        notes: "Wooden Japanese sandal — pairs with kimono/yukata"
+        theme: ["traditional"]
+        exposure: "partial"
+      - tag: "zori"
+        notes: "Flat Japanese sandal"
+        theme: ["traditional"]
+        exposure: "partial"
+      - tag: "ballet shoes"
+        theme: ["athletic", "cosplay"]
+        exposure: "partial"
+      - tag: "pointe shoes"
+        notes: "Ballet pointe shoes"
+        theme: ["athletic", "cosplay"]
+        exposure: "partial"
+      - tag: "ballet slippers"
+        theme: ["athletic", "casual"]
+        exposure: "partial"
+      - tag: "platform sandals"
+        theme: ["streetwear", "casual"]
+        exposure: "partial"
+      - tag: "gladiator sandals"
+        notes: "Strappy ankle/calf-laced sandals"
+        theme: ["casual", "fantasy"]
+        exposure: "partial"
+      - tag: "slide sandals"
+        theme: ["casual", "swimwear"]
+        exposure: "partial"
+
+  legwear:
+    description: "Stockings, socks, garters, and leg accessories"
+    tags:
+      - tag: "thighhighs"
+        theme: ["school", "gothic", "lingerie"]
+        exposure: "partial"
+      - tag: "pantyhose"
+        theme: ["office", "formal"]
+        exposure: "partial"
+      - tag: "kneehighs"
+        theme: ["school", "casual"]
+        exposure: "full"
+      - tag: "ankle socks"
+        theme: ["casual", "school"]
+        exposure: "full"
+      - tag: "over-kneehighs"
+        theme: ["school", "gothic"]
+        exposure: "partial"
+      - tag: "fishnet thighhighs"
+        theme: ["gothic", "fetish"]
+        exposure: "partial"
+      - tag: "fishnet pantyhose"
+        theme: ["gothic", "fetish"]
+        exposure: "partial"
+      - tag: "striped thighhighs"
+        theme: ["casual", "gothic"]
+        exposure: "partial"
+      - tag: "black thighhighs"
+        theme: ["school", "gothic", "office"]
+        exposure: "partial"
+      - tag: "white thighhighs"
+        theme: ["school", "lingerie"]
+        exposure: "partial"
+      - tag: "torn thighhighs"
+        theme: ["gothic", "fetish"]
+        exposure: "minimal"
+      - tag: "torn pantyhose"
+        theme: ["fetish"]
+        exposure: "minimal"
+      - tag: "garter straps"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "garter belt"
+        theme: ["lingerie", "fetish"]
+        exposure: "minimal"
+      - tag: "thigh strap"
+        theme: ["fetish", "gothic"]
+        exposure: "partial"
+      - tag: "leg garter"
+        theme: ["lingerie", "fetish"]
+        exposure: "partial"
+      - tag: "leg warmers"
+        theme: ["casual", "athletic"]
+        exposure: "full"
+      - tag: "socks"
+        theme: ["casual", "school"]
+        exposure: "full"
+      - tag: "loose socks"
+        theme: ["school"]
+        exposure: "full"
+      - tag: "lace-trimmed legwear"
+        theme: ["lingerie", "gothic"]
+        exposure: "partial"
+      - tag: "fishnet legwear"
+        theme: ["gothic", "fetish"]
+        exposure: "partial"
+      - tag: "single thighhigh"
+        theme: ["fetish"]
+        exposure: "partial"
+      - tag: "no shoes"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "tabi"
+        notes: "Split-toe Japanese socks — pairs with traditional outfits"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "tabi socks"
+        notes: "Modern split-toe socks variant"
+        theme: ["traditional", "casual"]
+        exposure: "full"
+      - tag: "bobby socks"
+        notes: "Folded-cuff white ankle socks (50s/school style)"
+        theme: ["school", "casual"]
+        exposure: "full"
+      - tag: "white socks"
+        theme: ["school", "casual"]
+        exposure: "full"
+      - tag: "leg sleeves"
+        notes: "Single-leg sleeve, often used in fantasy"
+        theme: ["fantasy", "athletic"]
+        exposure: "partial"
+      - tag: "asymmetrical legwear"
+        aliases: ["mismatched legwear"]
+        notes: "Mismatched left/right legwear — fashion or cosplay"
+        theme: ["fetish", "cosplay"]
+        exposure: "partial"
+      - tag: "stirrup legwear"
+        notes: "Legwear with foot stirrup, no full foot covering"
+        theme: ["athletic"]
+        exposure: "partial"
+      - tag: "zettai ryouiki"
+        notes: "The bare-thigh strip between miniskirt and thighhighs — iconic Japanese visual term"
+        theme: ["school", "fetish"]
+        exposure: "partial"
