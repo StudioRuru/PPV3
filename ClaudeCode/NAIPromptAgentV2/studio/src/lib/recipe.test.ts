@@ -53,3 +53,14 @@ test("reads stealth alpha-LSB metadata", async () => {
 test("plain image returns null", async () => {
   assert.equal(await readRecipe(await blankPng(true)), null);
 });
+
+test("V5 recipe with coords restores custom positions", async () => {
+  const withCoords = { ...comment, v4_prompt: { use_coords: true, caption: { base_caption: "2girls", char_captions: [
+    { char_caption: "girl, red hair", centers: [{ x: 0.3, y: 0.5 }] }, { char_caption: "girl", centers: [{ x: 0.7, y: 0.5 }] }] } } };
+  const chunks = extract(new Uint8Array(await blankPng()));
+  chunks.splice(-1, 0, textChunk("Software", "NovelAI"), textChunk("Comment", JSON.stringify(withCoords)));
+  const r = await readRecipe(Buffer.from(encode(chunks)));
+  const { state } = recipeToState(r!);
+  assert.equal(state.positions, "custom");
+  assert.deepEqual(state.chars.map((c) => c.center), [{ x: 0.3, y: 0.5 }, { x: 0.7, y: 0.5 }]);
+});

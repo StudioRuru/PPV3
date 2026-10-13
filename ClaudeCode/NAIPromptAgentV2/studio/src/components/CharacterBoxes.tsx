@@ -1,11 +1,29 @@
 "use client";
-import { newLine, type CharBox } from "@/lib/prompt";
+import { newLine, type CharBox, type Positions } from "@/lib/prompt";
 import { LineList } from "./LineList";
+import { PositionCanvas } from "./PositionCanvas";
 
-export function CharacterBoxes({ chars, onChange }: { chars: CharBox[]; onChange: (c: CharBox[]) => void }) {
+export function CharacterBoxes({ chars, onChange, positions, onPositions, width, height }: {
+  chars: CharBox[]; onChange: (c: CharBox[]) => void;
+  positions: Positions; onPositions: (p: Positions) => void; width: number; height: number;
+}) {
   const set = (i: number, patch: Partial<CharBox>) => onChange(chars.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   return (
     <div className="space-y-3">
+      {chars.length > 0 && (
+        <section className="bg-surface border-border space-y-3 rounded-lg border p-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-semibold">Position</span>
+            <div role="radiogroup" aria-label="Character positions" className="border-border flex overflow-hidden rounded-md border">
+              {([["ai", "AI decides"], ["custom", "Custom"]] as const).map(([v, label]) => (
+                <button key={v} type="button" role="radio" aria-checked={positions === v} onClick={() => onPositions(v)}
+                  className={`px-3 py-2 ${positions === v ? "bg-accent text-accent-fg" : ""}`}>{label}</button>
+              ))}
+            </div>
+          </div>
+          {positions === "custom" && <PositionCanvas chars={chars} width={width} height={height} onChange={onChange} />}
+        </section>
+      )}
       {chars.map((c, i) => (
         <section key={c.id} className="bg-surface border-border rounded-lg border p-3">
           <header className="mb-2 flex items-center justify-between text-sm">
@@ -18,18 +36,6 @@ export function CharacterBoxes({ chars, onChange }: { chars: CharBox[]; onChange
           <LineList lines={c.lines} onChange={(lines) => set(i, { lines })} />
           <input value={c.uc} onChange={(e) => set(i, { uc: e.target.value })} placeholder="character undesired content"
             className="bg-bg border-border mt-2 w-full rounded-md border px-2 py-2 text-base" />
-          {/* ponytail: numeric x/y (0–1); a drag-on-canvas picker comes with the design pass. */}
-          <div className="text-muted mt-2 flex items-center gap-2 text-sm">
-            <label className="flex items-center gap-1">
-              <input type="checkbox" checked={!!c.center} onChange={(e) => set(i, { center: e.target.checked ? { x: 0.5, y: 0.5 } : undefined })} />
-              Custom position
-            </label>
-            {c.center && (["x", "y"] as const).map((k) => (
-              <input key={k} aria-label={`Position ${k}`} type="number" min="0" max="1" step="0.1" value={c.center![k]}
-                onChange={(e) => set(i, { center: { ...c.center!, [k]: Math.min(1, Math.max(0, Number(e.target.value))) } })}
-                className="bg-bg border-border w-16 rounded-md border px-2 py-1 text-base" />
-            ))}
-          </div>
         </section>
       ))}
       {chars.length < 22 && (

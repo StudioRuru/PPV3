@@ -35,3 +35,8 @@ test("random seed when none given", () => {
   const { seed } = buildNaiBody(compiled, DEFAULT_PARAMS);
   assert.ok(Number.isInteger(seed) && seed > 0);
 });
+
+test("model picker is V5-only", async () => {
+  const { MODELS } = await import("./nai-body");
+  assert.deepEqual(MODELS.map((m) => m.id), ["nai-diffusion-5-full", "nai-diffusion-5-curated"]);
+});

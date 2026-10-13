@@ -1,7 +1,9 @@
 export type Line = { id: string; text: string; weight?: number; enabled: boolean };
 export type CharBox = { id: string; lines: Line[]; uc: string; center?: { x: number; y: number }; enabled: boolean };
 export type Rating = "safe" | "nsfw" | "off";
-export type PromptState = { base: Line[]; chars: CharBox[]; uc: string; rating: Rating };
+/** V5 character placement: "ai" lets NovelAI choose; "custom" sends a dot for every character. */
+export type Positions = "ai" | "custom";
+export type PromptState = { base: Line[]; chars: CharBox[]; uc: string; rating: Rating; positions: Positions };
 export type CompiledChar = { prompt: string; uc: string; center?: { x: number; y: number } };
 export type Compiled = { base: string; uc: string; chars: CompiledChar[] };
 
@@ -23,7 +25,7 @@ export function newLine(text = "", weight?: number): Line {
 }
 
 export function emptyState(): PromptState {
-  return { base: [newLine()], chars: [], uc: DEFAULT_UC, rating: "nsfw" };
+  return { base: [newLine()], chars: [], uc: DEFAULT_UC, rating: "nsfw", positions: "ai" };
 }
 
 /** Split on commas/newlines, keeping `w::…::` runs whole. */
@@ -62,6 +64,11 @@ function addMissing(prompt: string, tags: string[]): string {
   return [prompt, ...extra].filter(Boolean).join(", ");
 }
 
+/** Spread unplaced characters left→right across the canvas. */
+export function defaultCenter(i: number, n: number): { x: number; y: number } {
+  return { x: Math.round(((i + 1) / (n + 1)) * 100) / 100, y: 0.5 };
+}
+
 /** True when the user typed something — rating tags alone do not count. */
 export function hasContent(s: PromptState): boolean {
   return joinLines(s.base) !== "";
@@ -69,10 +76,13 @@ export function hasContent(s: PromptState): boolean {
 
 export function compile(s: PromptState): Compiled {
   const r = RATING_TAGS[s.rating];
-  const chars = s.chars
-    .filter((c) => c.enabled)
-    .map((c) => ({ prompt: joinLines(c.lines), uc: c.uc.trim(), center: c.center }))
-    .filter((c) => c.prompt);
+  const live = s.chars.filter((c) => c.enabled && joinLines(c.lines));
+  const custom = s.positions === "custom";
+  const chars = live.map((c, i) => ({
+    prompt: joinLines(c.lines),
+    uc: c.uc.trim(),
+    center: custom ? (c.center ?? defaultCenter(i, live.length)) : undefined,
+  }));
   return { base: addMissing(joinLines(s.base), r.add), uc: addMissing(s.uc.trim(), r.uc), chars };
 }
 

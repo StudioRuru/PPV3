@@ -53,3 +53,20 @@ test("hasContent ignores rating-only prompts", async () => {
   s.base = [newLine("1girl")];
   assert.equal(hasContent(s), true);
 });
+
+test("positions: AI mode sends no centers, custom gives every character one", async () => {
+  const { compile, emptyState, newLine } = await import("./prompt");
+  const s = emptyState();
+  s.rating = "off";
+  s.base = [newLine("2girls")];
+  s.chars = [
+    { id: "a", lines: [newLine("girl")], uc: "", enabled: true, center: { x: 0.2, y: 0.4 } },
+    { id: "b", lines: [newLine("girl")], uc: "", enabled: true },
+  ];
+  s.positions = "ai";
+  assert.deepEqual(compile(s).chars.map((c) => c.center), [undefined, undefined]);
+  s.positions = "custom";
+  const centers = compile(s).chars.map((c) => c.center);
+  assert.deepEqual(centers[0], { x: 0.2, y: 0.4 });
+  assert.ok(centers[1] && centers[1].x > 0 && centers[1].x < 1, "unplaced char gets a default dot");
+});

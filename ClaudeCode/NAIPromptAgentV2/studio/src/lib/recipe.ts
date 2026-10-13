@@ -6,7 +6,7 @@ import { emptyState, newLine, parseToLines, type PromptState } from "./prompt";
 import type { NaiParams } from "./nai-body";
 
 export type Recipe = {
-  model?: string; base: string; chars: string[]; uc: string; artists: string[];
+  model?: string; base: string; chars: string[]; centers: ({ x: number; y: number } | undefined)[]; useCoords: boolean; uc: string; artists: string[];
   seed?: number; sampler?: string; steps?: number; scale?: number; width?: number; height?: number;
 };
 
@@ -49,14 +49,18 @@ export async function readRecipe(png: Buffer): Promise<Recipe | null> {
   if (!raw) return null;
   let c: Raw;
   try { c = typeof raw.Comment === "string" ? JSON.parse(raw.Comment) : (raw.Comment as Raw) ?? {}; } catch { return null; }
-  const v4 = (c.v4_prompt as { caption?: { base_caption?: string; char_captions?: { char_caption?: string }[] } })?.caption;
+  type Cap = { char_caption?: string; centers?: { x: number; y: number }[] };
+  const v4p = c.v4_prompt as { use_coords?: boolean; caption?: { base_caption?: string; char_captions?: Cap[] } } | undefined;
+  const v4 = v4p?.caption;
+  const caps = (v4?.char_captions ?? []).filter((x) => (x.char_caption ?? "").trim());
   const v4n = (c.v4_negative_prompt as { caption?: { base_caption?: string } })?.caption;
   const base = (v4?.base_caption ?? (c.prompt as string) ?? "").trim();
-  const chars = (v4?.char_captions ?? []).map((x) => (x.char_caption ?? "").trim()).filter(Boolean);
+  const chars = caps.map((x) => (x.char_caption ?? "").trim());
+  const centers = caps.map((x) => x.centers?.[0]);
   const artists = [...new Set(`${c.prompt ?? ""}, ${base}`.match(/artist:[^,|:]+/gi)?.map((a) => a.trim()) ?? [])];
   return {
     model: (raw.Source ?? raw.Software) as string | undefined,
-    base, chars, uc: (v4n?.base_caption ?? (c.uc as string) ?? "").trim(), artists,
+    base, chars, centers, useCoords: !!v4p?.use_coords, uc: (v4n?.base_caption ?? (c.uc as string) ?? "").trim(), artists,
     seed: c.seed as number | undefined, sampler: c.sampler as string | undefined, steps: c.steps as number | undefined,
     scale: c.scale as number | undefined, width: c.width as number | undefined, height: c.height as number | undefined,
   };
@@ -66,9 +70,10 @@ export function recipeToState(r: Recipe): { state: PromptState; params: Partial<
   const state: PromptState = {
     ...emptyState(),
     rating: "off",
+    positions: r.useCoords ? "custom" : "ai",
     base: parseToLines(r.base),
     uc: r.uc,
-    chars: r.chars.map((p) => ({ id: newLine().id, lines: parseToLines(p), uc: "", enabled: true })),
+    chars: r.chars.map((p, i) => ({ id: newLine().id, lines: parseToLines(p), uc: "", enabled: true, center: r.useCoords ? r.centers[i] : undefined })),
   };
   const params: Partial<NaiParams> = {};
   if (r.seed) params.seed = r.seed;

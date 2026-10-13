@@ -66,7 +66,9 @@ export default function Studio() {
           <h2 className="mb-2 text-sm font-semibold">Base prompt</h2>
           <LineList lines={state.base} onChange={(base) => setState({ ...state, base })} />
         </div>
-        <CharacterBoxes chars={state.chars} onChange={(chars) => setState({ ...state, chars })} />
+        <CharacterBoxes chars={state.chars} onChange={(chars) => setState({ ...state, chars })}
+          positions={state.positions ?? "ai"} onPositions={(positions) => setState({ ...state, positions })}
+          width={params.width} height={params.height} />
         <div className="bg-surface border-border rounded-lg border p-3">
           <h2 className="mb-2 text-sm font-semibold">Undesired content</h2>
           <textarea value={state.uc} onChange={(e) => setState({ ...state, uc: e.target.value })} rows={3}

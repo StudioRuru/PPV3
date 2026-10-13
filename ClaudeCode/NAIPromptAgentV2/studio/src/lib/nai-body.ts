@@ -8,7 +8,6 @@ export type NaiParams = {
 export const MODELS = [
   { id: "nai-diffusion-5-full", label: "V5 Full" },
   { id: "nai-diffusion-5-curated", label: "V5 Curated" },
-  { id: "nai-diffusion-4-5-full", label: "V4.5 Full" },
 ];
 
 export const DEFAULT_PARAMS: NaiParams = {
