@@ -49,7 +49,7 @@ iPhone (PWA now, native app later) / Mac browser — via Tailscale
   Next.js app :3100 ── login gate (APP_PASSWORD, JWT cookie; from Delfino)
    ├─ /api/generate  → image.novelai.net (NAI token in server .env, never sent to client)
    ├─ /api/grid      → N sequential generations, fixed seed, one line's weight stepped
-   ├─ /api/tag       → tagger sidecar :8190 (FastAPI: PixAI Tagger v1.0 + Camie v2 artist pass)
+   ├─ /api/tag       → tagger sidecar :8190 (FastAPI: PixAI Tagger v1.0)
    ├─ /api/caption   → ToriiGate-0.5 (tag-grounded caption) | JoyCaption Beta One (2nd opinion)
    ├─ /api/expand    → TIPO v2.1 via Ollama raw completion (tags ↔ natural language)
    ├─ /api/chat      → Ollama brain model (scenes, themes, arcs, clusters)
@@ -98,10 +98,9 @@ error, keeps finished cells. Grid results are saved as normal generations tagged
     Categories general / character / style / copyright / meta / rating (g/s/q/e). Default
     thresholds from its card: general 0.17, character 0.27, style 0.15, copyright 0.24, meta 0.17,
     rating 0.41 (the same values the reference app uses). Character micro-F1 0.92 vs Camie 0.73.
-  - **Artist pass: `Camais03/camie-tagger-v2`** (GPL-3.0, personal use; 143M, ONNX). Only its
-    `artist` (7,007 tags, 70% micro-F1) and `year` outputs are used, mapped to `artist:name` and
-    `year 20XX`. Feeds the artist sliders/grid and stands in for style recreation while Precise
-    Reference is missing on V5. Toggle, on by default.
+  - **Artists come from PixAI's `style` category** (4,917 artists, style micro-F1 0.81), emitted as
+    `artist:name`. Camie v2 was dropped (user-approved 2026-10-13): PixAI beats it on artists, so a second
+    model and its GPL license bought only `year` guesses.
 - Candidate artist tags are checked against the Danbooru CSV before display (detections are
   guesses, not facts).
 - UI: threshold slider per category (filtered client-side, no re-run), exclude list (default
@@ -121,7 +120,7 @@ Each job goes to the model that is best at it, all local, all NSFW-capable, all 
 
 | Role | Model | Size | Why | Runs via |
 |---|---|---|---|---|
-| Tagging | PixAI v1.0 + Camie v2 (§4.4) | ~1.5 GB | Purpose-built taggers beat any LLM at booru tags | tagger sidecar |
+| Tagging | PixAI v1.0 (§4.4) | ~2 GB | Purpose-built taggers beat any LLM at booru tags | tagger sidecar |
 | Captioning (default) | **Minthy/ToriiGate-0.5** (Qwen3.5-4B base, MIT; GGUF `DraconicDragon/ToriiGate-0.5-GGUF` Q4_K_M + Q8_0 mmproj) | ~3.4 GB | Anime captioner with no censorship; takes booru tags + character names as grounding → character-aware NL caption / ready prompt. Uses the prompts from its `scripts/prompts.py`; ~1 Mpx input; single image, single turn | `llama-server` :8191 (brew llama.cpp) |
 | Captioning (second opinion, toggle) | fancyfeast **JoyCaption Beta One** (GGUF `mradermacher/llama-joycaption-beta-one-hf-llava-GGUF` Q4 + mmproj) | ~5.5 GB | Equal SFW/NSFW training; independent read for hard images; Booru-tags mode | `llama-server` :8192 |
 | Syntax / prompt expansion | **KBlueLeaf TIPO-v2.1-1B-A200M** (GGUF Q8, Kohaku License) | ~1 GB | Danbooru-trained: expands prompts, converts tags ↔ natural language, rating-conditioned up to `explicit`, emits real tags | Ollama, `raw: true` completion |
