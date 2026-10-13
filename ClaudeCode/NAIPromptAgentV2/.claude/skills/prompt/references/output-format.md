@@ -159,7 +159,7 @@ is only for the single-box workflow (NAI disables `|` once a character box exist
 
 ## Token Budget Awareness
 
-V4.5 has ~512 T5 tokens across base + all character prompts combined. Monitor token usage:
+V5 Full allows ~1,471 effective tokens (V5 Curated ~703; V4.5 ~512 shared). Remove redundant tags; do not prune useful ones for budget on V5:
 
 **Target tag counts:**
 - Base prompt: 10-12 tags
@@ -179,6 +179,8 @@ V4.5 has ~512 T5 tokens across base + all character prompts combined. Monitor to
 ---
 
 ## Reference-Based Story Arc Workflow (character consistency)
+
+> Options A and B need **V4.5 Full** — Precise Reference/Vibe Transfer are not on V5 yet.
 
 For multi-scene arcs, anchor the character with a reference so identity doesn't drift. Two
 options — **prefer Precise Reference when the character has a beauty shot**:

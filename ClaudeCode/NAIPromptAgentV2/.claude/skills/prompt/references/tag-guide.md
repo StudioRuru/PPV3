@@ -58,7 +58,7 @@ If a user requests something not in any catalog:
 
 ## Token-Conscious Tag Selection
 
-V4.5 has ~512 T5 tokens across base + all character prompts. Every tag costs tokens — optimize aggressively.
+V5 Full allows ~1,471 effective tokens (V4.5: ~512 shared). Every tag still costs tokens — drop duplicates, keep useful detail.
 
 ### Prefer Compound Tags
 Use single Danbooru compound tags instead of multiple separate tags:

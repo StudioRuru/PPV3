@@ -93,7 +93,7 @@ still use brackets, read them via this table; emit numeric going forward.
 
 ## Token Budget Awareness
 
-V4.5 has a ~512 T5 token limit across base + all character prompts. Every tag costs tokens.
+V5 Full allows ~1,471 effective tokens (V4.5: ~512 shared). Every tag still costs tokens — drop duplicates, keep useful detail.
 
 **Target counts:**
 - Base prompt: 10–12 tags *(note: top community images often run ~28 base tags — see `gallery-insights.md`; this target favors coherence, but longer is not a hard error)*

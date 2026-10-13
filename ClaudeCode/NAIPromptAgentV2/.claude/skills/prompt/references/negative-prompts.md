@@ -27,6 +27,8 @@ Add these to the negative prompt based on what the user is building:
 
 ## No-panel doctrine (important)
 
+> **V5:** comics/multi-panel pages are now supported natively (see v5-syntax.md → Comics). The doctrine below still applies to single coherent images and to V4.5.
+
 NAI V4.5 renders **one coherent image**, not comic panels. `2koma`, `4koma`, `comic`,
 `panel`, `split screen`, `before and after`, `multiple views` are weak, unreliable steering
 tags — they tend to produce a single muddy subject rather than clean separate panels. So:
