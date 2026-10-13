@@ -14,3 +14,6 @@
 }
 
 html, body { height: 100%; }
+
+/* Drop target highlight while a tag chip is dragged over it. */
+[data-drop-hover] { outline: 2px dashed var(--color-accent); outline-offset: 2px; }
