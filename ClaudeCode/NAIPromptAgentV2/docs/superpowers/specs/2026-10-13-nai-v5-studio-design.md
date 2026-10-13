@@ -10,8 +10,9 @@
 tagging + prompt app (inspired by @Swamp_AI_4th's Tagger+NovelAI app), fully usable from the
 iPhone. A chat toggle turns on a local uncensored Ollama model that takes over what Claude does in
 chat today: creation, scene building, themes, image tagging, tag clusters. UX polish is a
-first-class phase. Optional native iPhone app via Xcode (sideloaded, not App Store). Claude stays
-available as an escalation source when local models fall short.
+first-class phase. Optional native iPhone app via Xcode (sideloaded, not App Store). Claude
+declines explicit content, so the app uses no Claude API: every AI role runs locally on
+NSFW-capable, anime-trained models (§4.6). Claude stays available outside the app via the skills.
 
 **Assumptions:** single user (owner only); runs on the Mac Mini (M4 Pro, 24 GB); `tags/*.yaml` and
 `data/` remain the source of truth shared with the Claude skills.
@@ -48,8 +49,10 @@ iPhone (PWA now, native app later) / Mac browser — via Tailscale
   Next.js app :3100 ── login gate (APP_PASSWORD, JWT cookie; from Delfino)
    ├─ /api/generate  → image.novelai.net (NAI token in server .env, never sent to client)
    ├─ /api/grid      → N sequential generations, fixed seed, one line's weight stepped
-   ├─ /api/tag       → tagger sidecar :8190 (FastAPI, WD EVA02-Large v3)
-   ├─ /api/chat      → provider: ollama (default) | claude (escalation)
+   ├─ /api/tag       → tagger sidecar :8190 (FastAPI: PixAI Tagger v1.0 + Camie v2 artist pass)
+   ├─ /api/caption   → JoyCaption Beta One (vision: booru tags + natural-language caption)
+   ├─ /api/expand    → TIPO v2.1 via Ollama raw completion (tags ↔ natural language)
+   ├─ /api/chat      → Ollama brain model (scenes, themes, arcs, clusters)
    ├─ /api/library   → tags/*.yaml, data/{outfits,themes,arcs,clusters}/*.yaml
    └─ SQLite (better-sqlite3 + Drizzle): generations, chat history
    Files: data/gallery/*.png (recipe embedded by NAI)
@@ -64,7 +67,7 @@ script + LaunchAgent pattern, `tailscale serve` recipe.
 ### 4.1 Shared V5 rules — `v5-syntax.md`
 One file at `.claude/skills/prompt/references/v5-syntax.md` (supersedes `v45-syntax.md` for V5;
 V4.5 file kept for V4.5 use). Loaded by the skills AND injected into the chat system prompt, so
-Claude, Ollama and the app never drift. Skills `/prompt`, `/identify`, `/story` updated to target V5
+the Claude skills, Ollama and the app never drift. Skills `/prompt`, `/identify`, `/story` updated to target V5
 by default: token budget, ordering guidance, new tags, Precise Reference caveat, natural-language
 hybrid guidance.
 
@@ -89,9 +92,18 @@ Cells stream into a labeled row; tap a cell → that weight is applied to the li
 error, keeps finished cells. Grid results are saved as normal generations tagged with a grid id.
 
 ### 4.4 Tagger
-- Sidecar: FastAPI + onnxruntime, `SmilingWolf/wd-eva02-large-tagger-v3`. `POST /tag` (image) →
-  every tag with `{name, category: general|character|rating, score}`. Copyright derived from
-  character tag (`name (series)`). Meta/artist categories out of scope (needs a different model).
+- Sidecar: FastAPI + Transformers on MPS. `POST /tag` (image) → every tag with
+  `{name, category, score}`.
+  - **Primary: `pixai-labs/pixai-tagger-v1.0`** (Apache-2.0, 0.5B, 30,877 tags, data to May 2026).
+    Categories general / character / style / copyright / meta / rating (g/s/q/e). Default
+    thresholds from its card: general 0.17, character 0.27, style 0.15, copyright 0.24, meta 0.17,
+    rating 0.41 (the same values the reference app uses). Character micro-F1 0.92 vs Camie 0.73.
+  - **Artist pass: `Camais03/camie-tagger-v2`** (GPL-3.0, personal use; 143M, ONNX). Only its
+    `artist` (7,007 tags, 70% micro-F1) and `year` outputs are used, mapped to `artist:name` and
+    `year 20XX`. Feeds the artist sliders/grid and stands in for style recreation while Precise
+    Reference is missing on V5. Toggle, on by default.
+- Candidate artist tags are checked against the Danbooru CSV before display (detections are
+  guesses, not facts).
 - UI: threshold slider per category (filtered client-side, no re-run), exclude list (default
   `watermark, text, signature`), underscores→spaces, strip escaped parens, sort by YAML category
   (appearance → clothing → pose → setting → other), tag count. Send to base / Character N,
@@ -103,12 +115,22 @@ Tabs: Outfits, Themes, Arcs, Clusters. Load → fills editor (arcs: pick scene).
 YAML in the existing skill formats. Clusters = named tag groups in `data/clusters/<name>.yaml`
 (`name, tags[], notes`), insertable as one line, usable by skills.
 
-### 4.6 Chat co-pilot
-- Drawer, off by default. On → loads model with keep-alive; off → `keep_alive: 0` to free RAM.
-- **Providers:** `ollama` (default model `dolphin-mistral-24b`, switchable to any installed model)
-  and `claude` (Anthropic API, key in `.env`, opt-in per message via an "Ask Claude" button).
-  Claude caveat: it will decline explicit sexual content, so escalation is for tag verification,
-  V5 syntax questions, arc structure and SFW-safe reasoning; Ollama handles explicit content.
+### 4.6 Chat co-pilot (local NSFW-capable model stack)
+Each job goes to the model that is best at it, all local, all NSFW-capable:
+
+| Role | Model | Why | Runs via |
+|---|---|---|---|
+| Tagging | PixAI v1.0 + Camie v2 (§4.4) | Purpose-built taggers beat any LLM at booru tags | tagger sidecar |
+| Optical / scene read | `fancyfeast` **JoyCaption Beta One** (Llama-3.1-8B LLaVA; GGUF Q4 ~5 GB + mmproj, e.g. `mradermacher/llama-joycaption-beta-one-hf-llava-GGUF`) | Trained with equal SFW/NSFW coverage; has a stabilized "Booru tags" mode plus descriptive captions, which suits V5's tag + natural-language hybrid | Ollama if it imports cleanly, else `llama-server` (brew llama.cpp) on :8191 — confirmed by a spike at the start of phase 6 |
+| Syntax / prompt expansion | **KBlueLeaf TIPO-v2.1-1B-A200M** (GGUF Q8 ~1 GB, Kohaku License) | Trained on Danbooru: expands short prompts, converts tags ↔ natural language, conditions on rating up to `explicit`, emits only real tags | Ollama, `raw: true` completion (GGUF has no chat template) |
+| Brain: scenes, themes, arcs, clusters, conversation | `dolphin-mistral-24b` (installed) default; `cydonia-24b` switchable | Uncensored, already proven in Delfino | Ollama chat |
+
+- Drawer, off by default. On → loads the brain with keep-alive; off → `keep_alive: 0`.
+- **RAM rule (24 GB):** brain (~14 GB) and JoyCaption (~6 GB) are never resident together; the app
+  unloads one before loading the other. Taggers + TIPO (~2.5 GB) may stay loaded.
+- **Pipeline:** "Read this image" = taggers + JoyCaption caption → brain merges into a scene. "Expand"
+  = TIPO on the current lines → brain only rewrites when asked. Brain output tags go through the
+  same CSV/YAML check as everything else.
 - **Context:** `v5-syntax.md`, current prompt state, keyword-retrieved YAML sections (not the whole
   DB), scene-style preferences.
 - **Output contract:** prose + one fenced JSON block
@@ -133,14 +155,14 @@ the web version measurably falls short. No App Store submission.
 ## 5. Error handling
 - NAI: 401 → "token invalid/expired"; 429 → "rate limited, wait"; 500 → "request rejected
   (often missing v4 prompt fields)"; network → retry button. No silent retries that spend Anlas.
-- Tagger/Ollama/Claude offline → banner, rest of app keeps working.
+- Tagger/Ollama/JoyCaption offline → banner, rest of app keeps working.
 - Grid: abort on first error, keep finished cells.
 - Saves are atomic (write temp + rename) so YAML is never left half-written.
 
 ## 6. Testing
 One runnable check per non-trivial unit: prompt serialization → V5 body; patch-op applier; NAI PNG
 metadata parser (fixture PNG); tagger threshold/sort filter; tagger sidecar smoke test (`/tag` on a
-fixture image). Plus one real end-to-end V5 generation and a phone run-through over Tailscale per
+fixture image); one smoke call each to TIPO and JoyCaption. Plus one real end-to-end V5 generation and a phone run-through over Tailscale per
 phase.
 
 ## 7. Phases (each usable on its own)
@@ -149,11 +171,11 @@ phase.
 3. Tagger sidecar + Tagger screen.
 4. Library + clusters.
 5. Strength grid.
-6. Chat co-pilot (Ollama, then Claude escalation).
-7. Ops: PWA, LaunchAgents ×2, Tailscale serve, login gate.
+6. Chat co-pilot: JoyCaption hosting spike → TIPO expand → brain chat + patch cards.
+7. Ops: PWA, LaunchAgents (app + tagger, + llama-server if the spike needs it), Tailscale serve, login gate.
 8. Design pass (mockups → approval → apply).
 9. Native iPhone app (optional).
 
 ## 8. Out of scope
-Multi-user, App Store distribution, meta/artist tagger categories, Precise Reference/Vibe Transfer
+Multi-user, App Store distribution, Claude API inside the app, Precise Reference/Vibe Transfer
 on V5 (until NAI ships them; V4.5 model picker covers the gap), inpainting, Prompt Rail-style macros.
