@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadDraft, saveDraft } from "@/lib/draft";
 import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
@@ -27,6 +27,8 @@ export default function Tagger() {
   const [mode, setMode] = useState<"replace" | "append">("replace");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only the newest upload may set results — a slower earlier one would pair old tags with the new preview.
+  const latest = useRef(0);
 
   const text = useMemo(
     () => (res ? filterTags(res.tags, { thresholds, enabled, exclude: exclude.split(",") }).join(", ") : ""),
@@ -34,9 +36,11 @@ export default function Tagger() {
   );
 
   async function analyze(file: File) {
+    const id = ++latest.current;
     setPreview(URL.createObjectURL(file)); setBusy(true); setError(null); setRes(null);
     const fd = new FormData(); fd.append("file", file);
     const r = await requestJson<TagResponse>("/api/tag", { method: "POST", body: fd });
+    if (id !== latest.current) return;
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     setRes(r.data); setThresholds(r.data.thresholds);

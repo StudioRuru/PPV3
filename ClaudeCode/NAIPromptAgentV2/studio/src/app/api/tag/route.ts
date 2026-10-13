@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const file = (await req.formData().catch(() => null))?.get("file");
-  if (!(file instanceof Blob) || file.size === 0) return NextResponse.json({ error: "No image uploaded." }, { status: 400 });
+  if (!(file instanceof Blob) || file.size === 0) return NextResponse.json({ error: "Upload failed or image too large (max 40 MB)." }, { status: 400 });
 
   const fd = new FormData();
   fd.append("file", file, "upload");
