@@ -17,3 +17,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS generations (
   params TEXT NOT NULL,
   grid_id TEXT
 )`);
+db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL
+)`);
