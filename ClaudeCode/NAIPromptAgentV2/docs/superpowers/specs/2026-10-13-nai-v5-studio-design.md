@@ -157,6 +157,15 @@ counter (x / 1471); characters as rows keyed by their dot color; sticky Generate
 bottom tab bar Studio / Tagger / Library / Grid / Chat. Rejected: B Darkroom (dots-on-image idea kept as a possible
 later option), C Console.
 
+**Design challenge 2 (2026-10-13) — Tagger — chosen: C · Split desk + D · Drawer.** Mockups:
+https://claude.ai/artifact/F4TVhWkBswfSAKz9cvi6DY. Brief: tagging lives in the Studio screen as a resizable top pane
+(tagger chips over the prompt rail/character rows; side by side on desktop); tags are chips (tap = drop, hold = boost
+weight, Chips/Text toggle) dragged onto Base or a character row (drop target highlights in that character's dot
+color), with tap fallbacks "All → Base" / "All → new character". A building-block drawer opens after tagging:
+Tagger presets (Full scene / Outfit only / Char + artist), Theme groups (from data/themes + user fetish/theme groups),
+My clusters (+ save current tags), Library (outfits, arc scenes), Suggested-for-this-image (needs the co-pilot/TIPO,
+Plan 4); added blocks show as pills and the Send count includes them. Rejected: A (separate tab), B (sheet).
+
 ### 4.8 Native iPhone app (optional, last phase, "if polish allows")
 SwiftUI app built in Xcode 26 and installed directly to Ruruphone (team 9TL96DXFPC), talking to the
 same `/api/*` over Tailscale. Starts as a native shell (tab bar, share-sheet "Tag this image",
