@@ -64,6 +64,16 @@ function addMissing(prompt: string, tags: string[]): string {
   return [prompt, ...extra].filter(Boolean).join(", ");
 }
 
+/** Put tag text into the base or character N (created if missing). Pure: returns a new state. */
+export function applyTags(s: PromptState, target: "base" | number, mode: "replace" | "append", text: string): PromptState {
+  const put = (lines: Line[]) => (mode === "replace" ? [newLine(text)] : [...lines.filter((l) => l.text.trim()), newLine(text)]);
+  if (target === "base") return { ...s, base: put(s.base) };
+  const chars = [...s.chars];
+  while (chars.length <= target) chars.push({ id: newLine().id, lines: [], uc: "", enabled: true });
+  chars[target] = { ...chars[target], lines: put(chars[target].lines) };
+  return { ...s, chars };
+}
+
 /** Spread unplaced characters left→right across the canvas. */
 export function defaultCenter(i: number, n: number): { x: number; y: number } {
   return { x: Math.round(((i + 1) / (n + 1)) * 100) / 100, y: 0.5 };

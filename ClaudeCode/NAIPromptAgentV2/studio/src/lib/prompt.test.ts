@@ -70,3 +70,14 @@ test("positions: AI mode sends no centers, custom gives every character one", as
   assert.deepEqual(centers[0], { x: 0.2, y: 0.4 });
   assert.ok(centers[1] && centers[1].x > 0 && centers[1].x < 1, "unplaced char gets a default dot");
 });
+
+test("applyTags: base replace/append and new character creation", async () => {
+  const { applyTags, emptyState, newLine } = await import("./prompt");
+  const s = { ...emptyState(), base: [newLine("old")] };
+  assert.deepEqual(applyTags(s, "base", "replace", "1girl, smile").base.map((l) => l.text), ["1girl, smile"]);
+  assert.deepEqual(applyTags(s, "base", "append", "smile").base.map((l) => l.text), ["old", "smile"]);
+  const withChar = applyTags(s, 2, "append", "girl, red hair");
+  assert.equal(withChar.chars.length, 3);
+  assert.deepEqual(withChar.chars[2].lines.map((l) => l.text), ["girl, red hair"]);
+  assert.equal(s.chars.length, 0, "input state not mutated");
+});

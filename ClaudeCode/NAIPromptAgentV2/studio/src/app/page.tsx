@@ -4,11 +4,10 @@ import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
+import { loadDraft, saveDraft } from "@/lib/draft";
 import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import { emptyState, type PromptState } from "@/lib/prompt";
-
-const DRAFT = "studio-draft-v1";
 
 export default function Studio() {
   const [state, setState] = useState<PromptState>(emptyState);
@@ -26,12 +25,13 @@ export default function Studio() {
   }, []);
 
   useEffect(() => {
-    try { const d = JSON.parse(localStorage.getItem(DRAFT) ?? "null"); if (d) { setState(d.state); setParams(d.params); } } catch {}
+    const d = loadDraft();
+    if (d) { setState({ ...emptyState(), ...d.state }); setParams({ ...DEFAULT_PARAMS, ...d.params }); }
     loadHistory().then((items) => setCurrent(items[0] ?? null));
   }, [loadHistory]);
 
   useEffect(() => {
-    try { localStorage.setItem(DRAFT, JSON.stringify({ state, params })); } catch {}
+    saveDraft({ state, params });
   }, [state, params]);
 
   async function generate() {
