@@ -1,5 +1,6 @@
 "use client";
 import { useRef } from "react";
+import { dragIntent } from "@/lib/tagger";
 
 type Props = {
   tag: string; dropped: boolean; weight?: number;
@@ -15,7 +16,7 @@ export function TagChip({ tag, dropped, weight, onToggle, onBoost, onDragMove, o
       type="button"
       aria-pressed={!dropped}
       aria-label={`${tag}${weight ? ` weight ${weight}` : ""}${dropped ? ", dropped" : ""}`}
-      className={`touch-none select-none rounded-md border px-2.5 py-1.5 text-sm ${
+      className={`touch-pan-y select-none [-webkit-touch-callout:none] rounded-md border px-2.5 py-1.5 text-sm ${
         dropped ? "border-border text-muted border-dashed line-through" : weight ? "border-accent bg-surface-2" : "border-border bg-surface"
       }`}
       onPointerDown={(e) => {
@@ -26,7 +27,7 @@ export function TagChip({ tag, dropped, weight, onToggle, onBoost, onDragMove, o
       onPointerMove={(e) => {
         const s = start.current;
         if (!s) return;
-        if (s.mode === "tap" && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 8) { clearTimeout(s.t); s.mode = "drag"; }
+        if (s.mode === "tap" && dragIntent(e.clientX - s.x, e.clientY - s.y, e.pointerType) === "drag") { clearTimeout(s.t); s.mode = "drag"; }
         if (s.mode === "drag") onDragMove(e.clientX, e.clientY);
       }}
       onPointerUp={(e) => {

@@ -39,7 +39,7 @@ export function TagInput({ value, onChange, placeholder }: { value: string; onCh
         <ul role="listbox" className="bg-surface-2 border-border absolute z-20 mt-1 w-full overflow-hidden rounded-md border text-sm shadow-lg">
           {items.map((t) => (
             <li key={t.name}>
-              <button type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => pick(t.name)}
+              <button type="button" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(t.name)}
                 className="hover:bg-surface flex w-full items-center justify-between px-3 py-2 text-left">
                 <span>{t.name}</span>
                 <span className="text-muted text-xs">{t.source === "danbooru" ? "●".repeat(dots(t.count)) || "·" : t.source}</span>

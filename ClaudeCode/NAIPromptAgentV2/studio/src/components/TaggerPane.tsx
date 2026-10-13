@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import type { PromptState } from "@/lib/prompt";
-import { chipsToText, DEFAULT_EXCLUDE, filterTags, type ChipState, type Preset, type RawTag } from "@/lib/tagger";
+import { chipsToText, DEFAULT_EXCLUDE, dragText, filterTags, type ChipState, type Preset, type RawTag } from "@/lib/tagger";
 import { TagChip } from "./TagChip";
 
 type TagResponse = { tags: RawTag[]; thresholds: Record<string, number>; ms: number; recipe: null | { state: PromptState; params: Partial<NaiParams> } };
@@ -105,7 +105,8 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
                   onDragEnd={(x, y) => {
                     setGhost(null); setHover(null);
                     const hit = targetAt(x, y);
-                    if (hit) onDrop(chips[t]?.weight ? `${chips[t].weight}::${t}::` : t, hit.target);
+                    const text = dragText(t, chips);
+                    if (hit && text) onDrop(text, hit.target);
                   }} />
               ))}
             </div>

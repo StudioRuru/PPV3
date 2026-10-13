@@ -49,3 +49,18 @@ test("presets: Outfit only keeps clothing/state groups of general tags only", as
   const out = filterTags(tags, { thresholds, enabled: p.enabled, exclude: DEFAULT_EXCLUDE, groups: p.groups });
   assert.deepEqual(out, ["school uniform"]);
 });
+
+test("dragText: dropped chips are never sent, boosted keep weight", async () => {
+  const { dragText } = await import("./tagger");
+  assert.equal(dragText("a", { a: { dropped: true } }), null);
+  assert.equal(dragText("a", { a: { weight: 1.15 } }), "1.15::a::");
+  assert.equal(dragText("a", {}), "a");
+});
+
+test("dragIntent: touch drags start sideways so vertical swipes scroll the chip list", async () => {
+  const { dragIntent } = await import("./tagger");
+  assert.equal(dragIntent(2, 3, "touch"), "none");
+  assert.equal(dragIntent(3, 20, "touch"), "none", "vertical swipe left to the browser");
+  assert.equal(dragIntent(15, 4, "touch"), "drag");
+  assert.equal(dragIntent(3, 20, "mouse"), "drag", "mouse can drag any direction");
+});

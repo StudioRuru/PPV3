@@ -43,3 +43,16 @@ export type ChipState = Record<string, { dropped?: boolean; weight?: number }>;
 export function chipsToText(tags: string[], st: ChipState): string {
   return tags.filter((t) => !st[t]?.dropped).map((t) => (st[t]?.weight ? `${st[t].weight}::${t}::` : t)).join(", ");
 }
+
+/** Text for one dragged chip; null when the chip was dropped. */
+export function dragText(tag: string, st: ChipState): string | null {
+  if (st[tag]?.dropped) return null;
+  return st[tag]?.weight ? `${st[tag].weight}::${tag}::` : tag;
+}
+
+/** Touch drags must start sideways: chips use `touch-action: pan-y`, so vertical swipes scroll the chip list. */
+export function dragIntent(dx: number, dy: number, pointerType: string): "none" | "drag" {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (Math.hypot(ax, ay) <= 8) return "none";
+  return pointerType === "mouse" || ax > ay ? "drag" : "none";
+}

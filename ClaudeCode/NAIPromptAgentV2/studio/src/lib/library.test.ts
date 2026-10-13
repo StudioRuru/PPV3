@@ -36,3 +36,11 @@ test("presets = builtins + saved", () => {
   const ids = listPresets(d).map((p) => p.id);
   assert.deepEqual(ids, ["full", "outfit", "char-artist", "faces"]);
 });
+
+test("malformed presets are sanitized instead of crashing filters", () => {
+  const d = tmpData();
+  fs.mkdirSync(path.join(d, "presets"));
+  fs.writeFileSync(path.join(d, "presets", "odd.yaml"), "name: Odd\nexclude: watermark\ngroups: 3\nenabled: yes\nthresholds: [1]\n");
+  const p = listPresets(d).find((x) => x.id === "odd")!;
+  assert.deepEqual([p.exclude, p.groups, p.thresholds, p.enabled], [undefined, undefined, undefined, {}]);
+});

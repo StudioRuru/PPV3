@@ -40,15 +40,32 @@ export function saveCluster(input: { name: string; kind: "cluster" | "theme"; ta
   return clusterToBlock(slug, doc);
 }
 
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+
+/** Keep only well-typed preset fields — a hand-edited file must not crash the tag filter. */
+function cleanPreset(d: unknown, id: string): Preset {
+  const o = isObj(d) ? d : {};
+  const nums = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is number => typeof x === "number") : undefined);
+  const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+  return {
+    id, user: true, name: typeof o.name === "string" ? o.name : id,
+    enabled: isObj(o.enabled) ? Object.fromEntries(Object.entries(o.enabled).map(([k, v]) => [k, v === true])) : {},
+    groups: nums(o.groups),
+    thresholds: isObj(o.thresholds) ? Object.fromEntries(Object.entries(o.thresholds).filter(([, v]) => typeof v === "number")) as Record<string, number> : undefined,
+    exclude: strs(o.exclude),
+  };
+}
+
 export function listPresets(dataDir = DATA_DIR): Preset[] {
-  const user = readDir(path.join(dataDir, "presets")).map(([s, d]) => ({ ...(d as Omit<Preset, "id">), id: s, user: true }));
+  const user = readDir(path.join(dataDir, "presets")).map(([s, d]) => cleanPreset(d, s));
   return [...BUILTIN_PRESETS, ...user];
 }
 
 export function savePreset(input: Omit<Preset, "id" | "user">, dataDir = DATA_DIR): Preset {
   const slug = slugify(String(input.name ?? ""));
   if (!slug || BUILTIN_PRESETS.some((p) => p.id === slug)) throw new Error("Give the preset a new name with letters or numbers.");
-  const doc = { name: input.name.trim(), enabled: input.enabled ?? {}, groups: input.groups, thresholds: input.thresholds, exclude: input.exclude };
+  const clean = cleanPreset({ ...input, name: String(input.name).trim() }, slug);
+  const { id: _id, user: _user, ...doc } = clean;
   writeAtomic(path.join(dataDir, "presets", `${slug}.yaml`), stringify(JSON.parse(JSON.stringify(doc))));
-  return { ...doc, id: slug, user: true };
+  return clean;
 }

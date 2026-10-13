@@ -50,3 +50,11 @@ test("slugify rejects traversal and empties", () => {
   assert.equal(slugify("💀"), null);
   assert.equal(slugify("   "), null);
 });
+
+test("theme sent to Base still keeps figure tags out of the base", () => {
+  const b = themeToBlock("t", { base_layer: { effects: ["sparks"] }, character_layer: { anchors: ["torn clothes"] } });
+  const s = applyBlock({ ...emptyState(), rating: "off", base: [newLine("1girl")] }, b, "base");
+  const c = compile(s);
+  assert.equal(c.base, "1girl, sparks");
+  assert.equal(c.chars[0].prompt, "torn clothes");
+});

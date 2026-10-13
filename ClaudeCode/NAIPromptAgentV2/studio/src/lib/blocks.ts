@@ -47,7 +47,9 @@ export function clusterToBlock(slug: string, doc: any): Block {
 /** Add a block: its character tags go to `target`, its base effects always to the base, its negatives to the UC. */
 export function applyBlock(s: PromptState, b: Block, target: "base" | number): PromptState {
   let out = s;
-  if (b.char.length) out = applyTags(out, target, "append", b.char.join(", "));
+  // A theme's figure tags never share the base with its effects: "Base" sends them to character 1.
+  const charTarget = target === "base" && b.base.length ? 0 : target;
+  if (b.char.length) out = applyTags(out, charTarget, "append", b.char.join(", "));
   if (b.base.length) out = applyTags(out, "base", "append", b.base.join(", "));
   if (b.uc.length) {
     const have = new Set(splitTags(out.uc).map((t) => t.toLowerCase()));
