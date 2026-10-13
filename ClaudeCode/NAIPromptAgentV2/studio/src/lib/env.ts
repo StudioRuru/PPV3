@@ -13,3 +13,7 @@ export const NOVELAI_TOKEN = process.env.NOVELAI_TOKEN || "";
 export const APP_PASSWORD = process.env.APP_PASSWORD || "";
 export const AUTH_ENABLED = APP_PASSWORD.length > 0;
 export const TAGGER_URL = (process.env.TAGGER_URL || "http://127.0.0.1:8190").replace(/\/$/, "");
+export const OLLAMA_URL = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+export const BRAIN_MODEL = process.env.BRAIN_MODEL || "hf.co/HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M";
+export const CAPTION_URL = (process.env.CAPTION_URL || "http://127.0.0.1:8191").replace(/\/$/, "");
+export const TIPO_URL = (process.env.TIPO_URL || "http://127.0.0.1:8193").replace(/\/$/, "");
