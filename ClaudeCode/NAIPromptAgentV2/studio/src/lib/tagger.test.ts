@@ -37,3 +37,15 @@ test("raising a slider drops lower-scoring tags", () => {
   const out = filterTags(tags, { thresholds: { ...thresholds, general: 0.92 }, enabled: DEFAULT_ENABLED, exclude: DEFAULT_EXCLUDE });
   assert.deepEqual(out.filter((t) => !t.includes("(") && !t.includes(":") && t !== "umamusume"), ["1girl", "red hair"]);
 });
+
+test("chipsToText: dropped never sent, boosted weighted", async () => {
+  const { chipsToText } = await import("./tagger");
+  assert.equal(chipsToText(["a", "b", "c"], { b: { dropped: true }, c: { weight: 1.15 } }), "a, 1.15::c::");
+});
+
+test("presets: Outfit only keeps clothing/state groups of general tags only", async () => {
+  const { BUILTIN_PRESETS } = await import("./tagger");
+  const p = BUILTIN_PRESETS.find((x) => x.id === "outfit")!;
+  const out = filterTags(tags, { thresholds, enabled: p.enabled, exclude: DEFAULT_EXCLUDE, groups: p.groups });
+  assert.deepEqual(out, ["school uniform"]);
+});
