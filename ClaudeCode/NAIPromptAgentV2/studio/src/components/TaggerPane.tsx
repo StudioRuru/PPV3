@@ -59,8 +59,9 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
     hover.current = el;
   };
 
+  // Split desk: the pane stays pinned while the prompt scrolls under it, so chips and drop targets share the screen.
   return (
-    <section aria-label="Tagger" className="bg-surface border-border rounded-lg border">
+    <section aria-label="Tagger" className="bg-surface border-border sticky top-0 z-20 rounded-lg border shadow-lg">
       <header className="flex items-center gap-3 p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {preview && <img src={preview} alt="Image being tagged" className="h-16 w-12 rounded object-cover" />}
@@ -95,7 +96,7 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
             </div>
           )}
           {res && view === "chips" && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto overscroll-contain">
               {tags.map((t) => (
                 <TagChip key={t} tag={t} dropped={!!chips[t]?.dropped} weight={chips[t]?.weight}
                   onToggle={() => setChips({ ...chips, [t]: { ...chips[t], dropped: !chips[t]?.dropped } })}
@@ -109,7 +110,7 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
               ))}
             </div>
           )}
-          {res && view === "text" && <textarea readOnly value={text} rows={5} aria-label="Kept tags" className="bg-bg border-border w-full rounded-md border p-2 text-base" />}
+          {res && view === "text" && <textarea readOnly value={text} rows={4} aria-label="Kept tags" className="bg-bg border-border w-full rounded-md border p-2 text-base" />}
           {res && (
             <div className="flex gap-2">
               <button type="button" data-drop="base" onClick={() => onDrop(text, "base")} disabled={!text}

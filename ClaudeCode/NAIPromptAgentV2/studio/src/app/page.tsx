@@ -1,13 +1,17 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { BlockDrawer } from "@/components/BlockDrawer";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
+import { TaggerPane } from "@/components/TaggerPane";
+import { applyBlock, loadScene, type Block } from "@/lib/blocks";
 import { loadDraft, saveDraft } from "@/lib/draft";
 import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
-import { emptyState, type PromptState } from "@/lib/prompt";
+import { applyTags, emptyState, type PromptState } from "@/lib/prompt";
+import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
 export default function Studio() {
   const [state, setState] = useState<PromptState>(emptyState);
@@ -18,6 +22,18 @@ export default function Studio() {
   const [error, setError] = useState<string | null>(null);
   // Saving before the draft has loaded would overwrite it with the empty initial state.
   const [loaded, setLoaded] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const [preset, setPreset] = useState<Preset>(BUILTIN_PRESETS[0]);
+  const [tagText, setTagText] = useState("");
+
+  function dropTags(text: string, target: "base" | number | "new") {
+    if (!text) return;
+    setState((s) => applyTags(s, target === "new" ? s.chars.length : target, "append", text));
+  }
+
+  function sendBlocks(picked: Block[], target: "base" | number) {
+    setState((s) => picked.reduce((acc, b) => applyBlock(acc, b, target), tagText ? applyTags(s, target, "append", tagText) : s));
+  }
 
   const loadHistory = useCallback(async () => {
     const r = await requestJson<{ items: Generation[] }>("/api/generations?limit=60");
@@ -60,12 +76,17 @@ export default function Studio() {
   }
 
   return (
-    <main className="mx-auto grid max-w-6xl gap-4 p-4 pb-28 lg:grid-cols-[1fr_1fr]"
+    <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 pb-28 lg:grid-cols-2"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}>
       <section className="space-y-4">
+        <TaggerPane preset={preset} onTagged={() => setDrawer(true)} onDrop={dropTags}
+          onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText} />
+        <button type="button" onClick={() => setDrawer(true)} className="border-border w-full rounded-md border px-3 py-2.5 text-sm">
+          Building blocks — presets, themes, clusters, library
+        </button>
         <ParamsBar params={params} onParams={setParams} rating={state.rating} onRating={(rating) => setState({ ...state, rating })} />
-        <div className="bg-surface border-border rounded-lg border p-3">
+        <div data-drop="base" className="bg-surface border-border rounded-lg border p-3">
           <h2 className="mb-2 text-sm font-semibold">Base prompt</h2>
           <LineList lines={state.base} onChange={(base) => setState({ ...state, base })} />
         </div>
@@ -106,6 +127,9 @@ export default function Studio() {
           </button>
         </div>
       </div>
+      <BlockDrawer open={drawer} onClose={() => setDrawer(false)} chars={state.chars} tagText={tagText}
+        onSend={sendBlocks} onLoadScene={(b) => { setState(loadScene(b)); setDrawer(false); }}
+        preset={preset} onPreset={setPreset} />
     </main>
   );
 }

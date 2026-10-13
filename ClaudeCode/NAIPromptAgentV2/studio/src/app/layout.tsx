@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { NavTabs } from "@/components/NavTabs";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "NAI Studio", description: "NovelAI V5 prompt studio" };
@@ -15,7 +14,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full antialiased">
       <body className="bg-bg text-fg min-h-full">
-        <NavTabs />
         {children}
       </body>
     </html>
