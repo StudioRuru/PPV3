@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { BlockDrawer } from "@/components/BlockDrawer";
+import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
@@ -10,6 +11,7 @@ import { applyBlock, loadScene, type Block } from "@/lib/blocks";
 import { loadDraft, saveDraft } from "@/lib/draft";
 import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
+import { applyOps } from "@/lib/patch";
 import { applyTags, emptyState, type PromptState } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
@@ -25,6 +27,8 @@ export default function Studio() {
   const [drawer, setDrawer] = useState(false);
   const [preset, setPreset] = useState<Preset>(BUILTIN_PRESETS[0]);
   const [tagText, setTagText] = useState("");
+  const [chat, setChat] = useState(false);
+  const [seed, setSeed] = useState<ChatSeed>(null);
 
   function dropTags(text: string, target: "base" | number | "new") {
     if (!text) return;
@@ -81,7 +85,8 @@ export default function Studio() {
       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}>
       <section className="space-y-4">
         <TaggerPane preset={preset} onTagged={() => setDrawer(true)} onDrop={dropTags}
-          onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText} />
+          onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText}
+          onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); setChat(true); }} />
         <button type="button" onClick={() => setDrawer(true)} className="border-border w-full rounded-md border px-3 py-2.5 text-sm">
           Building blocks — presets, themes, clusters, library
         </button>
@@ -121,8 +126,9 @@ export default function Studio() {
       <div className="bg-bg/90 border-border fixed inset-x-0 bottom-0 border-t p-3 backdrop-blur" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           {error && <p role="alert" className="text-danger flex-1 text-sm">{error}</p>}
+          <button type="button" onClick={() => setChat(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Chat</button>
           <button type="button" onClick={generate} disabled={busy}
-            className="bg-accent text-accent-fg ml-auto rounded-lg px-6 py-3 text-base font-semibold disabled:opacity-50">
+            className="bg-accent text-accent-fg rounded-lg px-6 py-3 text-base font-semibold disabled:opacity-50">
             {busy ? "Generating…" : "Generate"}
           </button>
         </div>
@@ -130,6 +136,8 @@ export default function Studio() {
       <BlockDrawer open={drawer} onClose={() => setDrawer(false)} chars={state.chars} tagText={tagText}
         onSend={sendBlocks} onLoadScene={(b) => { setState(loadScene(b)); setDrawer(false); }}
         preset={preset} onPreset={setPreset} />
+      <ChatSheet open={chat} onClose={() => setChat(false)} state={state} seed={seed}
+        onApply={(ops) => setState((s) => applyOps(s, ops))} />
     </main>
   );
 }

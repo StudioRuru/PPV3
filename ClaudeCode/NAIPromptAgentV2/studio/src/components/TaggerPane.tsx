@@ -16,11 +16,12 @@ function targetAt(x: number, y: number): { el: HTMLElement; target: Target } | n
   return { el, target: v === "base" || v === "new" ? v : Number(v.split(":")[1]) };
 }
 
-export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
+export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene }: {
   preset: Preset; onTagged: (n: number) => void;
   onDrop: (text: string, target: Target) => void;
   onRecipe: (r: { state: PromptState; params: Partial<NaiParams> }) => void;
   onText: (text: string) => void;
+  onScene: (file: File, tags: string) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [preview, setPreview] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
   const [ghost, setGhost] = useState<{ tag: string; x: number; y: number } | null>(null);
   const hover = useRef<HTMLElement | null>(null);
   const latest = useRef(0);
+  const lastFile = useRef<File | null>(null);
 
   const tags = useMemo(() => (res ? filterTags(res.tags, {
     thresholds: { ...res.thresholds, ...preset.thresholds },
@@ -42,6 +44,7 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
 
   async function analyze(file: File) {
     const id = ++latest.current;
+    lastFile.current = file;
     setPreview(URL.createObjectURL(file)); setBusy(true); setError(null); setRes(null); setChips({}); setOpen(true);
     const fd = new FormData(); fd.append("file", file);
     const r = await requestJson<TagResponse>("/api/tag", { method: "POST", body: fd });
@@ -119,6 +122,10 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText }: {
               <button type="button" data-drop="new" onClick={() => onDrop(text, "new")} disabled={!text}
                 className="border-border flex-1 rounded-md border px-3 py-2.5 text-sm disabled:opacity-40">All → new character</button>
             </div>
+          )}
+          {res && (
+            <button type="button" onClick={() => lastFile.current && onScene(lastFile.current, text)}
+              className="border-accent/50 text-accent w-full rounded-md border px-3 py-2.5 text-sm">Make this a scene (co-pilot)</button>
           )}
         </div>
       )}

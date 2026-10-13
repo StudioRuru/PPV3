@@ -52,3 +52,7 @@ test("applyOps weight sets a whole-line weight or splits the tag out", () => {
 test("opTags returns short tags without weight syntax, skips sentences", () => {
   assert.deepEqual(opTags([{ target: "base", action: "add", line: "1.2::red hair::, a girl standing alone in the rain at night, smile" }]), ["red hair", "smile"]);
 });
+
+test("parseReply hides an unterminated json block while the reply streams", () => {
+  assert.deepEqual(parseReply('A festival.\n\n```json\n{"ops":[{"target":'), { prose: "A festival.", ops: [] });
+});

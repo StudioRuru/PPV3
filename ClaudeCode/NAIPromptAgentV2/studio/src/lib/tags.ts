@@ -8,6 +8,10 @@ export const V5_TAGS = [
   "transparent background", "has alpha", "alpha transparency", "depthness",
   "meta:novel era", "meta:golden era", "visual novel art", "visual novel bg", "visual novel cg",
   "visual novel chibi", "visual novel sprite", "attractive male", "fur dataset", "background dataset",
+  // NAI quality/rating vocabulary — valid in NAI prompts though absent from Danbooru counts.
+  "nsfw", "masterpiece", "best quality", "amazing quality", "great quality", "good quality", "normal quality",
+  "bad quality", "worst quality", "very aesthetic", "aesthetic", "displeasing", "very displeasing",
+  "rating:general", "rating:sensitive", "rating:questionable", "rating:explicit",
 ];
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/_/g, " ");

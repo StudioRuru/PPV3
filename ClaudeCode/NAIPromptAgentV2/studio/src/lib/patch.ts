@@ -17,7 +17,8 @@ function validOp(o: unknown): o is Op {
 /** Brain reply → prose + the ops from its last fenced json block. Invalid ops are dropped, never thrown. */
 export function parseReply(text: string): { prose: string; ops: Op[]; error?: string } {
   const blocks = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
-  if (!blocks.length) return { prose: text.trim(), ops: [] };
+  // A block still streaming in has no closing fence yet: hide it until it completes.
+  if (!blocks.length) return { prose: text.split("```json")[0].trim(), ops: [] };
   const last = blocks[blocks.length - 1];
   const prose = (text.slice(0, last.index) + text.slice(last.index! + last[0].length)).replace(/\n{3,}/g, "\n\n").trim();
   try {
