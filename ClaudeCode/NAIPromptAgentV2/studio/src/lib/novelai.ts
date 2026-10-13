@@ -1,6 +1,7 @@
 import "server-only";
 import { unzipSync } from "fflate";
 import { buildNaiBody, type NaiParams } from "./nai-body";
+import { isPreSendError } from "./net";
 import type { Compiled } from "./prompt";
 
 const ENDPOINT = "https://image.novelai.net/ai/generate-image";
@@ -18,15 +19,13 @@ const STATUS: Record<number, string> = {
   500: "NovelAI rejected the request (often a malformed v4 prompt field).",
 };
 
-/** Retry only socket errors where the request never reached NovelAI (no double charge). */
-async function post(init: RequestInit, attempts = 4): Promise<Response> {
+/** Retry only errors raised before the request was sent (no double charge). */
+async function post(init: RequestInit, attempts = 3): Promise<Response> {
   for (let i = 0; ; i++) {
     try {
       return await fetch(ENDPOINT, init);
     } catch (err) {
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      const transient = code === "UND_ERR_SOCKET" || code === "ECONNRESET" || /other side closed/i.test((err as Error).message);
-      if (!transient || i === attempts - 1) throw new NovelAIError(`Could not reach NovelAI: ${(err as Error).message}`);
+      if (!isPreSendError(err) || i === attempts - 1) throw new NovelAIError(`Could not reach NovelAI: ${(err as Error).message}`);
       await new Promise((r) => setTimeout(r, 200 * (i + 1)));
     }
   }

@@ -62,6 +62,11 @@ function addMissing(prompt: string, tags: string[]): string {
   return [prompt, ...extra].filter(Boolean).join(", ");
 }
 
+/** True when the user typed something — rating tags alone do not count. */
+export function hasContent(s: PromptState): boolean {
+  return joinLines(s.base) !== "";
+}
+
 export function compile(s: PromptState): Compiled {
   const r = RATING_TAGS[s.rating];
   const chars = s.chars

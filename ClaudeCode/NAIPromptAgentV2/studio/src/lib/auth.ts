@@ -34,7 +34,8 @@ export async function signSession(): Promise<string> {
 }
 
 export async function verifySession(token: string | undefined): Promise<boolean> {
-  if (!token) return false;
+  // Fail closed: a JWT signed with the public dev secret is forgeable by anyone.
+  if (!token || isDevSecret()) return false;
   try {
     await jwtVerify(token, secret);
     return true;

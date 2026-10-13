@@ -5,6 +5,7 @@ import { HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
 import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
+import { requestJson } from "@/lib/net";
 import { emptyState, type PromptState } from "@/lib/prompt";
 
 const DRAFT = "studio-draft-v1";
@@ -18,9 +19,10 @@ export default function Studio() {
   const [error, setError] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
-    const r = await fetch("/api/generations?limit=60").then((r) => r.json()).catch(() => ({ items: [] }));
-    setHistory(r.items);
-    return r.items as Generation[];
+    const r = await requestJson<{ items: Generation[] }>("/api/generations?limit=60");
+    const items = r.ok ? r.data.items : [];
+    setHistory(items);
+    return items;
   }, []);
 
   useEffect(() => {
@@ -34,12 +36,11 @@ export default function Studio() {
 
   async function generate() {
     setBusy(true); setError(null);
-    const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, params }) });
-    const data = await res.json().catch(() => ({ error: "Bad response from server." }));
+    const r = await requestJson<{ id: number }>("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, params }) });
     setBusy(false);
-    if (!res.ok) { setError(data.error); return; }
+    if (!r.ok) { setError(r.error); return; }
     const items = await loadHistory();
-    setCurrent(items.find((g) => g.id === data.id) ?? null);
+    setCurrent(items.find((g) => g.id === r.data.id) ?? null);
   }
 
   function reuse(g: Pick<Generation, "state" | "params">) {
@@ -49,10 +50,10 @@ export default function Studio() {
 
   async function onDrop(file: File) {
     const fd = new FormData(); fd.append("file", file);
-    const res = await fetch("/api/recipe", { method: "POST", body: fd });
-    const data = await res.json();
-    if (!res.ok) { setError(data.error); return; }
-    reuse({ state: data.state, params: { ...params, ...data.params } });
+    const r = await requestJson<Pick<Generation, "state" | "params">>("/api/recipe", { method: "POST", body: fd });
+    if (!r.ok) { setError(r.error); return; }
+    setError(null);
+    reuse({ state: r.data.state, params: { ...params, ...r.data.params } });
   }
 
   return (
