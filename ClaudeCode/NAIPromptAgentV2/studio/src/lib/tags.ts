@@ -69,3 +69,19 @@ export function suggest(index: TagEntry[], q: string, limit = 15): TagEntry[] {
 export function dots(count: number): 0 | 1 | 2 | 3 {
   return count >= 100_000 ? 3 : count >= 10_000 ? 2 : count >= 1_000 ? 1 : 0;
 }
+
+/** Sort rank per YAML file (tags/<file>.yaml). Lower = earlier in the prompt. */
+export const GROUP_RANK: Record<string, number> = {
+  appearance: 1, clothing: 2, footwear: 2, accessories: 2, materials: 2,
+  states: 3, nudity: 3, poses: 4, settings: 5, scenarios: 5,
+};
+
+export function isSubjectTag(name: string): boolean {
+  return /^(\d+\+?(girls?|boys?|others?)|solo|solo focus|no humans|multiple (girls|boys))$/.test(name);
+}
+
+export function yamlGroupRank(name: string, groups: Map<string, string>): number {
+  const n = norm(name);
+  if (isSubjectTag(n)) return 0;
+  return GROUP_RANK[groups.get(n) ?? ""] ?? 6;
+}

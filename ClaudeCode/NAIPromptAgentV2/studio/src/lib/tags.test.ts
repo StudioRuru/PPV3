@@ -31,3 +31,10 @@ test("suggest: prefix before contains, then count; aliases match", () => {
 test("knowledge dots", () => {
   assert.deepEqual([0, 999, 1000, 10000, 100000].map(dots), [0, 0, 1, 2, 3]);
 });
+
+test("yaml group rank: subject first, then appearance, clothing, pose, setting, other", async () => {
+  const { yamlGroupRank } = await import("./tags");
+  const groups = new Map([["red hair", "appearance"], ["school uniform", "clothing"], ["standing", "poses"], ["park", "settings"]]);
+  const r = (n: string) => yamlGroupRank(n, groups);
+  assert.deepEqual(["1girl", "solo", "red_hair", "school_uniform", "standing", "park", "smile"].map(r), [0, 0, 1, 2, 4, 5, 6]);
+});

@@ -17,3 +17,16 @@ export function tagIndex(): TagEntry[] {
   for (const name of V5_TAGS) entries.push({ name, category: "v5", count: 0, aliases: [], source: "v5" });
   return (cache = buildIndex(entries));
 }
+
+let groupCache: Map<string, string> | null = null;
+
+/** tag name → YAML file stem (appearance, clothing, …) for prompt sorting. */
+export function yamlGroups(): Map<string, string> {
+  if (groupCache) return groupCache;
+  const m = new Map<string, string>();
+  for (const f of fs.readdirSync(TAGS_DIR).filter((f) => f.endsWith(".yaml"))) {
+    const stem = f.replace(/\.yaml$/, "");
+    for (const name of yamlTagNames(parse(fs.readFileSync(path.join(TAGS_DIR, f), "utf8")))) if (!m.has(name)) m.set(name, stem);
+  }
+  return (groupCache = m);
+}

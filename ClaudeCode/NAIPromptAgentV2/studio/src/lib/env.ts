@@ -12,3 +12,4 @@ export const DANBOORU_CSV = path.join(process.cwd(), "data", "danbooru.csv");
 export const NOVELAI_TOKEN = process.env.NOVELAI_TOKEN || "";
 export const APP_PASSWORD = process.env.APP_PASSWORD || "";
 export const AUTH_ENABLED = APP_PASSWORD.length > 0;
+export const TAGGER_URL = (process.env.TAGGER_URL || "http://127.0.0.1:8190").replace(/\/$/, "");
