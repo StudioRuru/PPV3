@@ -150,6 +150,14 @@ direction proposal + mockups reviewed by the user before applying; mobile-first 
 bar: Studio / Tagger / Library / Grid; chat as sheet), touch targets, loading/empty/error states,
 dark theme default. No design work blocks earlier phases beyond basic usable layout.
 
+**Design challenge 1 (2026-10-13) — chosen: A · Night Studio.** Mockups: https://claude.ai/artifact/6grZ7dujXbPAcYSLkSNbjx.
+Brief: deep navy ground (#0d1020), raised navy surfaces, lilac accent (#b7a4ff, tweakable), IBM Plex Sans + IBM Plex
+Mono for labels/numbers; header with model pill + SAFE/NSFW/OFF segmented control; latest image beside a compact
+AI/Custom position canvas with numbered colored dots; numbered base-prompt rail with weight badges and a token
+counter (x / 1471); characters as rows keyed by their dot color; sticky Generate bar showing size/steps/"free";
+bottom tab bar Studio / Tagger / Library / Grid / Chat. Rejected: B Darkroom (dots-on-image idea kept as a possible
+later option), C Console.
+
 ### 4.8 Native iPhone app (optional, last phase, "if polish allows")
 SwiftUI app built in Xcode 26 and installed directly to Ruruphone (team 9TL96DXFPC), talking to the
 same `/api/*` over Tailscale. Starts as a native shell (tab bar, share-sheet "Tag this image",
