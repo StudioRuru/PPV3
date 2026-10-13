@@ -16,6 +16,8 @@ export default function Studio() {
   const [current, setCurrent] = useState<Generation | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Saving before the draft has loaded would overwrite it with the empty initial state.
+  const [loaded, setLoaded] = useState(false);
 
   const loadHistory = useCallback(async () => {
     const r = await requestJson<{ items: Generation[] }>("/api/generations?limit=60");
@@ -27,12 +29,13 @@ export default function Studio() {
   useEffect(() => {
     const d = loadDraft();
     if (d) { setState({ ...emptyState(), ...d.state }); setParams({ ...DEFAULT_PARAMS, ...d.params }); }
+    setLoaded(true);
     loadHistory().then((items) => setCurrent(items[0] ?? null));
   }, [loadHistory]);
 
   useEffect(() => {
-    saveDraft({ state, params });
-  }, [state, params]);
+    if (loaded) saveDraft({ state, params });
+  }, [loaded, state, params]);
 
   async function generate() {
     setBusy(true); setError(null);
