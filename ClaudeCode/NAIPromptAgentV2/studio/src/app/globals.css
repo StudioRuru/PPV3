@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Minimal tokens; the full visual direction comes from the design challenge (Plan 6). */
+@theme {
+  --color-bg: #0e1016;
+  --color-surface: #171a23;
+  --color-surface-2: #212534;
+  --color-border: #2e3446;
+  --color-fg: #eef0f6;
+  --color-muted: #9aa3b8;
+  --color-accent: #b49cff;
+  --color-accent-fg: #160f2b;
+  --color-danger: #ff5a72;
+}
+
+html, body { height: 100%; }
