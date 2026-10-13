@@ -50,7 +50,7 @@ iPhone (PWA now, native app later) / Mac browser — via Tailscale
    ├─ /api/generate  → image.novelai.net (NAI token in server .env, never sent to client)
    ├─ /api/grid      → N sequential generations, fixed seed, one line's weight stepped
    ├─ /api/tag       → tagger sidecar :8190 (FastAPI: PixAI Tagger v1.0 + Camie v2 artist pass)
-   ├─ /api/caption   → JoyCaption Beta One (vision: booru tags + natural-language caption)
+   ├─ /api/caption   → ToriiGate-0.5 (tag-grounded caption) | JoyCaption Beta One (2nd opinion)
    ├─ /api/expand    → TIPO v2.1 via Ollama raw completion (tags ↔ natural language)
    ├─ /api/chat      → Ollama brain model (scenes, themes, arcs, clusters)
    ├─ /api/library   → tags/*.yaml, data/{outfits,themes,arcs,clusters}/*.yaml
@@ -116,21 +116,25 @@ YAML in the existing skill formats. Clusters = named tag groups in `data/cluster
 (`name, tags[], notes`), insertable as one line, usable by skills.
 
 ### 4.6 Chat co-pilot (local NSFW-capable model stack)
-Each job goes to the model that is best at it, all local, all NSFW-capable:
+Each job goes to the model that is best at it, all local, all NSFW-capable, all resident together
+(~19 GB of 24 GB):
 
-| Role | Model | Why | Runs via |
-|---|---|---|---|
-| Tagging | PixAI v1.0 + Camie v2 (§4.4) | Purpose-built taggers beat any LLM at booru tags | tagger sidecar |
-| Optical / scene read | `fancyfeast` **JoyCaption Beta One** (Llama-3.1-8B LLaVA; GGUF Q4 ~5 GB + mmproj, e.g. `mradermacher/llama-joycaption-beta-one-hf-llava-GGUF`) | Trained with equal SFW/NSFW coverage; has a stabilized "Booru tags" mode plus descriptive captions, which suits V5's tag + natural-language hybrid | Ollama if it imports cleanly, else `llama-server` (brew llama.cpp) on :8191 — confirmed by a spike at the start of phase 6 |
-| Syntax / prompt expansion | **KBlueLeaf TIPO-v2.1-1B-A200M** (GGUF Q8 ~1 GB, Kohaku License) | Trained on Danbooru: expands short prompts, converts tags ↔ natural language, conditions on rating up to `explicit`, emits only real tags | Ollama, `raw: true` completion (GGUF has no chat template) |
-| Brain: scenes, themes, arcs, clusters, conversation | `dolphin-mistral-24b` (installed) default; `cydonia-24b` switchable | Uncensored, already proven in Delfino | Ollama chat |
+| Role | Model | Size | Why | Runs via |
+|---|---|---|---|---|
+| Tagging | PixAI v1.0 + Camie v2 (§4.4) | ~1.5 GB | Purpose-built taggers beat any LLM at booru tags | tagger sidecar |
+| Captioning (default) | **Minthy/ToriiGate-0.5** (Qwen3.5-4B base, MIT; GGUF `DraconicDragon/ToriiGate-0.5-GGUF` Q4_K_M + Q8_0 mmproj) | ~3.4 GB | Anime captioner with no censorship; takes booru tags + character names as grounding → character-aware NL caption / ready prompt. Uses the prompts from its `scripts/prompts.py`; ~1 Mpx input; single image, single turn | `llama-server` :8191 (brew llama.cpp) |
+| Captioning (second opinion, toggle) | fancyfeast **JoyCaption Beta One** (GGUF `mradermacher/llama-joycaption-beta-one-hf-llava-GGUF` Q4 + mmproj) | ~5.5 GB | Equal SFW/NSFW training; independent read for hard images; Booru-tags mode | `llama-server` :8192 |
+| Syntax / prompt expansion | **KBlueLeaf TIPO-v2.1-1B-A200M** (GGUF Q8, Kohaku License) | ~1 GB | Danbooru-trained: expands prompts, converts tags ↔ natural language, rating-conditioned up to `explicit`, emits real tags | Ollama, `raw: true` completion |
+| Brain: scenes, themes, arcs, clusters, conversation (default) | **HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced** Q4_K_M (+ BF16 mmproj) | ~7.4 GB | Reasons before answering; tuned for creative writing/RP; 0/465 refusals claimed; can also see images in chat. Card samplers: temp 0.6, top_k 64, top_p 0.9, min_p 0.05, repeat 1.1 | Ollama `hf.co/HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M` |
+| Brain alternative (picker) | **Qwen3.8-9B-heretic-uncensored** Q4_K_M (Apache-2.0) | ~5.7 GB | Stronger structured JSON + Japanese; switch to it if patch cards come out malformed | Ollama |
+
+The 24B models (`dolphin-mistral-24b`, `cydonia-24b`) are no longer used by this app (Delfino keeps
+them).
 
 - Drawer, off by default. On → loads the brain with keep-alive; off → `keep_alive: 0`.
-- **RAM rule (24 GB):** brain (~14 GB) and JoyCaption (~6 GB) are never resident together; the app
-  unloads one before loading the other. Taggers + TIPO (~2.5 GB) may stay loaded.
-- **Pipeline:** "Read this image" = taggers + JoyCaption caption → brain merges into a scene. "Expand"
-  = TIPO on the current lines → brain only rewrites when asked. Brain output tags go through the
-  same CSV/YAML check as everything else.
+- **Pipeline:** "Read this image" = taggers → ToriiGate grounded on those tags (+ JoyCaption if
+  toggled) → brain merges into a scene with patch cards. "Expand" = TIPO on the current lines →
+  brain only rewrites when asked. All emitted tags go through the CSV/YAML check.
 - **Context:** `v5-syntax.md`, current prompt state, keyword-retrieved YAML sections (not the whole
   DB), scene-style preferences.
 - **Output contract:** prose + one fenced JSON block
@@ -155,14 +159,14 @@ the web version measurably falls short. No App Store submission.
 ## 5. Error handling
 - NAI: 401 → "token invalid/expired"; 429 → "rate limited, wait"; 500 → "request rejected
   (often missing v4 prompt fields)"; network → retry button. No silent retries that spend Anlas.
-- Tagger/Ollama/JoyCaption offline → banner, rest of app keeps working.
+- Tagger/Ollama/captioner (llama-server) offline → banner, rest of app keeps working.
 - Grid: abort on first error, keep finished cells.
 - Saves are atomic (write temp + rename) so YAML is never left half-written.
 
 ## 6. Testing
 One runnable check per non-trivial unit: prompt serialization → V5 body; patch-op applier; NAI PNG
 metadata parser (fixture PNG); tagger threshold/sort filter; tagger sidecar smoke test (`/tag` on a
-fixture image); one smoke call each to TIPO and JoyCaption. Plus one real end-to-end V5 generation and a phone run-through over Tailscale per
+fixture image); one smoke call each to TIPO, ToriiGate and JoyCaption. Plus one real end-to-end V5 generation and a phone run-through over Tailscale per
 phase.
 
 ## 7. Phases (each usable on its own)
@@ -171,8 +175,8 @@ phase.
 3. Tagger sidecar + Tagger screen.
 4. Library + clusters.
 5. Strength grid.
-6. Chat co-pilot: JoyCaption hosting spike → TIPO expand → brain chat + patch cards.
-7. Ops: PWA, LaunchAgents (app + tagger, + llama-server if the spike needs it), Tailscale serve, login gate.
+6. Chat co-pilot: llama-server captioners (ToriiGate, JoyCaption) → TIPO expand → Gemma4 brain chat + patch cards.
+7. Ops: PWA, LaunchAgents (app, tagger, llama-server captioners), Tailscale serve, login gate.
 8. Design pass (mockups → approval → apply).
 9. Native iPhone app (optional).
 
