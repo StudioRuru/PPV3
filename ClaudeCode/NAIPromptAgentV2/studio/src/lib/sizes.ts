@@ -16,10 +16,20 @@ export const PRESETS: Record<Orientation, Preset[]> = {
 
 const r64 = (v: number) => Math.max(64, Math.round(v / 64) * 64);
 
-/** The device's native screen in pixels, upright, rounded to 64 (e.g. iPhone 17 Pro 1206×2622 → 1216×2624). */
+/** Largest canvas NovelAI will take here (matches canResend). */
+export const MAX_PIXELS = 4_194_304;
+
+/**
+ * The device's native screen in pixels, upright, rounded to 64 (iPhone 17 Pro 1206×2622 → 1216×2624).
+ * Larger screens (Macs, iPads) are scaled down to fit MAX_PIXELS, keeping the aspect.
+ */
 export function deviceSize(cssW: number, cssH: number, dpr: number): Size {
-  const a = r64(cssW * dpr), b = r64(cssH * dpr);
-  return { w: Math.min(a, b), h: Math.max(a, b) };
+  const w = Math.min(cssW, cssH) * dpr, h = Math.max(cssW, cssH) * dpr;
+  const rounded = { w: r64(w), h: r64(h) };
+  if (rounded.w * rounded.h <= MAX_PIXELS) return rounded;
+  const k = Math.sqrt(MAX_PIXELS / (w * h));
+  const down = (v: number) => Math.max(64, Math.floor((v * k) / 64) * 64);
+  return { w: down(w), h: down(h) };
 }
 
 export const rotate = (s: Size): Size => ({ w: s.h, h: s.w });

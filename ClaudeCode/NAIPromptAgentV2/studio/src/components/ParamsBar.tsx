@@ -24,6 +24,23 @@ function RatingSwitch({ rating, onRating }: { rating: Rating; onRating: (r: Rati
   );
 }
 
+/** Width/height: typed freely, applied on blur/Enter, rounded to 64 and kept within 64–4096. */
+function SizeField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
+  const commit = () => {
+    const n = Number(text);
+    const next = Number.isFinite(n) && n > 0 ? Math.min(4096, Math.max(64, Math.round(n / 64) * 64)) : value;
+    setText(String(next)); if (next !== value) onChange(next);
+  };
+  return (
+    <label className="text-muted flex-1 text-xs">{label}
+      <input type="number" inputMode="numeric" step={64} value={text} onChange={(e) => setText(e.target.value)}
+        onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} className={`${field} mt-1 w-full`} />
+    </label>
+  );
+}
+
 /** A slider paired with a number field; typed values clamp when the field loses focus. */
 function SliderField({ label, min, max, step, value, onChange, disabled, hint }: {
   label: string; min: number; max: number; step: number; value: number; onChange: (v: number) => void; disabled?: boolean; hint?: string;
@@ -31,7 +48,12 @@ function SliderField({ label, min, max, step, value, onChange, disabled, hint }:
   const [text, setText] = useState(String(value));
   useEffect(() => { setText(String(value)); }, [value]);
   const clamp = (v: number) => Math.min(max, Math.max(min, Math.round(v / step) * step));
-  const commit = () => { const n = Number(text); onChange(Number.isFinite(n) && text.trim() !== "" ? Number(clamp(n).toFixed(2)) : value); };
+  // Show what was applied, even when it equals the current value (typing 99 into a field already at 50).
+  const commit = () => {
+    const n = Number(text);
+    const next = Number.isFinite(n) && text.trim() !== "" ? Number(clamp(n).toFixed(2)) : value;
+    setText(String(next)); onChange(next);
+  };
   return (
     <label className={`block ${disabled ? "opacity-50" : ""}`}>
       <span className="text-muted flex items-baseline justify-between text-xs">{label}{hint && <span className="text-faint font-mono">{hint}</span>}</span>
@@ -134,7 +156,7 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
               })}
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {(orientation && orientation !== "wallpaper" ? PRESETS[orientation] : PRESETS.wallpaper).map((s) => (
+              {(orientation ? PRESETS[orientation] : []).map((s) => (
                 <button key={s.name} type="button" onClick={() => set({ width: s.w, height: s.h })}
                   className={`rounded-full border px-3 py-1.5 font-mono text-xs ${params.width === s.w && params.height === s.h ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
                   {s.name} {s.w}×{s.h}
@@ -146,23 +168,17 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
               </button>
             </div>
             <div className="mt-3 flex items-end gap-2">
-              <label className="text-muted flex-1 text-xs">Width
-                <input type="number" step={64} min={64} value={params.width} onChange={(e) => set({ width: Number(e.target.value) || params.width })}
-                  onBlur={() => set({ width: Math.max(64, Math.round(params.width / 64) * 64) })} className={`${field} mt-1 w-full`} />
-              </label>
+              <SizeField label="Width" value={params.width} onChange={(width) => set({ width })} />
               <button type="button" onClick={() => { const r = rotate({ w: params.width, h: params.height }); set({ width: r.w, height: r.h }); }}
                 aria-label="Rotate canvas (swap width and height)" className="border-border text-muted grid size-11 place-items-center rounded-md border"><Rotate className="size-5" /></button>
-              <label className="text-muted flex-1 text-xs">Height
-                <input type="number" step={64} min={64} value={params.height} onChange={(e) => set({ height: Number(e.target.value) || params.height })}
-                  onBlur={() => set({ height: Math.max(64, Math.round(params.height / 64) * 64) })} className={`${field} mt-1 w-full`} />
-              </label>
+              <SizeField label="Height" value={params.height} onChange={(height) => set({ height })} />
             </div>
             <p className="text-faint mt-1 font-mono text-[11px]">{ratioLabel(params.width, params.height)} · {(params.width * params.height / 1e6).toFixed(2)} Mpx{preset ? ` · ${preset.size}` : orientation === "wallpaper" ? " · Device" : " · Custom"}</p>
           </section>
 
           <section className="space-y-4">
             <h3 className={h3}>Sampling</h3>
-            <SliderField label="Steps" min={0} max={50} step={1} value={steps} disabled={medium} hint={steps <= 28 ? "≤28 free" : "costs Anlas"} onChange={(v) => set({ steps: v })} />
+            <SliderField label="Steps" min={1} max={50} step={1} value={steps} disabled={medium} hint={steps <= 28 ? "≤28 free" : "costs Anlas"} onChange={(v) => set({ steps: v })} />
             <SliderField label="Prompt guidance" min={0} max={10} step={0.1} value={params.scale} onChange={(v) => set({ scale: v })} />
             <SliderField label="Prompt guidance rescale" min={0} max={1} step={0.02} value={medium ? 0 : params.cfgRescale} disabled={medium} onChange={(v) => set({ cfgRescale: v })} />
           </section>
@@ -180,7 +196,7 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
           </section>
 
           <details className="group">
-            <summary className="text-muted cursor-pointer list-none text-xs font-medium tracking-wide uppercase">Advanced <span className="group-open:hidden">›</span></summary>
+            <summary className="text-muted cursor-pointer list-none text-xs font-medium tracking-wide uppercase [&::-webkit-details-marker]:hidden">Advanced <span className="group-open:hidden">›</span></summary>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="text-muted text-xs">Sampler
                 <select value={medium ? "k_euler_ancestral" : params.sampler} disabled={medium} onChange={(e) => onParams(fixSchedule({ ...params, sampler: e.target.value }))} className={`${field} mt-1 w-full disabled:opacity-50`}>

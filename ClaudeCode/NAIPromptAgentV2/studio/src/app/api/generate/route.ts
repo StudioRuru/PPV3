@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   // A reused upscaled recipe keeps its original size; anything still huge is refused rather than sent.
   delete p.upscaled;
-  if (!canResend(p)) return NextResponse.json({ error: "That size is too large to generate — use 1 Mpx or less." }, { status: 400 });
+  if (!canResend(p)) return NextResponse.json({ error: "That size is too large — NovelAI takes up to about 4 Mpx (e.g. 1216×2624). Up to 1 Mpx is free on Opus." }, { status: 400 });
   if (!state?.base) return NextResponse.json({ error: "Missing prompt state." }, { status: 400 });
   if (!hasContent(state)) return NextResponse.json({ error: "Base prompt is empty." }, { status: 400 });
   try {

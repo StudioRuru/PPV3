@@ -18,7 +18,10 @@ test("ratioLabel reduces to a familiar ratio", () => {
 
 test("deviceSize: native pixels rounded to 64 (portrait), wallpaper presets keep the device aspect", () => {
   assert.deepEqual(deviceSize(402, 874, 3), { w: 1216, h: 2624 });   // iPhone 17 Pro → 1206×2622 native
-  assert.deepEqual(deviceSize(1512, 982, 2), { w: 1984, h: 3008 });  // a landscape desktop gives a portrait wallpaper
+  // Bigger screens are scaled to fit NovelAI's 4 Mpx cap (aspect kept, sides rounded down to 64).
+  const mac = deviceSize(1512, 982, 2), k5 = deviceSize(2560, 1440, 2);
+  for (const s of [mac, k5]) assert.ok(s.w * s.h <= 4_194_304 && s.w % 64 === 0 && s.h % 64 === 0 && s.h > s.w, `${s.w}×${s.h}`);
+  assert.ok(Math.abs(mac.h / mac.w - 3024 / 1964) < 0.05, "aspect kept");
   const wp = PRESETS.wallpaper;
   assert.ok(wp.every((s) => s.w % 64 === 0 && s.h % 64 === 0 && s.h > s.w));
 });

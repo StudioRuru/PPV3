@@ -23,14 +23,15 @@ export function WeightSlider({ value, onChange }: { value: number | undefined; o
     <div className="animate-rise space-y-1 pl-7">
       <div className="flex items-center gap-3">
         <div className="relative h-9 min-w-0 flex-1">
-          <div aria-hidden="true" className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full" style={{ background: track }} />
+          {/* Drawn track inset by half the 22px thumb, so ticks and bands line up with where the thumb can go. */}
+          <div aria-hidden="true" className="absolute inset-x-[11px] top-1/2 h-2 -translate-y-1/2 rounded-full" style={{ background: track }} />
           <div aria-hidden="true" className="bg-muted absolute top-1/2 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: "50%" }} />
           <input type="range" min={-2} max={2} step={0.05} value={o} aria-label="Weight offset (0 = normal)" aria-valuetext={offsetLabel(value)}
             onChange={(e) => onChange(fromOffset(Number(e.target.value)))} className="weight-range absolute inset-0 w-full" />
         </div>
         <span className={`w-14 text-right font-mono text-sm tabular-nums ${o < -1 ? "text-warn" : changed(value) ? "text-accent" : "text-muted"}`}>{offsetLabel(value)}</span>
       </div>
-      <div aria-hidden="true" className="text-faint relative mr-[4.25rem] h-3 font-mono text-[10px]">
+      <div aria-hidden="true" className="text-faint relative mr-[calc(4.25rem+11px)] ml-[11px] h-3 font-mono text-[10px]">
         {[-2, -1, 0, 1, 2].map((t) => <span key={t} className="absolute -translate-x-1/2" style={{ left: pct(t) }}>{t > 0 ? `+${t}` : t === 0 ? "0" : `−${-t}`}</span>)}
       </div>
       <div className="flex gap-1.5 pt-1">
