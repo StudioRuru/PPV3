@@ -8,7 +8,7 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
 }) {
   const num = (k: keyof NaiParams) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onParams({ ...params, [k]: e.target.value === "" ? undefined : Number(e.target.value) });
-  const field = "bg-bg border-border rounded-md border px-2 py-2 text-base";
+  const field = "bg-bg border-border rounded-md border px-2 py-2 font-mono text-base";
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <select value={params.model} onChange={(e) => onParams({ ...params, model: e.target.value })} className={field}>
@@ -17,7 +17,7 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
       <div role="radiogroup" aria-label="Rating" className="border-border flex overflow-hidden rounded-md border">
         {(["safe", "nsfw", "off"] as Rating[]).map((r) => (
           <button key={r} type="button" role="radio" aria-checked={rating === r} onClick={() => onRating(r)}
-            className={`px-3 py-2 uppercase ${rating === r ? "bg-accent text-accent-fg" : ""}`}>{r}</button>
+            className={`px-3 py-2 font-mono text-xs font-medium uppercase ${rating === r ? "bg-accent text-accent-fg" : ""}`}>{r}</button>
         ))}
       </div>
       <input aria-label="Width" type="number" step="64" value={params.width} onChange={num("width")} className={`${field} w-20`} />

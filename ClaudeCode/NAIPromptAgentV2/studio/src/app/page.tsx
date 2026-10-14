@@ -13,6 +13,7 @@ import { loadDraft, saveDraft } from "@/lib/draft";
 import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import { applyOps } from "@/lib/patch";
+import { isFree } from "@/lib/grid";
 import { applyTags, emptyState, type PromptState } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
@@ -120,7 +121,7 @@ export default function Studio() {
               <img key={current.id} src={`/api/gallery/${current.file}`} alt="Latest generation" onLoad={developed} onError={developed} className="animate-develop w-full" />
             </div>
             <figcaption className="text-muted flex items-center justify-between text-sm">
-              <span>seed {current.seed}</span>
+              <span className="font-mono text-xs">seed {current.seed}</span>
               <button type="button" className="text-accent" onClick={() => reuse(current)}>Reuse recipe</button>
             </figcaption>
           </figure>
@@ -130,7 +131,8 @@ export default function Studio() {
 
       <div className="bg-bg/90 border-border fixed inset-x-0 bottom-0 border-t p-3 backdrop-blur" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
-          {error && <p role="alert" className="text-danger flex-1 text-sm">{error}</p>}
+          {error ? <p role="alert" className="text-danger flex-1 text-sm">{error}</p>
+            : <span className="text-faint hidden truncate font-mono text-[11px] sm:inline">{params.width}×{params.height} · {params.steps} steps · {isFree(params) ? "free" : "Anlas"}</span>}
           <button type="button" onClick={() => setGrid(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Grid</button>
           <button type="button" onClick={() => setChat(true)} className="border-border rounded-lg border px-4 py-3 text-base">Chat</button>
           <button type="button" onClick={generate} disabled={busy} aria-busy={busy}

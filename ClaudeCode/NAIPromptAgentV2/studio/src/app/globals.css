@@ -1,15 +1,21 @@
 @import "tailwindcss";
 
-/* Minimal tokens; the full visual direction comes from the design challenge (Plan 6). */
+/* Night Studio (design challenge 1): deep navy ground, raised navy surfaces, lilac accent, Plex type. */
 @theme {
-  --color-bg: #0e1016;
-  --color-surface: #171a23;
-  --color-surface-2: #212534;
-  --color-border: #2e3446;
-  --color-fg: #eef0f6;
-  --color-muted: #9aa3b8;
-  --color-accent: #b49cff;
-  --color-accent-fg: #160f2b;
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --color-bg: #0d1020;
+  --color-surface: #141831;
+  --color-surface-2: #1d2340;
+  --color-border: #2a3150;
+  --color-fg: #e9ecf8;
+  --color-muted: #aab2d0;
+  --color-faint: #6f789e;
+  --color-accent: #b7a4ff;
+  --color-accent-fg: #1a1240;
+  --color-accent-soft: #2b2550;
+  --color-accent-ink: #d4c9ff;
+  --color-cyan: #5fd4e6;
   --color-danger: #ff5a72;
   --color-ok: #7ee0a1;
   --color-warn: #ffc46b;
