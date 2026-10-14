@@ -2,15 +2,15 @@
 import { useEffect, useState } from "react";
 import type { Block } from "@/lib/blocks";
 import { requestJson } from "@/lib/net";
-import type { CharBox } from "@/lib/prompt";
+import type { CharBox, Rating } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
 const DOT = ["#b7a4ff", "#5fd4e6", "#ffb86b", "#7ee0a1"];
 
-export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene, preset, onPreset }: {
+export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene, preset, onPreset, rating }: {
   open: boolean; onClose: () => void; chars: CharBox[]; tagText: string;
   onSend: (picked: Block[], target: "base" | number) => void; onLoadScene: (b: Block) => void;
-  preset: Preset; onPreset: (p: Preset) => void;
+  preset: Preset; onPreset: (p: Preset) => void; rating: Rating;
 }) {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [presets, setPresets] = useState<Preset[]>(BUILTIN_PRESETS);
@@ -19,6 +19,7 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
   const [q, setQ] = useState("");
   const [saveName, setSaveName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [suggested, setSuggested] = useState<Block[] | "off" | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -26,13 +27,16 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
     setTarget(chars.length ? 0 : "base");
     requestJson<{ blocks: Block[] }>("/api/blocks").then((r) => r.ok && setBlocks(r.data.blocks));
     requestJson<{ presets: Preset[] }>("/api/presets").then((r) => r.ok && setPresets(r.data.presets));
+    setSuggested(null);
+    if (tagText) requestJson<{ tags: string[] }>("/api/expand", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags: tagText, rating }) })
+      .then((r) => setSuggested(r.ok ? r.data.tags.map((t) => ({ id: `sg:${t}`, kind: "cluster" as const, name: t, base: [], char: [t], uc: [], user: false })) : "off"));
   // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when the drawer opens
   }, [open]);
 
   if (!open) return null;
   const match = (b: Block) => !q || `${b.name} ${b.char.join(" ")}`.toLowerCase().includes(q.toLowerCase());
   const toggle = (id: string) => setPicked((cur) => (cur.includes(id) ? cur.filter((p) => p !== id) : [...cur, id]));
-  const chosen = blocks.filter((b) => picked.includes(b.id));
+  const chosen = [...blocks, ...(Array.isArray(suggested) ? suggested : [])].filter((b) => picked.includes(b.id));
   const count = (tagText ? tagText.split(", ").length : 0) + chosen.reduce((n, b) => n + b.char.length + b.base.length, 0);
 
   async function saveCluster() {
@@ -100,7 +104,12 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
               ))}
             </div>
           ))}
-          {section("Suggested for this image", <p className="text-muted text-sm">Available when the co-pilot is on.</p>)}
+          {section("Suggested for this image", !tagText ? <p className="text-muted text-sm">Tag an image to get suggestions.</p>
+            : suggested === null ? <p className="text-muted text-sm">Thinking…</p>
+            : suggested === "off" ? <p className="text-muted text-sm">TIPO is offline — run `npm run tipo` on the Mac.</p>
+            : <div className="flex flex-wrap gap-1.5">{suggested.map((b) => (
+                <button key={b.id} type="button" aria-pressed={picked.includes(b.id)} onClick={() => toggle(b.id)}
+                  className={`h-9 rounded-md border px-3 text-sm ${picked.includes(b.id) ? "border-accent bg-surface-2" : "border-teal-800 bg-teal-950/40"}`}>+ {b.name}</button>))}</div>)}
         </div>
 
         <div className="border-border flex gap-2 border-t p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>

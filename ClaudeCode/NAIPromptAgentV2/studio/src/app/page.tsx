@@ -135,7 +135,7 @@ export default function Studio() {
       </div>
       <BlockDrawer open={drawer} onClose={() => setDrawer(false)} chars={state.chars} tagText={tagText}
         onSend={sendBlocks} onLoadScene={(b) => { setState(loadScene(b)); setDrawer(false); }}
-        preset={preset} onPreset={setPreset} />
+        preset={preset} onPreset={setPreset} rating={state.rating} />
       <ChatSheet open={chat} onClose={() => setChat(false)} state={state} seed={seed}
         onApply={(ops) => setState((s) => applyOps(s, ops))} />
     </main>
