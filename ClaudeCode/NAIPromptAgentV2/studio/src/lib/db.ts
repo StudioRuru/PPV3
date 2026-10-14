@@ -22,6 +22,15 @@ if (!(db.prepare("PRAGMA table_info(generations)").all() as { name: string }[]).
   // Two processes can race here on first boot (dev + build workers); the loser's "duplicate column" is harmless.
   try { db.exec("ALTER TABLE generations ADD COLUMN cost INTEGER"); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
 }
+db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+
+export function getSetting(key: string): string | null {
+  return (db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined)?.value ?? null;
+}
+export function setSetting(key: string, value: string): void {
+  db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
+}
+
 db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   created_at INTEGER NOT NULL,

@@ -65,12 +65,12 @@ export async function anlas(token: string, timeoutMs = 10_000): Promise<number> 
 }
 
 /** NovelAI 4× upscale. Spends Anlas — callers confirm with the user first. Reply is a zip (older: raw PNG). */
-export async function upscaleImage(png: Buffer, width: number, height: number, model: string, token: string): Promise<Buffer> {
+export async function upscaleImage(png: Buffer, width: number, height: number, model: string, token: string, scale: 2 | 4 = 4): Promise<Buffer> {
   if (!token) throw new NovelAIError("NOVELAI_TOKEN is not set on the server.", 500);
   const res = await fetch(`${API}/ai/upscale`, {
     method: "POST",
     headers: { ...auth(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ image: png.toString("base64"), width, height, scale: 4, model }),
+    body: JSON.stringify({ image: png.toString("base64"), width, height, scale, model }),
     signal: AbortSignal.timeout(180_000),
   }).catch((e) => { throw new NovelAIError(`Upscale didn't finish (${(e as Error).message}). It may already have been charged — check the balance before trying again.`); });
   if (!res.ok) {

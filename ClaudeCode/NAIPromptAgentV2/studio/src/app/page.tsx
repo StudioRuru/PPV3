@@ -4,7 +4,10 @@ import { BlockDrawer } from "@/components/BlockDrawer";
 import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
-import { ExportSheet } from "@/components/ExportSheet";
+import { CameraRoll } from "@/components/CameraRoll";
+import { SaveFlash } from "@/components/SaveFlash";
+import { TabBar, type Tab } from "@/components/TabBar";
+import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
 import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
 import { loadDefaults, SettingsSheet } from "@/components/SettingsSheet";
@@ -47,7 +50,13 @@ export default function Studio() {
   const [settings, setSettings] = useState(false);
   const [baseSide, setBaseSide] = useState<Side>("pos");
   const [viewing, setViewing] = useState<number | null>(null); // generation id
-  const [exporting, setExporting] = useState(false);
+  const [tab, setTab] = useState<Tab>("studio");
+  const [flash, setFlash] = useState<string | null>(null);
+  const clearFlash = useCallback(() => setFlash(null), []);
+  // The viewer browses whichever list it was opened from (studio history or the camera roll).
+  const [viewerItems, setViewerItems] = useState<Generation[] | null>(null);
+  const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
+  const TABS: Tab[] = ["studio", "roll", "closet"];
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
@@ -61,6 +70,7 @@ export default function Studio() {
     }
     const a = document.createElement("a");
     a.href = path; a.download = g.file; a.click();
+    setFlash(`Saved${g.size ? ` · ${mb(g.size)}` : ""}`);
   }
 
   async function showGeneration(id: number) {
@@ -79,7 +89,8 @@ export default function Studio() {
       const blob = await (await fetch(dataUrl)).blob();
       setIncoming(new File([blob], name, { type: blob.type }));
     };
-    w.studioToast = (msg: string) => setNote(msg);
+    // Native "Saved to Photos" gets the floppy overlay; anything else is a status line.
+    w.studioToast = (msg: string) => (msg.startsWith("Saved") ? setFlash(msg) : setNote(msg));
   }, []);
   useEffect(() => {
     if (!note) return;
@@ -156,12 +167,29 @@ export default function Studio() {
   }
 
   return (
-    <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 pb-28 lg:grid-cols-2"
+    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-40" : "pb-24"}`}
+      style={{ touchAction: "pan-y" }}
       onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}>
+      onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}
+      // Swipe left/right on free page areas to change tab; never from controls, the Tagger, the canvas or sheets.
+      onPointerDown={(e) => { swipe.current = (e.target as HTMLElement).closest(NO_SWIPE) ? null : { x: e.clientX, y: e.clientY, t: e.timeStamp }; }}
+      onPointerUp={(e) => {
+        const s = swipe.current; swipe.current = null;
+        if (!s || window.getSelection()?.toString()) return;
+        const dir = swipeDirection({ dx: e.clientX - s.x, dy: e.clientY - s.y, ms: e.timeStamp - s.t });
+        const i = TABS.indexOf(tab) + (dir === "next" ? 1 : dir === "prev" ? -1 : 0);
+        if (dir && TABS[i]) setTab(TABS[i]);
+      }}
+      onPointerCancel={() => { swipe.current = null; }}>
+      {/* Studio stays mounted (hidden) on other tabs so the Tagger and drafts keep their state. */}
+      <div className={tab === "studio" ? "contents" : "hidden"}>
       <section className="space-y-4">
         <header className="flex items-center gap-2">
           <h1 className="flex-1 text-[15px] font-semibold tracking-wide">NAI Studio</h1>
+          <label className="border-border text-muted flex h-9 cursor-pointer items-center rounded-full border px-3 text-xs">
+            Import NovelAI PNG
+            <input type="file" accept="image/png" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onDrop(f); }} />
+          </label>
           <button type="button" onClick={() => setSettings(true)} aria-label="Settings" className="text-muted grid size-11 place-items-center rounded-full">
             <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
@@ -201,10 +229,6 @@ export default function Studio() {
           positions={state.positions ?? "ai"} onPositions={(positions) => setState({ ...state, positions })}
           words={state.positionWords === true} onWords={(positionWords) => setState({ ...state, positionWords })}
           width={params.width} height={params.height} />
-        <label className="text-muted block text-sm">
-          Load recipe from a NovelAI PNG
-          <input type="file" accept="image/png" className="mt-1 block" onChange={(e) => e.target.files?.[0] && onDrop(e.target.files[0])} />
-        </label>
       </section>
 
       <section className="space-y-3">
@@ -231,12 +255,22 @@ export default function Studio() {
         ) : <div className="border-border text-muted grid aspect-[832/1216] place-items-center rounded-lg border">Nothing yet</div>}
         <div className="flex items-center justify-between">
           <h2 className="text-muted text-xs font-medium tracking-wide uppercase">History</h2>
-          {history.length > 0 && <button type="button" onClick={() => setExporting(true)} className="text-accent px-1 py-2 text-sm">Save to zip</button>}
+          {history.length > 0 && <button type="button" onClick={() => setTab("roll")} className="text-accent px-1 py-2 text-sm">Camera roll ›</button>}
         </div>
-        <HistoryStrip items={history} onOpen={setCurrent} />
+        <div data-noswipe><HistoryStrip items={history} onOpen={setCurrent} /></div>
+      </section>
+      </div>
+
+      <div className={tab === "roll" ? "lg:col-span-2" : "hidden"}>
+        <CameraRoll active={tab === "roll"} onOpen={(items, id) => { setViewerItems(items); setViewing(id); }} onChanged={() => loadHistory().then((items) => setCurrent((c) => items.find((g) => g.id === c?.id) ?? items[0] ?? null))} />
+      </div>
+      <section aria-label="Closet" className={tab === "closet" ? "lg:col-span-2 space-y-3" : "hidden"}>
+        <h1 className="text-[15px] font-semibold tracking-wide">Closet</h1>
+        <p className="text-muted text-sm">The workshop for scenes, arcs, outfits and clusters is coming next. Your library is in Building blocks for now.</p>
+        <button type="button" onClick={() => setDrawer(true)} className="border-border rounded-lg border px-4 py-3 text-sm">Open Building blocks</button>
       </section>
 
-      <div className="bg-bg/90 border-border fixed inset-x-0 bottom-0 border-t p-3 backdrop-blur" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
+      <div className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           {undo ? <p role="status" className="flex flex-1 items-center gap-3 text-sm">Prompt recreated
               <button type="button" onClick={() => { setState(undo); setUndo(null); }} className="text-accent font-semibold">Undo</button></p>
@@ -244,7 +278,6 @@ export default function Studio() {
             : error ? <p role="alert" className="text-danger flex-1 text-sm">{error}</p>
             : <span className="text-faint hidden truncate font-mono text-[11px] sm:inline">{params.width}×{params.height} · {params.steps} steps · {isFree(params) ? "free" : "Anlas"}</span>}
           <button type="button" onClick={() => setGrid(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Grid</button>
-          <button type="button" onClick={() => setChat(true)} className="border-border rounded-lg border px-4 py-3 text-base">Chat</button>
           <button type="button" onClick={generate} disabled={busy} aria-busy={busy}
             className={`bg-accent text-accent-fg rounded-lg px-6 py-3 text-base font-semibold ${busy ? "sweep" : ""}`}>
             {busy ? "Generating…" : "Generate"}
@@ -261,10 +294,11 @@ export default function Studio() {
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
-      <Viewer items={history.some((h) => h.id === current?.id) || !current ? history : [current, ...history]} id={viewing} onId={setViewing} onClose={closeViewer} onSave={save}
+      <TabBar tab={tab} onTab={setTab} onChat={() => setChat(true)} />
+      <SaveFlash text={flash} onDone={clearFlash} />
+      <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
         onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); }} />
-      <ExportSheet open={exporting} onClose={() => setExporting(false)} items={history} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );

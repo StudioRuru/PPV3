@@ -73,7 +73,7 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
 
   // Split desk: the pane stays pinned while the prompt scrolls under it, so chips and drop targets share the screen.
   return (
-    <section aria-label="Tagger" className="bg-surface border-border sticky top-0 z-20 rounded-lg border shadow-lg">
+    <section aria-label="Tagger" data-noswipe className="bg-surface border-border sticky top-0 z-20 rounded-lg border shadow-lg">
       <header className="flex items-center gap-3 p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {preview && <img src={preview} alt="Image being tagged" className="h-16 w-12 rounded object-cover" />}

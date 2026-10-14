@@ -20,6 +20,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const [theme, setPref] = useState<ThemePref>({ theme: "night" });
   const [defaults, setDefaults] = useState<GenDefaults>({ sampler: params.sampler, noiseSchedule: params.noiseSchedule, cfgRescale: params.cfgRescale });
   const [danbooru, setDanbooru] = useState<boolean | null>(null);
+  const [retention, setRetention] = useState<number | null | undefined>(undefined);
   const { anlas } = useAnlas(open);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     setPref(getTheme());
     setDefaults((d) => ({ ...d, ...loadDefaults() }));
     requestJson<{ danbooru: boolean }>("/api/status").then((r) => setDanbooru(r.ok ? r.data.danbooru : null));
+    requestJson<{ autoDeleteDays: number | null }>("/api/settings").then((r) => r.ok && setRetention(r.data.autoDeleteDays));
   }, [open]);
 
   const pick = (p: ThemePref) => { setTheme(p); setPref(p); };
@@ -91,6 +93,18 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
           </div>
           <button type="button" onClick={() => onParams({ ...params, ...defaults })} className="border-border mt-2 w-full rounded-md border px-3 py-2.5 text-sm">Use these now</button>
           <p className="text-faint mt-1 text-xs">New prompts on this device start with these.</p>
+        </section>
+
+        <section>
+          <h3 className={h3}>Camera roll</h3>
+          <div role="radiogroup" aria-label="Auto-delete images after" className="border-border grid grid-cols-4 overflow-hidden rounded-md border">
+            {([null, 1, 2, 3] as const).map((d) => (
+              <button key={String(d)} type="button" role="radio" aria-checked={retention === d}
+                onClick={async () => { const r = await requestJson<{ autoDeleteDays: number | null }>("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoDeleteDays: d }) }); if (r.ok) setRetention(r.data.autoDeleteDays); }}
+                className={`h-10 text-xs font-medium ${retention === d ? "bg-accent text-accent-fg" : "text-muted"}`}>{d === null ? "Never" : `${d} day${d > 1 ? "s" : ""}`}</button>
+            ))}
+          </div>
+          <p className="text-faint mt-1 text-xs">Images older than this are deleted from the Mac automatically. Zip anything you want to keep.</p>
         </section>
 
         <section>

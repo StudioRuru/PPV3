@@ -121,7 +121,8 @@ export function UpscaleSheet({ source: open, onClose, onDone }: { source: Genera
   if (open) last.current = open;
   const source = last.current;
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ spent: number | null; id: number } | null>(null);
+  const [result, setResult] = useState<{ spent: number | null; id: number; size?: number | null } | null>(null);
+  const [scale, setScale] = useState<2 | 4>(4);
   const [error, setError] = useState<string | null>(null);
   const { anlas, refresh } = useAnlas(!!open);
   const running = useRef(false);
@@ -132,12 +133,14 @@ export function UpscaleSheet({ source: open, onClose, onDone }: { source: Genera
     running.current = true;
     setBusy(true); setError(null);
     const before = await refresh();
-    const r = await requestJson<{ id: number }>("/api/upscale", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: source.id }) });
+    const r = await requestJson<{ id: number }>("/api/upscale", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: source.id, scale }) });
     const after = await refresh();
     running.current = false;
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
-    setResult({ id: r.data.id, spent: before !== null && after !== null ? before - after : null });
+    const fresh = await requestJson<{ items: Generation[] }>("/api/generations?limit=5");
+    const size = fresh.ok ? fresh.data.items.find((g) => g.id === r.data.id)?.size : null;
+    setResult({ id: r.data.id, spent: before !== null && after !== null ? before - after : null, size });
     onDone(r.data.id);
   }
 
@@ -146,20 +149,30 @@ export function UpscaleSheet({ source: open, onClose, onDone }: { source: Genera
     <Sheet open={!!open} onClose={onClose} label="Upscale" closeLabel="Close upscale"
       className="rounded-t-2xl border-t lg:max-w-md lg:rounded-none lg:border-l">
       <header className="flex items-center gap-2 p-3">
-        <h2 className="flex-1 text-base font-semibold">Upscale 4×</h2>
+        <h2 className="flex-1 text-base font-semibold">Upscale</h2>
         <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
       </header>
       <div className="space-y-3 px-3 pb-3 text-sm">
-        <p className="font-mono">{w}×{h} → <span className="text-accent">{w * 4}×{h * 4}</span></p>
+        <div role="radiogroup" aria-label="Upscale size" className="grid grid-cols-2 gap-2">
+          {([2, 4] as const).map((k) => (
+            <button key={k} type="button" role="radio" aria-checked={scale === k} disabled={busy || !!result} onClick={() => setScale(k)}
+              className={`rounded-lg border p-3 text-left ${scale === k ? "border-accent bg-accent-soft" : "border-border"}`}>
+              <span className="block text-base font-semibold">{k}×</span>
+              <span className="text-muted block font-mono text-xs">{w * k}×{h * k}</span>
+              {/* PNG size grows roughly with pixel count; a rough guide only. */}
+              <span className="text-faint block font-mono text-[11px]">≈ {source?.size ? (source.size * k * k * 0.8 / 1_048_576).toFixed(1) : "?"} MB</span>
+            </button>
+          ))}
+        </div>
         <p className="text-muted">NovelAI's upscaler. <span className="text-warn">This spends Anlas</span> — NovelAI doesn't say how many up front, so the exact amount is shown after.</p>
         <p className="font-mono text-xs">Balance: {anlas === null ? "…" : `${anlas.toLocaleString()} Anlas`}</p>
-        {result && <p role="status" className="text-ok">Done{result.spent !== null ? ` — spent ${result.spent} Anlas` : ""}. It's now the current image.</p>}
+        {result && <p role="status" className="text-ok">Done{result.size ? ` · ${(result.size / 1_048_576).toFixed(2)} MB` : ""}{result.spent !== null ? ` · spent ${result.spent} Anlas` : ""}. It's now the current image.</p>}
         {error && <p role="alert" className="text-danger">{error}</p>}
       </div>
       <div className="border-border border-t p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
         {result
           ? <button type="button" onClick={onClose} className="border-border w-full rounded-lg border px-4 py-3 font-semibold">Close</button>
-          : <button type="button" onClick={run} disabled={busy || !source} className="bg-accent text-accent-fg w-full rounded-lg px-4 py-3 font-semibold disabled:opacity-40">{busy ? "Upscaling…" : "Upscale — spend Anlas"}</button>}
+          : <button type="button" onClick={run} disabled={busy || !source} className="bg-accent text-accent-fg w-full rounded-lg px-4 py-3 font-semibold disabled:opacity-40">{busy ? "Upscaling…" : `Upscale ${scale}× — spend Anlas`}</button>}
       </div>
     </Sheet>
   );

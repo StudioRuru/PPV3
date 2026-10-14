@@ -111,6 +111,10 @@ button:active:not(:disabled):not(.sheet-backdrop) { scale: 0.97; transition-dura
 .animate-develop:not([data-loaded]) { opacity: 0; }
 .animate-develop[data-loaded] { animation: develop var(--dur-develop) var(--ease-settle) backwards; }
 
+/* Save: the floppy badge pops in, holds, and fades. */
+@keyframes save-flash { 0% { opacity: 0; scale: .85; } 15% { opacity: 1; scale: 1; } 75% { opacity: 1; } 100% { opacity: 0; scale: .98; } }
+.save-flash { animation: save-flash 1.4s var(--ease-out) forwards; }
+
 /* Waiting: a light band sweeps across (transform only). */
 .sweep { position: relative; overflow: hidden; isolation: isolate; }
 .sweep::after {

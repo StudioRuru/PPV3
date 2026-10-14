@@ -64,7 +64,7 @@ export function Viewer({ items, id, onId, onClose, onSave, onVary, onUpscale, on
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={`Image ${index + 1} of ${items.length}`} className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+    <div role="dialog" aria-modal="true" data-noswipe aria-label={`Image ${index + 1} of ${items.length}`} className="fixed inset-0 z-50 flex flex-col bg-black text-white">
       <header className="flex items-center gap-3 p-3" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)" }}>
         <span className="flex-1 font-mono text-xs opacity-80">{[`${index + 1} / ${items.length}`, `seed ${g.seed}`, g.params.upscaled ? "4×" : "", mb(g.size), costLabel(g.cost)].filter(Boolean).join(" · ")}</span>
         <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close viewer" className="grid size-11 place-items-center rounded-full bg-white/10 text-lg">×</button>

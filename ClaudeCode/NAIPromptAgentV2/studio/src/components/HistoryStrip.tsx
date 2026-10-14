@@ -18,7 +18,7 @@ export function HistoryStrip({ items, onOpen }: { items: Generation[]; onOpen: (
       {items.map((g) => (
         <button key={g.id} type="button" onClick={() => onOpen(g)} className="shrink-0" aria-label={`Open generation ${g.id}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/gallery/${g.file}`} alt="" loading="lazy" onLoad={developed} onError={developed} className="border-border animate-develop h-24 w-auto rounded-md border" />
+          <img src={`/api/gallery/${g.file}?w=256`} alt="" loading="lazy" onLoad={developed} onError={developed} className="border-border animate-develop h-24 w-auto rounded-md border" />
         </button>
       ))}
     </div>
