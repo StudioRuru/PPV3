@@ -115,3 +115,43 @@ test("parity: the negative caption carries no coords/order (web sends false), le
   assert.deepEqual([P(b).v4_prompt.use_coords, P(b).v4_prompt.use_order, P(b).v4_prompt.legacy_uc], [true, true, false]);
   assert.deepEqual([P(b).v4_negative_prompt.use_coords, P(b).v4_negative_prompt.use_order, P(b).v4_negative_prompt.legacy_uc], [false, false, false]);
 });
+
+test("review: nsfw detection sees weighted/braced forms, not negative ones; SFW respects an nsfw typed in base", async () => {
+  const { buildNaiBody, DEFAULT_PARAMS } = await import("./nai-body");
+  const p = { ...DEFAULT_PARAMS, quality: "off" as const, ucPreset: "none" as const };
+  const run = (base: string, uc: string, rating: "safe" | "nsfw") => P(buildNaiBody({ base, uc, chars: [], rating }, p));
+  assert.equal(run("1.2::nsfw::, 1girl", "", "nsfw").prompt, "1.2::nsfw::, 1girl");
+  assert.equal(run("{nsfw}, 1girl", "", "nsfw").prompt, "{nsfw}, 1girl");
+  assert.equal(run("-1::nsfw::, 1girl", "", "nsfw").prompt, "nsfw, -1::nsfw::, 1girl", "a negative weight steers away: not present");
+  assert.equal(run("nsfw, 1girl", "hat", "safe").negative_prompt, "hat", "SFW with nsfw typed in base: no nsfw in UC");
+});
+
+test("review: Medium + SFW keeps nsfw in the UC even if the (discarded) user UC had it", async () => {
+  const { buildNaiBody, DEFAULT_PARAMS, UC_PRESETS } = await import("./nai-body");
+  const b = buildNaiBody({ base: "1girl", uc: "nsfw, hat", chars: [], rating: "safe" }, { ...DEFAULT_PARAMS, effort: "medium" });
+  assert.equal(P(b).negative_prompt, `nsfw, ${UC_PRESETS.heavy}`);
+});
+
+test("review: preset and user UC are deduped; quality tags typed by hand aren't doubled", async () => {
+  const { buildNaiBody, DEFAULT_PARAMS } = await import("./nai-body");
+  const b = buildNaiBody({ base: "1girl, masterpiece", uc: "lowres, hat, worst quality", chars: [], rating: "nsfw" }, DEFAULT_PARAMS);
+  assert.equal((P(b).negative_prompt.match(/lowres/g) ?? []).length, 1);
+  assert.ok(P(b).negative_prompt.endsWith(", hat"));
+  assert.equal(P(b).prompt, "nsfw, 1girl, masterpiece, very aesthetic, no text");
+});
+
+test("review: legacyParams — recipes saved before presets existed are sent as written", async () => {
+  const { legacyParams, DEFAULT_PARAMS } = await import("./nai-body");
+  const { quality, ucPreset, mode, effort, ...old } = DEFAULT_PARAMS;
+  assert.deepEqual([legacyParams(old).quality, legacyParams(old).ucPreset], ["off", "none"]);
+  assert.deepEqual([legacyParams(DEFAULT_PARAMS).quality, legacyParams(DEFAULT_PARAMS).ucPreset], ["standard", "heavy"]);
+});
+
+test("review: costOf — unknown when reads failed, overlapped, or the balance went up", async () => {
+  const { costOf } = await import("./nai-body");
+  assert.equal(costOf(100, 88, false), 12);
+  assert.equal(costOf(100, 100, false), 0);
+  assert.equal(costOf(null, 88, false), null);
+  assert.equal(costOf(100, 88, true), null);
+  assert.equal(costOf(100, 150, false), null);
+});

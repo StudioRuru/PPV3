@@ -74,14 +74,15 @@ export function recipeToState(r: Recipe): { state: PromptState; params: Partial<
   const { base, artists } = splitArtists(parseToLines(r.base));
   const state: PromptState = {
     ...emptyState(),
-    rating: "off",
+    // The PNG's text is already the web client's final composition: send it as written.
+    rating: /(^|,)\s*nsfw\s*(,|$)/i.test(r.base) ? "nsfw" : "safe",
     positions: r.useCoords ? "custom" : "ai",
     base: base.length ? base : [newLine()],
     artists,
     uc: r.uc,
     chars: r.chars.map((p, i) => ({ id: newLine().id, lines: parseToLines(p), uc: r.charUcs?.[i] ?? "", enabled: true, center: r.useCoords ? r.centers[i] : undefined })),
   };
-  const params: Partial<NaiParams> = {};
+  const params: Partial<NaiParams> = { quality: "off", ucPreset: "none" };
   if (r.seed) params.seed = r.seed;
   if (r.sampler) params.sampler = r.sampler;
   if (r.steps) params.steps = r.steps;

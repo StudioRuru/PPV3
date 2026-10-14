@@ -19,7 +19,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS generations (
 )`);
 // Added 2026-10-14: Anlas spent per generation (null = unknown).
 if (!(db.prepare("PRAGMA table_info(generations)").all() as { name: string }[]).some((c) => c.name === "cost")) {
-  db.exec("ALTER TABLE generations ADD COLUMN cost INTEGER");
+  // Two processes can race here on first boot (dev + build workers); the loser's "duplicate column" is harmless.
+  try { db.exec("ALTER TABLE generations ADD COLUMN cost INTEGER"); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
 }
 db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

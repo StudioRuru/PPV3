@@ -56,6 +56,7 @@ Write a short reply in prose. When you suggest prompt changes, end with ONE fenc
 {"ops":[{"target":"base|artist|char:N|uc","action":"add|remove|replace|weight","line":"comma, separated, tags"}]}
 \`\`\`
 Use real Danbooru tags or short natural-language phrases. char:N is 0-based. Artist tags ("artist:name") go to target "artist".
+The app adds NovelAI's quality tags, the Undesired Content preset and the SFW/NSFW tag itself — never suggest generic quality or negative tags (masterpiece, worst quality, lowres, nsfw…).
 Emphasis: most lines stay unweighted. Add "weight" (0.8–1.3) to at most 1–2 lines — the single defining element — and never weight everything; over-emphasis ruins NovelAI images. "weight" is required only for action "weight".`;
 }
 

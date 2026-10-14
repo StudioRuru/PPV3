@@ -49,7 +49,7 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
       <input aria-label="Guidance" type="number" step="0.1" value={params.scale} onChange={num("scale")} className={`${field} w-16`} />
       <input aria-label="Seed (blank = random)" type="number" placeholder="random seed" value={params.seed ?? ""} onChange={num("seed")} className={`${field} w-36`} />
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="text-accent px-1 py-2 text-sm">{more ? "Less" : "More"}</button>
-      {medium && <p className="text-muted w-full text-xs">Medium effort: about 40% cheaper, fixed at 14 steps, Euler Ancestral and the Heavy UC preset. Undesired content isn't sent — use a negative weight on a line instead (e.g. a hat line at −3).</p>}
+      {medium && <p className="text-muted w-full text-xs">Medium effort: about 40% cheaper, fixed at 14 steps, Euler Ancestral and the Heavy UC preset. Undesired content isn't sent — put unwanted things on a line with a negative weight instead (e.g. a hat line pulled below 0).</p>}
       {more && (
         <div className="bg-surface border-border grid w-full grid-cols-2 gap-2 rounded-lg border p-3">
           <label className="text-muted text-xs">Quality tags
@@ -63,7 +63,7 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
             </select>
           </label>
           <label className="text-muted text-xs">Sampler
-            <select value={medium ? "k_euler_ancestral" : params.sampler} disabled={medium} onChange={(e) => onParams(fixSchedule({ ...params, sampler: e.target.value }))} className={`${field} mt-1 w-full`}>
+            <select value={medium ? "k_euler_ancestral" : params.sampler} disabled={medium} onChange={(e) => onParams(fixSchedule({ ...params, sampler: e.target.value }))} className={`${field} mt-1 w-full disabled:opacity-50`}>
               {SAMPLERS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </label>

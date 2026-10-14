@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
 import { saveImage } from "@/lib/gallery";
 import { insertGeneration, readGeneration } from "@/lib/generations";
-import { canResend, DEFAULT_PARAMS, fixSchedule, type Img2Img, type NaiParams } from "@/lib/nai-body";
-import { anlas, generateImage, NovelAIError } from "@/lib/novelai";
+import { canResend, compose, DEFAULT_PARAMS, fixSchedule, legacyParams, type Img2Img, type NaiParams } from "@/lib/nai-body";
+import { generateImage, measured, NovelAIError } from "@/lib/novelai";
 import { compile, hasContent, type PromptState } from "@/lib/prompt";
 
 export const runtime = "nodejs";
@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
     if (!src) return NextResponse.json({ error: "That image is no longer in the gallery." }, { status: 404 });
     if (!canResend(src.params)) return NextResponse.json({ error: "Variations need an original image, not an upscaled one." }, { status: 400 });
     state = src.state;
-    p = fixSchedule({ ...DEFAULT_PARAMS, ...src.params, seed: body.params?.seed });
+    // Images saved before presets existed keep their exact text (no added quality tags / preset).
+    p = fixSchedule({ ...DEFAULT_PARAMS, ...legacyParams(src.params), seed: body.params?.seed });
     img2img = { image: src.png.toString("base64"), strength: clamp(body.source.strength, 0.05, 0.95, 0.45), noise: clamp(body.source.noise, 0, 0.99, 0) };
   }
 
@@ -36,13 +37,11 @@ export async function POST(req: NextRequest) {
   if (!state?.base) return NextResponse.json({ error: "Missing prompt state." }, { status: 400 });
   if (!hasContent(state)) return NextResponse.json({ error: "Base prompt is empty." }, { status: 400 });
   try {
-    // Balance before/after = what this image actually cost (Opus-free sizes show 0). Never blocks generating.
-    const before = await anlas(NOVELAI_TOKEN).catch(() => null);
-    const { png, seed } = await generateImage(compile(state), p, NOVELAI_TOKEN, img2img);
-    const after = await anlas(NOVELAI_TOKEN).catch(() => null);
+    const compiled = compile(state);
+    const { result: { png, seed }, cost } = await measured(NOVELAI_TOKEN, () => generateImage(compiled, p, NOVELAI_TOKEN, img2img));
     const file = await saveImage(png, seed);
-    const cost = before !== null && after !== null ? before - after : null;
-    const id = insertGeneration({ model: p.model, seed, file, state, params: { ...p, seed }, gridId: grid, cost });
+    // The model column records what was actually sent (Medium effort uses its own model); params keep the user's choice.
+    const id = insertGeneration({ model: compose(compiled, p).p.model, seed, file, state, params: { ...p, seed }, gridId: grid, cost });
     return NextResponse.json({ id, file, seed });
   } catch (err) {
     const status = err instanceof NovelAIError ? err.status : 500;

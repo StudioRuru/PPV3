@@ -1,4 +1,4 @@
-import type { Compiled } from "./prompt";
+import { splitTags, type Compiled } from "./prompt";
 
 export type GenMode = "anime" | "furry";
 export type Effort = "high" | "medium";
@@ -43,8 +43,35 @@ export const UC_PRESETS: Record<UcPreset, string> = {
 };
 
 const MEDIUM_MODEL = "nai-diffusion-5-full-medium";
-const hasTag = (s: string, tag: string) => s.split(",").some((t) => t.trim().toLowerCase() === tag);
-const join = (...parts: string[]) => parts.map((p) => p.trim()).filter(Boolean).join(", ");
+/** A tag's identity for matching: weights and {}/[] stripped, lowercased; a ≤0 weight means "steer away" — not present. */
+function tagKey(t: string): string {
+  const m = t.trim().match(/^(-?[\d.]+)::([\s\S]*?)::?$/);
+  if (m && Number(m[1]) <= 0) return "";
+  return (m ? m[2] : t).replace(/[{}[\]]/g, "").trim().toLowerCase();
+}
+const hasTag = (s: string, tag: string) => splitTags(s).some((t) => tagKey(t) === tag);
+/** Join parts, dropping tags already present (the preset and a hand-typed UC overlap; so do typed quality tags). */
+function join(...parts: string[]): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of parts.flatMap((p) => splitTags(p))) {
+    const k = tagKey(t) || t.trim();
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(t.trim());
+  }
+  return out.join(", ");
+}
+
+/** Params saved before presets existed: their text was already final — send it as written. */
+export function legacyParams<P extends Partial<NaiParams>>(p: P): P & Pick<NaiParams, "quality" | "ucPreset"> {
+  return p.quality === undefined ? { ...p, quality: "off", ucPreset: "none" } : p;
+}
+
+/** Anlas spent from a balance read before and after; unknown if a read failed, another spend overlapped, or it went up. */
+export function costOf(before: number | null, after: number | null, overlapped: boolean): number | null {
+  if (before === null || after === null || overlapped || after > before) return null;
+  return before - after;
+}
 
 /**
  * What NovelAI's web client sends, composed here because the backend does not expand presets:
@@ -54,8 +81,11 @@ export function compose(c: Compiled, p: NaiParams): { c: Compiled; p: NaiParams 
   const medium = p.effort === "medium" && p.model === "nai-diffusion-5-full";
   const nsfw = c.rating === "nsfw";
   const preset = medium ? "heavy" : (p.ucPreset ?? "heavy");
+  const userUc = medium ? "" : c.uc; // Medium sends no custom UC: decide on what is actually sent
   const base = join(p.mode === "furry" ? "fur dataset" : "", nsfw && !hasTag(c.base, "nsfw") ? "nsfw" : "", c.base, QUALITY_TAGS[p.quality ?? "standard"]);
-  const uc = join(!nsfw && !hasTag(c.uc, "nsfw") ? "nsfw" : "", UC_PRESETS[preset], medium ? "" : c.uc);
+  // SFW: "nsfw" first in UC unless the prompt or the UC already carries it (NovelAI web behaviour).
+  const sfwTag = !nsfw && !hasTag(c.base, "nsfw") && !hasTag(userUc, "nsfw") ? "nsfw" : "";
+  const uc = join(sfwTag, UC_PRESETS[preset], userUc);
   const chars = medium ? c.chars.map((ch) => ({ ...ch, uc: "" })) : c.chars;
   const params = medium ? { ...p, model: MEDIUM_MODEL, steps: 14, sampler: "k_euler_ancestral", cfgRescale: 0 } : p;
   return { c: { ...c, base, uc, chars }, p: params };

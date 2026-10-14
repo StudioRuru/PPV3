@@ -60,9 +60,10 @@ export function applyBlock(s: PromptState, b: Block, target: "base" | number): P
 }
 
 /** An arc scene replaces the editor: base, one character, its UC, AI positions. */
-export function loadScene(b: Block): PromptState {
+/** rating: the caller's current SFW/NSFW (arc scenes don't carry one). */
+export function loadScene(b: Block, rating: PromptState["rating"] = "nsfw"): PromptState {
   return {
-    ...emptyState(), rating: "off", positions: "ai",
+    ...emptyState(), rating, positions: "ai",
     base: parseToLines(b.base.join(", ")),
     chars: b.char.length ? [{ id: newLine().id, lines: parseToLines(b.char.join(", ")), uc: "", enabled: true }] : [],
     uc: b.uc.join(", "),

@@ -1,6 +1,6 @@
 import "server-only";
 import { unzipSync } from "fflate";
-import { buildNaiBody, type Img2Img, type NaiParams } from "./nai-body";
+import { buildNaiBody, costOf, type Img2Img, type NaiParams } from "./nai-body";
 import { isPreSendError } from "./net";
 import type { Compiled } from "./prompt";
 
@@ -55,9 +55,9 @@ const API = "https://image.novelai.net";
 const auth = (token: string) => ({ Authorization: `Bearer ${token}`, "User-Agent": UA, Accept: "*/*" });
 
 /** Current Anlas (monthly + purchased). Read-only; used to show cost before and spend after. */
-export async function anlas(token: string): Promise<number> {
+export async function anlas(token: string, timeoutMs = 10_000): Promise<number> {
   if (!token) throw new NovelAIError("NOVELAI_TOKEN is not set on the server.", 500);
-  const res = await fetch(`${API}/user/subscription`, { headers: auth(token), signal: AbortSignal.timeout(10_000) })
+  const res = await fetch(`${API}/user/subscription`, { headers: auth(token), signal: AbortSignal.timeout(timeoutMs) })
     .catch((e) => { throw new NovelAIError(`Could not reach NovelAI: ${(e as Error).message}`); });
   if (!res.ok) throw new NovelAIError(STATUS[res.status] ?? `NovelAI error ${res.status}`, res.status);
   const t = (await res.json())?.trainingStepsLeft ?? {};
@@ -82,4 +82,24 @@ export async function upscaleImage(png: Buffer, width: number, height: number, m
   const out = isZip ? Object.values(unzipSync(buf)).find((f) => f.length) : buf;
   if (!out?.length) throw new NovelAIError("NovelAI returned no upscaled image.");
   return Buffer.from(out);
+}
+
+let inFlight = 0;
+let started = 0;
+/**
+ * Run a spend and measure what it cost from the balance before/after. Short timeouts so a slow account
+ * endpoint can't hold up images; unknown (null) when another spend overlapped, since the diff would mix them.
+ */
+export async function measured<T>(token: string, run: () => Promise<T>): Promise<{ result: T; cost: number | null }> {
+  const ticket = ++started;
+  inFlight++;
+  try {
+    const overlappedAtStart = inFlight > 1;
+    const before = await anlas(token, 3000).catch(() => null);
+    const result = await run();
+    const after = await anlas(token, 3000).catch(() => null);
+    return { result, cost: costOf(before, after, overlappedAtStart || started !== ticket) };
+  } finally {
+    inFlight--;
+  }
 }

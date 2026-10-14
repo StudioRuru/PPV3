@@ -20,7 +20,7 @@ import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import { applyOps } from "@/lib/patch";
 import { isFree } from "@/lib/grid";
-import { canResend } from "@/lib/nai-body";
+import { canResend, legacyParams } from "@/lib/nai-body";
 import { recreate } from "@/lib/recreate";
 import type { RawTag } from "@/lib/tagger";
 import { applyTags, emptyState, type PromptState } from "@/lib/prompt";
@@ -142,7 +142,7 @@ export default function Studio() {
     setState(g.state);
     // An upscaled image's recipe is its original size; drop the marker so it's an ordinary draft again.
     const { upscaled: _, ...p } = g.params;
-    setParams({ ...DEFAULT_PARAMS, ...p });
+    setParams({ ...DEFAULT_PARAMS, ...legacyParams(p) });
   }
 
   async function onDrop(file: File) {
@@ -249,7 +249,7 @@ export default function Studio() {
         </div>
       </div>
       <BlockDrawer open={drawer} onClose={() => setDrawer(false)} chars={state.chars} tagText={tagText}
-        onSend={sendBlocks} onLoadScene={(b) => { setState(loadScene(b)); setDrawer(false); }}
+        onSend={sendBlocks} onLoadScene={(b) => { setState(loadScene(b, state.rating)); setDrawer(false); }}
         preset={preset} onPreset={setPreset} rating={state.rating} />
       <ChatSheet open={chat} onClose={() => setChat(false)} state={state} seed={seed}
         onApply={(ops) => setState((s) => applyOps(s, ops))} />

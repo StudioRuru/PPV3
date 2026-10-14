@@ -92,3 +92,17 @@ test("upscaled PNG gets the source's NovelAI text chunks, so it re-imports as a 
   assert.equal((await sharp(out).metadata()).width, 128);
   assert.equal(withNaiMetadata(big, await blankPng()), big, "no metadata in the source: unchanged");
 });
+
+test("review: a NovelAI PNG re-sends exactly its own text (no second quality tags / preset / nsfw)", async () => {
+  const { buildNaiBody, DEFAULT_PARAMS } = await import("./nai-body");
+  const { compile } = await import("./prompt");
+  const web = { ...comment, v4_prompt: { caption: { base_caption: "nsfw, 1girl, smile, very aesthetic, masterpiece, no text", char_captions: [] } },
+    v4_negative_prompt: { caption: { base_caption: "lowres, artistic error, hat", char_captions: [] } } };
+  const chunks = extract(new Uint8Array(await blankPng()));
+  chunks.splice(-1, 0, textChunk("Software", "NovelAI"), textChunk("Comment", JSON.stringify(web)));
+  const { state, params } = recipeToState((await readRecipe(Buffer.from(encode(chunks))))!);
+  assert.equal(state.rating, "nsfw");
+  const p = (buildNaiBody(compile(state), { ...DEFAULT_PARAMS, ...params }).body as any).parameters;
+  assert.equal(p.prompt, "nsfw, 1girl, smile, very aesthetic, masterpiece, no text");
+  assert.equal(p.negative_prompt, "lowres, artistic error, hat");
+});
