@@ -1,0 +1,22 @@
+# The co-pilot brain (2026-10-14): igorls Gemma 4 12B Heretic (0/100 refusals, low drift) + the Gemma 4 12B
+# vision projector taken from HauhauCS's upload (igorls ships text-only). Won the A/B on tag accuracy and
+# image understanding (bra/thighhighs/hammer read correctly where HauhauCS saw "dress"/"tights").
+# Rebuild:  ollama pull hf.co/igorls/gemma-4-12B-it-heretic-GGUF:Q4_K_M
+#           ollama pull hf.co/HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M   (only for its projector)
+#           then point the two FROM lines at their blobs (`ollama show --modelfile <model>`) and:
+#           ollama create gemma4-12b-heretic-vision -f ops/Modelfile.brain
+FROM /Users/rurudayo/.ollama/models/blobs/sha256-4fd210357e88971a5d836f07974193f56c0d79114ca08b93ea986ca2c23cab5f
+FROM /Users/rurudayo/.ollama/models/blobs/sha256-b59e815479b7e5f0665bd29e6784c104a368092bcbc63120148c606f9276ab8e
+
+TEMPLATE "{{ if .System }}<bos><|turn>system
+{{ .System }}<turn|>
+{{ end }}{{ if .Prompt }}<|turn>user
+{{ .Prompt }}<turn|>
+{{ end }}<|turn>model
+{{ .Response }}<turn|>
+"
+PARAMETER stop <bos>
+PARAMETER stop <|turn>
+PARAMETER stop <turn|>
+PARAMETER stop <|turn>user
+

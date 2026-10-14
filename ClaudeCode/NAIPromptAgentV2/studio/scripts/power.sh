@@ -6,7 +6,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"   # LaunchAgents and spawne
 cd "$(dirname "$0")/.."
 
 OLLAMA_URL=${OLLAMA_URL:-http://127.0.0.1:11434}
-BRAIN_MODEL=${BRAIN_MODEL:-hf.co/HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M}
+BRAIN_MODEL=${BRAIN_MODEL:-gemma4-12b-heretic-vision:latest}
 TAGGER_URL=${TAGGER_URL:-http://127.0.0.1:8190}
 CAPTION_URL=${CAPTION_URL:-http://127.0.0.1:8191}
 TIPO_URL=${TIPO_URL:-http://127.0.0.1:8193}
