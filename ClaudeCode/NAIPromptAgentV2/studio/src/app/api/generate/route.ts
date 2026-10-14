@@ -3,7 +3,7 @@ import { NOVELAI_TOKEN } from "@/lib/env";
 import { saveImage } from "@/lib/gallery";
 import { insertGeneration, readGeneration } from "@/lib/generations";
 import { canResend, DEFAULT_PARAMS, fixSchedule, type Img2Img, type NaiParams } from "@/lib/nai-body";
-import { generateImage, NovelAIError } from "@/lib/novelai";
+import { anlas, generateImage, NovelAIError } from "@/lib/novelai";
 import { compile, hasContent, type PromptState } from "@/lib/prompt";
 
 export const runtime = "nodejs";
@@ -36,9 +36,13 @@ export async function POST(req: NextRequest) {
   if (!state?.base) return NextResponse.json({ error: "Missing prompt state." }, { status: 400 });
   if (!hasContent(state)) return NextResponse.json({ error: "Base prompt is empty." }, { status: 400 });
   try {
+    // Balance before/after = what this image actually cost (Opus-free sizes show 0). Never blocks generating.
+    const before = await anlas(NOVELAI_TOKEN).catch(() => null);
     const { png, seed } = await generateImage(compile(state), p, NOVELAI_TOKEN, img2img);
+    const after = await anlas(NOVELAI_TOKEN).catch(() => null);
     const file = await saveImage(png, seed);
-    const id = insertGeneration({ model: p.model, seed, file, state, params: { ...p, seed }, gridId: grid });
+    const cost = before !== null && after !== null ? before - after : null;
+    const id = insertGeneration({ model: p.model, seed, file, state, params: { ...p, seed }, gridId: grid, cost });
     return NextResponse.json({ id, file, seed });
   } catch (err) {
     const status = err instanceof NovelAIError ? err.status : 500;

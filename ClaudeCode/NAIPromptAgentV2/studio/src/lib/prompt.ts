@@ -5,11 +5,11 @@ export type CharBox = { id: string; lines: Line[]; uc: string; center?: { x: num
 export type Rating = "safe" | "nsfw" | "off";
 /** V5 character placement: "ai" lets NovelAI choose; "custom" sends a dot for every character. */
 export type Positions = "ai" | "custom";
-/** positionWords (default on): Custom mode adds "on the left, full body"… to each character so text and box agree. */
+/** positionWords (default off): Custom mode adds "on the left, full body"… to each character so text and box agree. */
 /** artists: the Artists section — sent at the front of the base prompt, each `artist:` tag with its own weight. */
 export type PromptState = { base: Line[]; chars: CharBox[]; uc: string; rating: Rating; positions: Positions; positionWords?: boolean; artists?: Line[] };
 export type CompiledChar = { prompt: string; uc: string; center?: { x: number; y: number } };
-export type Compiled = { base: string; uc: string; chars: CompiledChar[] };
+export type Compiled = { base: string; uc: string; chars: CompiledChar[]; rating?: Rating };
 
 /** Tags the rating switch adds to the base / UC. Tunable here, nowhere else. */
 export const RATING_TAGS: Record<Rating, { add: string[]; uc: string[] }> = {
@@ -29,7 +29,8 @@ export function newLine(text = "", weight?: number): Line {
 }
 
 export function emptyState(): PromptState {
-  return { base: [newLine()], chars: [], uc: DEFAULT_UC, rating: "nsfw", positions: "ai" };
+  // UC starts empty: the Heavy preset (nai-body UC_PRESETS) already covers the usual quality negatives.
+  return { base: [newLine()], chars: [], uc: "", rating: "nsfw", positions: "ai" };
 }
 
 /** Split on commas/newlines, keeping `w::…::` runs and `{…}` / `[…]` emphasis groups whole. */
@@ -148,9 +149,9 @@ export function splitArtists(lines: Line[]): { base: Line[]; artists: Line[] } {
 }
 
 export function compile(s: PromptState): Compiled {
-  const r = RATING_TAGS[s.rating];
   const custom = s.positions === "custom";
-  const words = custom && s.positionWords !== false;
+  // Off unless switched on: the words can drown out the coordinates NovelAI places characters by.
+  const words = custom && s.positionWords === true;
   // Default boxes use the full-array index, exactly as the canvas draws them.
   const placed = s.chars.map((c, i) => ({ c, r: regionOf(c, i, s.chars.length) })).filter(({ c }) => c.enabled && joinLines(c.lines));
   // Custom: send left→right so box order never contradicts placement (sort is stable).
@@ -166,7 +167,8 @@ export function compile(s: PromptState): Compiled {
     center: custom ? { x: reg.x, y: reg.y } : undefined,
   }));
   const base = [joinArtists(s.artists), joinLines(s.base)].filter(Boolean).join(", ");
-  return { base: addMissing(base, r.add), uc: addMissing(s.uc.trim(), r.uc), chars };
+  // Rating tags are placed by the request composer (nai-body compose), the way NovelAI's web client does.
+  return { base, uc: s.uc.trim(), chars, rating: s.rating === "nsfw" ? "nsfw" : "safe" };
 }
 
 /**

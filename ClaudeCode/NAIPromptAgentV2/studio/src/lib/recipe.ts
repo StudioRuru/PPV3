@@ -1,5 +1,6 @@
 import { gunzipSync } from "node:zlib";
 import sharp from "sharp";
+import encodeChunks from "png-chunks-encode";
 import extract from "png-chunks-extract";
 import { decode } from "png-chunk-text";
 import { emptyState, newLine, parseToLines, splitArtists, type PromptState } from "./prompt";
@@ -89,4 +90,19 @@ export function recipeToState(r: Recipe): { state: PromptState; params: Partial<
   if (r.noiseSchedule) params.noiseSchedule = r.noiseSchedule;
   if (r.cfgRescale !== undefined) params.cfgRescale = r.cfgRescale;
   return { state, params };
+}
+
+/**
+ * Copy NovelAI's tEXt chunks (Title, Description, Software, Source, Comment…) from `source` into `png`, so an
+ * upscaled image still carries its recipe in the format NovelAI's own importer reads. No metadata → unchanged.
+ */
+export function withNaiMetadata(png: Buffer, source: Buffer): Buffer {
+  let text, chunks;
+  try {
+    text = extract(new Uint8Array(source)).filter((c) => c.name === "tEXt");
+    chunks = extract(new Uint8Array(png)).filter((c) => c.name !== "tEXt");
+  } catch { return png; }
+  if (!text.some((c) => decode(c).keyword === "Comment")) return png;
+  chunks.splice(1, 0, ...text); // right after IHDR, where NovelAI writes them
+  return Buffer.from(encodeChunks(chunks));
 }

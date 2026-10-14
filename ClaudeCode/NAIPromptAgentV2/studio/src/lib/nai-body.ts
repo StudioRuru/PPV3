@@ -1,8 +1,15 @@
 import type { Compiled } from "./prompt";
 
+export type GenMode = "anime" | "furry";
+export type Effort = "high" | "medium";
+export type Quality = "standard" | "light" | "off";
+export type UcPreset = "heavy" | "light" | "human" | "furry" | "none";
+
 export type NaiParams = {
   model: string; width: number; height: number; steps: number; scale: number;
   sampler: string; noiseSchedule: string; cfgRescale: number; qualityToggle: boolean; seed?: number;
+  /** Web-client parity (all optional so old drafts/recipes keep working). */
+  mode?: GenMode; effort?: Effort; quality?: Quality; ucPreset?: UcPreset;
   /** Set on upscaled images: width/height stay the original recipe size; the PNG is this many times larger. */
   upscaled?: number;
 };
@@ -15,7 +22,44 @@ export const MODELS = [
 export const DEFAULT_PARAMS: NaiParams = {
   model: "nai-diffusion-5-full", width: 832, height: 1216, steps: 28, scale: 5,
   sampler: "k_euler_ancestral", noiseSchedule: "karras", cfgRescale: 0, qualityToggle: false,
+  mode: "anime", effort: "high", quality: "standard", ucPreset: "heavy",
 };
+
+/** V5 quality tags, appended at the end of the base prompt (docs.novelai.net/en/image/qualitytags). */
+export const QUALITY_TAGS: Record<Quality, string> = {
+  standard: "very aesthetic, masterpiece, no text",
+  light: "very aesthetic, amazing quality, no text",
+  off: "",
+};
+
+/** V5 Full Undesired Content presets, put before the user's UC (docs.novelai.net/en/image/undesiredcontent). */
+const HEAVY = "lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page";
+export const UC_PRESETS: Record<UcPreset, string> = {
+  heavy: HEAVY,
+  light: "lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::",
+  human: `${HEAVY}, @_@, mismatched pupils, glowing eyes, bad anatomy`,
+  furry: "{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic",
+  none: "",
+};
+
+const MEDIUM_MODEL = "nai-diffusion-5-full-medium";
+const hasTag = (s: string, tag: string) => s.split(",").some((t) => t.trim().toLowerCase() === tag);
+const join = (...parts: string[]) => parts.map((p) => p.trim()).filter(Boolean).join(", ");
+
+/**
+ * What NovelAI's web client sends, composed here because the backend does not expand presets:
+ * [fur dataset,] [nsfw,] base, quality tags · UC: [nsfw,] preset, user UC. Medium effort locks its settings.
+ */
+export function compose(c: Compiled, p: NaiParams): { c: Compiled; p: NaiParams } {
+  const medium = p.effort === "medium" && p.model === "nai-diffusion-5-full";
+  const nsfw = c.rating === "nsfw";
+  const preset = medium ? "heavy" : (p.ucPreset ?? "heavy");
+  const base = join(p.mode === "furry" ? "fur dataset" : "", nsfw && !hasTag(c.base, "nsfw") ? "nsfw" : "", c.base, QUALITY_TAGS[p.quality ?? "standard"]);
+  const uc = join(!nsfw && !hasTag(c.uc, "nsfw") ? "nsfw" : "", UC_PRESETS[preset], medium ? "" : c.uc);
+  const chars = medium ? c.chars.map((ch) => ({ ...ch, uc: "" })) : c.chars;
+  const params = medium ? { ...p, model: MEDIUM_MODEL, steps: 14, sampler: "k_euler_ancestral", cfgRescale: 0 } : p;
+  return { c: { ...c, base, uc, chars }, p: params };
+}
 
 /** The samplers NovelAI's web app offers for V4+ models. */
 export const SAMPLERS = [
@@ -48,12 +92,15 @@ export type Img2Img = { image: string; strength: number; noise: number };
 
 const CENTER = { x: 0.5, y: 0.5 };
 
-export function buildNaiBody(c: Compiled, p: NaiParams, img2img?: Img2Img) {
+export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2Img) {
+  const { c, p } = compose(raw, rawParams);
   const seed = p.seed && p.seed > 0 ? p.seed : 1 + Math.floor(Math.random() * (2 ** 32 - 1));
   const useCoords = c.chars.some((ch) => ch.center);
-  const caption = (base: string, pick: (ch: Compiled["chars"][number]) => string) => ({
-    use_coords: useCoords,
-    use_order: c.chars.length > 0,
+  // The web client places characters by coordinates in the positive caption only; the negative carries none.
+  const caption = (base: string, pick: (ch: Compiled["chars"][number]) => string, positive: boolean) => ({
+    use_coords: positive && useCoords,
+    use_order: positive && c.chars.length > 0,
+    legacy_uc: false,
     caption: {
       base_caption: base,
       char_captions: c.chars.map((ch) => ({ char_caption: pick(ch), centers: [ch.center ?? CENTER] })),
@@ -66,14 +113,15 @@ export function buildNaiBody(c: Compiled, p: NaiParams, img2img?: Img2Img) {
     parameters: {
       params_version: 4,
       width: p.width, height: p.height, scale: p.scale, sampler: p.sampler, steps: p.steps,
-      n_samples: 1, ucPreset: 3, qualityToggle: p.qualityToggle,
+      // Presets/quality are already written into the text above (compose); tell the server to add nothing (4 = None).
+      n_samples: 1, ucPreset: 4, qualityToggle: false,
       sm: false, sm_dyn: false, dynamic_thresholding: false, cfg_rescale: p.cfgRescale,
       noise_schedule: p.noiseSchedule, legacy: false, legacy_v3_extend: false,
       add_original_image: false, seed, extra_noise_seed: seed,
       negative_prompt: c.uc, prompt: c.base,
       characterPrompts: c.chars.map((ch) => ({ prompt: ch.prompt, uc: ch.uc, center: ch.center ?? CENTER, enabled: true })),
-      v4_prompt: caption(c.base, (ch) => ch.prompt),
-      v4_negative_prompt: caption(c.uc, (ch) => ch.uc),
+      v4_prompt: caption(c.base, (ch) => ch.prompt, true),
+      v4_negative_prompt: caption(c.uc, (ch) => ch.uc, false),
       ...(img2img && { image: img2img.image, strength: img2img.strength, noise: img2img.noise, color_correct: true }),
     },
   };

@@ -80,3 +80,15 @@ test("website recipe: per-character UC, noise schedule and guidance rescale come
   assert.equal(params.cfgRescale, 0.6);
   assert.equal(params.sampler, "k_euler");
 });
+
+test("upscaled PNG gets the source's NovelAI text chunks, so it re-imports as a recipe", async () => {
+  const { withNaiMetadata } = await import("./recipe");
+  const chunks = extract(new Uint8Array(await blankPng()));
+  chunks.splice(-1, 0, textChunk("Software", "NovelAI"), textChunk("Comment", JSON.stringify(comment)));
+  const source = Buffer.from(encode(chunks));
+  const big = await sharp({ create: { width: 128, height: 128, channels: 3, background: "#123" } }).png().toBuffer();
+  const out = withNaiMetadata(big, source);
+  assert.equal((await readRecipe(out))?.seed, 777);
+  assert.equal((await sharp(out).metadata()).width, 128);
+  assert.equal(withNaiMetadata(big, await blankPng()), big, "no metadata in the source: unchanged");
+});

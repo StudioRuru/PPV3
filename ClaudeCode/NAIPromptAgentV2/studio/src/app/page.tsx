@@ -9,7 +9,7 @@ import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
 import { loadDefaults, SettingsSheet } from "@/components/SettingsSheet";
 import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
-import { developed, HistoryStrip, type Generation } from "@/components/HistoryStrip";
+import { costLabel, developed, HistoryStrip, mb, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
 import { AutoTextarea } from "@/components/TagInput";
@@ -192,7 +192,7 @@ export default function Studio() {
         </div>
         <CharacterBoxes chars={state.chars} onChange={(chars) => setState({ ...state, chars })}
           positions={state.positions ?? "ai"} onPositions={(positions) => setState({ ...state, positions })}
-          words={state.positionWords !== false} onWords={(positionWords) => setState({ ...state, positionWords })}
+          words={state.positionWords === true} onWords={(positionWords) => setState({ ...state, positionWords })}
           width={params.width} height={params.height} />
         <div className="bg-surface border-border rounded-lg border p-3">
           <h2 className="mb-2 text-sm font-semibold">Undesired content</h2>
@@ -214,7 +214,7 @@ export default function Studio() {
               <img key={current.id} src={`/api/gallery/${current.file}`} alt="Latest generation" onLoad={developed} onError={developed} className="animate-develop w-full" />
             </button>
             <figcaption className="text-muted flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
-              <span className="font-mono text-xs">seed {current.seed}</span>
+              <span className="font-mono text-xs">{[`seed ${current.seed}`, mb(current.size), costLabel(current.cost)].filter(Boolean).join(" · ")}</span>
               <span className="flex gap-4">
                 <button type="button" className="text-accent" onClick={() => save(current)}>Save</button>
                 {canResend(current.params) && <>
@@ -257,7 +257,7 @@ export default function Studio() {
       <VariationSheet source={vary} onClose={() => setVary(null)} onPick={showGeneration} onDone={loadHistory} />
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
-        words={state.positionWords !== false} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
+        words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <Viewer items={history.some((h) => h.id === current?.id) || !current ? history : [current, ...history]} id={viewing} onId={setViewing} onClose={closeViewer} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
         onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); }} />

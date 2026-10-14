@@ -25,17 +25,14 @@ test("character box with no enabled lines is dropped", () => {
   assert.deepEqual(compile(s).chars, [{ prompt: "girl, red hair", uc: "", center: undefined }]);
 });
 
-test("rating adds tags without duplicating user tags", () => {
+test("compile passes the rating through (the request composer places nsfw); old 'off' reads as SFW", () => {
   const s = emptyState();
-  s.base = [newLine("1girl, nsfw")];
-  s.rating = "nsfw";
-  assert.equal(compile(s).base, "1girl, nsfw");
-  s.rating = "safe";
   s.base = [newLine("1girl")];
   s.uc = "lowres";
-  const c = compile(s);
-  assert.equal(c.base, "1girl, rating:general");
-  assert.equal(c.uc, "lowres, nsfw");
+  s.rating = "nsfw";
+  assert.deepEqual([compile(s).base, compile(s).uc, compile(s).rating], ["1girl", "lowres", "nsfw"]);
+  s.rating = "off";
+  assert.equal(compile(s).rating, "safe");
 });
 
 test("splitTags and parseToLines round-trip weighted runs", () => {
@@ -48,7 +45,7 @@ test("hasContent ignores rating-only prompts", async () => {
   const { hasContent } = await import("./prompt");
   const s = emptyState();
   s.rating = "nsfw";
-  assert.equal(compile(s).base, "nsfw");
+  assert.equal(compile(s).base, "");
   assert.equal(hasContent(s), false);
   s.base = [newLine("1girl")];
   assert.equal(hasContent(s), true);
@@ -102,6 +99,8 @@ test("custom positions: characters go left→right by box, each with its positio
     { id: "a", lines: [newLine("red hair")], uc: "", enabled: true, region: { x: 0.8, y: 0.5, w: 0.3, h: 0.5 } },
     { id: "b", lines: [newLine("blue hair")], uc: "", enabled: true, region: { x: 0.2, y: 0.5, w: 0.3, h: 0.5 } },
   ];
+  assert.deepEqual(compile(s).chars.map((x) => x.prompt), ["blue hair", "red hair"], "words are off by default");
+  s.positionWords = true;
   const c = compile(s).chars;
   assert.deepEqual(c.map((x) => x.prompt), ["blue hair, on the left", "red hair, on the right"]);
   assert.deepEqual(c.map((x) => x.center), [{ x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }]);
@@ -125,7 +124,7 @@ test("clampRegion keeps a box inside the canvas with a minimum size, never NaN",
 test("review: unplaced default boxes match the canvas (full-array index), words aren't added twice", async () => {
   const { compile, emptyState, newLine } = await import("./prompt");
   const s = emptyState();
-  s.rating = "off"; s.positions = "custom"; s.base = [newLine("2girls")];
+  s.rating = "off"; s.positions = "custom"; s.positionWords = true; s.base = [newLine("2girls")];
   s.chars = [
     { id: "a", lines: [], uc: "", enabled: true },
     { id: "b", lines: [newLine("blue hair")], uc: "", enabled: true },

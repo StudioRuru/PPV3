@@ -17,6 +17,10 @@ db.exec(`CREATE TABLE IF NOT EXISTS generations (
   params TEXT NOT NULL,
   grid_id TEXT
 )`);
+// Added 2026-10-14: Anlas spent per generation (null = unknown).
+if (!(db.prepare("PRAGMA table_info(generations)").all() as { name: string }[]).some((c) => c.name === "cost")) {
+  db.exec("ALTER TABLE generations ADD COLUMN cost INTEGER");
+}
 db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   created_at INTEGER NOT NULL,

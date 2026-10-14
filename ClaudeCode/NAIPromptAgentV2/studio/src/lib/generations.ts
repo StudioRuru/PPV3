@@ -20,9 +20,10 @@ export async function readGeneration(id: number): Promise<Generation | null> {
 }
 
 /** Save a new generation row; returns its id. */
-export function insertGeneration(g: { model: string; seed: number; file: string; state: PromptState; params: NaiParams; gridId: string | null }): number {
+/** cost: Anlas spent (balance before − after); null when the balance couldn't be read. */
+export function insertGeneration(g: { model: string; seed: number; file: string; state: PromptState; params: NaiParams; gridId: string | null; cost?: number | null }): number {
   const { lastInsertRowid } = db
-    .prepare("INSERT INTO generations (created_at, model, seed, file, state, params, grid_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(Date.now(), g.model, g.seed, g.file, JSON.stringify(g.state), JSON.stringify(g.params), g.gridId);
+    .prepare("INSERT INTO generations (created_at, model, seed, file, state, params, grid_id, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(Date.now(), g.model, g.seed, g.file, JSON.stringify(g.state), JSON.stringify(g.params), g.gridId, g.cost ?? null);
   return Number(lastInsertRowid);
 }

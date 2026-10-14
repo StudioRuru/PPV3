@@ -27,12 +27,12 @@ test("applyOps add/replace on base, chars (created when missing) and uc", () => 
     { target: "uc", action: "add", line: "text, mosaic censoring" },
   ]);
   const c = compile(s);
-  assert.equal(c.base, "night, rain, nsfw");
+  assert.equal(c.base, "night, rain");
   assert.equal(s.chars.length, 1);
   assert.equal(c.chars[0].prompt, "1.15::girl, red hair::");
-  assert.match(s.uc, /cropped, text, mosaic censoring$/);
+  assert.match(s.uc, /^text, mosaic censoring$/);
   s = applyOps(s, [{ target: "base", action: "replace", line: "beach" }, { target: "uc", action: "replace", line: "lowres" }]);
-  assert.equal(compile(s).base, "beach, nsfw");
+  assert.equal(compile(s).base, "beach");
   assert.equal(s.uc, "lowres");
 });
 
@@ -46,7 +46,7 @@ test("applyOps remove takes tags out of lines and drops emptied lines", () => {
 test("applyOps weight sets a whole-line weight or splits the tag out", () => {
   const s = { ...emptyState(), base: [newLine("smile"), newLine("night, rain")] };
   const out = applyOps(s, [{ target: "base", action: "weight", line: "smile", weight: 1.3 }, { target: "base", action: "weight", line: "rain", weight: 0.8 }]);
-  assert.equal(compile(out).base, "1.3::smile::, night, 0.8::rain::, nsfw");
+  assert.equal(compile(out).base, "1.3::smile::, night, 0.8::rain::");
 });
 
 test("opTags returns short tags without weight syntax, skips sentences", () => {
@@ -72,7 +72,7 @@ test("review: inline weight syntax in an op line is unwrapped, op weight wins", 
     { target: "base", action: "add", line: "1.2::red hair::", weight: 1.1 },
     { target: "base", action: "add", line: "0.8::smile::" },
   ]);
-  assert.equal(compile(out).base, "1.1::red hair::, 0.8::smile::, nsfw");
+  assert.equal(compile(out).base, "1.1::red hair::, 0.8::smile::");
 });
 
 test("polish: applying the same card twice doesn't duplicate added lines", () => {
