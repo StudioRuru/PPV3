@@ -14,7 +14,8 @@
     "tipo": "llama-server -m ~/models/tipo/gguf/TIPO-v2.1-1B-A200M-Q8_0.gguf --host 127.0.0.1 --port 8193 -c 2048 -ngl 99",
     "up": "bash scripts/power.sh up",
     "down": "bash scripts/power.sh down",
-    "status": "bash scripts/power.sh status"
+    "status": "bash scripts/power.sh status",
+    "deploy": "npm run build && launchctl kickstart -k gui/$(id -u)/com.philly95.naistudio"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

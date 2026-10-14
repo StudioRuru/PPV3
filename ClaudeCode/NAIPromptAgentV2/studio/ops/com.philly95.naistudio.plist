@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.philly95.naistudio</string>
+
+    <!-- caffeinate -s: no system sleep while the app runs, so the phone can reach it over Tailscale.
+         Models stay on-demand: the in-app switch runs scripts/power.sh. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-s</string>
+        <string>/usr/local/bin/npm</string>
+        <string>run</string>
+        <string>start</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/rurudayo/ClaudeCode/NAIPromptAgentV2/studio</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- node is in /usr/local/bin, llama-server/uv in /opt/homebrew/bin; neither is on launchd's PATH. -->
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/rurudayo/ClaudeCode/NAIPromptAgentV2/studio/.run/server.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/rurudayo/ClaudeCode/NAIPromptAgentV2/studio/.run/server.log</string>
+</dict>
+</plist>
