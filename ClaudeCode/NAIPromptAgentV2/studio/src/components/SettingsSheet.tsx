@@ -22,6 +22,8 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const [danbooru, setDanbooru] = useState<boolean | null>(null);
   const [retention, setRetention] = useState<number | null | undefined>(undefined);
   const [purge, setPurge] = useState<{ days: number | null; count: number } | null>(null);
+  const [taste, setTaste] = useState<{ profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[] } | null>(null);
+  const [forget, setForget] = useState(false);
   const post = (body: object) => requestJson<{ autoDeleteDays: number | null; wouldRemove?: number }>("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   // Dry run first: if this window would delete images right now, say how many and ask.
   async function chooseRetention(days: number | null) {
@@ -38,6 +40,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     setDefaults((d) => ({ ...d, ...loadDefaults() }));
     requestJson<{ danbooru: boolean }>("/api/status").then((r) => setDanbooru(r.ok ? r.data.danbooru : null));
     requestJson<{ autoDeleteDays: number | null }>("/api/settings").then((r) => r.ok && setRetention(r.data.autoDeleteDays));
+    requestJson<NonNullable<typeof taste>>("/api/taste").then((r) => r.ok && setTaste(r.data));
   }, [open]);
 
   const pick = (p: ThemePref) => { setTheme(p); setPref(p); };
@@ -132,6 +135,21 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
             <span>Position words<span className="text-muted block text-xs">In Custom placement, add where each box is to its prompt</span></span>
             <input type="checkbox" role="switch" checked={words} onChange={(e) => onWords(e.target.checked)} className="accent-accent size-5" />
           </label>
+        </section>
+
+        <section className="text-sm">
+          <h3 className={h3}>Co-pilot taste (learned)</h3>
+          {taste?.profile.favoured.length ? <p className="text-xs"><span className="text-ok">likes</span> {taste.profile.favoured.slice(0, 15).join(", ")}</p> : null}
+          {taste?.profile.avoided.length ? <p className="text-xs"><span className="text-danger">avoids</span> {taste.profile.avoided.slice(0, 10).join(", ")}</p> : null}
+          {taste?.pinned.length ? <p className="text-xs"><span className="text-accent">always</span> {taste.pinned.map((p) => p.text).join(" · ")}</p> : null}
+          {!taste?.profile.favoured.length && !taste?.profile.avoided.length && !taste?.profile.notes.length && <p className="text-faint text-xs">Nothing learned yet — like, dislike and apply in Chat.</p>}
+          {forget ? (
+            <span className="mt-2 flex items-center gap-2 text-xs">Forget likes, dislikes, notes and boldness? (Pinned rules stay.)
+              <button type="button" onClick={() => setForget(false)} className="px-2 py-1">Cancel</button>
+              <button type="button" onClick={async () => { const r = await requestJson<NonNullable<typeof taste>>("/api/taste", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset: true }) }); if (r.ok) setTaste(r.data); setForget(false); }}
+                className="bg-danger rounded px-2 py-1 font-semibold text-white">Forget</button>
+            </span>
+          ) : <button type="button" onClick={() => setForget(true)} className="text-danger mt-1 text-xs">Forget what it learned</button>}
         </section>
 
         <section>

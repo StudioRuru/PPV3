@@ -17,10 +17,11 @@ export async function POST(req: NextRequest) {
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   const focus = String(form?.get("focus") ?? "").slice(0, 300);
-  if (!(file instanceof Blob) || !file.size) return NextResponse.json({ error: "No image attached." }, { status: 400 });
+  if (!(file instanceof Blob) || !file.size) return NextResponse.json({ error: "No image attached (or it was over the 40 MB upload limit)." }, { status: 400 });
+  if (file.size > 25 * 1024 * 1024) return NextResponse.json({ error: "That image is over 25 MB — export a smaller copy and attach that." }, { status: 413 });
   let dataUrl: string;
   try { dataUrl = await toModelImage(Buffer.from(await file.arrayBuffer())); }
-  catch { return NextResponse.json({ error: "That file isn't an image this Mac can read (try a JPEG or PNG — HEIC from the share sheet is converted automatically)." }, { status: 422 }); }
+  catch { return NextResponse.json({ error: "That file isn't an image this Mac can read — use JPEG, PNG or WebP (HEIC isn't supported here; the iPhone photo picker usually converts it)." }, { status: 422 }); }
 
   const name = `${crypto.randomUUID()}.jpg`;
   const dir = path.join(DATA_DIR, "chat-images");
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
     const fd = new FormData(); fd.append("file", new Blob([jpg], { type: "image/jpeg" }), "image.jpg");
     const r = await fetch(`${TAGGER_URL}/tag`, { method: "POST", body: fd, signal: AbortSignal.timeout(60_000) });
     const d = await r.json();
-    if (r.ok) tags = filterTags(d.tags as RawTag[], { thresholds: d.thresholds, enabled: DEFAULT_ENABLED, exclude: DEFAULT_EXCLUDE }).join(", ");
+    if (r.ok && Array.isArray(d.tags)) tags = filterTags(d.tags as RawTag[], { thresholds: d.thresholds ?? {}, enabled: DEFAULT_ENABLED, exclude: DEFAULT_EXCLUDE }).join(", ");
+    else notes.push("tagger couldn't read this image");
   } catch { notes.push("tagger offline"); }
 
   let report = "";

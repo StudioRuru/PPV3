@@ -56,27 +56,44 @@ export class ThreadStore {
     return this.db.prepare("SELECT role, content, image FROM chat_messages WHERE thread_id = ? ORDER BY id").all(id) as StoredMsg[];
   }
 
-  /** The client's list is the truth for a thread (edits and regenerate rewrite history): store exactly it. */
-  replace(id: number, msgs: StoredMsg[]): void {
-    const now = Date.now();
+  /** updated_at — the thread's version, for "did another device write since you loaded it?". */
+  version(id: number): number | null {
+    return (this.db.prepare("SELECT updated_at FROM chat_threads WHERE id = ?").get(id) as { updated_at: number } | undefined)?.updated_at ?? null;
+  }
+
+  /**
+   * The client's list is the truth for a thread (edits and regenerate rewrite history): store exactly it.
+   * Refused (false) if the thread is gone, or — when `expect` is given — another write happened since that version.
+   */
+  replace(id: number, msgs: StoredMsg[], expect?: number): boolean {
+    const now = Math.max(Date.now(), (this.version(id) ?? 0) + 1); // strictly increasing, even within one ms
     const ins = this.db.prepare("INSERT INTO chat_messages (created_at, role, content, thread_id, image) VALUES (?, ?, ?, ?, ?)");
-    this.db.transaction(() => {
+    return this.db.transaction(() => {
+      const v = this.version(id);
+      if (v === null || (expect !== undefined && v !== expect)) return false;
       this.db.prepare("DELETE FROM chat_messages WHERE thread_id = ?").run(id);
       msgs.forEach((m) => ins.run(now, m.role, m.content, id, m.image ?? null));
       const t = this.db.prepare("SELECT title FROM chat_threads WHERE id = ?").get(id) as { title: string } | undefined;
       const first = msgs.find((m) => m.role === "user");
       if (t?.title === "New chat" && first) this.db.prepare("UPDATE chat_threads SET title = ? WHERE id = ?").run(titleFrom(first.content), id);
       this.db.prepare("UPDATE chat_threads SET updated_at = ? WHERE id = ?").run(now, id);
+      return true;
     })();
   }
 
-  /** Delete a thread and its messages; returns attached image files for the caller to remove. */
+  /** Of these image files, the ones no message refers to (safe to delete). */
+  unreferenced(files: string[]): string[] {
+    const used = new Set((this.db.prepare("SELECT image FROM chat_messages WHERE image IS NOT NULL").all() as { image: string }[]).map((r) => r.image));
+    return files.filter((f) => !used.has(f));
+  }
+
+  /** Delete a thread and its messages; returns its image files that no other thread still uses. */
   remove(id: number): string[] {
     const images = (this.db.prepare("SELECT image FROM chat_messages WHERE thread_id = ? AND image IS NOT NULL").all(id) as { image: string }[]).map((r) => r.image);
     this.db.transaction(() => {
       this.db.prepare("DELETE FROM chat_messages WHERE thread_id = ?").run(id);
       this.db.prepare("DELETE FROM chat_threads WHERE id = ?").run(id);
     })();
-    return images;
+    return this.unreferenced(images);
   }
 }

@@ -45,3 +45,20 @@ test("system prompt teaches sparing emphasis and the artist target, and its exam
   assert.ok(p.includes("artist"), "artist target");
   assert.ok(!/"weight":1\.15/.test(p), "example must not show a weight");
 });
+
+test("review: fitHistory keeps the newest turns within a character budget and shortens old eyes reports", async () => {
+  const { fitHistory } = await import("./copilot-prompt");
+  const EYES = "\n\n— eyes report —\n";
+  const big = (n: number) => "x".repeat(n);
+  const msgs = [
+    { role: "user" as const, content: `old${EYES}${big(5000)}` }, { role: "assistant" as const, content: big(100) },
+    { role: "user" as const, content: big(30000) }, { role: "assistant" as const, content: big(100) },
+    { role: "user" as const, content: `new${EYES}${big(3000)}` },
+  ];
+  const out = fitHistory(msgs, 40000);
+  assert.equal(out.at(-1)!.content.length, msgs[4].content.length, "latest eyes report kept whole");
+  assert.ok(out.reduce((n, m) => n + m.content.length, 0) <= 40000);
+  assert.equal(out[0].role, "user");
+  const kept = fitHistory(msgs.slice(0, 2).concat(msgs.slice(4)), 40000);
+  assert.ok(kept[0].content.length < 1000, "older eyes report shortened");
+});

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMsg, Mode } from "@/lib/copilot-prompt";
 import { inline, mdBlocks } from "@/lib/md";
 import { requestJson } from "@/lib/net";
-import { opTags, parseReply, type Op } from "@/lib/patch";
+import { learnTags, parseReply, type Op } from "@/lib/patch";
 import { PERSONAS, type Modifiers, type PersonaId } from "@/lib/persona";
 import type { PromptState } from "@/lib/prompt";
 import { PatchCard } from "./PatchCard";
@@ -13,7 +13,10 @@ import { Trash } from "./icons";
 
 type Status = { on: boolean; brain: boolean; caption: boolean; tipo: boolean; power?: boolean; error?: string };
 type Thread = { id: number; title: string; persona: PersonaId; mods: Modifiers; updated_at: number };
-type Msg = ChatMsg & { image?: string | null };
+/** cid: client-side id (stable keys for cards/ratings); error: shown locally, never sent or stored. */
+type Msg = ChatMsg & { image?: string | null; cid: string; error?: boolean };
+const withId = (m: ChatMsg & { image?: string | null; cid?: string; error?: boolean }): Msg => ({ ...m, cid: m.cid ?? crypto.randomUUID() });
+const wire = (ms: Msg[]) => ms.filter((m) => !m.error).map(({ role, content, image }) => ({ role, content, image: image ?? null }));
 type Taste = { profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[]; drift: Record<PersonaId, number> };
 export type ChatSeed = { text: string; image?: File; tags?: string } | null;
 type Kind = "arc" | "outfit" | "theme" | "cluster";
@@ -51,8 +54,10 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const [busy, setBusy] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [editing, setEditing] = useState<{ i: number; text: string } | null>(null);
-  const [feedback, setFeedback] = useState<{ i: number; kind: "like" | "dislike"; note: string } | null>(null);
-  const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
+  const [feedback, setFeedback] = useState<{ cid: string; kind: "like" | "dislike"; note: string } | null>(null);
+  const [rated, setRated] = useState<Record<string, "like" | "dislike">>({});
+  const [drift, setDriftLocal] = useState<number | null>(null); // slider value while dragging; committed on release
+  const [confirmReset, setConfirmReset] = useState(false);
   const [persona, setPersonaOpen] = useState(false);
   const [taste, setTaste] = useState<Taste | null>(null);
   const [pinText, setPinText] = useState("");
@@ -60,23 +65,28 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const [preset, setPreset] = useState<ClosetItem | null>(null);
   const [confirmDel, setConfirmDel] = useState<number | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  const tidRef = useRef(tid);
+  tidRef.current = tid;
   const thread = threads.find((t) => t.id === tid) ?? null;
 
   const loadThreads = useCallback(async (pick?: number) => {
     const r = await requestJson<{ threads: Thread[] }>("/api/chat/threads");
     if (!r.ok) return;
     setThreads(r.data.threads);
-    setTid((cur) => pick ?? (r.data.threads.some((t) => t.id === cur) ? cur : r.data.threads[0]?.id ?? null));
+    const ok = (id: number | null | undefined) => id != null && r.data.threads.some((t) => t.id === id);
+    setTid((cur) => (ok(pick) ? pick! : ok(cur) ? cur : r.data.threads[0]?.id ?? null));
   }, []);
   useEffect(() => {
     if (!active) return;
     requestJson<Status>("/api/copilot").then((r) => r.ok && setStatus(r.data));
     requestJson<{ items: ClosetItem[] }>("/api/closet").then((r) => r.ok && setCloset(r.data.items));
     loadThreads();
+    loadTaste();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadTaste is stable enough (no deps)
   }, [active, loadThreads]);
   useEffect(() => {
     if (tid === null) { setMsgs([]); return; }
-    requestJson<{ messages: Msg[] }>(`/api/chat/history?thread=${tid}`).then((r) => r.ok && setMsgs(r.data.messages));
+    requestJson<{ messages: Msg[] }>(`/api/chat/history?thread=${tid}`).then((r) => r.ok && tidRef.current === tid && setMsgs(r.data.messages.map(withId)));
     setRated({}); setEditing(null); setFeedback(null);
   }, [tid]);
   useEffect(() => { if (active) end.current?.scrollIntoView({ block: "end" }); }, [msgs, active]);
@@ -112,43 +122,58 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   async function loadTaste() { const r = await requestJson<Taste>("/api/taste"); if (r.ok) setTaste(r.data); }
   async function tasteAction(body: object) { const r = await requestJson<Taste>("/api/taste", { method: "POST", ...json(body) }); if (r.ok) setTaste(r.data); }
 
-  /** Send `history` (ending with the user's message) and stream the reply into place. */
-  async function run(history: Msg[], m: Mode = mode) {
-    let id = tid;
+  /** Send `history` (ending with the user's message) to thread `id` and stream the reply into place. */
+  async function run(history: Msg[], m: Mode = mode, captured: number | null = tid) {
+    let id = captured;
     if (id === null) {
       const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: "neutral" }) });
       if (!r.ok) return;
-      id = r.data.id; setThreads(r.data.threads); setTid(id);
+      id = r.data.id; setThreads(r.data.threads); tidRef.current = id; setTid(id);
     }
-    setMsgs([...history, { role: "assistant", content: "" }]);
+    const version = threads.find((t) => t.id === id)?.updated_at;
+    // Only paint into the view if the user is still looking at this thread.
+    const show = (ms: Msg[]) => { if (tidRef.current === id) setMsgs(ms); };
+    const reply = withId({ role: "assistant", content: "" });
+    show([...history, reply]);
     setBusy("Thinking…");
-    let reply = "";
+    let text = "";
     try {
-      const res = await fetch("/api/chat", { method: "POST", ...json({ thread: id, messages: history, state, mode: m }) });
+      const res = await fetch("/api/chat", { method: "POST", ...json({ thread: id, version, messages: wire(history), state, mode: m }) });
+      if (res.status === 409) {
+        const h = await requestJson<{ messages: Msg[] }>(`/api/chat/history?thread=${id}`);
+        if (h.ok) show([...h.data.messages.map(withId), withId({ role: "assistant", content: "⚠️ This chat changed on another device — reloaded. Send again.", error: true })]);
+        setBusy(null); loadThreads(id); return;
+      }
       if (!res.ok || !res.body) {
         const body = await res.text();
         let msg = body;
         try { msg = JSON.parse(body).error ?? body; } catch { /* plain text */ }
         throw new Error(res.status === 401 ? "Session expired — reload the page and sign in again." : msg || `Server error ${res.status}.`);
       }
+      const realId = Number(res.headers.get("X-Thread"));
+      if (realId && realId !== id) { id = realId; tidRef.current = realId; setTid(realId); }
       const reader = res.body.getReader(); const dec = new TextDecoder();
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        reply += dec.decode(value, { stream: true });
+        text += dec.decode(value, { stream: true });
         setBusy(null);
-        setMsgs([...history, { role: "assistant", content: reply }]);
+        show([...history, { ...reply, content: text }]);
       }
+      // A failure reported inside the stream: keep it on screen, but it's not part of the conversation.
+      if (/\n\n⚠️ [^\n]*$/.test(text)) show([...history, { ...reply, content: text, error: true }]);
     } catch (e) {
-      setMsgs([...history, { role: "assistant", content: `${reply}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}` }]);
+      show([...history, { ...reply, content: `${text}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
     }
     setBusy(null); setMode("chat"); setPreset(null);
-    loadThreads(id); // titles and order update after the first reply
+    loadThreads(id); // version, title and order update after a reply
   }
 
   async function send() {
     const text = input.trim();
     if ((!text && !file) || busy) return;
+    // Captured now: the attach below can take a minute, and the user may look at another thread meanwhile.
+    const id = tid, base = msgsRef.current;
     let content = text, image: string | null = null;
     if (preset) {
       const r = await requestJson<{ item: { fields: { path: (string | number)[]; label: string; value: string | string[] }[] } }>(`/api/closet/${preset.dir}/${preset.slug}`);
@@ -159,40 +184,45 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       const fd = new FormData(); fd.append("file", file); fd.append("focus", text);
       const r = await requestJson<{ image: string; tags: string; caption: string; notes: string[] }>("/api/chat/attach", { method: "POST", body: fd });
       setBusy(null);
-      if (!r.ok) { setMsgs([...msgsRef.current, { role: "assistant", content: `⚠️ ${r.error}` }]); return; }
+      if (!r.ok) { if (tidRef.current === id) setMsgs([...base, withId({ role: "assistant", content: `⚠️ ${r.error}`, error: true })]); return; }
       image = r.data.image;
       content = `${content || "What's in this image? Turn it into tags."}${EYES}${r.data.tags ? `Tags seen: ${r.data.tags}\n` : ""}${r.data.caption ? `Detailed look${text ? ` (focus: ${text})` : ""}:\n${r.data.caption}` : ""}${r.data.notes.length ? `\n(${r.data.notes.join("; ")})` : ""}`;
     }
     setInput(""); setFile(null);
-    await run([...msgsRef.current, { role: "user", content, image }]);
+    await run([...base, withId({ role: "user", content, image })], mode, id);
   }
 
   async function saveEdit() {
     if (!editing || tid === null) return;
-    const m = msgsRef.current[editing.i];
+    const id = tid, base = msgsRef.current;
+    const m = base[editing.i];
     if (m.role === "user") {
       // Editing your own message resends from there: everything after it is replaced.
+      if (!editing.text.trim() && !m.image) return;
       const keep = m.content.includes(EYES) ? editing.text + m.content.slice(m.content.indexOf(EYES)) : editing.text;
       setEditing(null);
-      await run([...msgsRef.current.slice(0, editing.i), { ...m, content: keep }]);
+      await run([...base.slice(0, editing.i), withId({ ...m, cid: undefined, content: keep })], mode, id);
     } else {
       // Correcting a reply re-shapes its change card and teaches the next turn; saved without asking the brain.
-      const next = msgsRef.current.map((x, j) => (j === editing.i ? { ...x, content: editing.text } : x));
+      const next = base.map((x, j) => (j === editing.i ? { ...x, content: editing.text, error: false } : x));
       setMsgs(next); setEditing(null);
-      await requestJson("/api/chat/history", { method: "PUT", ...json({ thread: tid, messages: next }) });
+      const r = await requestJson("/api/chat/history", { method: "PUT", ...json({ thread: id, version: thread?.updated_at, messages: wire(next) }) });
+      if (!r.ok) { const h = await requestJson<{ messages: Msg[] }>(`/api/chat/history?thread=${id}`); if (h.ok) setMsgs(h.data.messages.map(withId)); }
+      loadThreads(id);
     }
   }
 
-  function rate(i: number, kind: "like" | "dislike") { setRated({ ...rated, [i]: kind }); setFeedback({ i, kind, note: "" }); }
+  // One rating per reply; the feedback question records it (with its note) once.
+  function rate(cid: string, kind: "like" | "dislike") { if (rated[cid]) return; setRated({ ...rated, [cid]: kind }); setFeedback({ cid, kind, note: "" }); }
   async function sendFeedback(note: string) {
     if (!feedback) return;
-    const p = parseReply(msgsRef.current[feedback.i]?.content ?? "");
-    await requestJson("/api/taste", { method: "POST", ...json({ event: { kind: feedback.kind, tags: opTags(p.ops), note, persona: thread?.persona ?? "neutral" } }) });
-    setFeedback(null);
+    const p = parseReply(msgsRef.current.find((x) => x.cid === feedback.cid)?.content ?? "");
+    await requestJson("/api/taste", { method: "POST", ...json({ event: { kind: feedback.kind, tags: learnTags(p.ops), note, persona: thread?.persona ?? "neutral" } }) });
+    setFeedback(null); loadTaste();
   }
   async function applyOps(picked: Op[]) {
     onApply(picked);
-    requestJson("/api/taste", { method: "POST", ...json({ event: { kind: "apply", tags: opTags(picked), note: "", persona: thread?.persona ?? "neutral" } }) });
+    requestJson("/api/taste", { method: "POST", ...json({ event: { kind: "apply", tags: learnTags(picked), note: "", persona: thread?.persona ?? "neutral" } }) });
   }
 
   // Seeds from the Tagger ("Make this a scene"): attach the image and ask for a scene.
@@ -237,11 +267,11 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       <div data-noswipe className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1">
         {threads.map((t) => (
           <span key={t.id} className={`flex h-9 shrink-0 items-center rounded-full border text-xs ${t.id === tid ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
-            <button type="button" onClick={() => setTid(t.id)} className="max-w-[10rem] truncate pr-1 pl-3">{t.title}</button>
-            <button type="button" aria-label={`Delete chat ${t.title}`} onClick={() => setConfirmDel(t.id)} className="grid size-8 place-items-center opacity-70">×</button>
+            <button type="button" disabled={!!busy} onClick={() => setTid(t.id)} className="max-w-[10rem] truncate pr-1 pl-3 disabled:opacity-60">{t.title}</button>
+            <button type="button" disabled={!!busy} aria-label={`Delete chat ${t.title}`} onClick={() => setConfirmDel(t.id)} className="grid size-8 place-items-center opacity-70 disabled:opacity-30">×</button>
           </span>
         ))}
-        <button type="button" onClick={newThread} className="border-border text-accent h-9 shrink-0 rounded-full border px-3 text-xs font-semibold">+ New</button>
+        <button type="button" disabled={!!busy} onClick={newThread} className="border-border text-accent h-9 shrink-0 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">+ New</button>
       </div>
       {confirmDel !== null && (
         <div role="alertdialog" className="border-danger/40 bg-danger/10 flex items-center gap-2 rounded-lg border p-2 text-sm">
@@ -268,7 +298,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
           const said = m.content.includes(EYES) ? m.content.slice(0, m.content.indexOf(EYES)) : m.content;
           const eyes = m.content.includes(EYES) ? m.content.slice(m.content.indexOf(EYES) + EYES.length) : "";
           if (editing?.i === i) return (
-            <div key={i} className="space-y-1.5">
+            <div key={m.cid} className="space-y-1.5">
               <AutoTextarea value={editing.text} onChange={(text) => setEditing({ i, text })} />
               <div className="flex gap-2 text-sm">
                 <button type="button" onClick={saveEdit} className="bg-accent text-accent-fg rounded-md px-3 py-1.5 font-semibold">{m.role === "user" ? "Resend" : "Save"}</button>
@@ -277,7 +307,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
             </div>
           );
           return m.role === "user" ? (
-            <div key={i} className="animate-rise bg-surface-2 ml-8 space-y-1.5 rounded-lg p-2.5 text-sm">
+            <div key={m.cid} className="animate-rise bg-surface-2 ml-8 space-y-1.5 rounded-lg p-2.5 text-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {m.image && <img src={`/api/chat/image/${m.image}`} alt="Attached" className="max-h-48 rounded-md" />}
               <p className="whitespace-pre-wrap">{said}</p>
@@ -285,19 +315,19 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
               {!busy && <button type="button" onClick={() => setEditing({ i, text: said })} className="text-faint text-xs">Edit</button>}
             </div>
           ) : (
-            <div key={i} className="animate-rise space-y-1.5 text-sm leading-relaxed">
+            <div key={m.cid} className={`animate-rise space-y-1.5 text-sm leading-relaxed ${m.error ? "text-danger" : ""}`}>
               <Md text={p!.prose} />
               {p!.error && <p className="text-danger mt-1 text-xs">{p!.error}</p>}
               {p!.ops.length > 0 && <PatchCard ops={p!.ops} onApply={applyOps} />}
-              {!busy && m.content && (
+              {!busy && m.content && !m.error && (
                 <div className="text-faint flex items-center gap-3 text-xs">
-                  <button type="button" aria-pressed={rated[i] === "like"} onClick={() => rate(i, "like")} className={rated[i] === "like" ? "text-ok" : ""}>👍</button>
-                  <button type="button" aria-pressed={rated[i] === "dislike"} onClick={() => rate(i, "dislike")} className={rated[i] === "dislike" ? "text-danger" : ""}>👎</button>
+                  <button type="button" aria-label="Like reply" aria-pressed={rated[m.cid] === "like"} disabled={!!rated[m.cid]} onClick={() => rate(m.cid, "like")} className={rated[m.cid] === "like" ? "text-ok" : ""}>👍</button>
+                  <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.cid] === "dislike"} disabled={!!rated[m.cid]} onClick={() => rate(m.cid, "dislike")} className={rated[m.cid] === "dislike" ? "text-danger" : ""}>👎</button>
                   {i === lastAssistant && <button type="button" onClick={() => run(msgs.slice(0, i))}>Regenerate</button>}
                   <button type="button" onClick={() => setEditing({ i, text: m.content })}>Edit</button>
                 </div>
               )}
-              {feedback?.i === i && (
+              {feedback?.cid === m.cid && (
                 <div className="bg-surface border-border animate-rise space-y-2 rounded-lg border p-2.5">
                   <p className="text-xs">{feedback.kind === "like" ? "Nice — what did you like?" : "What was off?"} <span className="text-faint">(it learns from this)</span></p>
                   <div className="flex flex-wrap gap-1.5">
@@ -354,8 +384,8 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
           </div>
         )}
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
-          <label className="border-border text-muted grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border" aria-label="Attach an image">
-            📎<input type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setFile(f); }} />
+          <label className="border-border text-muted grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border">
+            <span aria-hidden="true">📎</span><input type="file" accept="image/*" aria-label="Attach an image" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setFile(f); }} />
           </label>
           <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1}
             placeholder={!status?.on ? "Turn the co-pilot on to chat" : file ? "What should it look at? (e.g. how is the armor broken)" : "Describe what you want…"}
@@ -392,9 +422,13 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
             </section>
             <section>
               <h3 className="text-muted mb-1 text-xs font-medium tracking-wide uppercase">Boldness (learned)</h3>
-              <input type="range" min={0} max={100} value={taste?.drift[thread.persona] ?? 0} aria-label="Boldness"
-                onChange={(e) => tasteAction({ drift: { persona: thread.persona, value: Number(e.target.value) } })} className="accent-accent h-9 w-full" />
-              <p className="text-faint text-xs">Rises as you like and apply its ideas, drops on 👎. {taste?.drift[thread.persona] ?? 0}/100.</p>
+              {/* Local while dragging; saved once on release (no request per pixel). */}
+              <input type="range" min={0} max={100} value={drift ?? taste?.drift[thread.persona] ?? 0} aria-label="Boldness"
+                onChange={(e) => setDriftLocal(Number(e.target.value))}
+                onPointerUp={() => { if (drift !== null) { tasteAction({ drift: { persona: thread.persona, value: drift } }); setDriftLocal(null); } }}
+                onKeyUp={() => { if (drift !== null) { tasteAction({ drift: { persona: thread.persona, value: drift } }); setDriftLocal(null); } }}
+                className="accent-accent h-9 w-full" />
+              <p className="text-faint text-xs">Rises as you like and apply its ideas, drops on 👎. {drift ?? taste?.drift[thread.persona] ?? 0}/100.</p>
             </section>
             <section className="space-y-2">
               <h3 className="text-muted text-xs font-medium tracking-wide uppercase">Always follow</h3>
@@ -407,14 +441,19 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
                 <button type="submit" className="text-accent px-2 text-sm font-semibold">Pin</button>
               </form>
             </section>
-            {taste && (taste.profile.favoured.length > 0 || taste.profile.avoided.length > 0) && (
-              <section className="text-xs">
-                <h3 className="text-muted mb-1 font-medium tracking-wide uppercase">It has learned</h3>
-                {taste.profile.favoured.length > 0 && <p><span className="text-ok">likes</span> {taste.profile.favoured.slice(0, 15).join(", ")}</p>}
-                {taste.profile.avoided.length > 0 && <p><span className="text-danger">avoids</span> {taste.profile.avoided.slice(0, 10).join(", ")}</p>}
-                <button type="button" onClick={() => tasteAction({ reset: true })} className="text-danger mt-2">Forget what it learned</button>
-              </section>
-            )}
+            <section className="text-xs">
+              <h3 className="text-muted mb-1 font-medium tracking-wide uppercase">It has learned</h3>
+              {taste?.profile.favoured.length ? <p><span className="text-ok">likes</span> {taste.profile.favoured.slice(0, 15).join(", ")}</p> : null}
+              {taste?.profile.avoided.length ? <p><span className="text-danger">avoids</span> {taste.profile.avoided.slice(0, 10).join(", ")}</p> : null}
+              {taste?.profile.notes.length ? <p className="text-muted">last note: “{taste.profile.notes[0]}”</p> : null}
+              {!taste?.profile.favoured.length && !taste?.profile.avoided.length && !taste?.profile.notes.length && <p className="text-faint">Nothing yet — like, dislike and apply to teach it.</p>}
+              {confirmReset ? (
+                <span className="mt-2 flex items-center gap-2">Forget all likes, dislikes, notes and boldness?
+                  <button type="button" onClick={() => setConfirmReset(false)} className="px-2 py-1">Cancel</button>
+                  <button type="button" onClick={() => { tasteAction({ reset: true }); setConfirmReset(false); }} className="bg-danger rounded px-2 py-1 font-semibold text-white">Forget</button>
+                </span>
+              ) : <button type="button" onClick={() => setConfirmReset(true)} className="text-danger mt-2">Forget what it learned</button>}
+            </section>
           </div>
         )}
       </Sheet>

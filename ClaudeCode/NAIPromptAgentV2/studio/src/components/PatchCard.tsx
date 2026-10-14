@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { requestJson } from "@/lib/net";
 import { opTags, type Op } from "@/lib/patch";
+import { splitTags } from "@/lib/prompt";
 import { DOT } from "./BlockDrawer";
 
 const LABEL = { add: "+", remove: "−", replace: "=", weight: "×" } as const;
@@ -22,7 +23,9 @@ export function PatchCard({ ops, onApply }: { ops: Op[]; onApply: (picked: Op[])
       .then((r) => r.ok && setNl(r.data.unknown));
   }, [tags]);
   const picked = ops.filter((_, i) => !off.includes(i));
-  const hasNl = (line: string) => nl.filter((t) => line.toLowerCase().includes(t.toLowerCase()));
+  // Exact tag matches only ("lace" must not mark "necklace").
+  const bare = (t: string) => t.replace(/^-?[\d.]+::|::$/g, "").replace(/[{}[\]]/g, "").trim().toLowerCase();
+  const hasNl = (line: string) => { const mine = new Set(splitTags(line).map(bare)); return nl.filter((t) => mine.has(bare(t))); };
 
   return (
     <div className={`animate-rise bg-surface-2 mt-2 rounded-lg border p-2.5 text-sm transition-[border-color,opacity] duration-300 ${done === "applied" ? "border-ok/60" : done === "discarded" ? "border-border opacity-60" : "border-accent/40"}`}>

@@ -61,6 +61,27 @@ The app adds NovelAI's quality tags, the Undesired Content preset and the SFW/NS
 Emphasis: most lines stay unweighted. Add "weight" (0.8–1.3) to at most 1–2 lines — the single defining element — and never weight everything; over-emphasis ruins NovelAI images. "weight" is required only for action "weight".`;
 }
 
+const EYES = "\n\n— eyes report —\n";
+
+/**
+ * Keep the newest turns that fit `budget` characters (Gemma's context is 16k tokens incl. system prompt and image).
+ * Eyes reports in older turns are shortened — the latest one stays whole. Always starts on a user turn.
+ */
+export function fitHistory(msgs: ChatMsg[], budget = 40_000): ChatMsg[] {
+  const lastUser = msgs.map((m) => m.role).lastIndexOf("user");
+  const short = msgs.map((m, i) => (i !== lastUser && m.content.includes(EYES)
+    ? { ...m, content: `${m.content.slice(0, m.content.indexOf(EYES))}${EYES}${m.content.slice(m.content.indexOf(EYES) + EYES.length, m.content.indexOf(EYES) + EYES.length + 400)}…` } : m));
+  const out: ChatMsg[] = [];
+  let used = 0;
+  for (let i = short.length - 1; i >= 0; i--) {
+    const len = short[i].content.length;
+    if (out.length && used + len > budget) break;
+    out.unshift(short[i]); used += len;
+  }
+  while (out.length > 1 && out[0].role !== "user") out.shift();
+  return out;
+}
+
 export function trimHistory(msgs: ChatMsg[], max = 20): ChatMsg[] {
   const t = msgs.slice(-max);
   while (t.length && t[0].role !== "user") t.shift();

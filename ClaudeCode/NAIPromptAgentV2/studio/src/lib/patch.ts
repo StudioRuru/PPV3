@@ -98,6 +98,11 @@ export function applyOps(s: PromptState, ops: Op[]): PromptState {
   }, s);
 }
 
+/** Tags the user actually wants more of: added/replaced/weighted in the prompt — never removals or UC (negatives). */
+export function learnTags(ops: Op[]): string[] {
+  return opTags(ops.filter((o) => o.action !== "remove" && o.target !== "uc"));
+}
+
 /** Tag-shaped pieces of every op (≤3 words) for the CSV/YAML check; sentences are natural language. */
 export function opTags(ops: Op[]): string[] {
   const out = new Set<string>();

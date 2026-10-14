@@ -97,3 +97,11 @@ test("ops can target the artist section", () => {
   const s = applyOps(emptyState(), parseReply(reply('{"ops":[{"target":"artist","action":"add","line":"artist:ciloranko"}]}')).ops);
   assert.deepEqual(s.artists?.map((l) => l.text), ["artist:ciloranko"]);
 });
+
+test("review: learnTags counts only what was added/kept in the prompt — not removals or negatives", async () => {
+  const { learnTags } = await import("./patch");
+  assert.deepEqual(learnTags([
+    { target: "base", action: "add", line: "rain, night" }, { target: "char:0", action: "remove", line: "blood" },
+    { target: "uc", action: "add", line: "gore" }, { target: "char:0", action: "weight", line: "smile", weight: 1.2 },
+  ]), ["rain", "night", "smile"]);
+});

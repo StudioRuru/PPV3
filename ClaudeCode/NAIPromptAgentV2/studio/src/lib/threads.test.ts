@@ -38,3 +38,24 @@ test("auto-title from the first user message; delete removes messages; images li
   assert.deepEqual(s.remove(id), ["a.jpg"]);
   assert.equal(s.messages(id).length, 0);
 });
+
+test("review: replace refuses a deleted thread and a stale version (another device wrote meanwhile)", () => {
+  const db = mem(); migrateChat(db);
+  const s = new ThreadStore(db);
+  const id = s.create("A", "neutral");
+  const v = s.version(id)!;
+  assert.equal(s.replace(id, [{ role: "user", content: "phone" }], v), true);
+  assert.equal(s.replace(id, [{ role: "user", content: "mac, stale" }], v), false, "version moved on");
+  assert.deepEqual(s.messages(id).map((m) => m.content), ["phone"]);
+  s.remove(id);
+  assert.equal(s.replace(id, [{ role: "user", content: "late reply" }]), false);
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM chat_messages").get() as { n: number }).n, 0, "no orphan rows");
+});
+
+test("review: unreferencedImages lists files no message points at", () => {
+  const db = mem(); migrateChat(db);
+  const s = new ThreadStore(db);
+  const id = s.create("A", "neutral");
+  s.replace(id, [{ role: "user", content: "x", image: "keep.jpg" }]);
+  assert.deepEqual(s.unreferenced(["keep.jpg", "orphan.jpg"]), ["orphan.jpg"]);
+});

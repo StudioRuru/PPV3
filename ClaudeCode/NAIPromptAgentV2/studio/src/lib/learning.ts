@@ -23,7 +23,8 @@ export const pinned = () => db.prepare("SELECT id, text FROM pinned_prefs ORDER 
 export const pin = (text: string) => db.prepare("INSERT INTO pinned_prefs (text) VALUES (?)").run(text.trim().slice(0, 200));
 export const unpin = (id: number) => db.prepare("DELETE FROM pinned_prefs WHERE id = ?").run(id);
 
-export const learnedBlock = () => tasteBlock(currentProfile(), pinned().map((p) => p.text));
+// Newest pinned rules win when there are more than the prompt holds.
+export const learnedBlock = () => tasteBlock(currentProfile(), pinned().slice(-10).map((p) => p.text));
 
 /** Forget everything learned (events + drift); pinned rules are kept unless asked. */
 export function resetLearning(alsoPinned = false): void {

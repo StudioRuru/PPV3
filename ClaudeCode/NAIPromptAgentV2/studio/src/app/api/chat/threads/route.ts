@@ -11,7 +11,19 @@ export const dynamic = "force-dynamic";
 const store = () => new ThreadStore(db);
 const isPersona = (p: unknown): p is PersonaId => PERSONAS.some((x) => x.id === p);
 
+let lastSweep = 0;
+/** At most hourly: delete chat images no message refers to that are over a day old (unsent attachments, edits). */
+function sweepImages() {
+  if (Date.now() - lastSweep < 3_600_000) return;
+  lastSweep = Date.now();
+  const dir = path.join(DATA_DIR, "chat-images");
+  if (!fs.existsSync(dir)) return;
+  const old = fs.readdirSync(dir).filter((f) => /^[\w-]+\.jpg$/.test(f) && Date.now() - fs.statSync(path.join(dir, f)).mtimeMs > 86_400_000);
+  for (const f of store().unreferenced(old)) fs.rmSync(path.join(dir, f), { force: true });
+}
+
 export function GET() {
+  try { sweepImages(); } catch { /* best effort */ }
   return NextResponse.json({ threads: store().list() });
 }
 

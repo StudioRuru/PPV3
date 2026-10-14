@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextRequest } from "next/server";
-import { MODE_HINT, retrieve, systemPrompt, trimHistory, type ChatMsg, type Mode } from "@/lib/copilot-prompt";
+import { fitHistory, MODE_HINT, retrieve, systemPrompt, trimHistory, type ChatMsg, type Mode } from "@/lib/copilot-prompt";
 import { db } from "@/lib/db";
 import { DATA_DIR, REPO_DIR } from "@/lib/env";
 import { getDrift, learnedBlock } from "@/lib/learning";
@@ -31,10 +31,15 @@ export async function POST(req: NextRequest) {
   let threadId = Number(body.thread);
   if (!store.list().some((t) => t.id === threadId)) threadId = store.create("New chat", "neutral");
   const thread = store.list().find((t) => t.id === threadId)!;
+  // Another device (or tab) wrote to this thread since the client loaded it: don't let one overwrite the other.
+  const expect = typeof body.version === "number" ? body.version : undefined;
+  if (expect !== undefined && store.version(threadId) !== expect) {
+    return Response.json({ error: "This chat changed on another device — reloaded it, please send again.", conflict: true }, { status: 409 });
+  }
 
   const mode: Mode = Object.hasOwn(MODE_HINT, body.mode) ? body.mode : "chat";
   const hint = MODE_HINT[mode];
-  const trimmed = trimHistory(messages);
+  const trimmed = fitHistory(trimHistory(messages));
   // Follow-ups: the brain also looks at the most recent attached picture itself (Gemma vision).
   const recent = [...trimmed].reverse().slice(0, 6).find((m) => m.image)?.image;
   const file = recent ? IMG(recent) : null;
@@ -57,12 +62,14 @@ export async function POST(req: NextRequest) {
       try {
         for await (const t of chatStream(system, sent)) { reply += t; ctl.enqueue(enc.encode(t)); }
         // Only complete exchanges are stored; the client's list (with edits) is the thread's truth.
-        store.replace(threadId, [...messages, { role: "assistant", content: reply }]);
+        if (!store.replace(threadId, [...messages, { role: "assistant", content: reply }], expect)) {
+          ctl.enqueue(enc.encode("\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering."));
+        }
       } catch (e) {
         const msg = e instanceof Offline ? "Brain offline — turn the co-pilot on." : (e as Error).message;
-        ctl.enqueue(enc.encode(`\n\n⚠️ ${msg}`));
+        try { ctl.enqueue(enc.encode(`\n\n⚠️ ${msg}`)); } catch { /* client already gone */ }
       }
-      ctl.close();
+      try { ctl.close(); } catch { /* client already gone */ }
     },
   });
   return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Thread": String(threadId) } });
