@@ -9,7 +9,8 @@ export { keepTags } from "./tagger";
  * ponytail: multi-character images all land on Character 1 — tags can't be split per character reliably.
  */
 export function recreate(tags: RawTag[], s: PromptState): PromptState {
-  const join = (pick: (t: RawTag) => boolean) => tags.filter(pick).map(toPromptTag).join(", ");
+  const tag = (t: RawTag) => (t.weight ? `${t.weight}::${toPromptTag(t)}::` : toPromptTag(t));
+  const join = (pick: (t: RawTag) => boolean) => tags.filter(pick).map(tag).join(", ");
   const g = (...n: number[]) => (t: RawTag) => t.category === "general" && n.includes(t.group ?? 6);
   const base = [join(g(0)), join(g(5)), join((t) => t.category === "style")].filter(Boolean);
   const char = [join((t) => t.category === "character" || t.category === "copyright"), join(g(1)), join(g(2, 3)), join(g(4, 6))].filter(Boolean);

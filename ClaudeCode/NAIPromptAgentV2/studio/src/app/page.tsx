@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BlockDrawer } from "@/components/BlockDrawer";
 import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
@@ -83,10 +83,15 @@ export default function Studio() {
   }, [note]);
   const [incoming, setIncoming] = useState<File | null>(null);
 
+  // Undo restores the pre-Recreate prompt only until the user edits the recreated one.
+  const recreated = useRef<PromptState | null>(null);
   function doRecreate(tags: RawTag[]) {
+    const next = recreate(tags, state);
+    recreated.current = next;
     setUndo(state);
-    setState((s) => recreate(tags, s));
+    setState(next);
   }
+  useEffect(() => { if (undo && state !== recreated.current) setUndo(null); }, [state, undo]);
   useEffect(() => {
     if (!undo) return;
     const t = setTimeout(() => setUndo(null), 10_000);

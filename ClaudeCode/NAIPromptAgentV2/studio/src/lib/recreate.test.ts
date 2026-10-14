@@ -56,3 +56,8 @@ test("review: danbooruTags drops the tagger's default excludes (signature, text,
   const post = { tag_string_character: "", tag_string_copyright: "", tag_string_artist: "", tag_string_general: "1girl signature artist_name text smile" };
   assert.deepEqual(danbooruTags(post, () => 6).map((t) => t.name), ["1girl", "smile"]);
 });
+
+test("minor: Recreate keeps a boosted chip's weight", () => {
+  const r = recreate([{ ...T("smile", "general", 6), weight: 1.15 }, T("1girl", "general", 0)], emptyState());
+  assert.deepEqual(lines(r.chars[0].lines), ["1.15::smile::"]);
+});

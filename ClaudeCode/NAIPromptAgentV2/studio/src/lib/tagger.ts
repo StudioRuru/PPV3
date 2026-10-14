@@ -1,4 +1,4 @@
-export type RawTag = { name: string; category: string; score: number; group?: number };
+export type RawTag = { name: string; category: string; score: number; group?: number; weight?: number };
 export type TagOpts = { thresholds: Record<string, number>; enabled: Record<string, boolean>; exclude: string[]; groups?: number[] };
 
 /** Prompt order: who → what series → general (by YAML group) → artists → meta → rating. */

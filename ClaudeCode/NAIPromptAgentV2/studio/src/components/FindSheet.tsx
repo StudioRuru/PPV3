@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { requestJson } from "@/lib/net";
 import type { Rating } from "@/lib/prompt";
 import type { RawTag } from "@/lib/tagger";
@@ -18,10 +18,16 @@ export function FindSheet({ open, onClose, rating, onRecreate }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState<Post | null>(null);
+  // "More" continues the search that was submitted, not whatever is in the box now; late replies are dropped.
+  const asked = useRef({ q: "", rating });
+  const latest = useRef(0);
 
   async function search(p: number) {
+    if (p === 1) asked.current = { q, rating };
+    const id = ++latest.current;
     setBusy(true); setError(null);
-    const r = await requestJson<{ posts: Post[]; more: boolean }>(`/api/danbooru?${new URLSearchParams({ q, rating, page: String(p) })}`);
+    const r = await requestJson<{ posts: Post[]; more: boolean }>(`/api/danbooru?${new URLSearchParams({ ...asked.current, page: String(p) })}`);
+    if (id !== latest.current) return;
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     setPage(p); setMore(r.data.more);
