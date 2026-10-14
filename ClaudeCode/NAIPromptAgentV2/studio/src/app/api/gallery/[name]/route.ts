@@ -25,7 +25,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
     const make = async () => {
       const out = await sharp(path.join(GALLERY_DIR, name)).resize({ width: w, withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
       await fs.mkdir(THUMBS, { recursive: true });
-      await fs.writeFile(thumb, out);
+      // Atomic: a concurrent request never reads (and caches for a year) a half-written file.
+      const tmp = `${thumb}.${process.pid}.${Date.now()}.tmp`;
+      await fs.writeFile(tmp, out);
+      await fs.rename(tmp, thumb);
       return out;
     };
     const buf = (await fs.readFile(thumb).catch(() => null)) ?? (await make());

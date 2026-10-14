@@ -5,6 +5,7 @@ import { insertGeneration, readGeneration } from "@/lib/generations";
 import { canResend, DEFAULT_PARAMS } from "@/lib/nai-body";
 import { measured, NovelAIError, upscaleImage } from "@/lib/novelai";
 import { withNaiMetadata } from "@/lib/recipe";
+import sharp from "sharp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,8 +22,10 @@ export async function POST(req: NextRequest) {
     // NovelAI's upscaler returns a bare PNG: carry the source's recipe over so it still imports.
     const { result: up, cost } = await measured(NOVELAI_TOKEN, () => upscaleImage(src.png, p.width, p.height, p.model, NOVELAI_TOKEN, scale));
     const png = withNaiMetadata(up, src.png);
+    // Record the factor NovelAI actually delivered (it may not honour 2×).
+    const actual = Math.round(((await sharp(up).metadata()).width ?? p.width * scale) / p.width);
     const file = await saveImage(png, src.seed);
-    const newId = insertGeneration({ model: p.model, seed: src.seed, file, state: src.state, params: { ...p, upscaled: scale }, gridId: `u${src.id}`, cost });
+    const newId = insertGeneration({ model: p.model, seed: src.seed, file, state: src.state, params: { ...p, upscaled: actual || scale }, gridId: `u${src.id}`, cost });
     return NextResponse.json({ id: newId, file });
   } catch (e) {
     const status = e instanceof NovelAIError ? e.status : 500;

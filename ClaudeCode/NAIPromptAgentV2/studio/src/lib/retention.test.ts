@@ -13,3 +13,8 @@ test("expiredIds: older than N days go; 'never' (0/null) keeps everything", () =
   assert.deepEqual(expiredIds(rows, 0, now), []);
   assert.deepEqual(expiredIds(rows, null, now), []);
 });
+
+test("review: parseRetention only accepts 1, 2 or 3 — anything else means never", async () => {
+  const { parseRetention } = await import("./retention");
+  assert.deepEqual(["1", "2", "3", "0", "-1", "0.01", "abc", null].map(parseRetention), [1, 2, 3, null, null, null, null, null]);
+});

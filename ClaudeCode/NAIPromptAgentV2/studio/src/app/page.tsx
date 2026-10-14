@@ -167,12 +167,12 @@ export default function Studio() {
   }
 
   return (
-    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-40" : "pb-24"}`}
+    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+10rem)]" : "pb-[calc(env(safe-area-inset-bottom)+6rem)]"}`}
       style={{ touchAction: "pan-y" }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}
       // Swipe left/right on free page areas to change tab; never from controls, the Tagger, the canvas or sheets.
-      onPointerDown={(e) => { swipe.current = (e.target as HTMLElement).closest(NO_SWIPE) ? null : { x: e.clientX, y: e.clientY, t: e.timeStamp }; }}
+      onPointerDown={(e) => { swipe.current = e.pointerType !== "touch" || (e.target as HTMLElement).closest(NO_SWIPE) ? null : { x: e.clientX, y: e.clientY, t: e.timeStamp }; }}
       onPointerUp={(e) => {
         const s = swipe.current; swipe.current = null;
         if (!s || window.getSelection()?.toString()) return;
@@ -298,7 +298,7 @@ export default function Studio() {
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
-        onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); }} />
+        onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); setTab("studio"); }} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );

@@ -2,7 +2,7 @@ import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { db, getSetting } from "./db";
-import { expiredIds } from "./retention";
+import { expiredIds, parseRetention } from "./retention";
 import { DATA_DIR, GALLERY_DIR } from "./env";
 import { safeGalleryName } from "./gallery";
 import type { NaiParams } from "./nai-body";
@@ -34,24 +34,32 @@ export async function deleteGenerations(ids: number[] | "all"): Promise<number> 
   const rows = (ids === "all"
     ? db.prepare("SELECT id, file FROM generations").all()
     : db.prepare(`SELECT id, file FROM generations WHERE id IN (${ids.map(() => "?").join(",") || "NULL"})`).all(...ids)) as { id: number; file: string }[];
+  // Rows first (one transaction), files after: a crash mid-way leaves orphan files, never rows without images.
+  const del = db.prepare("DELETE FROM generations WHERE id = ?");
+  db.transaction(() => rows.forEach((r) => del.run(r.id)))();
+  const stillUsed = db.prepare("SELECT 1 FROM generations WHERE file = ? LIMIT 1");
   for (const r of rows) {
     const name = safeGalleryName(r.file);
-    if (!name) continue;
+    if (!name || stillUsed.get(r.file)) continue; // another row shares this file (same second + seed): keep it
     await fs.unlink(path.join(GALLERY_DIR, name)).catch(() => {});
     // and its cached thumbnails (api/gallery ?w=)
     for (const w of [256, 512]) await fs.unlink(path.join(DATA_DIR, "thumbs", `${name.replace(/\.png$/, "")}-${w}.webp`)).catch(() => {});
   }
-  const del = db.prepare("DELETE FROM generations WHERE id = ?");
-  db.transaction(() => rows.forEach((r) => del.run(r.id)))();
   return rows.length;
 }
 
-export const autoDeleteDays = (): number | null => Number(getSetting("auto_delete_days")) || null;
+export const autoDeleteDays = (): number | null => parseRetention(getSetting("auto_delete_days"));
+
+/** How many images a given window would delete right now (for the Settings confirm). */
+export function countExpired(days: number | null, now = Date.now()): number {
+  return expiredIds(db.prepare("SELECT id, created_at FROM generations").all() as { id: number; created_at: number }[], days, now).length;
+}
 
 let lastSweep = 0;
-/** Apply the auto-delete window (Settings). Cheap enough to call on every history listing; at most once a minute. */
-export async function sweepExpired(now = Date.now()): Promise<number> {
-  if (now - lastSweep < 60_000) return 0;
+/** Apply the auto-delete window (Settings). Called on history listings at most once a minute; `force` applies it now. */
+export async function sweepExpired({ force = false } = {}): Promise<number> {
+  const now = Date.now();
+  if (!force && now - lastSweep < 60_000) return 0;
   lastSweep = now;
   const ids = expiredIds(db.prepare("SELECT id, created_at FROM generations").all() as { id: number; created_at: number }[], autoDeleteDays(), now);
   return ids.length ? deleteGenerations(ids) : 0;
@@ -60,3 +68,4 @@ export async function sweepExpired(now = Date.now()): Promise<number> {
 // Hourly sweep while the server runs (guarded so dev hot-reload doesn't stack timers).
 const g = globalThis as unknown as { __studioSweep?: NodeJS.Timeout };
 g.__studioSweep ??= setInterval(() => { sweepExpired().catch(() => {}); }, 3_600_000);
+g.__studioSweep.unref?.(); // never keep a build/worker process alive

@@ -13,7 +13,8 @@ test("pickRows: today since local midnight, last N, or chosen ids — newest fir
   assert.deepEqual(pickRows(rows, { last: 3 }, day).map((r) => r.id), [5, 4, 3]);
   assert.deepEqual(pickRows(rows, { ids: [1, 3, 99] }, day).map((r) => r.id), [3, 1]);
   assert.deepEqual(pickRows(rows, { last: 0 }, day), []);
-  assert.equal(pickRows(Array.from({ length: 500 }, (_, i) => ({ id: i, created_at: day })), { last: 1000 }, day).length, 200);
+  // Streamed zips: no silent cap below what the roll can show (a short zip before "Clear all" loses images).
+  assert.equal(pickRows(Array.from({ length: 1500 }, (_, i) => ({ id: i, created_at: day })), { last: 1500 }, day).length, 1500);
 });
 
 test("zipName names the export by its newest image date", () => {

@@ -16,7 +16,7 @@ type Row = { id: number; created_at: number; file: string; seed: number; state: 
 async function select(sp: URLSearchParams) {
   const pick: ExportPick = sp.get("ids") ? { ids: sp.get("ids")!.split(",").map(Number).filter(Number.isInteger) }
     : sp.get("today") ? { today: true } : { last: Number(sp.get("last")) || 0 };
-  const rows = pickRows(db.prepare("SELECT id, created_at, file, seed, state, params FROM generations ORDER BY id DESC LIMIT 2000").all() as Row[], pick);
+  const rows = pickRows(db.prepare("SELECT id, created_at, file, seed, state, params FROM generations ORDER BY id DESC").all() as Row[], pick);
   const present = [];
   for (const r of rows) {
     const name = safeGalleryName(r.file);

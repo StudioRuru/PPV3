@@ -1,8 +1,8 @@
 export type ExportPick = { today?: boolean; last?: number; ids?: number[] };
 type Row = { id: number; created_at: number };
 
-/** ponytail: 200 images per zip keeps it in memory (upscales are ~15 MB each); stream if exports grow. */
-export const EXPORT_CAP = 200;
+/** Zips are streamed one file at a time, so the cap only guards absurd requests — never below what the roll shows. */
+export const EXPORT_CAP = 100_000;
 
 /** Which generations go in the zip, newest first. */
 export function pickRows<R extends Row>(rows: R[], pick: ExportPick, now = Date.now()): R[] {

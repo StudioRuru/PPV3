@@ -47,7 +47,8 @@ export function CameraRoll({ active, onOpen, onChanged }: {
   async function remove(which: "selected" | "all") {
     const r = await requestJson<{ deleted: number }>("/api/generations", {
       method: "DELETE", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(which === "all" ? { all: true } : { ids: sel.map((g) => g.id) }),
+      // Exactly the images that were counted in the dialog — never rows the roll hasn't shown (new or past the limit).
+      body: JSON.stringify({ ids: (which === "all" ? items : sel).map((g) => g.id) }),
     });
     setConfirm(null);
     if (!r.ok) { setError(r.error); return; }
@@ -56,7 +57,7 @@ export function CameraRoll({ active, onOpen, onChanged }: {
   }
 
   return (
-    <section aria-label="Camera roll" className="space-y-3">
+    <section aria-label="Camera roll" className={`space-y-3 ${selecting ? "pb-[calc(env(safe-area-inset-bottom)+5rem)]" : ""}`}>
       <header className="flex items-end gap-2">
         <div className="flex-1">
           <h1 className="text-[15px] font-semibold tracking-wide">Camera roll</h1>
@@ -118,7 +119,7 @@ export function CameraRoll({ active, onOpen, onChanged }: {
       )}
 
       <Sheet open={!!confirm} onClose={() => setConfirm(null)} label="Confirm delete" closeLabel="Cancel delete" className="rounded-t-2xl border-t lg:max-w-md lg:rounded-none lg:border-l">
-        <header className="p-3"><h2 className="text-base font-semibold">{confirm === "all" ? `Delete all ${items.length} images?` : `Delete ${sel.length} image${sel.length === 1 ? "" : "s"}?`}</h2></header>
+        <header className="p-3"><h2 className="text-base font-semibold">{confirm === "all" ? `Delete all ${items.length} images in the roll?` : `Delete ${sel.length} image${sel.length === 1 ? "" : "s"}?`}</h2></header>
         <p className="text-muted px-3 text-sm">This removes them from the Mac for good{confirm === "all" ? ` (${mb(bytes(items))})` : ""}. Zip them first if you want a copy.</p>
         <div className="flex gap-2 p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
           <button type="button" onClick={() => setConfirm(null)} className="border-border flex-1 rounded-lg border px-4 py-3">Cancel</button>

@@ -21,6 +21,15 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const [defaults, setDefaults] = useState<GenDefaults>({ sampler: params.sampler, noiseSchedule: params.noiseSchedule, cfgRescale: params.cfgRescale });
   const [danbooru, setDanbooru] = useState<boolean | null>(null);
   const [retention, setRetention] = useState<number | null | undefined>(undefined);
+  const [purge, setPurge] = useState<{ days: number | null; count: number } | null>(null);
+  const post = (body: object) => requestJson<{ autoDeleteDays: number | null; wouldRemove?: number }>("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  // Dry run first: if this window would delete images right now, say how many and ask.
+  async function chooseRetention(days: number | null) {
+    const dry = await post({ autoDeleteDays: days, dryRun: true });
+    if (dry.ok && (dry.data.wouldRemove ?? 0) > 0) { setPurge({ days, count: dry.data.wouldRemove! }); return; }
+    const r = await post({ autoDeleteDays: days });
+    if (r.ok) setRetention(r.data.autoDeleteDays);
+  }
   const { anlas } = useAnlas(open);
 
   useEffect(() => {
@@ -100,11 +109,21 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
           <div role="radiogroup" aria-label="Auto-delete images after" className="border-border grid grid-cols-4 overflow-hidden rounded-md border">
             {([null, 1, 2, 3] as const).map((d) => (
               <button key={String(d)} type="button" role="radio" aria-checked={retention === d}
-                onClick={async () => { const r = await requestJson<{ autoDeleteDays: number | null }>("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoDeleteDays: d }) }); if (r.ok) setRetention(r.data.autoDeleteDays); }}
+                onClick={() => chooseRetention(d)}
                 className={`h-10 text-xs font-medium ${retention === d ? "bg-accent text-accent-fg" : "text-muted"}`}>{d === null ? "Never" : `${d} day${d > 1 ? "s" : ""}`}</button>
             ))}
           </div>
           <p className="text-faint mt-1 text-xs">Images older than this are deleted from the Mac automatically. Zip anything you want to keep.</p>
+          {purge && (
+            <div role="alertdialog" aria-label="Confirm auto-delete" className="border-danger/40 bg-danger/10 mt-2 space-y-2 rounded-lg border p-3 text-sm">
+              <p>This deletes <b>{purge.count} image{purge.count === 1 ? "" : "s"}</b> older than {purge.days} day{purge.days === 1 ? "" : "s"} right now, for good.</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPurge(null)} className="border-border flex-1 rounded-md border px-3 py-2">Cancel</button>
+                <button type="button" onClick={async () => { const r = await post({ autoDeleteDays: purge.days }); setPurge(null); if (r.ok) setRetention(r.data.autoDeleteDays); }}
+                  className="bg-danger flex-1 rounded-md px-3 py-2 font-semibold text-white">Delete & turn on</button>
+              </div>
+            </div>
+          )}
         </section>
 
         <section>
