@@ -4,6 +4,7 @@ import { BlockDrawer } from "@/components/BlockDrawer";
 import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
+import { ExportSheet } from "@/components/ExportSheet";
 import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
 import { loadDefaults, SettingsSheet } from "@/components/SettingsSheet";
@@ -43,6 +44,7 @@ export default function Studio() {
   const [find, setFind] = useState(false);
   const [settings, setSettings] = useState(false);
   const [viewing, setViewing] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
   /** iOS shell: native Save to Photos. Browser: a normal download of the full PNG. */
@@ -211,6 +213,10 @@ export default function Studio() {
             </figcaption>
           </figure>
         ) : <div className="border-border text-muted grid aspect-[832/1216] place-items-center rounded-lg border">Nothing yet</div>}
+        <div className="flex items-center justify-between">
+          <h2 className="text-muted text-xs font-medium tracking-wide uppercase">History</h2>
+          {history.length > 0 && <button type="button" onClick={() => setExporting(true)} className="text-accent px-1 py-2 text-sm">Save to zip</button>}
+        </div>
         <HistoryStrip items={history} onOpen={setCurrent} />
       </section>
 
@@ -242,6 +248,7 @@ export default function Studio() {
       <Viewer items={history} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
         onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); }} />
+      <ExportSheet open={exporting} onClose={() => setExporting(false)} items={history} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );

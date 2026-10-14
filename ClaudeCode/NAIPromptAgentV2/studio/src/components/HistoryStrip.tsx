@@ -5,7 +5,7 @@ import type { PromptState } from "@/lib/prompt";
 // For <img className="animate-develop">: marks the image loaded so the develop-in starts with real pixels.
 export const developed = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.dataset.loaded = ""; };
 
-export type Generation = { id: number; file: string; seed: number; model: string; state: PromptState; params: NaiParams };
+export type Generation = { id: number; file: string; seed: number; model: string; state: PromptState; params: NaiParams; created_at?: number };
 
 export function HistoryStrip({ items, onOpen }: { items: Generation[]; onOpen: (g: Generation) => void }) {
   if (!items.length) return <p className="text-muted text-sm">No generations yet.</p>;

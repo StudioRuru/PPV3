@@ -44,7 +44,7 @@ final class StudioViewController: UIViewController {
 }
 
 /// Owns the one WKWebView hosting the web Studio and the native side of its bridge.
-final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKDownloadDelegate {
     static let shared = WebHost()
     let webView: WKWebView
     private var loadedServer = ""
@@ -100,6 +100,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { return decisionHandler(.cancel) }
         if url.scheme == "naistudio-retry" { decisionHandler(.cancel); load(); return }
+        if action.shouldPerformDownload, sameOrigin(url) { return decisionHandler(.download) }   // <a download> (zip export)
         // The Studio's own pages (and the local error page) stay here; anything else opens in Safari.
         if sameOrigin(url) || url.scheme == "about" || !action.targetFrame.map({ $0.isMainFrame }).defaultTrue { return decisionHandler(.allow) }
         decisionHandler(.cancel)
@@ -116,6 +117,36 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { importPending() }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { load() }
+
+    // MARK: Downloads (zip export) → share sheet, so it can go to Files, AirDrop, etc.
+
+    func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        let disposition = (response.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        decisionHandler(disposition.lowercased().hasPrefix("attachment") ? .download : .allow)
+    }
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) { download.delegate = self }
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) { download.delegate = self }
+
+    private var downloadURL: URL?
+
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedFilename.isEmpty ? "nai-studio.zip" : suggestedFilename)
+        try? FileManager.default.removeItem(at: url)
+        downloadURL = url
+        toast("Preparing zip…")
+        completionHandler(url)
+    }
+
+    func downloadDidFinish(_ download: WKDownload) {
+        guard let url = downloadURL, let root = webView.window?.rootViewController else { return }
+        let share = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        share.popoverPresentationController?.sourceView = webView   // iPad safety
+        root.present(share, animated: true)
+    }
+
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        toast("Download failed: \(error.localizedDescription)")
+    }
 
     // MARK: Bridge
 
