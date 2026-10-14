@@ -8,7 +8,7 @@ import { AutoTextarea } from "./TagInput";
 import { Trash } from "./icons";
 
 type Item = { kind: Kind; dir: string; slug: string; name: string; description: string; count: number; mtime: number };
-type Open = { kind: Kind; dir: string; slug: string; fields: Field[]; mtime: number };
+type Open = { kind: Kind; dir: string; slug: string; fields: Field[]; mtime: number; scenes?: number[] };
 const KINDS: [Kind | "all", string][] = [["all", "All"], ["arc", "Scenes & arcs"], ["outfit", "Outfits"], ["theme", "Themes"], ["cluster", "Clusters"]];
 const UNIT: Record<Kind, string> = { arc: "scenes", outfit: "tags", theme: "tags", cluster: "tags" };
 const ACTIONS: [EnhanceAction, string][] = [["modify", "Modify"], ["add", "Add on"], ["remove", "Remove parts"], ["combine", "Combine with…"], ["mutate", "Mutate / escalate"]];
@@ -17,7 +17,17 @@ const json = (body: unknown) => ({ headers: { "Content-Type": "application/json"
 /** One field: plain line, long text, or a tag list edited as comma-separated text. */
 function FieldInput({ f, onChange }: { f: Field; onChange: (v: string | string[]) => void }) {
   const [text, setText] = useState(Array.isArray(f.value) ? f.value.join(", ") : f.value);
-  useEffect(() => { setText(Array.isArray(f.value) ? f.value.join(", ") : f.value); }, [f.value]);
+  // Only resync when the value really changed from outside (Apply, reload) — not on our own keystrokes,
+  // which would eat the trailing space/comma of a tag being typed.
+  useEffect(() => {
+    const mine = f.type === "tags" ? JSON.stringify(splitTags(text)) === JSON.stringify(f.value) : text === f.value;
+    if (!mine) setText(Array.isArray(f.value) ? f.value.join(", ") : f.value);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- text is read, not a trigger
+  }, [f.value]);
+  if (f.readonly) return (
+    <div><span className="text-muted mb-1 block text-xs">{f.label}</span>
+      <p className="text-faint text-xs">This field has a custom shape in the file — edit it by hand.</p></div>
+  );
   return (
     <label className="block">
       <span className="text-muted mb-1 block text-xs">{f.label}{f.type === "tags" && <span className="text-faint font-mono"> · {(f.value as string[]).length}</span>}</span>
@@ -43,6 +53,8 @@ export function Closet({ active, onUse, prompt }: {
   const [newKind, setNewKind] = useState<Kind | null>(null);
   const [newName, setNewName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmScene, setConfirmScene] = useState<number | null>(null);
+  const [askClose, setAskClose] = useState(false);
   // Co-pilot
   const [action, setAction] = useState<EnhanceAction>("modify");
   const [ask, setAsk] = useState("");
@@ -56,13 +68,14 @@ export function Closet({ active, onUse, prompt }: {
   }, []);
   useEffect(() => { if (active) load(); }, [active, load]);
 
-  const show = (it: Open) => { setOpen(it); setSaved(it.fields); setSuggestion(null); setError(null); setAsk(""); };
+  const show = (it: Open) => { setOpen(it); setSaved(it.fields); setSuggestion(null); setError(null); setAsk(""); setOther(""); setConfirmScene(null); setAskClose(false); };
   async function openItem(it: Item) {
     const r = await requestJson<{ item: Open }>(`/api/closet/${it.dir}/${it.slug}`);
     if (r.ok) show(r.data.item); else setError(r.error);
   }
   const setField = (key: string, value: string | string[]) => setOpen((o) => o && { ...o, fields: o.fields.map((f) => (fieldKey(f.path) === key ? { ...f, value } : f)) });
   const dirty = !!open && diffFields(saved, open.fields).length > 0;
+  const close = () => (dirty ? setAskClose(true) : setOpen(null));
 
   async function save(op?: { scene: "add" } | { scene: "remove"; index: number }) {
     if (!open) return;
@@ -86,10 +99,11 @@ export function Closet({ active, onUse, prompt }: {
     if (!open) return;
     setThinking(true); setSuggestion(null); setError(null);
     let o: { label: string; fields: Field[] } | undefined;
-    if (action === "combine" && other) {
+    if (action === "combine") {
       const [d, s] = other.split("/");
       const r = await requestJson<{ item: Open }>(`/api/closet/${d}/${s}`);
-      if (r.ok) o = { label: items.find((i) => `${i.dir}/${i.slug}` === other)?.name ?? s, fields: r.data.item.fields };
+      if (!r.ok) { setThinking(false); setError(`Couldn't load the item to combine: ${r.error}`); return; }
+      o = { label: items.find((i) => `${i.dir}/${i.slug}` === other)?.name ?? s, fields: r.data.item.fields };
     }
     const r = await requestJson<{ prose: string; fields: Field[] }>("/api/closet/enhance", { method: "POST", ...json({ kind: open.kind, fields: open.fields, action, ask, other: o }) });
     setThinking(false);
@@ -155,16 +169,29 @@ export function Closet({ active, onUse, prompt }: {
         ))}
       </div>
 
-      <Sheet open={!!open} onClose={() => setOpen(null)} label="Edit closet item" closeLabel="Close editor"
+      <Sheet open={!!open} onClose={close} label="Edit closet item" closeLabel="Close editor"
         className="h-[92dvh] rounded-t-2xl border-t lg:h-full lg:max-w-lg lg:rounded-none lg:border-l">
         {open && <>
           <header className="flex items-center gap-2 p-3">
             <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{(open.fields.find((f) => fieldKey(f.path) === "name")?.value as string) || open.slug}</h2>
             <button type="button" aria-label="Delete (moves to trash)" onClick={() => setConfirmDelete(true)} className="text-faint hover:text-danger grid size-11 place-items-center"><Trash className="size-5" /></button>
-            <button type="button" onClick={() => setOpen(null)} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
+            <button type="button" onClick={close} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
           </header>
           <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-3">
-            {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+            {error && (
+              <p role="alert" className="text-danger text-sm">{error}
+                {/changed on disk/.test(error) && <button type="button" onClick={() => openItem({ ...open, name: "", description: "", count: 0 })} className="text-accent ml-2 font-semibold">Reload</button>}
+              </p>
+            )}
+            {askClose && (
+              <div role="alertdialog" className="border-warn/40 bg-warn/10 space-y-2 rounded-lg border p-3 text-sm">
+                <p>Discard your unsaved changes?</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setAskClose(false)} className="border-border flex-1 rounded-md border px-3 py-2">Keep editing</button>
+                  <button type="button" onClick={() => { setAskClose(false); setOpen(null); }} className="flex-1 rounded-md bg-black/20 px-3 py-2 font-semibold">Discard</button>
+                </div>
+              </div>
+            )}
             {confirmDelete && (
               <div role="alertdialog" className="border-danger/40 bg-danger/10 space-y-2 rounded-lg border p-3 text-sm">
                 <p>Move this to the trash? (data/.trash — it can be restored by hand.)</p>
@@ -183,10 +210,17 @@ export function Closet({ active, onUse, prompt }: {
               <section key={i} className="bg-bg border-border space-y-3 rounded-lg border p-3">
                 <header className="flex items-center gap-2">
                   <h3 className="flex-1 text-sm font-semibold">Scene {i + 1}</h3>
-                  <button type="button" onClick={() => onUse(`scene:${open.slug}#${i + 1}`)} className="text-accent text-xs">Load in Studio</button>
-                  <button type="button" aria-label={`Remove scene ${i + 1}`} disabled={dirty} title={dirty ? "Save first" : ""} onClick={() => save({ scene: "remove", index: i })}
+                  <button type="button" disabled={dirty} onClick={() => onUse(`scene:${open.slug}#${open.scenes?.[i] ?? i + 1}`)} className="text-accent text-xs disabled:opacity-40">{dirty ? "Save to load" : "Load in Studio"}</button>
+                  <button type="button" aria-label={`Remove scene ${i + 1}`} disabled={dirty} title={dirty ? "Save first" : ""} onClick={() => setConfirmScene(i)}
                     className="text-faint hover:text-danger grid size-9 place-items-center disabled:opacity-30"><Trash /></button>
                 </header>
+                {confirmScene === i && (
+                  <div role="alertdialog" className="border-danger/40 bg-danger/10 flex items-center gap-2 rounded-md border p-2 text-xs">
+                    <span className="flex-1">Remove scene {i + 1}? The file is re-saved (a .bak is kept).</span>
+                    <button type="button" onClick={() => setConfirmScene(null)} className="px-2 py-1.5">Cancel</button>
+                    <button type="button" onClick={() => { setConfirmScene(null); save({ scene: "remove", index: i }); }} className="bg-danger rounded px-2 py-1.5 font-semibold text-white">Remove</button>
+                  </div>
+                )}
                 {open.fields.filter((f) => f.path[1] === i).map((f) => <FieldInput key={fieldKey(f.path)} f={{ ...f, label: f.label.replace(/^Scene \d+ · /, "") }} onChange={(v) => setField(fieldKey(f.path), v)} />)}
               </section>
             ))}
@@ -223,7 +257,13 @@ export function Closet({ active, onUse, prompt }: {
                     ))}
                   </ul>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => { setOpen({ ...open, fields: suggestion.fields }); setSuggestion(null); }} className="bg-accent text-accent-fg h-10 flex-1 rounded-md font-semibold">Apply</button>
+                    {/* Merge only what the co-pilot changed, so edits typed while it was thinking survive. */}
+                    <button type="button" onClick={() => {
+                      const keys = new Set(suggestion.changes.map((c) => c.key));
+                      const next = new Map(suggestion.fields.map((f) => [fieldKey(f.path), f.value]));
+                      setOpen({ ...open, fields: open.fields.map((f) => (keys.has(fieldKey(f.path)) ? { ...f, value: next.get(fieldKey(f.path))! } : f)) });
+                      setSuggestion(null);
+                    }} className="bg-accent text-accent-fg h-10 flex-1 rounded-md font-semibold">Apply</button>
                     <button type="button" onClick={() => setSuggestion(null)} className="border-border h-10 flex-1 rounded-md border">Discard</button>
                   </div>
                   <p className="text-faint text-xs">Apply edits the form — Save writes the file.</p>
@@ -232,7 +272,7 @@ export function Closet({ active, onUse, prompt }: {
             </section>
           </div>
           <div className="border-border flex gap-2 border-t p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
-            {open.kind !== "arc" && <button type="button" onClick={() => onUse(`${open.kind}:${open.slug}`)} className="border-border rounded-lg border px-3 py-3 text-sm">Use in Studio</button>}
+            {open.kind !== "arc" && <button type="button" disabled={dirty} title={dirty ? "Save first — the Studio uses the saved version" : ""} onClick={() => onUse(`${open.kind}:${open.slug}`)} className="border-border rounded-lg border px-3 py-3 text-sm disabled:opacity-40">Use in Studio</button>}
             <button type="button" onClick={() => create(open.kind, `${(open.fields.find((f) => fieldKey(f.path) === "name")?.value as string) || open.slug} copy`, { from: { dir: open.dir, slug: open.slug } })}
               className="border-border rounded-lg border px-3 py-3 text-sm">Duplicate</button>
             <button type="button" onClick={() => save()} disabled={!dirty} className="bg-accent text-accent-fg flex-1 rounded-lg px-4 py-3 font-semibold disabled:opacity-40">{dirty ? "Save" : "Saved"}</button>

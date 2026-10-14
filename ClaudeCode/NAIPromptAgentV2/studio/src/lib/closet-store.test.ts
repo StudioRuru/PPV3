@@ -46,3 +46,25 @@ test("unsafe references are refused", () => {
   assert.equal(readItem("outfits", "../../x", root), null);
   assert.throws(() => trashItem("gallery", "x", root));
 });
+
+test("review I1/I6: duplicating a 64-char name twice terminates; a theme copy gets its own slug field", () => {
+  const root = tmp();
+  const long = "x".repeat(70);
+  const a = createItem("cluster", long, {}, root);
+  const b = createItem("cluster", long, {}, root);
+  const c = createItem("cluster", long, { from: { dir: "clusters", slug: a.slug } }, root);
+  assert.equal(new Set([a.slug, b.slug, c.slug]).size, 3);
+  fs.mkdirSync(path.join(root, "themes"), { recursive: true });
+  fs.writeFileSync(path.join(root, "themes", "armor-break.yaml"), 'name: "Armor Break"\nslug: armor-break\ndescription: d\n');
+  const t = createItem("theme", "Armor Break copy", { from: { dir: "themes", slug: "armor-break" } }, root);
+  assert.match(fs.readFileSync(path.join(root, "themes", `${t.slug}.yaml`), "utf8"), new RegExp(`slug: ${t.slug}`));
+});
+
+test("review I4: the server only takes known fields from disk, typed — a forged field can't wipe scenes", () => {
+  const root = tmp();
+  const arc = createItem("arc", "A", {}, root);
+  const forged = [...arc.fields, { path: ["scenes"], label: "x", type: "text" as const, value: "wiped" }, { path: ["name"], label: "Name", type: "text" as const, value: 42 as unknown as string }];
+  const saved = saveItem("arcs", arc.slug, forged, arc.mtime, undefined, root);
+  assert.ok(saved.fields.some((f) => fieldKey(f.path) === "scenes.0.title"), "scenes intact");
+  assert.equal(saved.fields.find((f) => fieldKey(f.path) === "name")!.value, "A");
+});

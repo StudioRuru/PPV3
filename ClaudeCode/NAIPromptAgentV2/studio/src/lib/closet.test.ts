@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseDocument } from "yaml";
-import { addScene, diffFields, fieldKey, parseEnhance, patchText, removeScene, safeRef, toFields } from "./closet";
+import { addScene, diffFields, fieldKey, parseEnhance, patchText, removeScene, safeRef, toFields, toText } from "./closet";
 
 const OUTFIT = `name: "Black Peplum"
 # hand-written comment that must survive
@@ -92,4 +92,43 @@ test("safeRef: only known kinds and plain slugs", () => {
   assert.equal(safeRef("outfits", "../studio"), null);
   assert.equal(safeRef("gallery", "x"), null);
   assert.equal(safeRef("arcs", "a/b"), null);
+});
+
+const edit = (src: string, kind: "cluster" | "outfit" | "theme" | "arc", key: string, value: string | string[]) =>
+  patchText(src, toFields(kind, parseDocument(src)).map((x) => (fieldKey(x.path) === key ? { ...x, value } : x)));
+
+test("review C1: empty values and block sequences (any indent) patch into valid YAML", () => {
+  for (const [src, kind, key, value] of [
+    ["name: x\nnotes:\ntags: []\n", "cluster", "notes", "new"],
+    ["name: x\ntags:\n- a\n- b\nnotes: n\n", "cluster", "tags", ["c", "d"]],
+    ["name: x\ntags:\n  - a\n  - b\nnotes: n\n", "cluster", "tags", ["c"]],
+    ["name: x\ntags:\nnotes: n\n", "cluster", "tags", ["c"]],
+  ] as const) {
+    const out = edit(src, kind, key, value as string | string[]);
+    const doc = parseDocument(out);
+    assert.equal(doc.errors.length, 0, `${JSON.stringify(src)} → ${JSON.stringify(out)}`);
+    assert.deepEqual(doc.toJS()[key], value);
+    assert.equal(doc.toJS().name, "x");
+  }
+});
+
+test("review: CRLF files keep CRLF; a patch that can't round-trip throws instead of writing", () => {
+  const crlf = "name: x\r\ndescription: >\r\n  old\r\nnotes: n\r\n";
+  const out = edit(crlf, "outfit", "description", "new");
+  assert.ok(!/[^\r]\n/.test(out), JSON.stringify(out));
+  assert.equal(parseDocument(out).toJS().description, "new");
+});
+
+test("review I3: scene add/remove keeps long strings on one line", () => {
+  const long = "a".repeat(200);
+  const doc = parseDocument(`name: x\nscenes:\n  - scene_number: 1\n    title: "t"\n    prompt:\n      base: "${long}"\n`);
+  addScene(doc);
+  assert.ok(toText(doc).includes(`"${long}"`));
+});
+
+test("review I5: non-string values are read-only and never overwritten", () => {
+  const src = "name: x\ntags:\n  slot: [a]\nnotes: n\n";
+  const f = toFields("cluster", parseDocument(src));
+  assert.equal(f.find((x) => fieldKey(x.path) === "tags")!.readonly, true);
+  assert.equal(patchText(src, f.map((x) => (fieldKey(x.path) === "tags" ? { ...x, value: ["zz"] } : x))), src);
 });

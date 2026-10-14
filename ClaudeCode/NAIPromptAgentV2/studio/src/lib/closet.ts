@@ -1,4 +1,4 @@
-import { isScalar, isSeq, parseDocument, type Document } from "yaml";
+import { isMap, isScalar, isSeq, parseDocument, type Document } from "yaml";
 
 /**
  * Closet editing of the shared data/ YAML (also read by the /prompt and /story skills).
@@ -8,7 +8,8 @@ import { isScalar, isSeq, parseDocument, type Document } from "yaml";
 export type Kind = "arc" | "outfit" | "theme" | "cluster";
 export const DIRS: Record<Kind, string> = { arc: "arcs", outfit: "outfits", theme: "themes", cluster: "clusters" };
 export type Path = (string | number)[];
-export type Field = { path: Path; label: string; type: "text" | "long" | "tags"; value: string | string[] };
+/** readonly: the file holds something other than text / a list of strings here — shown, never written. */
+export type Field = { path: Path; label: string; type: "text" | "long" | "tags"; value: string | string[]; readonly?: boolean };
 
 export const fieldKey = (p: Path) => p.join(".");
 const cap = (s: string) => s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
@@ -25,8 +26,15 @@ export function safeRef(dir: string, slug: string): { kind: Kind; dir: string; s
 
 export function toFields(kind: Kind, doc: Document): Field[] {
   const js = doc.toJS() ?? {};
-  const text = (path: Path, label: string, type: "text" | "long" = "text"): Field => ({ path, label, type, value: str(at(js, path)) });
-  const tags = (path: Path, label: string): Field => ({ path, label, type: "tags", value: strs(at(js, path)) });
+  const text = (path: Path, label: string, type: "text" | "long" = "text"): Field => {
+    const raw = at(js, path);
+    return { path, label, type, value: str(raw), ...(raw != null && typeof raw !== "string" && { readonly: true }) };
+  };
+  const tags = (path: Path, label: string): Field => {
+    const raw = at(js, path);
+    const ok = raw == null || (Array.isArray(raw) && raw.every((x) => typeof x === "string"));
+    return { path, label, type: "tags", value: strs(raw), ...(!ok && { readonly: true }) };
+  };
   switch (kind) {
     case "cluster":
       return [text(["name"], "Name"), text(["notes"], "Notes", "long"), tags(["tags"], "Tags")];
@@ -55,6 +63,7 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 export function applyFields(doc: Document, fields: Field[]): Document {
   const js = doc.toJS() ?? {};
   for (const f of fields) {
+    if (f.readonly) continue;
     const cur = f.type === "tags" ? strs(at(js, f.path)) : str(at(js, f.path));
     if (same(cur, f.value)) continue;
     const node = doc.getIn(f.path, true);
@@ -71,30 +80,47 @@ export function applyFields(doc: Document, fields: Field[]): Document {
   return doc;
 }
 
+const valueOf = (js: unknown, f: Field) => (f.type === "tags" ? strs(at(js, f.path)) : str(at(js, f.path)));
+
 /**
- * Save edits by replacing only each changed field's exact source range — every other byte of a hand-written
- * file (comments, folded paragraphs, spacing) stays as it was. Changed values are written as JSON-style quoted
- * YAML (a changed folded `>` block becomes one quoted line). A field that doesn't exist yet in the file falls
- * back to a full re-render.
+ * Save edits by replacing only each changed field's text — from just after its key's ":" to the end of its
+ * value — so every other byte of a hand-written file (comments, folded paragraphs, spacing, CRLF) stays as it was.
+ * Values are written as quoted YAML (a changed folded `>` block or block list becomes one line). A key that doesn't
+ * exist yet falls back to a full re-render. The result is re-read before it's returned: if it isn't valid YAML with
+ * exactly the intended values, this throws and nothing gets written.
  */
 export function patchText(source: string, fields: Field[]): string {
   const doc = parseDocument(source);
   const js = doc.toJS() ?? {};
+  const changed = fields.filter((f) => !f.readonly && !same(valueOf(js, f), f.value));
+  if (!changed.length) return source;
+  const crlf = source.includes("\r\n");
+  const render = (f: Field) => (f.type === "tags" ? `[${(f.value as string[]).map((v) => JSON.stringify(v)).join(", ")}]` : JSON.stringify(f.value));
   const edits: { start: number; end: number; text: string }[] = [];
-  for (const f of fields) {
-    const cur = f.type === "tags" ? strs(at(js, f.path)) : str(at(js, f.path));
-    if (same(cur, f.value)) continue;
-    const node = doc.getIn(f.path, true) as { range?: [number, number, number] } | undefined;
-    if (!node?.range) return toText(applyFields(parseDocument(source), fields));
-    const [start, end] = node.range;
-    const value = f.type === "tags" ? `[${(f.value as string[]).map((v) => JSON.stringify(v)).join(", ")}]` : JSON.stringify(f.value);
-    edits.push({ start, end, text: value + (source.slice(start, end).match(/\n+$/)?.[0] ?? "") });
+  let out: string | null = null;
+  for (const f of changed) {
+    const parent = f.path.length > 1 ? doc.getIn(f.path.slice(0, -1), true) : doc.contents;
+    const pair = isMap(parent) ? parent.items.find((p) => isScalar(p.key) && p.key.value === f.path.at(-1)) : undefined;
+    const keyEnd = pair && isScalar(pair.key) ? pair.key.range?.[1] : undefined;
+    if (keyEnd === undefined) { out = toText(applyFields(parseDocument(source), fields)); break; }
+    const colon = source.indexOf(":", keyEnd);
+    const node = pair!.value as { range?: [number, number, number] } | null;
+    const end = node?.range ? Math.max(node.range[1], colon + 1) : colon + 1;
+    const tail = source.slice(colon + 1, end).match(/\r?\n[\r\n]*$/)?.[0] ?? "";
+    edits.push({ start: colon + 1, end, text: ` ${render(f)}${tail}` });
   }
-  return edits.sort((x, y) => y.start - x.start).reduce((s, e) => s.slice(0, e.start) + e.text + s.slice(e.end), source);
+  out ??= edits.sort((x, y) => y.start - x.start).reduce((s, e) => s.slice(0, e.start) + e.text + s.slice(e.end), source);
+  if (crlf) out = out.replace(/\r?\n/g, "\r\n");
+  const check = parseDocument(out);
+  const back = check.toJS() ?? {};
+  if (check.errors.length || changed.some((f) => !same(valueOf(back, f), f.value))) {
+    throw new Error("Couldn't save this edit safely, so nothing was written. Try editing a different field, or edit the file by hand.");
+  }
+  return out;
 }
 
 /** Serialise without re-padding flow lists, so untouched lines stay byte-identical. */
-export const toText = (doc: Document) => doc.toString({ flowCollectionPadding: false });
+export const toText = (doc: Document) => doc.toString({ flowCollectionPadding: false, lineWidth: 0 });
 
 export function addScene(doc: Document): void {
   const n = (doc.toJS()?.scenes?.length ?? 0) as number;
@@ -144,7 +170,7 @@ export function parseEnhance(text: string, fields: Field[]): { fields?: Field[];
 export type EnhanceAction = "modify" | "add" | "remove" | "combine" | "mutate";
 const ACTION_HINT: Record<EnhanceAction, string> = {
   modify: "Change the item as the user asks; keep everything else.",
-  add: "Add to the item (new tags, details or a scene) as the user asks; keep everything that's there.",
+  add: "Add to the item (new tags or details) as the user asks; keep everything that's there.",
   remove: "Remove the parts the user names; keep the rest.",
   combine: "Merge the second item into this one: keep this item's identity, fold in the other's best parts, drop duplicates and contradictions.",
   mutate: "Push the item further — the next escalation, a more intense or twisted variant — staying coherent with what it is.",
