@@ -16,17 +16,19 @@ function validOp(o: unknown): o is Op {
 
 /** Brain reply → prose + the ops from its last fenced json block. Invalid ops are dropped, never thrown. */
 export function parseReply(text: string): { prose: string; ops: Op[]; error?: string } {
-  const blocks = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
+  const blocks = [...text.matchAll(/```json\s*([\s\S]*?)```/gi)];
   // A block still streaming in has no closing fence yet: hide it until it completes.
   if (!blocks.length) {
     const warn = text.match(/\n\n⚠️[^\n]*$/)?.[0] ?? "";
-    return { prose: (text.split("```json")[0].trim() + (text.includes("```json") ? warn : "")).trim(), ops: [] };
+    const open = text.search(/```json/i);
+    return { prose: (open < 0 ? text : text.slice(0, open).trim() + warn).trim(), ops: [] };
   }
   const last = blocks[blocks.length - 1];
   const prose = (text.slice(0, last.index) + text.slice(last.index! + last[0].length)).replace(/\n{3,}/g, "\n\n").trim();
   try {
-    const ops = JSON.parse(last[1]).ops;
-    return { prose, ops: Array.isArray(ops) ? ops.filter(validOp) : [] };
+    const raw = JSON.parse(last[1]).ops;
+    const ops = Array.isArray(raw) ? raw.filter(validOp) : [];
+    return ops.length || !raw?.length ? { prose, ops } : { prose, ops, error: "No usable changes in that reply — ask again." };
   } catch {
     return { prose, ops: [], error: "Couldn't read the suggested changes — ask again." };
   }
@@ -47,7 +49,11 @@ function unwrap(op: Op): Op {
 function editLines(lines: Line[], raw: Op): Line[] {
   const op = unwrap(raw);
   switch (op.action) {
-    case "add": return [...lines.filter((l) => l.text.trim()), newLine(op.line, op.weight)];
+    case "add": {
+      // Re-applying a card must not stack duplicate lines.
+      const kept = lines.filter((l) => l.text.trim());
+      return kept.some((l) => key(l.text) === key(op.line)) ? kept : [...kept, newLine(op.line, op.weight)];
+    }
     case "replace": return [newLine(op.line, op.weight)];
     case "remove": return splitTags(op.line).reduce(removeTag, lines);
     case "weight": {

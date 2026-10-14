@@ -16,12 +16,12 @@ const SYNTAX = path.join(REPO_DIR, ".claude/skills/prompt/references/v5-syntax.m
 const STYLE = path.join(DATA_DIR, "copilot-style.md");
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  const body = (await req.json().catch(() => null)) ?? {};
   const messages: ChatMsg[] = (Array.isArray(body.messages) ? body.messages : []).filter(
     (m: ChatMsg) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string");
   const last = messages.at(-1);
   if (last?.role !== "user" || !last.content.trim()) return new Response("Empty message.", { status: 400 });
-  const mode: Mode = body.mode in MODE_HINT ? body.mode : "chat";
+  const mode: Mode = Object.hasOwn(MODE_HINT, body.mode) ? body.mode : "chat";
   const hint = MODE_HINT[mode];
   const sent = trimHistory(messages).map((m, i, a) => (i === a.length - 1 && hint ? { ...m, content: `${hint}\n\n${m.content}` } : m));
   const system = systemPrompt({ syntax: read(SYNTAX), style: read(STYLE), state: { ...emptyState(), ...body.state }, blocks: retrieve(last.content, listBlocks()) });

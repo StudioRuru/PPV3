@@ -13,6 +13,6 @@ export async function POST(req: NextRequest) {
   try {
     return NextResponse.json({ caption: await caption(img, toriiQuery(String(fd!.get("tags") ?? ""))) });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Offline ? "Captioner offline — run `npm run captioner` on the Mac." : (e as Error).message }, { status: 503 });
+    return NextResponse.json({ error: e instanceof Offline ? "Captioner is off — turn the co-pilot on (or `npm run up` on the Mac)." : (e as Error).message }, { status: 503 });
   }
 }

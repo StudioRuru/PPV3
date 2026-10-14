@@ -5,7 +5,7 @@ import { requestJson } from "@/lib/net";
 import type { CharBox, Rating } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
-const DOT = ["#b7a4ff", "#5fd4e6", "#ffb86b", "#7ee0a1"];
+export const DOT = ["#b7a4ff", "#5fd4e6", "#ffb86b", "#7ee0a1"];
 
 export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene, preset, onPreset, rating }: {
   open: boolean; onClose: () => void; chars: CharBox[]; tagText: string;
@@ -19,7 +19,7 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
   const [q, setQ] = useState("");
   const [saveName, setSaveName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [suggested, setSuggested] = useState<Block[] | "off" | null>(null);
+  const [suggested, setSuggested] = useState<Block[] | string | null>(null); // string = why suggestions failed
 
   useEffect(() => {
     if (!open) return;
@@ -36,7 +36,7 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
     let stale = false;
     setSuggested(null);
     requestJson<{ tags: string[] }>("/api/expand", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags: tagText, rating }) })
-      .then((r) => !stale && setSuggested(r.ok ? r.data.tags.map((t) => ({ id: `sg:${t}`, kind: "cluster" as const, name: t, base: [], char: [t], uc: [], user: false })) : "off"));
+      .then((r) => !stale && setSuggested(r.ok ? r.data.tags.map((t) => ({ id: `sg:${t}`, kind: "cluster" as const, name: t, base: [], char: [t], uc: [], user: false })) : r.error));
     return () => { stale = true; };
   }, [open, tagText, rating]);
 
@@ -113,7 +113,7 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
           ))}
           {section("Suggested for this image", !tagText ? <p className="text-muted text-sm">Tag an image to get suggestions.</p>
             : suggested === null ? <p className="text-muted text-sm">Thinking…</p>
-            : suggested === "off" ? <p className="text-muted text-sm">TIPO is offline — run `npm run tipo` on the Mac.</p>
+            : typeof suggested === "string" ? <p className="text-muted text-sm">{suggested}</p>
             : <div className="flex flex-wrap gap-1.5">{suggested.map((b) => (
                 <button key={b.id} type="button" aria-pressed={picked.includes(b.id)} onClick={() => toggle(b.id)}
                   className={`h-9 rounded-md border px-3 text-sm ${picked.includes(b.id) ? "border-accent bg-surface-2" : "border-teal-800 bg-teal-950/40"}`}>+ {b.name}</button>))}</div>)}

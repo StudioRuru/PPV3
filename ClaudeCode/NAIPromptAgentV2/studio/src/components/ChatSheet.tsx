@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMsg, Mode } from "@/lib/copilot-prompt";
 import { requestJson } from "@/lib/net";
+import { inline, mdBlocks } from "@/lib/md";
 import { parseReply, type Op } from "@/lib/patch";
 import type { PromptState } from "@/lib/prompt";
 import { PatchCard } from "./PatchCard";
@@ -60,7 +61,12 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
     let reply = "";
     try {
       const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: history, state, mode: m }) });
-      if (!res.ok || !res.body) throw new Error(await res.text());
+      if (!res.ok || !res.body) {
+        const body = await res.text();
+        let msg = body;
+        try { msg = JSON.parse(body).error ?? body; } catch { /* plain-text error */ }
+        throw new Error(res.status === 401 ? "Session expired — reload the page and sign in again." : msg || `Server error ${res.status}.`);
+      }
       const reader = res.body.getReader(); const dec = new TextDecoder();
       for (;;) {
         const { done, value } = await reader.read();
@@ -121,8 +127,8 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
           {msgs.map((m, i) => {
             const p = m.role === "assistant" ? parseReply(m.content) : null;
             return (
-              <div key={i} className={m.role === "user" ? "bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap" : "text-sm whitespace-pre-wrap"}>
-                {p ? p.prose.replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1") : m.content}
+              <div key={i} className={m.role === "user" ? "bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap" : "space-y-1.5 text-sm leading-relaxed"}>
+                {p ? <Md text={p.prose} /> : m.content}
                 {p?.error && <p className="text-danger mt-1 text-xs">{p.error}</p>}
                 {p && p.ops.length > 0 && <PatchCard ops={p.ops} onApply={() => onApply(p.ops)} />}
               </div>
@@ -147,4 +153,15 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
       </section>
     </div>
   );
+}
+
+function Runs({ text }: { text: string }) {
+  return <>{inline(text).map((r, i) => (r.b ? <strong key={i} className="font-semibold">{r.t}</strong> : r.i ? <em key={i}>{r.t}</em> : r.t))}</>;
+}
+
+function Md({ text }: { text: string }) {
+  return <>{mdBlocks(text).map((b, i) =>
+    b.kind === "h" ? <h3 key={i} className="text-accent pt-1 text-xs font-semibold tracking-wide uppercase"><Runs text={b.text} /></h3>
+    : b.kind === "li" ? <p key={i} className="flex gap-2 pl-1"><span aria-hidden="true" className="text-muted">•</span><span><Runs text={b.text} /></span></p>
+    : <p key={i} className="whitespace-pre-wrap"><Runs text={b.text} /></p>)}</>;
 }

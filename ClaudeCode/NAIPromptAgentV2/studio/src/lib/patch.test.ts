@@ -74,3 +74,14 @@ test("review: inline weight syntax in an op line is unwrapped, op weight wins", 
   ]);
   assert.equal(compile(out).base, "1.1::red hair::, 0.8::smile::, nsfw");
 });
+
+test("polish: applying the same card twice doesn't duplicate added lines", () => {
+  const ops = parseReply(reply('{"ops":[{"target":"base","action":"add","line":"night, rain"},{"target":"char:0","action":"add","line":"red hair"}]}')).ops;
+  const once = applyOps(emptyState(), ops);
+  assert.deepEqual(applyOps(once, ops), once);
+});
+
+test("polish: a ```JSON fence parses; a block with only invalid ops says so", () => {
+  assert.equal(parseReply('ok\n```JSON\n{"ops":[{"target":"uc","action":"add","line":"blurry"}]}\n```').ops.length, 1);
+  assert.match(parseReply(reply('{"ops":[{"target":"moon","action":"add","line":"x"}]}')).error ?? "", /no usable changes/i);
+});
