@@ -1,5 +1,5 @@
 import { newLine, type PromptState, type Rating } from "./prompt";
-import { toPromptTag, type RawTag } from "./tagger";
+import { DEFAULT_EXCLUDE, toPromptTag, type RawTag } from "./tagger";
 
 export { keepTags } from "./tagger";
 
@@ -23,8 +23,11 @@ export function recreate(tags: RawTag[], s: PromptState): PromptState {
 
 export type DanbooruPost = { tag_string_character: string; tag_string_copyright: string; tag_string_artist: string; tag_string_general: string };
 
+const EXCLUDED = new Set(DEFAULT_EXCLUDE.map((e) => e.replace(/ /g, "_")));
+
+/** Post tag strings → categorised tags, minus the same junk the tagger drops (signature, text, …). */
 export function danbooruTags(p: DanbooruPost, groupOf: (name: string) => number): RawTag[] {
-  const split = (s: string, category: string) => s.split(" ").filter(Boolean).map((name) => ({ name, category, score: 1 } as RawTag));
+  const split = (s: string, category: string) => s.split(" ").filter((n) => n && !EXCLUDED.has(n)).map((name) => ({ name, category, score: 1 } as RawTag));
   return [
     ...split(p.tag_string_character, "character"), ...split(p.tag_string_copyright, "copyright"), ...split(p.tag_string_artist, "style"),
     ...split(p.tag_string_general, "general").map((t) => ({ ...t, group: groupOf(t.name.replace(/_/g, " ")) })),

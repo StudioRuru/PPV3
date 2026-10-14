@@ -21,7 +21,7 @@ struct StudioApp: App {
                 .background(Color(studioNavy))
                 .onOpenURL { _ in host.importPending() }   // naistudio://import from the share extension
         }
-        .onChange(of: phase) { _, p in if p == .active { host.reloadIfServerChanged(); host.importPending() } }
+        .onChange(of: phase) { _, p in if p == .active { host.becameActive() } }
     }
 }
 
@@ -36,6 +36,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     let webView: WKWebView
     private var loadedServer = ""
     private var importing = false
+    private var showingError = false
 
     override init() {
         let config = WKWebViewConfiguration()
@@ -55,13 +56,24 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
 
     func load() {
         loadedServer = server
+        showingError = false
         guard let url = URL(string: server), url.scheme?.hasPrefix("http") == true else { return showError("The server URL in Settings → Studio isn't valid.") }
         webView.load(URLRequest(url: url))
     }
 
-    func reloadIfServerChanged() { if server != loadedServer { load() } }
+    /// Foreground: reload if the URL changed or the last load failed (Mac was asleep), else pick up a waiting share.
+    func becameActive() {
+        if server != loadedServer || showingError { load() } else { importPending() }
+    }
+
+    private var origin: URL? { URL(string: server) }
+    private func sameOrigin(_ u: URL?) -> Bool {
+        guard let u, let o = origin else { return false }
+        return u.scheme == o.scheme && u.host == o.host && u.port == o.port
+    }
 
     private func showError(_ message: String) {
+        showingError = true
         let esc = message.replacingOccurrences(of: "<", with: "&lt;")
         webView.loadHTMLString("""
         <meta name=viewport content="width=device-width,initial-scale=1"><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0d1020;color:#e9ecf8;font:16px -apple-system">
@@ -73,22 +85,31 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     // MARK: Navigation
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if action.request.url?.scheme == "naistudio-retry" { decisionHandler(.cancel); load(); return }
-        decisionHandler(.allow)
+        guard let url = action.request.url else { return decisionHandler(.cancel) }
+        if url.scheme == "naistudio-retry" { decisionHandler(.cancel); load(); return }
+        // The Studio's own pages (and the local error page) stay here; anything else opens in Safari.
+        if sameOrigin(url) || url.scheme == "about" || !action.targetFrame.map({ $0.isMainFrame }).defaultTrue { return decisionHandler(.allow) }
+        decisionHandler(.cancel)
+        UIApplication.shared.open(url)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        let e = error as NSError
+        // -999: superseded by another load; 102: our own cancel of naistudio-retry:// — neither means the Mac is unreachable.
+        if e.code == NSURLErrorCancelled || (e.domain == "WebKitErrorDomain" && e.code == 102) { return }
         showError("Can't reach the Studio at \(server).")
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { importPending() }
 
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { load() }
+
     // MARK: Bridge
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let path = body["save"] as? String,
-              let url = URL(string: path, relativeTo: webView.url) else { return }
-        Task { await save(url.absoluteURL) }
+              let url = URL(string: path, relativeTo: webView.url)?.absoluteURL, sameOrigin(url), sameOrigin(message.frameInfo.request.url) else { return }
+        Task { await save(url) }
     }
 
     /// Full PNG (with its NovelAI metadata) → Photos, add-only permission.
@@ -96,7 +117,12 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         do {
             let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
             var req = URLRequest(url: url)
-            HTTPCookie.requestHeaderFields(with: cookies.filter { url.host?.hasSuffix($0.domain.trimmingCharacters(in: ["."])) == true })
+            let host = url.host ?? ""
+            let matching = cookies.filter { c in
+                let d = c.domain.trimmingCharacters(in: ["."])
+                return (host == d || host.hasSuffix("." + d)) && (!c.isSecure || url.scheme == "https")
+            }
+            HTTPCookie.requestHeaderFields(with: matching)
                 .forEach { req.setValue($1, forHTTPHeaderField: $0) }
             let (data, res) = try await URLSession.shared.data(for: req)
             guard (res as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
@@ -118,7 +144,8 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     /// Feed shared images to the page's Tagger. A file is deleted only after the page accepted it,
     /// so a share made while logged out (no studioImport yet) waits for the next foreground.
     func importPending() {
-        guard !importing, let file = Inbox.pending().first, let data = try? Data(contentsOf: file) else { return }
+        // While loading, didFinish will call us — importing into the outgoing page would lose the file.
+        guard !importing, !webView.isLoading, !showingError, let file = Inbox.pending().first, let data = try? Data(contentsOf: file) else { return }
         importing = true
         let mime = file.pathExtension == "png" ? "image/png" : "image/jpeg"
         let js = """
@@ -135,4 +162,8 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
             }
         }
     }
+}
+
+private extension Optional where Wrapped == Bool {
+    var defaultTrue: Bool { self ?? true }
 }

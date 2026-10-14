@@ -1,3 +1,4 @@
+import ImageIO
 import UIKit
 import UniformTypeIdentifiers
 
@@ -31,31 +32,44 @@ final class ShareViewController: UIViewController {
                 try Inbox.drop(try await p.data(for: .png), ext: "png")
             } else {
                 let raw = try await p.data(for: .image)
-                guard let jpg = UIImage(data: raw)?.jpegData(compressionQuality: 0.92) else { return finish("That image couldn't be read.") }
+                guard let jpg = Self.downsampledJPEG(raw) else { return finish("That image couldn't be read.") }
                 try Inbox.drop(jpg, ext: "jpg")
             }
         } catch {
             return finish("Couldn't send: \(error.localizedDescription)")
         }
-        if openApp() { return finish(nil) }
-        finish("Saved. Open Studio to tag it.")
+        openApp { [weak self] opened in self?.finish(opened ? nil : "Saved. Open Studio to tag it.") }
+    }
+
+    /// ≤2048 px JPEG straight from the file: a full decode of a 48 MP photo would blow the ~120 MB extension limit.
+    /// The tagger works at 448–1024 px, so nothing is lost.
+    static func downsampledJPEG(_ data: Data) -> Data? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 2048,
+              ] as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg).jpegData(compressionQuality: 0.9)
     }
 
     /// Extensions may not open their app officially; walk the responder chain to UIApplication.
     /// If iOS refuses, the image still waits in the inbox for the next time Studio opens.
-    private func openApp() -> Bool {
+    private func openApp(_ done: @escaping (Bool) -> Void) {
         let url = URL(string: "naistudio://import")!
+        let sel = NSSelectorFromString("openURL:options:completionHandler:")
         var r: UIResponder? = self
         while let next = r {
-            if let app = next as? UIApplication {
-                let sel = NSSelectorFromString("openURL:options:completionHandler:")
-                guard app.responds(to: sel) else { return false }
-                app.perform(sel, with: url, with: [:])
-                return true
+            if let app = next as? UIApplication, app.responds(to: sel) {
+                // Call with all three arguments (perform(_:with:with:) would leave the completion handler as garbage).
+                typealias Open = @convention(c) (AnyObject, Selector, URL, [UIApplication.OpenExternalURLOptionsKey: Any], ((Bool) -> Void)?) -> Void
+                let open = unsafeBitCast(app.method(for: sel), to: Open.self)
+                open(app, sel, url, [:]) { ok in DispatchQueue.main.async { done(ok) } }
+                return
             }
             r = next.next
         }
-        return false
+        done(false)
     }
 
     private func finish(_ message: String?) {

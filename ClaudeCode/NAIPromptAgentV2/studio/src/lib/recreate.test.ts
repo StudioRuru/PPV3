@@ -51,3 +51,8 @@ test("danbooruQuery turns typed tags + rating into a Danbooru search string", ()
   assert.equal(danbooruQuery(" red hair ", "nsfw"), "red_hair rating:q,e");
   assert.equal(danbooruQuery("1girl", "off"), "1girl");
 });
+
+test("review: danbooruTags drops the tagger's default excludes (signature, text, …)", () => {
+  const post = { tag_string_character: "", tag_string_copyright: "", tag_string_artist: "", tag_string_general: "1girl signature artist_name text smile" };
+  assert.deepEqual(danbooruTags(post, () => 6).map((t) => t.name), ["1girl", "smile"]);
+});
