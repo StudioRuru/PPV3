@@ -37,6 +37,25 @@ export default function Studio() {
   const [grid, setGrid] = useState(false);
   const [undo, setUndo] = useState<PromptState | null>(null);
   const [find, setFind] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  // Set when running inside the iOS shell (WKWebView with the "studio" message handler).
+  const [native, setNative] = useState(false);
+
+  useEffect(() => {
+    const w = window as unknown as { webkit?: { messageHandlers?: { studio?: unknown } }; studioImport?: unknown; studioToast?: unknown };
+    setNative(!!w.webkit?.messageHandlers?.studio);
+    // iOS share sheet → app → here: the image goes to the Tagger as if picked.
+    w.studioImport = async (dataUrl: string, name = "shared.jpg") => {
+      const blob = await (await fetch(dataUrl)).blob();
+      setIncoming(new File([blob], name, { type: blob.type }));
+    };
+    w.studioToast = (msg: string) => setNote(msg);
+  }, []);
+  useEffect(() => {
+    if (!note) return;
+    const t = setTimeout(() => setNote(null), 3000);
+    return () => clearTimeout(t);
+  }, [note]);
   const [incoming, setIncoming] = useState<File | null>(null);
 
   function doRecreate(tags: RawTag[]) {
@@ -144,7 +163,12 @@ export default function Studio() {
             </div>
             <figcaption className="text-muted flex items-center justify-between text-sm">
               <span className="font-mono text-xs">seed {current.seed}</span>
-              <button type="button" className="text-accent" onClick={() => reuse(current)}>Reuse recipe</button>
+              <span className="flex gap-4">
+                {native
+                  ? <button type="button" className="text-accent" onClick={() => (window as unknown as { webkit: { messageHandlers: { studio: { postMessage: (m: unknown) => void } } } }).webkit.messageHandlers.studio.postMessage({ save: `/api/gallery/${current.file}` })}>Save</button>
+                  : <a className="text-accent" href={`/api/gallery/${current.file}`} download={current.file}>Save</a>}
+                <button type="button" className="text-accent" onClick={() => reuse(current)}>Reuse recipe</button>
+              </span>
             </figcaption>
           </figure>
         ) : <div className="border-border text-muted grid aspect-[832/1216] place-items-center rounded-lg border">Nothing yet</div>}
@@ -155,6 +179,7 @@ export default function Studio() {
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           {undo ? <p role="status" className="flex flex-1 items-center gap-3 text-sm">Prompt recreated
               <button type="button" onClick={() => { setState(undo); setUndo(null); }} className="text-accent font-semibold">Undo</button></p>
+            : note ? <p role="status" className="text-ok flex-1 text-sm">{note}</p>
             : error ? <p role="alert" className="text-danger flex-1 text-sm">{error}</p>
             : <span className="text-faint hidden truncate font-mono text-[11px] sm:inline">{params.width}×{params.height} · {params.steps} steps · {isFree(params) ? "free" : "Anlas"}</span>}
           <button type="button" onClick={() => setGrid(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Grid</button>
