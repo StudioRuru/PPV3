@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BlockDrawer } from "@/components/BlockDrawer";
 import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
+import { FindSheet } from "@/components/FindSheet";
 import { GridSheet } from "@/components/GridSheet";
 import { developed, HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
@@ -35,6 +36,7 @@ export default function Studio() {
   const [seed, setSeed] = useState<ChatSeed>(null);
   const [grid, setGrid] = useState(false);
   const [undo, setUndo] = useState<PromptState | null>(null);
+  const [find, setFind] = useState(false);
   const [incoming, setIncoming] = useState<File | null>(null);
 
   function doRecreate(tags: RawTag[]) {
@@ -105,9 +107,14 @@ export default function Studio() {
           onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText}
           onRecreate={doRecreate} incoming={incoming}
           onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); setChat(true); }} />
-        <button type="button" onClick={() => setDrawer(true)} className="border-border w-full rounded-md border px-3 py-2.5 text-sm">
-          Building blocks — presets, themes, clusters, library
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setDrawer(true)} className="border-border flex-1 rounded-md border px-3 py-2.5 text-sm">
+            Building blocks
+          </button>
+          <button type="button" onClick={() => setFind(true)} className="border-border flex-1 rounded-md border px-3 py-2.5 text-sm">
+            Find on Danbooru
+          </button>
+        </div>
         <ParamsBar params={params} onParams={setParams} rating={state.rating} onRating={(rating) => setState({ ...state, rating })} />
         <div data-drop="base" className="bg-surface border-border rounded-lg border p-3">
           <h2 className="mb-2 text-sm font-semibold">Base prompt</h2>
@@ -163,6 +170,7 @@ export default function Studio() {
         preset={preset} onPreset={setPreset} rating={state.rating} />
       <ChatSheet open={chat} onClose={() => setChat(false)} state={state} seed={seed}
         onApply={(ops) => setState((s) => applyOps(s, ops))} />
+      <FindSheet open={find} onClose={() => setFind(false)} rating={state.rating} onRecreate={doRecreate} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );

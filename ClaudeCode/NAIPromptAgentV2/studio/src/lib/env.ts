@@ -17,3 +17,6 @@ export const OLLAMA_URL = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").r
 export const BRAIN_MODEL = process.env.BRAIN_MODEL || "hf.co/HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M";
 export const CAPTION_URL = (process.env.CAPTION_URL || "http://127.0.0.1:8191").replace(/\/$/, "");
 export const TIPO_URL = (process.env.TIPO_URL || "http://127.0.0.1:8193").replace(/\/$/, "");
+/** Optional Danbooru account (raises the 2-tag search limit). */
+export const DANBOORU_LOGIN = process.env.DANBOORU_LOGIN || "";
+export const DANBOORU_API_KEY = process.env.DANBOORU_API_KEY || "";
