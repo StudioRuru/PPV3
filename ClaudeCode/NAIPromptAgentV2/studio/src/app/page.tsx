@@ -13,6 +13,7 @@ import { costLabel, developed, HistoryStrip, mb, type Generation } from "@/compo
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
 import { AutoTextarea } from "@/components/TagInput";
+import { PosNegTabs, tagCount, type Side } from "@/components/PosNegTabs";
 import { TaggerPane } from "@/components/TaggerPane";
 import { applyBlock, loadScene, type Block } from "@/lib/blocks";
 import { loadDraft, saveDraft } from "@/lib/draft";
@@ -44,6 +45,7 @@ export default function Studio() {
   const [undo, setUndo] = useState<PromptState | null>(null);
   const [find, setFind] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [baseSide, setBaseSide] = useState<Side>("pos");
   const [viewing, setViewing] = useState<number | null>(null); // generation id
   const [exporting, setExporting] = useState(false);
   const [vary, setVary] = useState<Generation | null>(null);
@@ -181,8 +183,13 @@ export default function Studio() {
         </div>
         <ParamsBar params={params} onParams={setParams} rating={state.rating} onRating={(rating) => setState({ ...state, rating })} />
         <div data-drop="base" className="bg-surface border-border rounded-lg border p-3">
-          <h2 className="mb-2 text-sm font-semibold">Base prompt</h2>
-          <LineList lines={state.base} onChange={(base) => setState({ ...state, base })} />
+          <header className="mb-2 flex items-center gap-2">
+            <h2 className="flex-1 text-sm font-semibold">Base prompt</h2>
+            <PosNegTabs side={baseSide} onSide={setBaseSide} pos={state.base.reduce((n, l) => n + tagCount(l.text), 0)} neg={tagCount(state.uc)} />
+          </header>
+          {baseSide === "pos"
+            ? <LineList lines={state.base} onChange={(base) => setState({ ...state, base })} />
+            : <AutoTextarea value={state.uc} onChange={(uc) => setState({ ...state, uc })} placeholder="undesired content — the UC preset is added automatically" />}
         </div>
         <div className="bg-surface border-border rounded-lg border p-3">
           <h2 className="mb-0.5 text-sm font-semibold">Artists</h2>
@@ -194,10 +201,6 @@ export default function Studio() {
           positions={state.positions ?? "ai"} onPositions={(positions) => setState({ ...state, positions })}
           words={state.positionWords === true} onWords={(positionWords) => setState({ ...state, positionWords })}
           width={params.width} height={params.height} />
-        <div className="bg-surface border-border rounded-lg border p-3">
-          <h2 className="mb-2 text-sm font-semibold">Undesired content</h2>
-          <AutoTextarea value={state.uc} onChange={(uc) => setState({ ...state, uc })} />
-        </div>
         <label className="text-muted block text-sm">
           Load recipe from a NovelAI PNG
           <input type="file" accept="image/png" className="mt-1 block" onChange={(e) => e.target.files?.[0] && onDrop(e.target.files[0])} />

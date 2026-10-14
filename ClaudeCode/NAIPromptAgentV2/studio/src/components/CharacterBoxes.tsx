@@ -1,8 +1,11 @@
 "use client";
+import { useState } from "react";
 import { newLine, positionWords, regionOf, type CharBox, type Positions } from "@/lib/prompt";
 import { DOT } from "./BlockDrawer";
 import { LineList } from "./LineList";
 import { AutoTextarea } from "./TagInput";
+import { Trash } from "./icons";
+import { PosNegTabs, tagCount, type Side } from "./PosNegTabs";
 import { PositionCanvas } from "./PositionCanvas";
 
 export function CharacterBoxes({ chars, onChange, positions, onPositions, width, height, words, onWords }: {
@@ -10,20 +13,26 @@ export function CharacterBoxes({ chars, onChange, positions, onPositions, width,
   positions: Positions; onPositions: (p: Positions) => void; width: number; height: number;
   words: boolean; onWords: (on: boolean) => void;
 }) {
+  const [sides, setSides] = useState<Record<string, Side>>({});
   const set = (i: number, patch: Partial<CharBox>) => onChange(chars.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   return (
     <div className="space-y-3">
       {chars.map((c, i) => (
         <section key={c.id} data-drop={`char:${i}`} style={{ "--dot": DOT[i % DOT.length] } as React.CSSProperties} className="bg-surface border-border rounded-lg border p-3">
-          <header className="mb-2 flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2">
+          <header className="mb-2 flex items-center gap-2 text-sm">
+            <label className="flex flex-1 items-center gap-2">
               <input type="checkbox" checked={c.enabled} onChange={(e) => set(i, { enabled: e.target.checked })} />
+              <span aria-hidden="true" className="size-2.5 rounded-full" style={{ background: DOT[i % DOT.length] }} />
               Character {i + 1}
             </label>
-            <button type="button" className="text-muted" onClick={() => onChange(chars.filter((_, j) => j !== i))}>Remove</button>
+            <PosNegTabs side={sides[c.id] ?? "pos"} onSide={(s) => setSides({ ...sides, [c.id]: s })}
+              pos={c.lines.reduce((n, l) => n + tagCount(l.text), 0)} neg={tagCount(c.uc)} />
+            <button type="button" aria-label={`Delete character ${i + 1}`} className="text-faint hover:text-danger grid size-9 place-items-center"
+              onClick={() => onChange(chars.filter((_, j) => j !== i))}><Trash /></button>
           </header>
-          <LineList lines={c.lines} onChange={(lines) => set(i, { lines })} />
-          <AutoTextarea value={c.uc} onChange={(uc) => set(i, { uc })} placeholder="character undesired content" className="mt-2" />
+          {(sides[c.id] ?? "pos") === "pos"
+            ? <LineList lines={c.lines} onChange={(lines) => set(i, { lines })} />
+            : <AutoTextarea value={c.uc} onChange={(uc) => set(i, { uc })} placeholder="what this character should not have" />}
         </section>
       ))}
       {chars.length < 22 && (

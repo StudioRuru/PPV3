@@ -25,5 +25,5 @@ export function setLineWeight(s: PromptState, id: string, w: number): PromptStat
   return { ...s, chars: s.chars.map((c, i) => (i === ci ? { ...c, lines: edit(c.lines) } : c)) };
 }
 
-/** Opus: one image at ≤1 Mpx and ≤28 steps spends no Anlas. */
-export const isFree = (p: NaiParams) => p.width * p.height <= 1_048_576 && p.steps <= 28;
+/** Opus: one image at ≤1 Mpx and ≤28 steps spends no Anlas (Medium effort always runs 14 steps). */
+export const isFree = (p: NaiParams) => p.width * p.height <= 1_048_576 && (p.effort === "medium" && p.model === "nai-diffusion-5-full" ? 14 : p.steps) <= 28;

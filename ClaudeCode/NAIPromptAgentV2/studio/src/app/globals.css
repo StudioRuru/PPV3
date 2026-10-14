@@ -54,6 +54,16 @@
 
 html, body { height: 100%; }
 
+/* Weight slider: transparent native track over the drawn one; a theme-coloured thumb. */
+.weight-range { appearance: none; -webkit-appearance: none; background: transparent; margin: 0; }
+.weight-range::-webkit-slider-runnable-track { background: transparent; height: 100%; }
+.weight-range::-moz-range-track { background: transparent; }
+.weight-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: 7px; border-radius: 9999px;
+  background: var(--color-accent); border: 3px solid var(--color-surface); box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+}
+.weight-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 9999px; background: var(--color-accent); border: 3px solid var(--color-surface); }
+
 /* ── Motion ─────────────────────────────────────────────────────────────
    One curve family: things arrive fast and settle (expo/quint out), leave
    quicker than they came. Sizes set weight: sheets slow, chips quick. */
