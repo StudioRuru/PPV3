@@ -4,6 +4,7 @@ import type { Block } from "@/lib/blocks";
 import { requestJson } from "@/lib/net";
 import type { CharBox, Rating } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
+import { Sheet } from "./Sheet";
 
 export const DOT = ["#b7a4ff", "#5fd4e6", "#ffb86b", "#7ee0a1"];
 
@@ -40,7 +41,6 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
     return () => { stale = true; };
   }, [open, tagText, rating]);
 
-  if (!open) return null;
   const match = (b: Block) => !q || `${b.name} ${b.char.join(" ")}`.toLowerCase().includes(q.toLowerCase());
   const toggle = (id: string) => setPicked((cur) => (cur.includes(id) ? cur.filter((p) => p !== id) : [...cur, id]));
   const chosen = [...blocks, ...(Array.isArray(suggested) ? suggested : [])].filter((b) => picked.includes(b.id));
@@ -68,9 +68,8 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
   );
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label="Add to this scene">
-      <button type="button" aria-label="Close drawer" className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <section className="bg-surface border-border relative flex max-h-[85dvh] w-full flex-col rounded-t-2xl border-t lg:max-h-none lg:w-[420px] lg:rounded-none lg:border-l">
+    <Sheet open={open} onClose={onClose} label="Add to this scene" closeLabel="Close drawer"
+      className="max-h-[85dvh] rounded-t-2xl border-t lg:max-h-none lg:w-[420px] lg:rounded-none lg:border-l">
         <div className="flex items-center gap-2 p-4 pb-2">
           <h2 className="font-semibold">Add to this scene</h2>
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search blocks" aria-label="Search blocks"
@@ -112,11 +111,11 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
             </div>
           ))}
           {section("Suggested for this image", !tagText ? <p className="text-muted text-sm">Tag an image to get suggestions.</p>
-            : suggested === null ? <p className="text-muted text-sm">Thinking…</p>
+            : suggested === null ? <p className="text-muted sweep rounded-md px-1 text-sm">Thinking…</p>
             : typeof suggested === "string" ? <p className="text-muted text-sm">{suggested}</p>
-            : <div className="flex flex-wrap gap-1.5">{suggested.map((b) => (
-                <button key={b.id} type="button" aria-pressed={picked.includes(b.id)} onClick={() => toggle(b.id)}
-                  className={`h-9 rounded-md border px-3 text-sm ${picked.includes(b.id) ? "border-accent bg-surface-2" : "border-teal-800 bg-teal-950/40"}`}>+ {b.name}</button>))}</div>)}
+            : <div className="flex flex-wrap gap-1.5">{suggested.map((b, i) => (
+                <button key={b.id} type="button" aria-pressed={picked.includes(b.id)} onClick={() => toggle(b.id)} style={{ animationDelay: `${Math.min(i, 16) * 35}ms` }}
+                  className={`animate-rise h-9 rounded-md border px-3 text-sm ${picked.includes(b.id) ? "border-accent bg-surface-2" : "border-teal-800 bg-teal-950/40"}`}>+ {b.name}</button>))}</div>)}
         </div>
 
         <div className="border-border flex gap-2 border-t p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
@@ -125,11 +124,10 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
             <option value="base">Base</option>
             {chars.map((c, i) => <option key={c.id} value={i}>Character {i + 1}</option>)}
           </select>
-          {typeof target === "number" && <span aria-hidden="true" className="my-auto size-3 rounded-full" style={{ background: DOT[target % DOT.length] }} />}
+          {typeof target === "number" && <span key={target} aria-hidden="true" className="dot-settle my-auto size-3 rounded-full" style={{ background: DOT[target % DOT.length] }} />}
           <button type="button" disabled={!count} onClick={() => { onSend(chosen, target); setPicked([]); onClose(); }}
-            className="bg-accent text-accent-fg ml-auto flex-1 rounded-lg px-4 py-3 font-semibold disabled:opacity-40">Send {count} tags</button>
+            className="bg-accent text-accent-fg ml-auto flex-1 rounded-lg px-4 py-3 font-semibold disabled:opacity-40">Send <span key={count} className="animate-rise inline-block tabular-nums">{count}</span> tags</button>
         </div>
-      </section>
-    </div>
+    </Sheet>
   );
 }

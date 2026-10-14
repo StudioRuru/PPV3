@@ -3,12 +3,12 @@ import { useRef } from "react";
 import { dragIntent } from "@/lib/tagger";
 
 type Props = {
-  tag: string; dropped: boolean; weight?: number;
+  tag: string; dropped: boolean; weight?: number; index?: number;
   onToggle: () => void; onBoost: () => void;
   onDragMove: (x: number, y: number) => void; onDragEnd: (x: number, y: number) => void;
 };
 
-export function TagChip({ tag, dropped, weight, onToggle, onBoost, onDragMove, onDragEnd }: Props) {
+export function TagChip({ tag, dropped, weight, index = 0, onToggle, onBoost, onDragMove, onDragEnd }: Props) {
   const start = useRef<{ x: number; y: number; t: ReturnType<typeof setTimeout>; mode: "tap" | "drag" | "held" } | null>(null);
 
   return (
@@ -16,7 +16,8 @@ export function TagChip({ tag, dropped, weight, onToggle, onBoost, onDragMove, o
       type="button"
       aria-pressed={!dropped}
       aria-label={`${tag}${weight ? ` weight ${weight}` : ""}${dropped ? ", dropped" : ""}`}
-      className={`touch-pan-y select-none [-webkit-touch-callout:none] rounded-md border px-2.5 py-1.5 text-sm ${
+      style={{ animationDelay: `${Math.min(index, 24) * 18}ms` }}
+      className={`animate-rise touch-pan-y select-none [-webkit-touch-callout:none] rounded-md border px-2.5 py-1.5 text-sm ${
         dropped ? "border-border text-muted border-dashed line-through" : weight ? "border-accent bg-surface-2" : "border-border bg-surface"
       }`}
       onPointerDown={(e) => {
@@ -42,7 +43,7 @@ export function TagChip({ tag, dropped, weight, onToggle, onBoost, onDragMove, o
       onContextMenu={(e) => e.preventDefault()}
     >
       {tag}
-      {weight ? <b className="text-accent ml-1 text-xs">{weight}</b> : null}
+      {weight ? <b className="text-accent animate-rise ml-1 inline-block text-xs">{weight}</b> : null}
     </button>
   );
 }

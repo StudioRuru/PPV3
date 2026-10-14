@@ -1,5 +1,6 @@
 "use client";
 import { newLine, type CharBox, type Positions } from "@/lib/prompt";
+import { DOT } from "./BlockDrawer";
 import { LineList } from "./LineList";
 import { PositionCanvas } from "./PositionCanvas";
 
@@ -25,7 +26,7 @@ export function CharacterBoxes({ chars, onChange, positions, onPositions, width,
         </section>
       )}
       {chars.map((c, i) => (
-        <section key={c.id} data-drop={`char:${i}`} className="bg-surface border-border rounded-lg border p-3">
+        <section key={c.id} data-drop={`char:${i}`} style={{ "--dot": DOT[i % DOT.length] } as React.CSSProperties} className="bg-surface border-border rounded-lg border p-3">
           <header className="mb-2 flex items-center justify-between text-sm">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={c.enabled} onChange={(e) => set(i, { enabled: e.target.checked })} />

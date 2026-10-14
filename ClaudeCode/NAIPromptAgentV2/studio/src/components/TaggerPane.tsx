@@ -100,8 +100,8 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
           )}
           {res && view === "chips" && (
             <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto overscroll-contain">
-              {tags.map((t) => (
-                <TagChip key={t} tag={t} dropped={!!chips[t]?.dropped} weight={chips[t]?.weight}
+              {tags.map((t, i) => (
+                <TagChip key={t} tag={t} index={i} dropped={!!chips[t]?.dropped} weight={chips[t]?.weight}
                   onToggle={() => setChips({ ...chips, [t]: { ...chips[t], dropped: !chips[t]?.dropped } })}
                   onBoost={() => setChips({ ...chips, [t]: { ...chips[t], dropped: false, weight: chips[t]?.weight ? undefined : 1.15 } })}
                   onDragMove={(x, y) => { setGhost({ tag: t, x, y }); setHover(targetAt(x, y)?.el ?? null); }}
@@ -131,7 +131,7 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
       )}
 
       {ghost && (
-        <span aria-hidden="true" className="bg-surface-2 border-accent pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-[140%] rounded-md border px-2.5 py-1.5 text-sm shadow-lg"
+        <span aria-hidden="true" className="bg-surface-2 border-accent pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-[140%] scale-110 rounded-md border px-2.5 py-1.5 text-sm shadow-lg"
           style={{ left: ghost.x, top: ghost.y }}>{ghost.tag}</span>
       )}
     </section>

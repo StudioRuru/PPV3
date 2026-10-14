@@ -17,8 +17,9 @@ export function PatchCard({ ops, onApply }: { ops: Op[]; onApply: () => void }) 
       .then((r) => r.ok && setUnknown(r.data.unknown));
   }, [tags]);
   return (
-    <div className="border-accent/40 bg-surface-2 mt-2 rounded-lg border p-2.5 text-sm">
+    <div className={`animate-rise bg-surface-2 mt-2 rounded-lg border p-2.5 text-sm transition-[border-color,opacity] duration-300 ${done === "applied" ? "border-ok/60" : done === "discarded" ? "border-border opacity-60" : "border-accent/40"}`}>
       <p className="text-muted mb-1.5 text-[11px] font-medium tracking-wide uppercase">{ops.length} suggested change{ops.length === 1 ? "" : "s"}</p>
+      <div className="fold" data-collapsed={done === "discarded" || undefined}><div>
       <ul className="space-y-1">
         {ops.map((o, i) => (
           <li key={i} className="flex gap-2">
@@ -30,7 +31,13 @@ export function PatchCard({ ops, onApply }: { ops: Op[]; onApply: () => void }) 
         ))}
       </ul>
       {unknown.length > 0 && <p className="text-warn mt-2 text-xs">Not in the tag list: {unknown.join(", ")}</p>}
-      {done ? <p className="text-muted mt-2 text-xs">{done === "applied" ? "Applied" : "Discarded"}</p> : (
+      </div></div>
+      {done ? (
+        <p role="status" className={`animate-rise mt-2 flex items-center gap-1.5 text-xs ${done === "applied" ? "text-ok" : "text-muted"}`}>
+          {done === "applied" && <svg aria-hidden="true" viewBox="0 0 16 16" className="size-4"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="check-draw" /></svg>}
+          {done === "applied" ? "Applied" : "Discarded"}
+        </p>
+      ) : (
         <div className="mt-2 flex gap-2">
           <button type="button" onClick={() => { onApply(); setDone("applied"); }} className="bg-accent text-accent-fg h-11 flex-1 rounded-md font-semibold">Apply</button>
           <button type="button" onClick={() => setDone("discarded")} className="border-border h-11 flex-1 rounded-md border">Discard</button>

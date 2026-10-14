@@ -4,7 +4,7 @@ import { BlockDrawer } from "@/components/BlockDrawer";
 import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { GridSheet } from "@/components/GridSheet";
-import { HistoryStrip, type Generation } from "@/components/HistoryStrip";
+import { developed, HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
 import { TaggerPane } from "@/components/TaggerPane";
@@ -114,8 +114,11 @@ export default function Studio() {
       <section className="space-y-3">
         {current ? (
           <figure className="space-y-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/gallery/${current.file}`} alt="Latest generation" className="border-border w-full rounded-lg border" />
+            {/* Keyed so each new image remounts and develops in (the hero moment). */}
+            <div className="border-border overflow-hidden rounded-lg border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img key={current.id} src={`/api/gallery/${current.file}`} alt="Latest generation" onLoad={developed} onError={developed} className="animate-develop w-full" />
+            </div>
             <figcaption className="text-muted flex items-center justify-between text-sm">
               <span>seed {current.seed}</span>
               <button type="button" className="text-accent" onClick={() => reuse(current)}>Reuse recipe</button>
@@ -130,8 +133,8 @@ export default function Studio() {
           {error && <p role="alert" className="text-danger flex-1 text-sm">{error}</p>}
           <button type="button" onClick={() => setGrid(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Grid</button>
           <button type="button" onClick={() => setChat(true)} className="border-border rounded-lg border px-4 py-3 text-base">Chat</button>
-          <button type="button" onClick={generate} disabled={busy}
-            className="bg-accent text-accent-fg rounded-lg px-6 py-3 text-base font-semibold disabled:opacity-50">
+          <button type="button" onClick={generate} disabled={busy} aria-busy={busy}
+            className={`bg-accent text-accent-fg rounded-lg px-6 py-3 text-base font-semibold ${busy ? "sweep" : ""}`}>
             {busy ? "Generating…" : "Generate"}
           </button>
         </div>

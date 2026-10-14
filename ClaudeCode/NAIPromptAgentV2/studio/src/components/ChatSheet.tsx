@@ -6,6 +6,7 @@ import { inline, mdBlocks } from "@/lib/md";
 import { parseReply, type Op } from "@/lib/patch";
 import type { PromptState } from "@/lib/prompt";
 import { PatchCard } from "./PatchCard";
+import { Sheet } from "./Sheet";
 
 type Status = { on: boolean; brain: boolean; caption: boolean; tipo: boolean; power?: boolean; error?: string };
 export type ChatSeed = { text: string; image?: File; tags?: string } | null;
@@ -32,7 +33,8 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
     requestJson<Status>("/api/copilot").then((r) => r.ok && setStatus(r.data));
     requestJson<{ messages: ChatMsg[] }>("/api/chat/history").then((r) => r.ok && setMsgs((cur) => (cur.length ? cur : r.data.messages)));
   }, [open]);
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [msgs]);
+  // Mounted while closed (to animate out): only scroll when visible, and catch up on open.
+  useEffect(() => { if (open) end.current?.scrollIntoView({ block: "end" }); }, [msgs, open]);
   useEffect(() => {
     if (!toggling) return;
     const t = setInterval(() => tick((n) => n + 1), 1000);
@@ -98,25 +100,30 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per seed
   }, [seed]);
 
-  if (!open) return null;
   const offline = status && !status.brain;
+  const thumbOn = toggling ? toggling.verb !== "Stopping" : !!status?.on;
   const dots: [string, boolean, boolean?][] = status ? [["brain", status.on, status.brain], ["caption", status.caption], ["tipo", status.tipo]] : [];
   return (
-    <div className="fixed inset-0 z-40 flex items-end lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label="Co-pilot chat">
-      <button type="button" aria-label="Close chat" onClick={onClose} className="absolute inset-0 bg-black/50" />
-      <section className="bg-surface border-border relative flex h-[88dvh] w-full flex-col rounded-t-2xl border-t lg:h-full lg:max-w-md lg:rounded-none lg:border-l">
+    <Sheet open={open} onClose={onClose} label="Co-pilot chat" closeLabel="Close chat"
+      className="h-[88dvh] rounded-t-2xl border-t lg:h-full lg:max-w-md lg:rounded-none lg:border-l">
         <header className="flex items-center gap-2 p-3">
           <h2 className="text-base font-semibold whitespace-nowrap">Co-pilot</h2>
           <span className="text-muted flex min-w-0 flex-1 gap-2.5 overflow-hidden font-mono text-[11px]">
-            {status ? dots.map(([name, up, half]) => (
+            {status ? dots.map(([name, up, half], i) => (
               <span key={name} className="flex items-center gap-1 whitespace-nowrap">
-                <i aria-hidden="true" className={`size-1.5 rounded-full ${up ? "bg-ok" : half ? "bg-warn" : "bg-border"} ${toggling ? "animate-pulse" : ""}`} />
+                {/* Keyed on state so a change remounts the dot and replays the settle pop. */}
+                <i key={`${up}${half}`} aria-hidden="true" style={toggling ? { animationDelay: `${i * 180}ms` } : undefined}
+                  className={`size-1.5 rounded-full ${up ? "bg-ok" : half ? "bg-warn" : "bg-border"} ${toggling ? "dot-breathe" : "dot-settle"}`} />
                 {name}<span className="sr-only">{up ? " up" : half ? " idle" : " down"}</span>
               </span>
             )) : "…"}
           </span>
           <button type="button" role="switch" aria-checked={!!status?.on} disabled={!!toggling || (!!offline && !status?.power)} onClick={toggle}
-            className={`h-11 shrink-0 rounded-full px-4 text-sm font-semibold tabular-nums disabled:opacity-60 ${status?.on ? "bg-accent text-accent-fg" : "border-border border"}`}>
+            className={`flex h-11 shrink-0 items-center gap-2 rounded-full border pr-4 pl-1.5 text-sm font-semibold tabular-nums disabled:opacity-60 ${status?.on && !toggling ? "border-accent/60 text-fg" : "border-border"}`}>
+            {/* The thumb travels to where it's headed as soon as you flip it, and breathes until the servers answer. */}
+            <span aria-hidden="true" className={`relative h-7 w-12 rounded-full transition-colors duration-300 ${thumbOn ? "bg-accent" : "bg-surface-2"}`}>
+              <span className={`bg-fg absolute top-1 left-1 size-5 rounded-full shadow transition-[translate] duration-300 ease-[var(--ease-settle)] ${thumbOn ? "translate-x-5" : ""} ${toggling ? "dot-breathe" : ""}`} />
+            </span>
             {toggling ? `${toggling.verb}… ${Math.round((Date.now() - toggling.since) / 1000)}s` : status?.on ? "On" : "Off"}
           </button>
           <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
@@ -127,14 +134,19 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
           {msgs.map((m, i) => {
             const p = m.role === "assistant" ? parseReply(m.content) : null;
             return (
-              <div key={i} className={m.role === "user" ? "bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap" : "space-y-1.5 text-sm leading-relaxed"}>
+              <div key={i} className={`animate-rise ${m.role === "user" ? "bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap" : "space-y-1.5 text-sm leading-relaxed"}`}>
                 {p ? <Md text={p.prose} /> : m.content}
                 {p?.error && <p className="text-danger mt-1 text-xs">{p.error}</p>}
                 {p && p.ops.length > 0 && <PatchCard ops={p.ops} onApply={() => onApply(p.ops)} />}
               </div>
             );
           })}
-          {busy && <p className="text-muted text-sm">{busy}</p>}
+          {busy && (
+            <p role="status" className="text-muted animate-rise flex items-center gap-2 text-sm">
+              <span aria-hidden="true" className="thinking flex gap-1">{[0, 1, 2].map((n) => <i key={n} className="bg-accent size-1.5 rounded-full" />)}</span>
+              {busy}
+            </p>
+          )}
           <div ref={end} />
         </div>
         <div className="border-border space-y-2 border-t p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
@@ -150,8 +162,7 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
             <button type="submit" disabled={!status?.on || !!busy || !input.trim()} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
           </form>
         </div>
-      </section>
-    </div>
+    </Sheet>
   );
 }
 

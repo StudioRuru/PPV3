@@ -4,6 +4,8 @@ import { gridLines, gridWeights, isFree, setLineWeight } from "@/lib/grid";
 import type { NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import type { PromptState } from "@/lib/prompt";
+import { developed } from "./HistoryStrip";
+import { Sheet } from "./Sheet";
 
 type Cell = { w: number; file?: string; error?: string };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -21,8 +23,7 @@ export function GridSheet({ open, onClose, state, params, onApply, onDone }: {
   const [applied, setApplied] = useState<number | null>(null);
   const stop = useRef(false);
 
-  // The run keeps going while the sheet is closed; only the view is hidden.
-  if (!open) return null;
+  // The run keeps going while the sheet is closed; only the view is hidden (Sheet stays mounted).
   const lines = gridLines(state);
   const line = lines.find((l) => l.id === lineId) ?? lines[0];
   const weights = gridWeights(min, max, steps);
@@ -54,9 +55,8 @@ export function GridSheet({ open, onClose, state, params, onApply, onDone }: {
   const error = cells.find((c) => c.error)?.error;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label="Strength grid">
-      <button type="button" aria-label="Close grid" onClick={onClose} className="absolute inset-0 bg-black/50" />
-      <section className="bg-surface border-border relative flex max-h-[88dvh] w-full flex-col rounded-t-2xl border-t lg:max-h-none lg:max-w-md lg:rounded-none lg:border-l">
+    <Sheet open={open} onClose={onClose} label="Strength grid" closeLabel="Close grid"
+      className="max-h-[88dvh] rounded-t-2xl border-t lg:max-h-none lg:max-w-md lg:rounded-none lg:border-l">
         <header className="flex items-center gap-2 p-3">
           <h2 className="flex-1 text-base font-semibold">Strength grid</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
@@ -86,13 +86,13 @@ export function GridSheet({ open, onClose, state, params, onApply, onDone }: {
             {cells.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
                 {cells.map((c, i) => (
-                  <button key={i} type="button" disabled={!c.file} aria-pressed={applied === i}
+                  <button key={i} type="button" disabled={!c.file} aria-pressed={applied === i} style={{ animationDelay: `${i * 50}ms` }}
                     onClick={() => { onApply(setLineWeight(state, line!.id, c.w)); setApplied(i); }}
-                    className={`overflow-hidden rounded-md border text-left ${applied === i ? "border-accent ring-accent ring-2" : "border-border"}`}>
+                    className={`animate-rise overflow-hidden rounded-md border text-left ${applied === i ? "border-accent ring-accent ring-2" : "border-border"} ${applied !== null && applied !== i && c.file ? "opacity-60" : ""}`}>
                     {c.file
                       // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={`/api/gallery/${c.file}`} alt={`Weight ${c.w}`} className="w-full" style={{ aspectRatio: `${params.width}/${params.height}` }} />
-                      : <div className={`bg-bg grid place-items-center text-xs ${running && !c.error ? "animate-pulse" : ""}`} style={{ aspectRatio: `${params.width}/${params.height}` }}>{c.error ? "failed" : running ? "…" : "—"}</div>}
+                      ? <img src={`/api/gallery/${c.file}`} alt={`Weight ${c.w}`} onLoad={developed} onError={developed} className="animate-develop w-full" style={{ aspectRatio: `${params.width}/${params.height}` }} />
+                      : <div className={`bg-bg text-muted grid place-items-center font-mono text-xs ${running && !c.error ? "sweep" : ""}`} style={{ aspectRatio: `${params.width}/${params.height}` }}>{c.error ? "failed" : running ? "…" : "—"}</div>}
                     <div className="px-1.5 py-1 font-mono text-xs tabular-nums">{c.w}{applied === i ? " · applied" : ""}</div>
                   </button>
                 ))}
@@ -107,7 +107,6 @@ export function GridSheet({ open, onClose, state, params, onApply, onDone }: {
             ? <button type="button" onClick={() => { stop.current = true; }} className="border-border w-full rounded-lg border px-4 py-3 font-semibold">Stop after this cell</button>
             : <button type="button" onClick={run} disabled={!line} className="bg-accent text-accent-fg w-full rounded-lg px-4 py-3 font-semibold disabled:opacity-40">Run {weights.length} cells</button>}
         </div>
-      </section>
-    </div>
+    </Sheet>
   );
 }
