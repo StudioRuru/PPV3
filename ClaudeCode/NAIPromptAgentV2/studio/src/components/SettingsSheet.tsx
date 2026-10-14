@@ -46,7 +46,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
         <h2 className="flex-1 text-base font-semibold">Settings</h2>
         <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
       </header>
-      <div className="flex-1 space-y-6 overflow-y-auto px-3 pb-6" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
+      <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-3 pb-6" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
         <section>
           <h3 className={h3}>Theme</h3>
           <div role="radiogroup" aria-label="Theme" className="grid grid-cols-5 gap-2">

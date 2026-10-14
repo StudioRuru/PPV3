@@ -38,7 +38,7 @@ export function FindSheet({ open, onClose, rating, onRecreate }: {
       </header>
 
       {pick ? (
-        <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-3">
+        <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={pick.large} alt={`Danbooru post ${pick.id}`} className="border-border w-full rounded-lg border" style={{ aspectRatio: `${pick.w}/${pick.h}` }} />
           <dl className="grid grid-cols-[5.5rem_1fr] gap-x-2 gap-y-1 text-sm">
@@ -49,7 +49,7 @@ export function FindSheet({ open, onClose, rating, onRecreate }: {
           </dl>
         </div>
       ) : (
-        <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-3">
+        <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3">
           <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); search(1); }}>
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. hatsune miku, smile" aria-label="Danbooru tags"
               enterKeyHint="search" autoCapitalize="none" autoCorrect="off" className="bg-bg border-border min-w-0 flex-1 rounded-md border px-2 py-2.5 text-base" />

@@ -5,6 +5,7 @@ import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
 import { GridSheet } from "@/components/GridSheet";
+import { Viewer } from "@/components/Viewer";
 import { loadDefaults, SettingsSheet } from "@/components/SettingsSheet";
 import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
 import { developed, HistoryStrip, type Generation } from "@/components/HistoryStrip";
@@ -41,8 +42,20 @@ export default function Studio() {
   const [undo, setUndo] = useState<PromptState | null>(null);
   const [find, setFind] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
+  /** iOS shell: native Save to Photos. Browser: a normal download of the full PNG. */
+  function save(g: Generation) {
+    const path = `/api/gallery/${encodeURIComponent(g.file)}`;
+    if (native) {
+      (window as unknown as { webkit: { messageHandlers: { studio: { postMessage: (m: unknown) => void } } } }).webkit.messageHandlers.studio.postMessage({ save: path });
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = path; a.download = g.file; a.click();
+  }
+
   async function showGeneration(id: number) {
     const items = await loadHistory();
     setCurrent(items.find((g) => g.id === id) ?? null);
@@ -180,16 +193,15 @@ export default function Studio() {
         {current ? (
           <figure className="space-y-2">
             {/* Keyed so each new image remounts and develops in (the hero moment). */}
-            <div className="border-border overflow-hidden rounded-lg border">
+            <button type="button" onClick={() => { const i = history.findIndex((h) => h.id === current.id); setViewing(i < 0 ? 0 : i); }}
+              aria-label="Open full screen" className="border-border block w-full overflow-hidden rounded-lg border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img key={current.id} src={`/api/gallery/${current.file}`} alt="Latest generation" onLoad={developed} onError={developed} className="animate-develop w-full" />
-            </div>
+            </button>
             <figcaption className="text-muted flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
               <span className="font-mono text-xs">seed {current.seed}</span>
               <span className="flex gap-4">
-                {native
-                  ? <button type="button" className="text-accent" onClick={() => (window as unknown as { webkit: { messageHandlers: { studio: { postMessage: (m: unknown) => void } } } }).webkit.messageHandlers.studio.postMessage({ save: `/api/gallery/${current.file}` })}>Save</button>
-                  : <a className="text-accent" href={`/api/gallery/${current.file}`} download={current.file}>Save</a>}
+                <button type="button" className="text-accent" onClick={() => save(current)}>Save</button>
                 {canResend(current.params) && <>
                   <button type="button" className="text-accent" onClick={() => setVary(current)}>Variations</button>
                   <button type="button" className="text-accent" onClick={() => setUpscale(current)}>Upscale</button>
@@ -227,6 +239,9 @@ export default function Studio() {
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords !== false} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
+      <Viewer items={history} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} onSave={save}
+        onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
+        onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); }} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );

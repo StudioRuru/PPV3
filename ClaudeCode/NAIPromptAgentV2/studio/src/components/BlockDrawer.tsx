@@ -77,7 +77,7 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
           <button type="button" onClick={onClose} aria-label="Close" className="border-border size-11 rounded-md border">×</button>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4">
           {section("Tagger presets", (
             <div role="radiogroup" aria-label="Tagger preset" className="flex flex-wrap gap-1.5">
               {presets.map((p) => (

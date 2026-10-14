@@ -74,7 +74,7 @@ export function VariationSheet({ source: open, onClose, onPick, onDone }: {
         <span className="text-muted font-mono text-[11px]">{anlas === null ? "" : `${anlas.toLocaleString()} Anlas`}</span>
         <button type="button" onClick={close} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
       </header>
-      <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 pb-3">
         {source && (
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}

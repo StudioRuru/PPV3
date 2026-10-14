@@ -61,7 +61,7 @@ export function GridSheet({ open, onClose, state, params, onApply, onDone }: {
           <h2 className="flex-1 text-base font-semibold">Strength grid</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
         </header>
-        <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
+        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 pb-3">
           {!lines.length ? <p className="text-muted text-sm">Write a prompt line first, then grid its weight.</p> : <>
             <label className="block text-sm">
               <span className="text-muted mb-1 block text-xs font-medium tracking-wide uppercase">Line</span>

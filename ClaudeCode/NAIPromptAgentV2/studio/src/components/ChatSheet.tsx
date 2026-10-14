@@ -129,7 +129,7 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
           <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
         </header>
         {(offline || status?.error) && <p role="alert" className="text-danger px-3 pb-2 text-sm">{status?.error ?? (status?.power ? "Servers are off — flip the switch to start them." : "Brain offline — run `npm run up` on the Mac.")}</p>}
-        <div className="flex-1 space-y-3 overflow-y-auto px-3">
+        <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3">
           {msgs.length === 0 && <p className="text-muted text-sm">Ask for a character, a scene, a theme or the next arc step. Suggested changes arrive as cards you can apply.</p>}
           {msgs.map((m, i) => {
             const p = m.role === "assistant" ? parseReply(m.content) : null;
