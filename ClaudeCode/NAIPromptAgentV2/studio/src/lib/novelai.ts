@@ -1,6 +1,6 @@
 import "server-only";
 import { unzipSync } from "fflate";
-import { buildNaiBody, type NaiParams } from "./nai-body";
+import { buildNaiBody, type Img2Img, type NaiParams } from "./nai-body";
 import { isPreSendError } from "./net";
 import type { Compiled } from "./prompt";
 
@@ -31,9 +31,9 @@ async function post(init: RequestInit, attempts = 3): Promise<Response> {
   }
 }
 
-export async function generateImage(c: Compiled, p: NaiParams, token: string) {
+export async function generateImage(c: Compiled, p: NaiParams, token: string, img2img?: Img2Img) {
   if (!token) throw new NovelAIError("NOVELAI_TOKEN is not set on the server.", 500);
-  const { body, seed } = buildNaiBody(c, p);
+  const { body, seed } = buildNaiBody(c, p, img2img);
   const res = await post({
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "User-Agent": UA, Accept: "*/*" },
@@ -48,4 +48,38 @@ export async function generateImage(c: Compiled, p: NaiParams, token: string) {
   const png = files.find((f) => f.length);
   if (!png) throw new NovelAIError("NovelAI returned no image.");
   return { png: Buffer.from(png), seed };
+}
+
+// api.novelai.net now answers "update to the image URL" (2026-10): account + upscale live on the image host.
+const API = "https://image.novelai.net";
+const auth = (token: string) => ({ Authorization: `Bearer ${token}`, "User-Agent": UA, Accept: "*/*" });
+
+/** Current Anlas (monthly + purchased). Read-only; used to show cost before and spend after. */
+export async function anlas(token: string): Promise<number> {
+  if (!token) throw new NovelAIError("NOVELAI_TOKEN is not set on the server.", 500);
+  const res = await fetch(`${API}/user/subscription`, { headers: auth(token), signal: AbortSignal.timeout(10_000) })
+    .catch((e) => { throw new NovelAIError(`Could not reach NovelAI: ${(e as Error).message}`); });
+  if (!res.ok) throw new NovelAIError(STATUS[res.status] ?? `NovelAI error ${res.status}`, res.status);
+  const t = (await res.json())?.trainingStepsLeft ?? {};
+  return (t.fixedTrainingStepsLeft ?? 0) + (t.purchasedTrainingSteps ?? 0);
+}
+
+/** NovelAI 4× upscale. Spends Anlas — callers confirm with the user first. Reply is a zip (older: raw PNG). */
+export async function upscaleImage(png: Buffer, width: number, height: number, model: string, token: string): Promise<Buffer> {
+  if (!token) throw new NovelAIError("NOVELAI_TOKEN is not set on the server.", 500);
+  const res = await fetch(`${API}/ai/upscale`, {
+    method: "POST",
+    headers: { ...auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ image: png.toString("base64"), width, height, scale: 4, model }),
+    signal: AbortSignal.timeout(180_000),
+  }).catch((e) => { throw new NovelAIError(`Could not reach NovelAI: ${(e as Error).message}`); });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new NovelAIError(STATUS[res.status] ?? `Upscale failed (${res.status}): ${detail.slice(0, 200)}`, res.status);
+  }
+  const buf = new Uint8Array(await res.arrayBuffer());
+  const isZip = buf[0] === 0x50 && buf[1] === 0x4b;
+  const out = isZip ? Object.values(unzipSync(buf)).find((f) => f.length) : buf;
+  if (!out?.length) throw new NovelAIError("NovelAI returned no upscaled image.");
+  return Buffer.from(out);
 }

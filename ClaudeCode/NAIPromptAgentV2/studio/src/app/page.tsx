@@ -5,6 +5,7 @@ import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
 import { GridSheet } from "@/components/GridSheet";
+import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
 import { developed, HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
@@ -37,6 +38,12 @@ export default function Studio() {
   const [grid, setGrid] = useState(false);
   const [undo, setUndo] = useState<PromptState | null>(null);
   const [find, setFind] = useState(false);
+  const [vary, setVary] = useState<Generation | null>(null);
+  const [upscale, setUpscale] = useState<Generation | null>(null);
+  async function showGeneration(id: number) {
+    const items = await loadHistory();
+    setCurrent(items.find((g) => g.id === id) ?? null);
+  }
   const [note, setNote] = useState<string | null>(null);
   // Set when running inside the iOS shell (WKWebView with the "studio" message handler).
   const [native, setNative] = useState(false);
@@ -162,13 +169,15 @@ export default function Studio() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img key={current.id} src={`/api/gallery/${current.file}`} alt="Latest generation" onLoad={developed} onError={developed} className="animate-develop w-full" />
             </div>
-            <figcaption className="text-muted flex items-center justify-between text-sm">
+            <figcaption className="text-muted flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
               <span className="font-mono text-xs">seed {current.seed}</span>
               <span className="flex gap-4">
                 {native
                   ? <button type="button" className="text-accent" onClick={() => (window as unknown as { webkit: { messageHandlers: { studio: { postMessage: (m: unknown) => void } } } }).webkit.messageHandlers.studio.postMessage({ save: `/api/gallery/${current.file}` })}>Save</button>
                   : <a className="text-accent" href={`/api/gallery/${current.file}`} download={current.file}>Save</a>}
-                <button type="button" className="text-accent" onClick={() => reuse(current)}>Reuse recipe</button>
+                <button type="button" className="text-accent" onClick={() => setVary(current)}>Variations</button>
+                <button type="button" className="text-accent" onClick={() => setUpscale(current)}>Upscale</button>
+                <button type="button" className="text-accent" onClick={() => reuse(current)}>Reuse</button>
               </span>
             </figcaption>
           </figure>
@@ -197,6 +206,8 @@ export default function Studio() {
       <ChatSheet open={chat} onClose={() => setChat(false)} state={state} seed={seed}
         onApply={(ops) => setState((s) => applyOps(s, ops))} />
       <FindSheet open={find} onClose={() => setFind(false)} rating={state.rating} onRecreate={doRecreate} />
+      <VariationSheet source={vary} onClose={() => setVary(null)} onPick={showGeneration} onDone={loadHistory} />
+      <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );
