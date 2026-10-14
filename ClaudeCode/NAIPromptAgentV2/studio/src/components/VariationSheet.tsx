@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { isFree } from "@/lib/grid";
 import { requestJson } from "@/lib/net";
 import type { Generation } from "./HistoryStrip";
 import { developed } from "./HistoryStrip";
@@ -30,12 +31,16 @@ export function VariationSheet({ source: open, onClose, onPick, onDone }: {
   const [running, setRunning] = useState(false);
   const [spent, setSpent] = useState<number | null>(null);
   const stop = useRef(false);
+  const busy = useRef(false); // a double tap must not start two paid runs
   const { anlas, refresh } = useAnlas(!!open);
+  // Closing the sheet ends the run: no spending out of sight.
+  const close = () => { stop.current = true; onClose(); };
 
   useEffect(() => { setCells([]); setSpent(null); }, [source?.id]);
 
   async function run() {
-    if (!source) return;
+    if (!source || busy.current) return;
+    busy.current = true;
     stop.current = false; setRunning(true); setSpent(null);
     const before = await refresh();
     const gridId = `v${Date.now().toString(36)}`;
@@ -55,25 +60,27 @@ export function VariationSheet({ source: open, onClose, onPick, onDone }: {
     }
     const after = await refresh();
     if (before !== null && after !== null) setSpent(before - after);
+    busy.current = false;
     setRunning(false); onDone();
   }
 
   const ratio = source ? `${source.params.width}/${source.params.height}` : "2/3";
   const error = cells.find((c) => c.error)?.error;
   return (
-    <Sheet open={!!open} onClose={onClose} label="Variations" closeLabel="Close variations"
+    <Sheet open={!!open} onClose={close} label="Variations" closeLabel="Close variations"
       className="max-h-[92dvh] rounded-t-2xl border-t lg:max-h-none lg:max-w-md lg:rounded-none lg:border-l">
       <header className="flex items-center gap-2 p-3">
         <h2 className="flex-1 text-base font-semibold">Variations</h2>
         <span className="text-muted font-mono text-[11px]">{anlas === null ? "" : `${anlas.toLocaleString()} Anlas`}</span>
-        <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
+        <button type="button" onClick={close} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
       </header>
       <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
         {source && (
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`/api/gallery/${source.file}`} alt="Source image" className="border-border h-20 rounded-md border" style={{ aspectRatio: ratio }} />
-            <p className="text-muted text-sm">Four new takes on this image, keeping its recipe. Use closeness to choose how far they may wander.</p>
+            <p className="text-muted text-sm">Four new takes on this image, keeping its recipe. Use closeness to choose how far they may wander.
+              {!isFree(source.params) && <span className="text-warn block">These settings cost Anlas — four times.</span>}</p>
           </div>
         )}
         <label className="block text-sm">
@@ -85,7 +92,7 @@ export function VariationSheet({ source: open, onClose, onPick, onDone }: {
         {cells.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
             {cells.map((c, i) => (
-              <button key={i} type="button" disabled={!c.id} onClick={() => { onPick(c.id!); onClose(); }} aria-label={`Use variation ${i + 1}`}
+              <button key={i} type="button" disabled={!c.id} onClick={() => { onPick(c.id!); close(); }} aria-label={`Use variation ${i + 1}`}
                 className="border-border overflow-hidden rounded-md border">
                 {c.file
                   // eslint-disable-next-line @next/next/no-img-element
@@ -117,14 +124,17 @@ export function UpscaleSheet({ source: open, onClose, onDone }: { source: Genera
   const [result, setResult] = useState<{ spent: number | null; id: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { anlas, refresh } = useAnlas(!!open);
+  const running = useRef(false);
   useEffect(() => { setResult(null); setError(null); }, [source?.id]);
 
   async function run() {
-    if (!source) return;
+    if (!source || running.current) return;
+    running.current = true;
     setBusy(true); setError(null);
     const before = await refresh();
     const r = await requestJson<{ id: number }>("/api/upscale", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: source.id }) });
     const after = await refresh();
+    running.current = false;
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     setResult({ id: r.data.id, spent: before !== null && after !== null ? before - after : null });

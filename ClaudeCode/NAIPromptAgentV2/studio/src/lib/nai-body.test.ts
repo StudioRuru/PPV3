@@ -63,3 +63,10 @@ test("img2img body: action, image, strength, noise and the source size", async (
   assert.equal(buildNaiBody(c, DEFAULT_PARAMS).body.action, "generate");
   assert.equal("image" in buildNaiBody(c, DEFAULT_PARAMS).body.parameters, false);
 });
+
+test("review: upscaled or oversized images can't be re-sent as a recipe or img2img source", async () => {
+  const { canResend, DEFAULT_PARAMS } = await import("./nai-body");
+  assert.equal(canResend(DEFAULT_PARAMS), true);
+  assert.equal(canResend({ ...DEFAULT_PARAMS, upscaled: 4 }), false);
+  assert.equal(canResend({ ...DEFAULT_PARAMS, width: 3328, height: 4864 }), false);
+});

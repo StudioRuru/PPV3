@@ -121,3 +121,25 @@ test("clampRegion keeps a box inside the canvas with a minimum size, never NaN",
   assert.deepEqual(clampRegion({ x: 0.5, y: 0.5, w: 1.6, h: 0.01 }), { x: 0.5, y: 0.5, w: 1, h: 0.08 });
   assert.deepEqual(clampRegion({ x: NaN, y: -1, w: NaN, h: 0.2 }), { x: 0.5, y: 0.1, w: 0.3, h: 0.2 });
 });
+
+test("review: unplaced default boxes match the canvas (full-array index), words aren't added twice", async () => {
+  const { compile, emptyState, newLine } = await import("./prompt");
+  const s = emptyState();
+  s.rating = "off"; s.positions = "custom"; s.base = [newLine("2girls")];
+  s.chars = [
+    { id: "a", lines: [], uc: "", enabled: true },
+    { id: "b", lines: [newLine("blue hair")], uc: "", enabled: true },
+  ];
+  const [b] = compile(s).chars;
+  assert.deepEqual(b.center, { x: 0.67, y: 0.5 });
+  assert.equal(b.prompt, "blue hair, on the right");
+  s.chars[1].lines = [newLine("blue hair, on the right")];
+  assert.equal(compile(s).chars[0].prompt, "blue hair, on the right", "recipe already carries its words");
+});
+
+test("review: resizeRegion keeps the top-left corner fixed, even when clamped at the minimum", async () => {
+  const { resizeRegion } = await import("./prompt");
+  const from = { x: 0.5, y: 0.5, w: 0.2, h: 0.2 };
+  assert.deepEqual(resizeRegion(from, 0.1, 0.2), { x: 0.55, y: 0.6, w: 0.3, h: 0.4 });
+  assert.deepEqual(resizeRegion(from, -0.5, -0.5), { x: 0.44, y: 0.44, w: 0.08, h: 0.08 });
+});

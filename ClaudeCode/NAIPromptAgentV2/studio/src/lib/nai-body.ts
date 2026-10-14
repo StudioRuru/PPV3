@@ -3,6 +3,8 @@ import type { Compiled } from "./prompt";
 export type NaiParams = {
   model: string; width: number; height: number; steps: number; scale: number;
   sampler: string; noiseSchedule: string; cfgRescale: number; qualityToggle: boolean; seed?: number;
+  /** Set on upscaled images: width/height stay the original recipe size; the PNG is this many times larger. */
+  upscaled?: number;
 };
 
 export const MODELS = [
@@ -34,6 +36,11 @@ export function schedulesFor(sampler: string): string[] {
 export function fixSchedule(p: NaiParams): NaiParams {
   const ok = schedulesFor(p.sampler);
   return ok.includes(p.noiseSchedule) ? p : { ...p, noiseSchedule: ok[0] };
+}
+
+/** Upscaled or huge images must never go back to NovelAI as a recipe or img2img source (huge paid requests). */
+export function canResend(p: NaiParams): boolean {
+  return !p.upscaled && p.width * p.height <= 4_194_304;
 }
 
 /** Image-to-image: base64 PNG of the source plus how far to move from it. */

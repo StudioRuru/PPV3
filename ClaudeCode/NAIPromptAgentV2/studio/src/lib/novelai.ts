@@ -72,10 +72,10 @@ export async function upscaleImage(png: Buffer, width: number, height: number, m
     headers: { ...auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ image: png.toString("base64"), width, height, scale: 4, model }),
     signal: AbortSignal.timeout(180_000),
-  }).catch((e) => { throw new NovelAIError(`Could not reach NovelAI: ${(e as Error).message}`); });
+  }).catch((e) => { throw new NovelAIError(`Upscale didn't finish (${(e as Error).message}). It may already have been charged — check the balance before trying again.`); });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new NovelAIError(STATUS[res.status] ?? `Upscale failed (${res.status}): ${detail.slice(0, 200)}`, res.status);
+    throw new NovelAIError(res.status === 401 || res.status === 402 ? STATUS[res.status] : `Upscale failed (${res.status}): ${detail.slice(0, 200)}`, res.status);
   }
   const buf = new Uint8Array(await res.arrayBuffer());
   const isZip = buf[0] === 0x50 && buf[1] === 0x4b;

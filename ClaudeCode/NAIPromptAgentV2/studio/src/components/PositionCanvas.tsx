@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { clampRegion, positionWords, regionOf, type CharBox, type Region } from "@/lib/prompt";
+import { clampRegion, positionWords, regionOf, resizeRegion, type CharBox, type Region } from "@/lib/prompt";
 import { DOT } from "./BlockDrawer";
 
 type Drag = { i: number; mode: "move" | "size"; start: { x: number; y: number }; from: Region };
@@ -47,9 +47,7 @@ export function PositionCanvas({ chars, width, height, onChange, words = true }:
         const d = drag.current;
         if (!d) return;
         const p = at(e), dx = p.x - d.start.x, dy = p.y - d.start.y;
-        // Resize keeps the top-left corner fixed, so the centre moves half as far as the pointer.
-        set(d.i, d.mode === "move" ? { ...d.from, x: d.from.x + dx, y: d.from.y + dy }
-          : { w: d.from.w + dx, h: d.from.h + dy, x: d.from.x + dx / 2, y: d.from.y + dy / 2 });
+        set(d.i, d.mode === "move" ? { ...d.from, x: d.from.x + dx, y: d.from.y + dy } : resizeRegion(d.from, dx, dy));
       }}
       onPointerUp={() => { drag.current = null; }}
       onPointerCancel={() => { drag.current = null; }}

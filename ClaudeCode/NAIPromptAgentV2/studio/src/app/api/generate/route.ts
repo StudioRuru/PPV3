@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
 import { saveImage } from "@/lib/gallery";
 import { insertGeneration, readGeneration } from "@/lib/generations";
-import { DEFAULT_PARAMS, fixSchedule, type Img2Img, type NaiParams } from "@/lib/nai-body";
+import { canResend, DEFAULT_PARAMS, fixSchedule, type Img2Img, type NaiParams } from "@/lib/nai-body";
 import { generateImage, NovelAIError } from "@/lib/novelai";
 import { compile, hasContent, type PromptState } from "@/lib/prompt";
 
@@ -24,11 +24,15 @@ export async function POST(req: NextRequest) {
   if (body.source) {
     const src = await readGeneration(Number(body.source.id));
     if (!src) return NextResponse.json({ error: "That image is no longer in the gallery." }, { status: 404 });
+    if (!canResend(src.params)) return NextResponse.json({ error: "Variations need an original image, not an upscaled one." }, { status: 400 });
     state = src.state;
     p = fixSchedule({ ...DEFAULT_PARAMS, ...src.params, seed: body.params?.seed });
     img2img = { image: src.png.toString("base64"), strength: clamp(body.source.strength, 0.05, 0.95, 0.45), noise: clamp(body.source.noise, 0, 0.99, 0) };
   }
 
+  // A reused upscaled recipe keeps its original size; anything still huge is refused rather than sent.
+  delete p.upscaled;
+  if (!canResend(p)) return NextResponse.json({ error: "That size is too large to generate — use 1 Mpx or less." }, { status: 400 });
   if (!state?.base) return NextResponse.json({ error: "Missing prompt state." }, { status: 400 });
   if (!hasContent(state)) return NextResponse.json({ error: "Base prompt is empty." }, { status: 400 });
   try {

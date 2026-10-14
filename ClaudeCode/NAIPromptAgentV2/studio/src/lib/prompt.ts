@@ -102,6 +102,13 @@ export function clampRegion(r: Region): Region {
   return { x: r2(pos(r.x, w / 2)), y: r2(pos(r.y, h / 2)), w: r2(w), h: r2(h) };
 }
 
+/** Corner-drag resize: the top-left corner stays put, size is clamped first, then the centre follows. */
+export function resizeRegion(from: Region, dx: number, dy: number): Region {
+  const left = from.x - from.w / 2, top = from.y - from.h / 2;
+  const w = Math.min(1 - left, Math.max(0.08, from.w + dx)), h = Math.min(1 - top, Math.max(0.08, from.h + dy));
+  return clampRegion({ x: left + w / 2, y: top + h / 2, w, h });
+}
+
 /** Natural-language placement for a box — NovelAI's positions are a nudge that works best reinforced by words. */
 export function positionWords(r: Region): string {
   const side = r.x < 0.34 ? "on the left" : r.x > 0.66 ? "on the right" : "in the center";
@@ -113,14 +120,19 @@ export function positionWords(r: Region): string {
 
 export function compile(s: PromptState): Compiled {
   const r = RATING_TAGS[s.rating];
-  const live = s.chars.filter((c) => c.enabled && joinLines(c.lines));
   const custom = s.positions === "custom";
   const words = custom && s.positionWords !== false;
-  const placed = live.map((c, i) => ({ c, r: regionOf(c, i, live.length) }));
+  // Default boxes use the full-array index, exactly as the canvas draws them.
+  const placed = s.chars.map((c, i) => ({ c, r: regionOf(c, i, s.chars.length) })).filter(({ c }) => c.enabled && joinLines(c.lines));
   // Custom: send left→right so box order never contradicts placement (sort is stable).
   if (custom) placed.sort((a, b) => a.r.x - b.r.x);
+  const withWords = (text: string, reg: Region) => {
+    const w = words ? positionWords(reg) : "";
+    // A recreated recipe already carries its words — don't add them twice.
+    return w && !text.toLowerCase().includes(w.toLowerCase()) ? `${text}, ${w}` : text;
+  };
   const chars = placed.map(({ c, r: reg }) => ({
-    prompt: [joinLines(c.lines), words ? positionWords(reg) : ""].filter(Boolean).join(", "),
+    prompt: withWords(joinLines(c.lines), reg),
     uc: c.uc.trim(),
     center: custom ? { x: reg.x, y: reg.y } : undefined,
   }));

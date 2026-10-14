@@ -16,6 +16,7 @@ import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import { applyOps } from "@/lib/patch";
 import { isFree } from "@/lib/grid";
+import { canResend } from "@/lib/nai-body";
 import { recreate } from "@/lib/recreate";
 import type { RawTag } from "@/lib/tagger";
 import { applyTags, emptyState, type PromptState } from "@/lib/prompt";
@@ -113,7 +114,9 @@ export default function Studio() {
 
   function reuse(g: Pick<Generation, "state" | "params">) {
     setState(g.state);
-    setParams({ ...DEFAULT_PARAMS, ...g.params });
+    // An upscaled image's recipe is its original size; drop the marker so it's an ordinary draft again.
+    const { upscaled: _, ...p } = g.params;
+    setParams({ ...DEFAULT_PARAMS, ...p });
   }
 
   async function onDrop(file: File) {
@@ -175,8 +178,10 @@ export default function Studio() {
                 {native
                   ? <button type="button" className="text-accent" onClick={() => (window as unknown as { webkit: { messageHandlers: { studio: { postMessage: (m: unknown) => void } } } }).webkit.messageHandlers.studio.postMessage({ save: `/api/gallery/${current.file}` })}>Save</button>
                   : <a className="text-accent" href={`/api/gallery/${current.file}`} download={current.file}>Save</a>}
-                <button type="button" className="text-accent" onClick={() => setVary(current)}>Variations</button>
-                <button type="button" className="text-accent" onClick={() => setUpscale(current)}>Upscale</button>
+                {canResend(current.params) && <>
+                  <button type="button" className="text-accent" onClick={() => setVary(current)}>Variations</button>
+                  <button type="button" className="text-accent" onClick={() => setUpscale(current)}>Upscale</button>
+                </>}
                 <button type="button" className="text-accent" onClick={() => reuse(current)}>Reuse</button>
               </span>
             </figcaption>
