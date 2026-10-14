@@ -28,7 +28,7 @@ test("applyOps add/replace on base, chars (created when missing) and uc", () => 
   ]);
   const c = compile(s);
   assert.equal(c.base, "night, rain, nsfw");
-  assert.equal(s.chars.length, 2);
+  assert.equal(s.chars.length, 1);
   assert.equal(c.chars[0].prompt, "1.15::girl, red hair::");
   assert.match(s.uc, /cropped, text, mosaic censoring$/);
   s = applyOps(s, [{ target: "base", action: "replace", line: "beach" }, { target: "uc", action: "replace", line: "lowres" }]);
@@ -55,4 +55,22 @@ test("opTags returns short tags without weight syntax, skips sentences", () => {
 
 test("parseReply hides an unterminated json block while the reply streams", () => {
   assert.deepEqual(parseReply('A festival.\n\n```json\n{"ops":[{"target":'), { prose: "A festival.", ops: [] });
+});
+
+test("review: char:N past the end appends exactly one character (no runaway growth)", () => {
+  const s = { ...emptyState(), chars: [{ id: "a", lines: [newLine("alice")], uc: "", enabled: true }] };
+  assert.equal(applyOps(s, [{ target: "char:7", action: "add", line: "bob" }]).chars.length, 2);
+  assert.equal(applyOps(s, [{ target: "char:99999999", action: "add", line: "bob" }]).chars.length, 2);
+});
+
+test("review: a mid-block failure keeps the trailing error line visible", () => {
+  assert.deepEqual(parseReply('Scene.\n```json\n{"ops":[{"tar\n\n⚠️ unexpected EOF'), { prose: "Scene.\n\n⚠️ unexpected EOF", ops: [] });
+});
+
+test("review: inline weight syntax in an op line is unwrapped, op weight wins", () => {
+  const out = applyOps(emptyState(), [
+    { target: "base", action: "add", line: "1.2::red hair::", weight: 1.1 },
+    { target: "base", action: "add", line: "0.8::smile::" },
+  ]);
+  assert.equal(compile(out).base, "1.1::red hair::, 0.8::smile::, nsfw");
 });

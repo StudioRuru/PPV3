@@ -7,10 +7,12 @@ export class Offline extends Error {}
 /** Any upload → ≤1 Mpx JPEG data URL (ToriiGate's training resolution). Throws on non-images. */
 export async function toModelImage(buf: Buffer): Promise<string> {
   const img = sharp(buf).rotate();
-  const { width = 0, height = 0 } = await img.metadata();
+  const { width = 0, height = 0, orientation = 1 } = await img.metadata();
   if (!width || !height) throw new Error("not an image");
   const scale = Math.min(1, Math.sqrt(1_048_576 / (width * height)));
-  const out = await img.resize(Math.floor(width * scale), Math.floor(height * scale)).jpeg({ quality: 90 }).toBuffer();
+  // metadata() reports stored dimensions; EXIF 5-8 means rotate() swaps them. Width-only resize keeps the aspect.
+  const outW = orientation >= 5 ? height : width;
+  const out = await img.resize({ width: Math.floor(outW * scale) }).jpeg({ quality: 90 }).toBuffer();
   return `data:image/jpeg;base64,${out.toString("base64")}`;
 }
 

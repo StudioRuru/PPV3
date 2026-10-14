@@ -21,11 +21,14 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
   const [mode, setMode] = useState<Mode>("chat");
   const [busy, setBusy] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  // send() may run from the seed effect's stale closure: read live messages from the ref, not the render.
+  const msgsRef = useRef<ChatMsg[]>([]);
+  msgsRef.current = msgs;
 
   useEffect(() => {
     if (!open) return;
     requestJson<Status>("/api/copilot").then((r) => r.ok && setStatus(r.data));
-    requestJson<{ messages: ChatMsg[] }>("/api/chat/history").then((r) => r.ok && setMsgs(r.data.messages));
+    requestJson<{ messages: ChatMsg[] }>("/api/chat/history").then((r) => r.ok && setMsgs((cur) => (cur.length ? cur : r.data.messages)));
   }, [open]);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [msgs]);
 
@@ -38,7 +41,11 @@ export function ChatSheet({ open, onClose, state, onApply, seed }: {
 
   async function send(text: string, m: Mode = mode) {
     if (!text.trim() || busy) return;
-    const history: ChatMsg[] = [...msgs, { role: "user", content: text }];
+    if (!msgsRef.current.length) {
+      const h = await requestJson<{ messages: ChatMsg[] }>("/api/chat/history");
+      if (h.ok) msgsRef.current = h.data.messages;
+    }
+    const history: ChatMsg[] = [...msgsRef.current, { role: "user", content: text }];
     setMsgs([...history, { role: "assistant", content: "" }]);
     setInput(""); setBusy("Thinking…");
     let reply = "";

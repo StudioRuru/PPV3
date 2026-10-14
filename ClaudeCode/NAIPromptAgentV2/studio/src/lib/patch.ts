@@ -18,7 +18,10 @@ function validOp(o: unknown): o is Op {
 export function parseReply(text: string): { prose: string; ops: Op[]; error?: string } {
   const blocks = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
   // A block still streaming in has no closing fence yet: hide it until it completes.
-  if (!blocks.length) return { prose: text.split("```json")[0].trim(), ops: [] };
+  if (!blocks.length) {
+    const warn = text.match(/\n\n⚠️[^\n]*$/)?.[0] ?? "";
+    return { prose: (text.split("```json")[0].trim() + (text.includes("```json") ? warn : "")).trim(), ops: [] };
+  }
   const last = blocks[blocks.length - 1];
   const prose = (text.slice(0, last.index) + text.slice(last.index! + last[0].length)).replace(/\n{3,}/g, "\n\n").trim();
   try {
@@ -35,7 +38,14 @@ function removeTag(lines: Line[], tag: string): Line[] {
     .filter((l) => l.text.trim());
 }
 
-function editLines(lines: Line[], op: Op): Line[] {
+/** "1.2::tag::" in an op line → plain text + weight; the op's own weight wins. */
+function unwrap(op: Op): Op {
+  const m = op.line.trim().match(/^(-?[\d.]+)::([\s\S]*?)::$/);
+  return m ? { ...op, line: m[2].trim(), weight: op.weight ?? Number(m[1]) } : op;
+}
+
+function editLines(lines: Line[], raw: Op): Line[] {
+  const op = unwrap(raw);
   switch (op.action) {
     case "add": return [...lines.filter((l) => l.text.trim()), newLine(op.line, op.weight)];
     case "replace": return [newLine(op.line, op.weight)];
@@ -60,7 +70,8 @@ export function applyOps(s: PromptState, ops: Op[]): PromptState {
   return ops.reduce((acc, op) => {
     if (op.target === "uc") return { ...acc, uc: editUc(acc.uc, op) };
     if (op.target === "base") return { ...acc, base: editLines(acc.base, op) };
-    const n = Number(op.target.slice(5));
+    // Out-of-range indices append one new character, never a run of empty boxes.
+    const n = Math.min(Number(op.target.slice(5)), acc.chars.length);
     const grown = acc.chars.length > n ? acc : applyTags(acc, n, "append", "");
     const chars = grown.chars.map((c, i) => (i === n ? { ...c, lines: editLines(c.lines.filter((l) => l.text.trim()), op) } : c));
     return { ...grown, chars };

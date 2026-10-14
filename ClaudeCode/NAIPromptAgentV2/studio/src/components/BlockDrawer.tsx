@@ -27,11 +27,18 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
     setTarget(chars.length ? 0 : "base");
     requestJson<{ blocks: Block[] }>("/api/blocks").then((r) => r.ok && setBlocks(r.data.blocks));
     requestJson<{ presets: Preset[] }>("/api/presets").then((r) => r.ok && setPresets(r.data.presets));
-    setSuggested(null);
-    if (tagText) requestJson<{ tags: string[] }>("/api/expand", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags: tagText, rating }) })
-      .then((r) => setSuggested(r.ok ? r.data.tags.map((t) => ({ id: `sg:${t}`, kind: "cluster" as const, name: t, base: [], char: [t], uc: [], user: false })) : "off"));
   // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when the drawer opens
   }, [open]);
+
+  // Own effect: the drawer opens in the same commit the tagger result lands, before tagText reaches us.
+  useEffect(() => {
+    if (!open || !tagText) return;
+    let stale = false;
+    setSuggested(null);
+    requestJson<{ tags: string[] }>("/api/expand", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags: tagText, rating }) })
+      .then((r) => !stale && setSuggested(r.ok ? r.data.tags.map((t) => ({ id: `sg:${t}`, kind: "cluster" as const, name: t, base: [], char: [t], uc: [], user: false })) : "off"));
+    return () => { stale = true; };
+  }, [open, tagText, rating]);
 
   if (!open) return null;
   const match = (b: Block) => !q || `${b.name} ${b.char.join(" ")}`.toLowerCase().includes(q.toLowerCase());

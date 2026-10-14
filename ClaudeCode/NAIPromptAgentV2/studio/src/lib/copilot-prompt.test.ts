@@ -26,3 +26,13 @@ test("trimHistory keeps the last N messages starting on a user turn", () => {
   assert.equal(t[0].role, "user");
   assert.equal(t.at(-1)!.content, "24");
 });
+
+test("review: characters are listed by their real index, disabled/empty ones marked", () => {
+  const s = { ...emptyState(), chars: [
+    { id: "a", lines: [newLine("alice")], uc: "", enabled: false },
+    { id: "b", lines: [newLine("bob")], uc: "", enabled: true },
+  ] };
+  const p = systemPrompt({ syntax: "", style: "", state: s, blocks: [] });
+  assert.ok(p.includes("char:0 (disabled): alice"), p);
+  assert.ok(p.includes("char:1: bob"));
+});

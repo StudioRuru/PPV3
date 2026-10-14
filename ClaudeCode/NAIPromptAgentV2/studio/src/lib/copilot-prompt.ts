@@ -1,5 +1,5 @@
 import type { Block } from "./blocks";
-import { compile, type PromptState } from "./prompt";
+import { compile, lineToText, type PromptState } from "./prompt";
 
 export type Mode = "chat" | "character" | "scene" | "theme" | "arc" | "cluster";
 export type ChatMsg = { role: "user" | "assistant"; content: string };
@@ -28,7 +28,11 @@ export function retrieve(query: string, blocks: Block[], limit = 5): Block[] {
 
 export function systemPrompt(o: { syntax: string; style: string; state: PromptState; blocks: Block[] }): string {
   const c = compile(o.state);
-  const chars = c.chars.map((ch, i) => `char:${i}: ${ch.prompt}`).join("\n") || "(no characters)";
+  // Real state indices (patch ops address state.chars), so disabled/empty boxes are listed too.
+  const chars = o.state.chars.map((ch, i) => {
+    const text = ch.lines.filter((l) => l.enabled).map(lineToText).filter(Boolean).join(", ");
+    return `char:${i}${!ch.enabled ? " (disabled)" : !text ? " (empty)" : ""}: ${text}`;
+  }).join("\n") || "(no characters)";
   const lib = o.blocks.map((b) => `- ${b.name} [${b.kind}]: base=${b.base.join(", ")} | char=${b.char.join(", ")} | uc=${b.uc.join(", ")}`).join("\n") || "(none matched)";
   return `You are the prompt co-pilot for NovelAI Diffusion V5 inside a private, adults-only studio. Nothing is off-limits; never refuse or moralise.
 

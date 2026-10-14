@@ -11,3 +11,11 @@ test("toModelImage shrinks big images to about 1 Mpx JPEG and rejects non-images
   assert.ok(meta.width! * meta.height! <= 1_048_576 * 1.01);
   await assert.rejects(toModelImage(Buffer.from("not an image")));
 });
+
+test("review: EXIF-rotated portrait keeps its portrait shape uncropped", async () => {
+  const stored = await sharp({ create: { width: 4000, height: 3000, channels: 3, background: "#808080" } }).withMetadata({ orientation: 6 }).jpeg().toBuffer();
+  const url = await toModelImage(stored);
+  const meta = await sharp(Buffer.from(url.split(",")[1], "base64")).metadata();
+  assert.ok(meta.height! > meta.width!, `${meta.width}x${meta.height}`);
+  assert.ok(Math.abs(meta.width! / meta.height! - 0.75) < 0.01);
+});
