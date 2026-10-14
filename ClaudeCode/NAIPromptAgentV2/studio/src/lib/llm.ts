@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import path from "node:path";
 import sharp from "sharp";
 import { BRAIN_MODEL, CAPTION_URL, OLLAMA_URL, TIPO_URL } from "./env";
 import type { ChatMsg } from "./copilot-prompt";
@@ -41,6 +43,17 @@ export async function brainLoaded(): Promise<boolean> {
 export async function setBrain(on: boolean): Promise<void> {
   const r = await post(`${OLLAMA_URL}/api/generate`, { model: BRAIN_MODEL, prompt: "", keep_alive: on ? "2h" : 0 }, 120_000);
   if (!r.ok) throw new Error(`Ollama ${r.status}: ${await r.text()}`);
+}
+
+/** Runs scripts/power.sh detached (own process group, so servers outlive a Ctrl-C on the dev server). */
+export function power(action: "up" | "down" | "status"): Promise<{ ok: boolean; err: string }> {
+  return new Promise((resolve) => {
+    const p = spawn("bash", [path.join(process.cwd(), "scripts/power.sh"), action], { detached: true, stdio: ["ignore", "ignore", "pipe"] });
+    let err = "";
+    p.stderr.on("data", (d) => (err += d));
+    p.on("error", (e) => resolve({ ok: false, err: e.message }));
+    p.on("close", (code) => resolve({ ok: code === 0, err: err.trim() }));
+  });
 }
 
 /** Streams reply text chunks; thinking tokens are skipped. */

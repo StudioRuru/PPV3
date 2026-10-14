@@ -4,3 +4,4 @@ node_modules/
 data/danbooru.csv
 next-env.d.ts
 tsconfig.tsbuildinfo
+.run/

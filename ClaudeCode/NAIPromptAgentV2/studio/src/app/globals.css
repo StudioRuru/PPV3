@@ -11,6 +11,8 @@
   --color-accent: #b49cff;
   --color-accent-fg: #160f2b;
   --color-danger: #ff5a72;
+  --color-ok: #7ee0a1;
+  --color-warn: #ffc46b;
 }
 
 html, body { height: 100%; }
