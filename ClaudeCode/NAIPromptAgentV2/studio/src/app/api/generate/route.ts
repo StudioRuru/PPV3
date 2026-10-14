@@ -10,7 +10,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const { state, params } = (await req.json().catch(() => ({}))) as { state?: PromptState; params?: Partial<NaiParams> };
+  const { state, params, gridId } = ((await req.json().catch(() => null)) ?? {}) as { state?: PromptState; params?: Partial<NaiParams>; gridId?: unknown };
+  const grid = typeof gridId === "string" && /^[\w-]{1,40}$/.test(gridId) ? gridId : null;
   if (!state?.base) return NextResponse.json({ error: "Missing prompt state." }, { status: 400 });
   if (!hasContent(state)) return NextResponse.json({ error: "Base prompt is empty." }, { status: 400 });
   const compiled = compile(state);
@@ -19,8 +20,8 @@ export async function POST(req: NextRequest) {
     const { png, seed } = await generateImage(compiled, p, NOVELAI_TOKEN);
     const file = await saveImage(png, seed);
     const { lastInsertRowid } = db
-      .prepare("INSERT INTO generations (created_at, model, seed, file, state, params) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(Date.now(), p.model, seed, file, JSON.stringify(state), JSON.stringify({ ...p, seed }));
+      .prepare("INSERT INTO generations (created_at, model, seed, file, state, params, grid_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(Date.now(), p.model, seed, file, JSON.stringify(state), JSON.stringify({ ...p, seed }), grid);
     return NextResponse.json({ id: Number(lastInsertRowid), file, seed });
   } catch (err) {
     const status = err instanceof NovelAIError ? err.status : 500;

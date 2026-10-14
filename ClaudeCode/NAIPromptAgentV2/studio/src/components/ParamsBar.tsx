@@ -1,4 +1,5 @@
 "use client";
+import { isFree } from "@/lib/grid";
 import { MODELS, type NaiParams } from "@/lib/nai-body";
 import type { Rating } from "@/lib/prompt";
 
@@ -25,7 +26,7 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
       <input aria-label="Steps" type="number" value={params.steps} onChange={num("steps")} className={`${field} w-16`} />
       <input aria-label="Guidance" type="number" step="0.1" value={params.scale} onChange={num("scale")} className={`${field} w-16`} />
       <input aria-label="Seed (blank = random)" type="number" placeholder="random seed" value={params.seed ?? ""} onChange={num("seed")} className={`${field} w-36`} />
-      {params.width * params.height > 1_048_576 || params.steps > 28 ? <span className="text-danger">costs Anlas</span> : null}
+      {!isFree(params) ? <span className="text-danger">costs Anlas</span> : null}
     </div>
   );
 }

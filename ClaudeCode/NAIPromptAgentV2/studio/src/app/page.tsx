@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BlockDrawer } from "@/components/BlockDrawer";
 import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
+import { GridSheet } from "@/components/GridSheet";
 import { HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
@@ -29,6 +30,7 @@ export default function Studio() {
   const [tagText, setTagText] = useState("");
   const [chat, setChat] = useState(false);
   const [seed, setSeed] = useState<ChatSeed>(null);
+  const [grid, setGrid] = useState(false);
 
   function dropTags(text: string, target: "base" | number | "new") {
     if (!text) return;
@@ -126,7 +128,8 @@ export default function Studio() {
       <div className="bg-bg/90 border-border fixed inset-x-0 bottom-0 border-t p-3 backdrop-blur" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           {error && <p role="alert" className="text-danger flex-1 text-sm">{error}</p>}
-          <button type="button" onClick={() => setChat(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Chat</button>
+          <button type="button" onClick={() => setGrid(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Grid</button>
+          <button type="button" onClick={() => setChat(true)} className="border-border rounded-lg border px-4 py-3 text-base">Chat</button>
           <button type="button" onClick={generate} disabled={busy}
             className="bg-accent text-accent-fg rounded-lg px-6 py-3 text-base font-semibold disabled:opacity-50">
             {busy ? "Generating…" : "Generate"}
@@ -138,6 +141,7 @@ export default function Studio() {
         preset={preset} onPreset={setPreset} rating={state.rating} />
       <ChatSheet open={chat} onClose={() => setChat(false)} state={state} seed={seed}
         onApply={(ops) => setState((s) => applyOps(s, ops))} />
+      <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );
 }
