@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { lockScroll, unlockScroll } from "./Sheet";
 import { canResend } from "@/lib/nai-body";
+import { clampView, zoomAt, type View } from "@/lib/view";
 import type { Generation } from "./HistoryStrip";
 
-type View = { s: number; x: number; y: number };
 const ZERO: View = { s: 1, x: 0, y: 0 };
 
 /**
@@ -18,7 +18,11 @@ export function Viewer({ items, id, onId, onClose, onSave, onVary, onUpscale, on
   const [view, setView] = useState<View>(ZERO);
   const pts = useRef(new Map<number, { x: number; y: number }>());
   // multi: this touch sequence had two fingers — never treat its end as a swipe, close or double tap.
-  const gesture = useRef<{ dist: number; s: number; start: { x: number; y: number }; from: View; t: number; multi: boolean } | null>(null);
+  // p0: where the gesture started (finger, or pinch midpoint), relative to the box centre.
+  const gesture = useRef<{ dist: number; p0: { x: number; y: number }; start: { x: number; y: number }; from: View; t: number; multi: boolean } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const img = useRef<HTMLImageElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
   const lastTap = useRef(0);
   // Tracked by id, not position: history can reload while the viewer is open (a generation finishing).
   const index = id === null ? -1 : items.findIndex((it) => it.id === id);
@@ -39,33 +43,46 @@ export function Viewer({ items, id, onId, onClose, onSave, onVary, onUpscale, on
     };
     window.addEventListener("keydown", key);
     lockScroll();
-    return () => { window.removeEventListener("keydown", key); unlockScroll(); };
+    const back = document.activeElement as HTMLElement | null;
+    closeBtn.current?.focus({ preventScroll: true });
+    return () => { window.removeEventListener("keydown", key); unlockScroll(); back?.focus?.({ preventScroll: true }); };
   }, [open]);
 
   if (!g) return null;
   const go = (d: number) => { const t = items[index + d]; if (t) onId(t.id); };
   const dist = () => { const [a, b] = [...pts.current.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  /** Point relative to the box centre: the pinch midpoint with two fingers, else the finger. */
+  const rel = () => {
+    const r = box.current!.getBoundingClientRect(), ps = [...pts.current.values()];
+    const m = ps.reduce((a, p) => ({ x: a.x + p.x / ps.length, y: a.y + p.y / ps.length }), { x: 0, y: 0 });
+    return { x: m.x - r.left - r.width / 2, y: m.y - r.top - r.height / 2 };
+  };
+  const fit = (v: View) => clampView(v, { w: img.current?.offsetWidth ?? 0, h: img.current?.offsetHeight ?? 0 },
+    { w: box.current?.clientWidth ?? 0, h: box.current?.clientHeight ?? 0 });
+  const restart = (t: number, multi: boolean) => {
+    gesture.current = { dist: pts.current.size === 2 ? dist() : 0, p0: rel(), start: [...pts.current.values()].at(-1)!, from: view, t, multi };
+  };
 
   return (
     <div role="dialog" aria-modal="true" aria-label={`Image ${index + 1} of ${items.length}`} className="fixed inset-0 z-50 flex flex-col bg-black text-white">
       <header className="flex items-center gap-3 p-3" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)" }}>
         <span className="flex-1 font-mono text-xs opacity-80">{index + 1} / {items.length} · seed {g.seed}{g.params.upscaled ? " · 4×" : ""}</span>
-        <button type="button" onClick={onClose} aria-label="Close viewer" className="grid size-11 place-items-center rounded-full bg-white/10 text-lg">×</button>
+        <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close viewer" className="grid size-11 place-items-center rounded-full bg-white/10 text-lg">×</button>
       </header>
 
-      <div className="relative flex-1 touch-none overflow-hidden select-none"
+      <div ref={box} className="relative flex-1 touch-none overflow-hidden select-none"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-          const multi = pts.current.size > 1 || !!gesture.current?.multi;
-          gesture.current = { dist: pts.current.size === 2 ? dist() : 0, s: view.s, start: { x: e.clientX, y: e.clientY }, from: view, t: e.timeStamp, multi };
+          restart(e.timeStamp, pts.current.size > 1 || !!gesture.current?.multi);
         }}
         onPointerMove={(e) => {
           if (!pts.current.has(e.pointerId) || !gesture.current) return;
           pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
           const gs = gesture.current;
-          if (pts.current.size === 2 && gs.dist) setView({ ...gs.from, s: Math.min(5, Math.max(1, gs.s * (dist() / gs.dist))) });
-          else if (view.s > 1) setView({ ...gs.from, x: gs.from.x + e.clientX - gs.start.x, y: gs.from.y + e.clientY - gs.start.y });
+          // Pinch zooms around the midpoint and pans with it; one finger pans only when zoomed in.
+          if (pts.current.size === 2 && gs.dist) setView(fit(zoomAt(gs.from, gs.p0, rel(), dist() / gs.dist)));
+          else if (view.s > 1) setView(fit(zoomAt(gs.from, gs.p0, rel(), 1)));
         }}
         onPointerUp={(e) => {
           const gs = gesture.current;
@@ -73,8 +90,7 @@ export function Viewer({ items, id, onId, onClose, onSave, onVary, onUpscale, on
           if (!gs) return;
           if (pts.current.size) {
             // One finger left after a pinch: carry on panning from where it is, at the pinched scale.
-            const [rest] = [...pts.current.values()];
-            gesture.current = { dist: 0, s: view.s, start: rest, from: view, t: e.timeStamp, multi: true };
+            restart(e.timeStamp, true);
             return;
           }
           gesture.current = null;
@@ -87,13 +103,13 @@ export function Viewer({ items, id, onId, onClose, onSave, onVary, onUpscale, on
           }
           // Double tap toggles 2.5× / fit.
           if (Math.hypot(dx, dy) < 10 && e.timeStamp - gs.t < 250) {
-            if (e.timeStamp - lastTap.current < 320) { setView(view.s > 1 ? ZERO : { s: 2.5, x: 0, y: 0 }); lastTap.current = 0; }
+            if (e.timeStamp - lastTap.current < 320) { setView(view.s > 1 ? ZERO : fit(zoomAt(ZERO, gs.p0, gs.p0, 2.5))); lastTap.current = 0; }
             else lastTap.current = e.timeStamp;
           }
         }}
         onPointerCancel={(e) => { pts.current.delete(e.pointerId); gesture.current = null; }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img key={g.id} src={`/api/gallery/${g.file}`} alt={`Generation ${g.id}`} draggable={false}
+        <img ref={img} key={g.id} src={`/api/gallery/${g.file}`} alt={`Generation ${g.id}`} draggable={false}
           className="absolute inset-0 m-auto max-h-full max-w-full object-contain"
           style={{ translate: `${view.x}px ${view.y}px`, scale: String(view.s), transition: gesture.current ? "none" : "scale 200ms var(--ease-out), translate 200ms var(--ease-out)" }} />
       </div>

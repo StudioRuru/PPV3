@@ -12,6 +12,7 @@ import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
 import { developed, HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { ParamsBar } from "@/components/ParamsBar";
+import { AutoTextarea } from "@/components/TagInput";
 import { TaggerPane } from "@/components/TaggerPane";
 import { applyBlock, loadScene, type Block } from "@/lib/blocks";
 import { loadDraft, saveDraft } from "@/lib/draft";
@@ -189,8 +190,7 @@ export default function Studio() {
           width={params.width} height={params.height} />
         <div className="bg-surface border-border rounded-lg border p-3">
           <h2 className="mb-2 text-sm font-semibold">Undesired content</h2>
-          <textarea value={state.uc} onChange={(e) => setState({ ...state, uc: e.target.value })} rows={3}
-            className="bg-bg border-border w-full rounded-md border px-2 py-2 text-base" />
+          <AutoTextarea value={state.uc} onChange={(uc) => setState({ ...state, uc })} />
         </div>
         <label className="text-muted block text-sm">
           Load recipe from a NovelAI PNG

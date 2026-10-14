@@ -48,6 +48,10 @@
 [data-theme="daylight"] { color-scheme: light; }
 :root:not([data-theme="daylight"]) { color-scheme: dark; }
 
+/* Character colours (boxes, dots, patch cards) and the text drawn on them. */
+:root { --dot-0: #b7a4ff; --dot-1: #5fd4e6; --dot-2: #ffb86b; --dot-3: #7ee0a1; --dot-ink: #11131f; }
+[data-theme="daylight"] { --dot-0: #6b4fd8; --dot-1: #0b8a9e; --dot-2: #c25e00; --dot-3: #1d8f55; --dot-ink: #ffffff; }
+
 html, body { height: 100%; }
 
 /* ── Motion ─────────────────────────────────────────────────────────────

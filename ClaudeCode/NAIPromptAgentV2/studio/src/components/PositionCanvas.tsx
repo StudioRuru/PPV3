@@ -63,7 +63,7 @@ export function PositionCanvas({ chars, width, height, onChange, words = true }:
             <button type="button" aria-label={`Move character ${i + 1}: ${words ? positionWords(r) : `${r.x}, ${r.y}`}`}
               onPointerDown={(e) => start(e, i, "move")} className="absolute inset-0 cursor-move" />
             <span aria-hidden="true" className="pointer-events-none absolute top-1 left-1 grid size-6 place-items-center rounded-full font-mono text-xs font-semibold"
-              style={{ background: color, color: "#11131f" /* dark on the pastel dot colours, every theme */ }}>{i + 1}</span>
+              style={{ background: color, color: "var(--dot-ink)" }}>{i + 1}</span>
             {/* 44px touch target around a small visible corner grip. */}
             <button type="button" aria-label={`Resize character ${i + 1}`} onPointerDown={(e) => start(e, i, "size")}
               className="absolute -right-3 -bottom-3 grid size-11 cursor-nwse-resize place-items-center">

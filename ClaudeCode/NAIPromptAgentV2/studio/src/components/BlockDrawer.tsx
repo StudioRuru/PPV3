@@ -6,7 +6,8 @@ import type { CharBox, Rating } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 import { Sheet } from "./Sheet";
 
-export const DOT = ["#b7a4ff", "#5fd4e6", "#ffb86b", "#7ee0a1"];
+// Character colours are theme tokens (globals.css): pastel on dark themes, deeper on Daylight for contrast.
+export const DOT = ["var(--dot-0)", "var(--dot-1)", "var(--dot-2)", "var(--dot-3)"];
 
 export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene, preset, onPreset, rating }: {
   open: boolean; onClose: () => void; chars: CharBox[]; tagText: string;

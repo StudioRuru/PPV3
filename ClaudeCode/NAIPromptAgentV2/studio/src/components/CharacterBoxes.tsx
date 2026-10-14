@@ -2,6 +2,7 @@
 import { newLine, positionWords, regionOf, type CharBox, type Positions } from "@/lib/prompt";
 import { DOT } from "./BlockDrawer";
 import { LineList } from "./LineList";
+import { AutoTextarea } from "./TagInput";
 import { PositionCanvas } from "./PositionCanvas";
 
 export function CharacterBoxes({ chars, onChange, positions, onPositions, width, height, words, onWords }: {
@@ -12,6 +13,25 @@ export function CharacterBoxes({ chars, onChange, positions, onPositions, width,
   const set = (i: number, patch: Partial<CharBox>) => onChange(chars.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   return (
     <div className="space-y-3">
+      {chars.map((c, i) => (
+        <section key={c.id} data-drop={`char:${i}`} style={{ "--dot": DOT[i % DOT.length] } as React.CSSProperties} className="bg-surface border-border rounded-lg border p-3">
+          <header className="mb-2 flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={c.enabled} onChange={(e) => set(i, { enabled: e.target.checked })} />
+              Character {i + 1}
+            </label>
+            <button type="button" className="text-muted" onClick={() => onChange(chars.filter((_, j) => j !== i))}>Remove</button>
+          </header>
+          <LineList lines={c.lines} onChange={(lines) => set(i, { lines })} />
+          <AutoTextarea value={c.uc} onChange={(uc) => set(i, { uc })} placeholder="character undesired content" className="mt-2" />
+        </section>
+      ))}
+      {chars.length < 22 && (
+        <button type="button" className="text-accent text-sm"
+          onClick={() => onChange([...chars, { id: newLine().id, lines: [newLine("girl")], uc: "", enabled: true }])}>
+          + character
+        </button>
+      )}
       {chars.length > 0 && (
         <section className="bg-surface border-border space-y-3 rounded-lg border p-3">
           <div className="flex items-center justify-between text-sm">
@@ -38,26 +58,6 @@ export function CharacterBoxes({ chars, onChange, positions, onPositions, width,
             )}
           </>}
         </section>
-      )}
-      {chars.map((c, i) => (
-        <section key={c.id} data-drop={`char:${i}`} style={{ "--dot": DOT[i % DOT.length] } as React.CSSProperties} className="bg-surface border-border rounded-lg border p-3">
-          <header className="mb-2 flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={c.enabled} onChange={(e) => set(i, { enabled: e.target.checked })} />
-              Character {i + 1}
-            </label>
-            <button type="button" className="text-muted" onClick={() => onChange(chars.filter((_, j) => j !== i))}>Remove</button>
-          </header>
-          <LineList lines={c.lines} onChange={(lines) => set(i, { lines })} />
-          <input value={c.uc} onChange={(e) => set(i, { uc: e.target.value })} placeholder="character undesired content"
-            className="bg-bg border-border mt-2 w-full rounded-md border px-2 py-2 text-base" />
-        </section>
-      ))}
-      {chars.length < 22 && (
-        <button type="button" className="text-accent text-sm"
-          onClick={() => onChange([...chars, { id: newLine().id, lines: [newLine("girl")], uc: "", enabled: true }])}>
-          + character
-        </button>
       )}
     </div>
   );
