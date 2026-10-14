@@ -5,3 +5,4 @@ App/Info.plist
 App/NAIStudio.entitlements
 Share/Info.plist
 Share/NAIStudioShare.entitlements
+build-sim/

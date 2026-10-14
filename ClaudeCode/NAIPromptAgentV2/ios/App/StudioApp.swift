@@ -1,38 +1,51 @@
 import Photos
-import SwiftUI
+import UIKit
 import WebKit
 
 let studioNavy = UIColor(red: 13 / 255, green: 16 / 255, blue: 32 / 255, alpha: 1)
 
+// Plain UIKit lifecycle: hosting WKWebView under SwiftUI crashed on iOS 27.2 beta the moment the
+// password field took focus (UIGestureRecognizer _delayTouchesForEvent inserting nil, no app frames).
 @main
-struct StudioApp: App {
-    @Environment(\.scenePhase) private var phase
-    private let host = WebHost()
-
-    init() {
+final class AppDelegate: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Settings.bundle defaults only exist once the user opens Settings; register them so first launch works.
         UserDefaults.standard.register(defaults: ["serverURL": "https://big-mac-mini.tail57826e.ts.net:8443"])
+        return true
     }
 
-    var body: some Scene {
-        WindowGroup {
-            StudioView(host: host)
-                .ignoresSafeArea()
-                .background(Color(studioNavy))
-                .onOpenURL { _ in host.importPending() }   // naistudio://import from the share extension
-        }
-        .onChange(of: phase) { _, p in if p == .active { host.becameActive() } }
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let c = UISceneConfiguration(name: nil, sessionRole: session.role)
+        c.delegateClass = SceneDelegate.self
+        return c
     }
 }
 
-struct StudioView: UIViewRepresentable {
-    let host: WebHost
-    func makeUIView(context: Context) -> WKWebView { host.webView }
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
+        guard let ws = scene as? UIWindowScene else { return }
+        let w = UIWindow(windowScene: ws)
+        w.rootViewController = StudioViewController()
+        w.backgroundColor = studioNavy
+        w.makeKeyAndVisible()
+        window = w
+    }
+
+    // naistudio://import from the share extension; didFinish also imports, so a cold launch is covered.
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) { WebHost.shared.importPending() }
+    func sceneDidBecomeActive(_ scene: UIScene) { WebHost.shared.becameActive() }
+}
+
+final class StudioViewController: UIViewController {
+    override func loadView() { view = WebHost.shared.webView }
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
 }
 
 /// Owns the one WKWebView hosting the web Studio and the native side of its bridge.
 final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    static let shared = WebHost()
     let webView: WKWebView
     private var loadedServer = ""
     private var importing = false

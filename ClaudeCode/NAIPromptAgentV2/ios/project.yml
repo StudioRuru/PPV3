@@ -36,6 +36,8 @@ targets:
           UIColorName: ""
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIUserInterfaceStyle: Dark
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
         NSPhotoLibraryAddUsageDescription: Save generations to your photo library.
         CFBundleURLTypes:
           - CFBundleURLName: com.philly95.naistudio
