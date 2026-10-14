@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { NOVELAI_TOKEN } from "@/lib/env";
 import { saveImage } from "@/lib/gallery";
-import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
+import { DEFAULT_PARAMS, fixSchedule, type NaiParams } from "@/lib/nai-body";
 import { generateImage, NovelAIError } from "@/lib/novelai";
 import { compile, hasContent, type PromptState } from "@/lib/prompt";
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!state?.base) return NextResponse.json({ error: "Missing prompt state." }, { status: 400 });
   if (!hasContent(state)) return NextResponse.json({ error: "Base prompt is empty." }, { status: 400 });
   const compiled = compile(state);
-  const p = { ...DEFAULT_PARAMS, ...params };
+  const p = fixSchedule({ ...DEFAULT_PARAMS, ...params });
   try {
     const { png, seed } = await generateImage(compiled, p, NOVELAI_TOKEN);
     const file = await saveImage(png, seed);

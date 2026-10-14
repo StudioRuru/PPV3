@@ -40,3 +40,26 @@ test("model picker is V5-only", async () => {
   const { MODELS } = await import("./nai-body");
   assert.deepEqual(MODELS.map((m) => m.id), ["nai-diffusion-5-full", "nai-diffusion-5-curated"]);
 });
+
+test("schedulesFor: every listed sampler has valid schedules; fixSchedule snaps an invalid one", async () => {
+  const { SAMPLERS, schedulesFor, fixSchedule, DEFAULT_PARAMS } = await import("./nai-body");
+  assert.ok(SAMPLERS.length >= 6);
+  for (const s of SAMPLERS) assert.ok(schedulesFor(s.id).length > 0, s.id);
+  assert.deepEqual(schedulesFor("k_euler_ancestral"), ["karras", "exponential", "polyexponential"]);
+  assert.equal(fixSchedule({ ...DEFAULT_PARAMS, sampler: "k_dpmpp_2m", noiseSchedule: "native" }).noiseSchedule, "karras");
+  assert.equal(fixSchedule({ ...DEFAULT_PARAMS, noiseSchedule: "exponential" }).noiseSchedule, "exponential");
+});
+
+test("img2img body: action, image, strength, noise and the source size", async () => {
+  const { buildNaiBody, DEFAULT_PARAMS } = await import("./nai-body");
+  const c = { base: "1girl", uc: "", chars: [] };
+  const { body } = buildNaiBody(c, { ...DEFAULT_PARAMS, seed: 7 }, { image: "QUJD", strength: 0.45, noise: 0 });
+  assert.equal(body.action, "img2img");
+  const p = body.parameters as Record<string, unknown>;
+  assert.equal(p.image, "QUJD");
+  assert.equal(p.strength, 0.45);
+  assert.equal(p.noise, 0);
+  assert.equal(p.extra_noise_seed, 7);
+  assert.equal(buildNaiBody(c, DEFAULT_PARAMS).body.action, "generate");
+  assert.equal("image" in buildNaiBody(c, DEFAULT_PARAMS).body.parameters, false);
+});
