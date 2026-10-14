@@ -5,6 +5,7 @@ import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
 import { CameraRoll } from "@/components/CameraRoll";
+import { Closet } from "@/components/Closet";
 import { SaveFlash } from "@/components/SaveFlash";
 import { TabBar, type Tab } from "@/components/TabBar";
 import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
@@ -27,7 +28,7 @@ import { isFree } from "@/lib/grid";
 import { canResend, legacyParams } from "@/lib/nai-body";
 import { recreate } from "@/lib/recreate";
 import type { RawTag } from "@/lib/tagger";
-import { applyTags, emptyState, type PromptState } from "@/lib/prompt";
+import { applyTags, emptyState, splitTags, type PromptState } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
 export default function Studio() {
@@ -71,6 +72,16 @@ export default function Studio() {
     const a = document.createElement("a");
     a.href = path; a.download = g.file; a.click();
     setFlash(`Saved${g.size ? ` · ${mb(g.size)}` : ""}`);
+  }
+
+  /** Closet → Studio: a scene replaces the prompt; anything else is added like a building block. */
+  async function useFromCloset(blockId: string) {
+    const r = await requestJson<{ blocks: Block[] }>("/api/blocks");
+    const b = r.ok ? r.data.blocks.find((x) => x.id === blockId) : undefined;
+    if (!b) { setError("That item has no prompt to use yet — fill it in and save first."); setTab("studio"); return; }
+    setState((s) => (b.kind === "scene" ? loadScene(b, s.rating) : applyBlock(s, b, s.chars.length ? 0 : "base")));
+    setNote(b.kind === "scene" ? `Loaded ${b.name}` : `Added ${b.name}`);
+    setTab("studio");
   }
 
   async function showGeneration(id: number) {
@@ -264,11 +275,10 @@ export default function Studio() {
       <div className={tab === "roll" ? "lg:col-span-2" : "hidden"}>
         <CameraRoll active={tab === "roll"} onOpen={(items, id) => { setViewerItems(items); setViewing(id); }} onChanged={() => loadHistory().then((items) => setCurrent((c) => items.find((g) => g.id === c?.id) ?? items[0] ?? null))} />
       </div>
-      <section aria-label="Closet" className={tab === "closet" ? "lg:col-span-2 space-y-3" : "hidden"}>
-        <h1 className="text-[15px] font-semibold tracking-wide">Closet</h1>
-        <p className="text-muted text-sm">The workshop for scenes, arcs, outfits and clusters is coming next. Your library is in Building blocks for now.</p>
-        <button type="button" onClick={() => setDrawer(true)} className="border-border rounded-lg border px-4 py-3 text-sm">Open Building blocks</button>
-      </section>
+      <div className={tab === "closet" ? "lg:col-span-2" : "hidden"}>
+        <Closet active={tab === "closet"} onUse={useFromCloset}
+          prompt={[...state.base, ...state.chars.flatMap((c) => c.lines)].filter((l) => l.enabled).flatMap((l) => splitTags(l.text))} />
+      </div>
 
       <div className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
