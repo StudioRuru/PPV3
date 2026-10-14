@@ -41,6 +41,9 @@ export const THEME_SCRIPT = `(function () {
     }
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = BG[p.theme];
+    // iOS shell: native sets the status-bar style and the web view's bounce background from this.
+    var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.studio;
+    if (h) h.postMessage({ theme: { bg: BG[p.theme], light: p.theme === "daylight" } });
   }
   var pref = { theme: "night" };
   try { pref = clean(JSON.parse(localStorage.getItem(KEY) || "null")); } catch (e) {}

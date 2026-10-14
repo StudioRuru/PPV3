@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
-import { EXPORT_CAP, pickRows, type ExportPick } from "@/lib/export";
+import { useEffect, useState } from "react";
+import { requestJson } from "@/lib/net";
+import { EXPORT_CAP } from "@/lib/export";
 import type { Generation } from "./HistoryStrip";
 import { Sheet } from "./Sheet";
 
@@ -12,10 +13,22 @@ export function ExportSheet({ open, onClose, items }: { open: boolean; onClose: 
   const [last, setLast] = useState(20);
   const [picked, setPicked] = useState<number[]>([]);
 
-  const pick: ExportPick = mode === "today" ? { today: true } : mode === "last" ? { last } : { ids: picked };
-  const rows = items.map((g) => ({ id: g.id, created_at: g.created_at ?? 0 }));
-  const count = pickRows(rows, pick).length;
+  // The server decides what's in the zip (it sees all history, the page only the newest 60): ask it for the count.
+  const [count, setCount] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const query = mode === "today" ? "today=1" : mode === "last" ? `last=${last}` : `ids=${picked.join(",")}`;
+  useEffect(() => {
+    if (!open) return;
+    if (mode === "select" && !picked.length) { setCount(0); setError(null); return; }
+    let stale = false;
+    setCount(null);
+    const t = setTimeout(() => requestJson<{ count: number }>(`/api/export?${query}&check=1`).then((r) => {
+      if (stale) return;
+      setCount(r.ok ? r.data.count : 0); setError(r.ok ? null : r.error);
+    }), 250);
+    return () => { stale = true; clearTimeout(t); };
+  }, [open, query, mode, picked.length]);
+
   const toggle = (id: number) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   function download() {
@@ -56,11 +69,12 @@ export function ExportSheet({ open, onClose, items }: { open: boolean; onClose: 
             ))}
           </div>
         )}
+        {error && <p role="alert" className="text-danger text-sm">{error}</p>}
         <p className="text-muted text-sm">Full-size PNGs with their NovelAI recipes, plus a recipes.json. Everything also stays on the Mac.</p>
       </div>
       <div className="border-border border-t p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
         <button type="button" disabled={!count} onClick={download} className="bg-accent text-accent-fg w-full rounded-lg px-4 py-3 font-semibold disabled:opacity-40">
-          {count ? `Download zip · ${count} image${count === 1 ? "" : "s"}` : "No images selected"}
+          {count === null ? "Counting…" : count ? `Download zip · ${count} image${count === 1 ? "" : "s"}` : mode === "select" ? "No images selected" : "Nothing to export"}
         </button>
       </div>
     </Sheet>

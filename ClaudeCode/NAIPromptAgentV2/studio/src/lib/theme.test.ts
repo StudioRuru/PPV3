@@ -52,3 +52,12 @@ test("readableOn: dark text on light accents, white on dark", () => {
   assert.equal(api.readableOn("#6b4fd8"), "#ffffff");
   assert.equal(THEMES.length, 5);
 });
+
+test("review: inside the iOS shell the script tells native the theme (status bar + background)", () => {
+  const sent: unknown[] = [];
+  const meta = { content: "" };
+  const root = { dataset: {} as Record<string, string>, style: { setProperty() {}, removeProperty() {} } };
+  const window: Record<string, unknown> = { webkit: { messageHandlers: { studio: { postMessage: (m: unknown) => sent.push(m) } } } };
+  vm.runInNewContext(THEME_SCRIPT, { window, localStorage: { getItem: () => '{"theme":"daylight"}', setItem() {} }, document: { documentElement: root, querySelector: () => meta } });
+  assert.equal(JSON.stringify(sent), JSON.stringify([{ theme: { bg: "#f6f5fb", light: true } }]));
+});

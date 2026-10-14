@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { lockScroll, unlockScroll } from "./Sheet";
 import { canResend } from "@/lib/nai-body";
 import type { Generation } from "./HistoryStrip";
 
@@ -10,30 +11,39 @@ const ZERO: View = { s: 1, x: 0, y: 0 };
  * Full-screen image viewer. Swipe left/right through history (at 1×), pinch or double-tap to zoom,
  * drag to pan when zoomed. Actions act on the image being shown.
  */
-export function Viewer({ items, index, onIndex, onClose, onSave, onVary, onUpscale, onReuse }: {
-  items: Generation[]; index: number | null; onIndex: (i: number) => void; onClose: () => void;
+export function Viewer({ items, id, onId, onClose, onSave, onVary, onUpscale, onReuse }: {
+  items: Generation[]; id: number | null; onId: (id: number) => void; onClose: () => void;
   onSave: (g: Generation) => void; onVary: (g: Generation) => void; onUpscale: (g: Generation) => void; onReuse: (g: Generation) => void;
 }) {
   const [view, setView] = useState<View>(ZERO);
   const pts = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<{ dist: number; s: number; start: { x: number; y: number }; from: View; t: number } | null>(null);
+  // multi: this touch sequence had two fingers — never treat its end as a swipe, close or double tap.
+  const gesture = useRef<{ dist: number; s: number; start: { x: number; y: number }; from: View; t: number; multi: boolean } | null>(null);
   const lastTap = useRef(0);
-  const g = index === null ? null : items[index];
+  // Tracked by id, not position: history can reload while the viewer is open (a generation finishing).
+  const index = id === null ? -1 : items.findIndex((it) => it.id === id);
+  const g = index < 0 ? null : items[index];
+  const nav = useRef({ index, items, onId, onClose });
+  nav.current = { index, items, onId, onClose };
 
-  useEffect(() => { setView(ZERO); }, [index]);
+  useEffect(() => { setView(ZERO); }, [id]);
+  useEffect(() => { if (id !== null && !g) onClose(); }, [id, g, onClose]);
+  const open = !!g;
   useEffect(() => {
-    if (index === null) return;
+    if (!open) return;
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight" && index < items.length - 1) onIndex(index + 1);
-      if (e.key === "ArrowLeft" && index > 0) onIndex(index - 1);
+      const n = nav.current;
+      if (e.key === "Escape") n.onClose();
+      if (e.key === "ArrowRight" && n.index < n.items.length - 1) n.onId(n.items[n.index + 1].id);
+      if (e.key === "ArrowLeft" && n.index > 0) n.onId(n.items[n.index - 1].id);
     };
     window.addEventListener("keydown", key);
-    document.documentElement.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", key); document.documentElement.style.overflow = ""; };
-  }, [index, items.length, onClose, onIndex]);
+    lockScroll();
+    return () => { window.removeEventListener("keydown", key); unlockScroll(); };
+  }, [open]);
 
-  if (!g || index === null) return null;
+  if (!g) return null;
+  const go = (d: number) => { const t = items[index + d]; if (t) onId(t.id); };
   const dist = () => { const [a, b] = [...pts.current.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
 
   return (
@@ -47,7 +57,8 @@ export function Viewer({ items, index, onIndex, onClose, onSave, onVary, onUpsca
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-          gesture.current = { dist: pts.current.size === 2 ? dist() : 0, s: view.s, start: { x: e.clientX, y: e.clientY }, from: view, t: e.timeStamp };
+          const multi = pts.current.size > 1 || !!gesture.current?.multi;
+          gesture.current = { dist: pts.current.size === 2 ? dist() : 0, s: view.s, start: { x: e.clientX, y: e.clientY }, from: view, t: e.timeStamp, multi };
         }}
         onPointerMove={(e) => {
           if (!pts.current.has(e.pointerId) || !gesture.current) return;
@@ -59,10 +70,18 @@ export function Viewer({ items, index, onIndex, onClose, onSave, onVary, onUpsca
         onPointerUp={(e) => {
           const gs = gesture.current;
           pts.current.delete(e.pointerId);
-          if (!gs || pts.current.size) return;
+          if (!gs) return;
+          if (pts.current.size) {
+            // One finger left after a pinch: carry on panning from where it is, at the pinched scale.
+            const [rest] = [...pts.current.values()];
+            gesture.current = { dist: 0, s: view.s, start: rest, from: view, t: e.timeStamp, multi: true };
+            return;
+          }
+          gesture.current = null;
+          if (gs.multi) return;
           const dx = e.clientX - gs.start.x, dy = e.clientY - gs.start.y;
           if (view.s <= 1.01) {
-            if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) { if (dx < 0 && index < items.length - 1) onIndex(index + 1); if (dx > 0 && index > 0) onIndex(index - 1); }
+            if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
             else if (dy > 120 && Math.abs(dy) > Math.abs(dx)) onClose();
             setView(ZERO);
           }
@@ -71,7 +90,6 @@ export function Viewer({ items, index, onIndex, onClose, onSave, onVary, onUpsca
             if (e.timeStamp - lastTap.current < 320) { setView(view.s > 1 ? ZERO : { s: 2.5, x: 0, y: 0 }); lastTap.current = 0; }
             else lastTap.current = e.timeStamp;
           }
-          gesture.current = null;
         }}
         onPointerCancel={(e) => { pts.current.delete(e.pointerId); gesture.current = null; }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}

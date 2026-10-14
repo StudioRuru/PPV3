@@ -43,10 +43,12 @@ export default function Studio() {
   const [undo, setUndo] = useState<PromptState | null>(null);
   const [find, setFind] = useState(false);
   const [settings, setSettings] = useState(false);
-  const [viewing, setViewing] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null); // generation id
   const [exporting, setExporting] = useState(false);
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
+  const closeViewer = useCallback(() => setViewing(null), []);
+
   /** iOS shell: native Save to Photos. Browser: a normal download of the full PNG. */
   function save(g: Generation) {
     const path = `/api/gallery/${encodeURIComponent(g.file)}`;
@@ -200,7 +202,7 @@ export default function Studio() {
         {current ? (
           <figure className="space-y-2">
             {/* Keyed so each new image remounts and develops in (the hero moment). */}
-            <button type="button" onClick={() => { const i = history.findIndex((h) => h.id === current.id); setViewing(i < 0 ? 0 : i); }}
+            <button type="button" onClick={() => setViewing(current.id)}
               aria-label="Open full screen" className="border-border block w-full overflow-hidden rounded-lg border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img key={current.id} src={`/api/gallery/${current.file}`} alt="Latest generation" onLoad={developed} onError={developed} className="animate-develop w-full" />
@@ -250,7 +252,7 @@ export default function Studio() {
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords !== false} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
-      <Viewer items={history} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} onSave={save}
+      <Viewer items={history.some((h) => h.id === current?.id) || !current ? history : [current, ...history]} id={viewing} onId={setViewing} onClose={closeViewer} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
         onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); }} />
       <ExportSheet open={exporting} onClose={() => setExporting(false)} items={history} />

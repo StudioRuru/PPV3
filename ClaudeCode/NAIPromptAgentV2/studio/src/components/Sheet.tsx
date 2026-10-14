@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useRef } from "react";
 
-let openSheets = 0; // page scroll stays locked while any sheet is open
+let locks = 0; // page scroll stays locked while any sheet or the viewer is open
+export function lockScroll() { if (++locks === 1) document.documentElement.style.overflow = "hidden"; }
+export function unlockScroll() { if (--locks === 0) document.documentElement.style.overflow = ""; }
 
 // Bottom sheet (right-hand panel on desktop). Always mounted so it can animate out;
 // closed = visibility:hidden + inert, so it is untouchable and out of the a11y tree.
@@ -15,10 +17,10 @@ export function Sheet({ open, onClose, label, closeLabel, className, children }:
   useEffect(() => {
     if (!open) return;
     const back = document.activeElement as HTMLElement | null;
-    if (++openSheets === 1) document.documentElement.style.overflow = "hidden";
+    lockScroll();
     panel.current?.focus({ preventScroll: true });
     return () => {
-      if (--openSheets === 0) document.documentElement.style.overflow = "";
+      unlockScroll();
       back?.focus?.({ preventScroll: true });
     };
   }, [open]);
@@ -54,7 +56,7 @@ export function Sheet({ open, onClose, label, closeLabel, className, children }:
           if (d) end(d.dy > 110 || d.dy / Math.max(1, e.timeStamp - d.t) > 0.6);
         }}
         onPointerCancel={() => end(false)}>
-        <div data-grab aria-hidden="true" className="flex h-4 shrink-0 cursor-grab items-end justify-center lg:hidden">
+        <div data-grab aria-hidden="true" className="flex h-6 shrink-0 cursor-grab touch-none items-end justify-center lg:hidden">
           <span className="bg-border h-1 w-9 rounded-full" />
         </div>
         {children}

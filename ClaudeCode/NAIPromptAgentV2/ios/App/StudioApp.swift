@@ -40,13 +40,14 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 final class StudioViewController: UIViewController {
     override func loadView() { view = WebHost.shared.webView }
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { WebHost.shared.lightTheme ? .darkContent : .lightContent }
 }
 
 /// Owns the one WKWebView hosting the web Studio and the native side of its bridge.
 final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKDownloadDelegate {
     static let shared = WebHost()
     let webView: WKWebView
+    private(set) var lightTheme = false
     private var loadedServer = ""
     private var importing = false
     private var showingError = false
@@ -138,10 +139,15 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     }
 
     func downloadDidFinish(_ download: WKDownload) {
-        guard let url = downloadURL, let root = webView.window?.rootViewController else { return }
+        guard let url = downloadURL, var top = webView.window?.rootViewController else { return }
+        while let next = top.presentedViewController { top = next }   // present over whatever is already up
         let share = UIActivityViewController(activityItems: [url], applicationActivities: nil)
         share.popoverPresentationController?.sourceView = webView   // iPad safety
-        root.present(share, animated: true)
+        share.completionWithItemsHandler = { [weak self] _, _, _, _ in
+            try? FileManager.default.removeItem(at: url)   // zips can be large; don't leave them in tmp
+            if self?.downloadURL == url { self?.downloadURL = nil }
+        }
+        top.present(share, animated: true)
     }
 
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
@@ -151,6 +157,15 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     // MARK: Bridge
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        // The page's theme script reports its theme: status-bar style + the colour behind bounces.
+        if let theme = (message.body as? [String: Any])?["theme"] as? [String: Any], sameOrigin(message.frameInfo.request.url) {
+            lightTheme = theme["light"] as? Bool ?? false
+            if let hex = theme["bg"] as? String, let color = UIColor(hex: hex) {
+                webView.backgroundColor = color; webView.scrollView.backgroundColor = color; webView.window?.backgroundColor = color
+            }
+            webView.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
+            return
+        }
         guard let body = message.body as? [String: Any], let path = body["save"] as? String,
               let url = URL(string: path, relativeTo: webView.url)?.absoluteURL, sameOrigin(url), sameOrigin(message.frameInfo.request.url) else { return }
         Task { await save(url) }
@@ -210,4 +225,11 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
 
 private extension Optional where Wrapped == Bool {
     var defaultTrue: Bool { self ?? true }
+}
+
+private extension UIColor {
+    convenience init?(hex: String) {
+        guard hex.count == 7, hex.hasPrefix("#"), let v = UInt32(hex.dropFirst(), radix: 16) else { return nil }
+        self.init(red: CGFloat(v >> 16 & 255) / 255, green: CGFloat(v >> 8 & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
+    }
 }
