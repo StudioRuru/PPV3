@@ -5,6 +5,7 @@ import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
 import { GridSheet } from "@/components/GridSheet";
+import { loadDefaults, SettingsSheet } from "@/components/SettingsSheet";
 import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
 import { developed, HistoryStrip, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
@@ -39,6 +40,7 @@ export default function Studio() {
   const [grid, setGrid] = useState(false);
   const [undo, setUndo] = useState<PromptState | null>(null);
   const [find, setFind] = useState(false);
+  const [settings, setSettings] = useState(false);
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
   async function showGeneration(id: number) {
@@ -95,6 +97,7 @@ export default function Studio() {
   useEffect(() => {
     const d = loadDraft();
     if (d) { setState({ ...emptyState(), ...d.state }); setParams({ ...DEFAULT_PARAMS, ...d.params }); }
+    else setParams({ ...DEFAULT_PARAMS, ...loadDefaults() });
     setLoaded(true);
     loadHistory().then((items) => setCurrent(items[0] ?? null));
   }, [loadHistory]);
@@ -132,6 +135,15 @@ export default function Studio() {
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}>
       <section className="space-y-4">
+        <header className="flex items-center gap-2">
+          <h1 className="flex-1 text-[15px] font-semibold tracking-wide">NAI Studio</h1>
+          <button type="button" onClick={() => setSettings(true)} aria-label="Settings" className="text-muted grid size-11 place-items-center rounded-full">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+            </svg>
+          </button>
+        </header>
         <TaggerPane preset={preset} onTagged={() => setDrawer(true)} onDrop={dropTags}
           onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText}
           onRecreate={doRecreate} incoming={incoming}
@@ -213,6 +225,8 @@ export default function Studio() {
       <FindSheet open={find} onClose={() => setFind(false)} rating={state.rating} onRecreate={doRecreate} />
       <VariationSheet source={vary} onClose={() => setVary(null)} onPick={showGeneration} onDone={loadHistory} />
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
+      <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
+        words={state.positionWords !== false} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );

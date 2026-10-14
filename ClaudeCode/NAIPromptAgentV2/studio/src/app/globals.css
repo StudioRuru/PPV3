@@ -21,6 +21,33 @@
   --color-warn: #ffc46b;
 }
 
+/* Other themes (Settings → Theme). Night Studio above is the default; lib/theme.ts applies these before paint. */
+[data-theme="darkroom"] {
+  --color-bg: #0b0a09; --color-surface: #15130f; --color-surface-2: #1f1b15; --color-border: #2e281f;
+  --color-fg: #f1ebe1; --color-muted: #b3a690; --color-faint: #7a6f5e;
+  --color-accent: #ffb86b; --color-accent-fg: #2a1600; --color-accent-soft: #3a2a14; --color-accent-ink: #ffd9ac; --color-cyan: #7ec8e3;
+}
+[data-theme="console"] {
+  --font-sans: var(--font-plex-mono), ui-monospace, monospace;
+  --color-bg: #0f1211; --color-surface: #161a19; --color-surface-2: #1e2422; --color-border: #2b3431;
+  --color-fg: #e4ece8; --color-muted: #9fb0a9; --color-faint: #6b7a74;
+  --color-accent: #7ee0c3; --color-accent-fg: #062a20; --color-accent-soft: #143a30; --color-accent-ink: #b5f2df; --color-cyan: #8fd3ff;
+}
+[data-theme="daylight"] {
+  --color-bg: #f6f5fb; --color-surface: #ffffff; --color-surface-2: #eceaf5; --color-border: #d8d5e6;
+  --color-fg: #1b1830; --color-muted: #5b5778; --color-faint: #8a87a3;
+  --color-accent: #6b4fd8; --color-accent-fg: #ffffff; --color-accent-soft: #e6e0fb; --color-accent-ink: #4b31b5; --color-cyan: #0e8fa3;
+  --color-danger: #d6334f; --color-ok: #1d8f55; --color-warn: #a35f00;
+}
+/* Pink: cute e-girl — plum night, pastel text, hot-pink accent, lilac secondary. */
+[data-theme="pink"] {
+  --color-bg: #170c16; --color-surface: #22111f; --color-surface-2: #2e1729; --color-border: #4a2442;
+  --color-fg: #ffe8f5; --color-muted: #e0a8cc; --color-faint: #a0708f;
+  --color-accent: #ff5fb4; --color-accent-fg: #2a0019; --color-accent-soft: #4a1838; --color-accent-ink: #ffc2e3; --color-cyan: #c9b2ff;
+}
+[data-theme="daylight"] { color-scheme: light; }
+:root:not([data-theme="daylight"]) { color-scheme: dark; }
+
 html, body { height: 100%; }
 
 /* ── Motion ─────────────────────────────────────────────────────────────

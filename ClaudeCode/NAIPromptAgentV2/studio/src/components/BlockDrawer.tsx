@@ -115,7 +115,7 @@ export function BlockDrawer({ open, onClose, chars, tagText, onSend, onLoadScene
             : typeof suggested === "string" ? <p className="text-muted text-sm">{suggested}</p>
             : <div className="flex flex-wrap gap-1.5">{suggested.map((b, i) => (
                 <button key={b.id} type="button" aria-pressed={picked.includes(b.id)} onClick={() => toggle(b.id)} style={{ animationDelay: `${Math.min(i, 16) * 35}ms` }}
-                  className={`animate-rise h-9 rounded-md border px-3 text-sm ${picked.includes(b.id) ? "border-accent bg-surface-2" : "border-teal-800 bg-teal-950/40"}`}>+ {b.name}</button>))}</div>)}
+                  className={`animate-rise h-9 rounded-md border px-3 text-sm ${picked.includes(b.id) ? "border-accent bg-surface-2" : "border-cyan/40 bg-cyan/10"}`}>+ {b.name}</button>))}</div>)}
         </div>
 
         <div className="border-border flex gap-2 border-t p-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
