@@ -19,3 +19,12 @@ test("review: EXIF-rotated portrait keeps its portrait shape uncropped", async (
   assert.ok(meta.height! > meta.width!, `${meta.width}x${meta.height}`);
   assert.ok(Math.abs(meta.width! / meta.height! - 0.75) < 0.01);
 });
+
+test("focusQuery: the user's focus steers ToriiGate; tags ground it; no focus = the normal long caption", async () => {
+  const { focusQuery, toriiQuery } = await import("./llm");
+  assert.equal(focusQuery("1girl, armor", ""), toriiQuery("1girl, armor"));
+  const q = focusQuery("1girl, broken armor", "how exactly is the armor broken?");
+  assert.match(q, /how exactly is the armor broken\?/);
+  assert.match(q, /\[1girl, broken armor\]/);
+  assert.match(q, /Focus/);
+});

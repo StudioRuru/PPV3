@@ -1,7 +1,7 @@
 "use client";
 
-export type Tab = "studio" | "roll" | "closet";
-type Item = { id: Tab | "chat"; label: string; d: string };
+export type Tab = "studio" | "roll" | "closet" | "chat";
+type Item = { id: Tab; label: string; d: string };
 
 // Monochrome line icons (currentColor).
 const ITEMS: Item[] = [
@@ -11,8 +11,8 @@ const ITEMS: Item[] = [
   { id: "chat", label: "Chat", d: "M4 5h16v11H9l-5 4Z" },
 ];
 
-/** Bottom tabs. Chat opens the co-pilot sheet (it becomes a screen in sub-project 5). */
-export function TabBar({ tab, onTab, onChat }: { tab: Tab; onTab: (t: Tab) => void; onChat: () => void }) {
+/** Bottom tabs. */
+export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   return (
     <nav aria-label="Sections" className="bg-bg/95 border-border fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
@@ -21,7 +21,7 @@ export function TabBar({ tab, onTab, onChat }: { tab: Tab; onTab: (t: Tab) => vo
           const on = it.id === tab;
           return (
             <button key={it.id} type="button" aria-current={on ? "page" : undefined}
-              onClick={() => (it.id === "chat" ? onChat() : onTab(it.id))}
+              onClick={() => onTab(it.id)}
               className={`flex flex-col items-center justify-center gap-0.5 text-[11px] ${on ? "text-accent font-semibold" : "text-muted"}`}>
               <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={on ? 2 : 1.7} strokeLinecap="round" strokeLinejoin="round"><path d={it.d} /></svg>
               {it.label}

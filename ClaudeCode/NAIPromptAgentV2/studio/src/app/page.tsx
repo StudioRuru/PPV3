@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BlockDrawer } from "@/components/BlockDrawer";
-import { ChatSheet, type ChatSeed } from "@/components/ChatSheet";
+import { ChatScreen, type ChatSeed } from "@/components/ChatScreen";
 import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
 import { CameraRoll } from "@/components/CameraRoll";
@@ -43,7 +43,6 @@ export default function Studio() {
   const [drawer, setDrawer] = useState(false);
   const [preset, setPreset] = useState<Preset>(BUILTIN_PRESETS[0]);
   const [tagText, setTagText] = useState("");
-  const [chat, setChat] = useState(false);
   const [seed, setSeed] = useState<ChatSeed>(null);
   const [grid, setGrid] = useState(false);
   const [undo, setUndo] = useState<PromptState | null>(null);
@@ -57,7 +56,7 @@ export default function Studio() {
   // The viewer browses whichever list it was opened from (studio history or the camera roll).
   const [viewerItems, setViewerItems] = useState<Generation[] | null>(null);
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
-  const TABS: Tab[] = ["studio", "roll", "closet"];
+  const TABS: Tab[] = ["studio", "roll", "closet", "chat"];
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
@@ -211,7 +210,7 @@ export default function Studio() {
         <TaggerPane preset={preset} onTagged={() => setDrawer(true)} onDrop={dropTags}
           onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText}
           onRecreate={doRecreate} incoming={incoming}
-          onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); setChat(true); }} />
+          onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); setTab("chat"); }} />
         <div className="flex gap-2">
           <button type="button" onClick={() => setDrawer(true)} className="border-border flex-1 rounded-md border px-3 py-2.5 text-sm">
             Building blocks
@@ -275,6 +274,9 @@ export default function Studio() {
       <div className={tab === "roll" ? "lg:col-span-2" : "hidden"}>
         <CameraRoll active={tab === "roll"} onOpen={(items, id) => { setViewerItems(items); setViewing(id); }} onChanged={() => loadHistory().then((items) => setCurrent((c) => items.find((g) => g.id === c?.id) ?? items[0] ?? null))} />
       </div>
+      <div className={tab === "chat" ? "lg:col-span-2" : "hidden"}>
+        <ChatScreen active={tab === "chat"} state={state} seed={seed} onApply={(ops) => setState((s) => applyOps(s, ops))} />
+      </div>
       <div className={tab === "closet" ? "lg:col-span-2" : "hidden"}>
         <Closet active={tab === "closet"} onUse={useFromCloset}
           prompt={[...state.base, ...state.chars.flatMap((c) => c.lines)].filter((l) => l.enabled).flatMap((l) => splitTags(l.text))} />
@@ -297,14 +299,12 @@ export default function Studio() {
       <BlockDrawer open={drawer} onClose={() => setDrawer(false)} chars={state.chars} tagText={tagText}
         onSend={sendBlocks} onLoadScene={(b) => { setState(loadScene(b, state.rating)); setDrawer(false); }}
         preset={preset} onPreset={setPreset} rating={state.rating} />
-      <ChatSheet open={chat} onClose={() => setChat(false)} state={state} seed={seed}
-        onApply={(ops) => setState((s) => applyOps(s, ops))} />
       <FindSheet open={find} onClose={() => setFind(false)} rating={state.rating} onRecreate={doRecreate} />
       <VariationSheet source={vary} onClose={() => setVary(null)} onPick={showGeneration} onDone={loadHistory} />
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
-      <TabBar tab={tab} onTab={setTab} onChat={() => setChat(true)} />
+      <TabBar tab={tab} onTab={setTab} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}

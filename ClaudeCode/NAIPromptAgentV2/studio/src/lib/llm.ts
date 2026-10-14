@@ -99,3 +99,12 @@ export async function caption(imageUrl: string, query: string): Promise<string> 
 export function toriiQuery(tags: string): string {
   return `# Captioning format:\nMake a caption for given image with natural text. Use 2 to 5 paragraphs. Make your description long and vivid, mentioning all the details.\n\n${tags ? `# Booru tags for the image\n[${tags}]\n\n` : ""}# Characters on picture:\nAvoid to guess names for characters.\n`;
 }
+
+/**
+ * ToriiGate steered by the user's focus question (e.g. "how exactly is the armor broken?"): a long, detailed caption
+ * that concentrates on that detail. Without a focus it is the normal long caption.
+ */
+export function focusQuery(tags: string, focus: string): string {
+  if (!focus.trim()) return toriiQuery(tags);
+  return `# Captioning format:\nMake a long, precise description of the image that concentrates on the focus below. Describe that part in close detail (exact garments and their state, damage, exposure, materials, pose, objects); mention the rest briefly.\n\n# Focus:\n${focus.trim().slice(0, 300)}\n\n${tags ? `# Booru tags for the image\n[${tags}]\n\n` : ""}# Characters on picture:\nAvoid to guess names for characters.\n`;
+}
