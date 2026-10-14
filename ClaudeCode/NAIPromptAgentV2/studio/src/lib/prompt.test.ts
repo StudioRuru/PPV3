@@ -143,3 +143,12 @@ test("review: resizeRegion keeps the top-left corner fixed, even when clamped at
   assert.deepEqual(resizeRegion(from, 0.1, 0.2), { x: 0.55, y: 0.6, w: 0.3, h: 0.4 });
   assert.deepEqual(resizeRegion(from, -0.5, -0.5), { x: 0.44, y: 0.44, w: 0.08, h: 0.08 });
 });
+
+test("website prompts: blank-line sections become lines, brace emphasis survives (commas inside braces too)", () => {
+  const web = "1girl, nsfw, {{artist:Yabby,}} \n\n{{full body,}}\n\nmoral degeneration, public,\ntrain interior, standing, \n\nbest quality, [[blurry]], {a, b},,\n\n";
+  assert.deepEqual(parseToLines(web).map((l) => l.text), [
+    "1girl, nsfw, {{artist:Yabby}}", "{{full body}}", "moral degeneration, public, train interior, standing", "best quality, [[blurry]], {a, b}",
+  ]);
+  assert.deepEqual(splitTags("a, {{b, c}}, [d, e], f"), ["a", "{{b, c}}", "[d, e]", "f"]);
+  assert.deepEqual(parseToLines("1girl, 1.3::rain, night::, smile").map((l) => [l.text, l.weight]), [["1girl", undefined], ["rain, night", 1.3], ["smile", undefined]]);
+});

@@ -31,14 +31,17 @@ export function emptyState(): PromptState {
   return { base: [newLine()], chars: [], uc: DEFAULT_UC, rating: "nsfw", positions: "ai" };
 }
 
-/** Split on commas/newlines, keeping `w::…::` runs whole. */
+/** Split on commas/newlines, keeping `w::…::` runs and `{…}` / `[…]` emphasis groups whole. */
 export function splitTags(s: string): string[] {
   const out: string[] = [];
   let buf = "";
   let inWeight = false;
+  let depth = 0;
   for (let i = 0; i < s.length; i++) {
     if (s[i] === ":" && s[i + 1] === ":") { inWeight = !inWeight; buf += "::"; i++; continue; }
-    if ((s[i] === "," || s[i] === "\n") && !inWeight) {
+    if (s[i] === "{" || s[i] === "[") depth++;
+    if ((s[i] === "}" || s[i] === "]") && depth > 0) depth--;
+    if ((s[i] === "," || s[i] === "\n") && !inWeight && !depth) {
       if (buf.trim()) out.push(buf.trim());
       buf = "";
     } else buf += s[i];
@@ -139,16 +142,22 @@ export function compile(s: PromptState): Compiled {
   return { base: addMissing(joinLines(s.base), r.add), uc: addMissing(s.uc.trim(), r.uc), chars };
 }
 
-/** One prompt string → editor lines; each weighted run becomes its own line. */
+/**
+ * One prompt string → editor lines. Blank-line sections (how NovelAI's web prompts are laid out) become
+ * separate lines; each weighted run becomes its own line; `{{tag,}}` loses the stray comma before its brace.
+ */
 export function parseToLines(s: string): Line[] {
   const lines: Line[] = [];
-  let plain: string[] = [];
-  const flush = () => { if (plain.length) lines.push(newLine(plain.join(", "))); plain = []; };
-  for (const tag of splitTags(s)) {
-    const m = tag.match(/^(-?[\d.]+)::([\s\S]*?)::?$/);
-    if (m) { flush(); lines.push(newLine(m[2].trim(), Number(m[1]))); }
-    else plain.push(tag);
+  for (const section of s.split(/\n\s*\n/)) {
+    let plain: string[] = [];
+    const flush = () => { if (plain.length) lines.push(newLine(plain.join(", "))); plain = []; };
+    for (const raw of splitTags(section)) {
+      const tag = raw.replace(/\s*,\s*([}\]]+)/g, "$1");
+      const m = tag.match(/^(-?[\d.]+)::([\s\S]*?)::?$/);
+      if (m) { flush(); lines.push(newLine(m[2].trim(), Number(m[1]))); }
+      else if (tag) plain.push(tag);
+    }
+    flush();
   }
-  flush();
   return lines.length ? lines : [newLine()];
 }

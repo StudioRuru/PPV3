@@ -133,8 +133,10 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
             </div>
           )}
           {res && (
-            <button type="button" disabled={!text} onClick={() => onRecreate(kept.filter((t) => !chips[toPromptTag(t)]?.dropped).map((t) => ({ ...t, weight: chips[toPromptTag(t)]?.weight })))}
-              className="bg-accent text-accent-fg w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-40">Recreate this image</button>
+            // A NovelAI PNG carries its exact recipe: recreate from that, not from the tagger's guesses.
+            <button type="button" disabled={!text && !res.recipe}
+              onClick={() => res.recipe ? onRecipe(res.recipe) : onRecreate(kept.filter((t) => !chips[toPromptTag(t)]?.dropped).map((t) => ({ ...t, weight: chips[toPromptTag(t)]?.weight })))}
+              className="bg-accent text-accent-fg w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-40">{res.recipe ? "Recreate from its NovelAI recipe" : "Recreate this image"}</button>
           )}
           {res && (
             <button type="button" onClick={() => lastFile.current && onScene(lastFile.current, text)}

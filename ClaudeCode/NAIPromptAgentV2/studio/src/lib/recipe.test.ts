@@ -64,3 +64,18 @@ test("V5 recipe with coords restores custom positions", async () => {
   assert.equal(state.positions, "custom");
   assert.deepEqual(state.chars.map((c) => c.center), [{ x: 0.3, y: 0.5 }, { x: 0.7, y: 0.5 }]);
 });
+
+test("website recipe: per-character UC, noise schedule and guidance rescale come across", async () => {
+  const web = { ...comment, noise_schedule: "exponential", cfg_rescale: 0.6, sampler: "k_euler",
+    v4_prompt: { use_coords: true, caption: { base_caption: "1girl, nsfw\n\n{{full body,}}", char_captions: [{ char_caption: "girl, red hair,\nshy,", centers: [{ x: 0.5, y: 0.5 }] }] } },
+    v4_negative_prompt: { caption: { base_caption: "lowres", char_captions: [{ char_caption: "bad hands", centers: [{ x: 0.5, y: 0.5 }] }] } } };
+  const chunks = extract(new Uint8Array(await blankPng()));
+  chunks.splice(-1, 0, textChunk("Software", "NovelAI"), textChunk("Comment", JSON.stringify(web)));
+  const { state, params } = recipeToState((await readRecipe(Buffer.from(encode(chunks))))!);
+  assert.deepEqual(state.base.map((l) => l.text), ["1girl, nsfw", "{{full body}}"]);
+  assert.deepEqual(state.chars[0].lines.map((l) => l.text), ["girl, red hair, shy"]);
+  assert.equal(state.chars[0].uc, "bad hands");
+  assert.equal(params.noiseSchedule, "exponential");
+  assert.equal(params.cfgRescale, 0.6);
+  assert.equal(params.sampler, "k_euler");
+});
