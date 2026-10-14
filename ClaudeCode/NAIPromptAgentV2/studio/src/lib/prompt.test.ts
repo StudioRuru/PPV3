@@ -81,3 +81,43 @@ test("applyTags: base replace/append and new character creation", async () => {
   assert.deepEqual(withChar.chars[2].lines.map((l) => l.text), ["girl, red hair"]);
   assert.equal(s.chars.length, 0, "input state not mutated");
 });
+
+test("positionWords: side, height and size of a region", async () => {
+  const { positionWords } = await import("./prompt");
+  assert.equal(positionWords({ x: 0.2, y: 0.5, w: 0.3, h: 0.5 }), "on the left");
+  assert.equal(positionWords({ x: 0.8, y: 0.2, w: 0.3, h: 0.3 }), "on the right, upper part of the image");
+  assert.equal(positionWords({ x: 0.5, y: 0.8, w: 0.3, h: 0.3 }), "in the center, lower part of the image");
+  assert.equal(positionWords({ x: 0.5, y: 0.5, w: 0.4, h: 0.9 }), "in the center, full body");
+  assert.equal(positionWords({ x: 0.5, y: 0.5, w: 0.8, h: 0.7 }), "in the center, close-up");
+  assert.equal(positionWords({ x: 0.3, y: 0.5, w: 0.15, h: 0.25 }), "on the left, small in frame, in the distance");
+});
+
+test("custom positions: characters go left→right by box, each with its position words; words can be turned off", async () => {
+  const { compile, emptyState, newLine } = await import("./prompt");
+  const s = emptyState();
+  s.rating = "off";
+  s.positions = "custom";
+  s.base = [newLine("2girls")];
+  s.chars = [
+    { id: "a", lines: [newLine("red hair")], uc: "", enabled: true, region: { x: 0.8, y: 0.5, w: 0.3, h: 0.5 } },
+    { id: "b", lines: [newLine("blue hair")], uc: "", enabled: true, region: { x: 0.2, y: 0.5, w: 0.3, h: 0.5 } },
+  ];
+  const c = compile(s).chars;
+  assert.deepEqual(c.map((x) => x.prompt), ["blue hair, on the left", "red hair, on the right"]);
+  assert.deepEqual(c.map((x) => x.center), [{ x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }]);
+  assert.deepEqual(compile({ ...s, positionWords: false }).chars.map((x) => x.prompt), ["blue hair", "red hair"]);
+  assert.deepEqual(compile({ ...s, positions: "ai" }).chars.map((x) => x.prompt), ["red hair", "blue hair"], "AI mode: box order, no words");
+});
+
+test("regionOf: an old centre-only character gets a default box around its dot", async () => {
+  const { regionOf } = await import("./prompt");
+  assert.deepEqual(regionOf({ id: "a", lines: [], uc: "", enabled: true, center: { x: 0.2, y: 0.4 } }, 0, 1), { x: 0.2, y: 0.4, w: 0.3, h: 0.6 });
+  assert.equal(regionOf({ id: "a", lines: [], uc: "", enabled: true }, 1, 2).x, 0.67);
+});
+
+test("clampRegion keeps a box inside the canvas with a minimum size, never NaN", async () => {
+  const { clampRegion } = await import("./prompt");
+  assert.deepEqual(clampRegion({ x: 0.95, y: 0.5, w: 0.3, h: 0.4 }), { x: 0.85, y: 0.5, w: 0.3, h: 0.4 });
+  assert.deepEqual(clampRegion({ x: 0.5, y: 0.5, w: 1.6, h: 0.01 }), { x: 0.5, y: 0.5, w: 1, h: 0.08 });
+  assert.deepEqual(clampRegion({ x: NaN, y: -1, w: NaN, h: 0.2 }), { x: 0.5, y: 0.1, w: 0.3, h: 0.2 });
+});

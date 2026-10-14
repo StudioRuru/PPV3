@@ -1,9 +1,12 @@
 export type Line = { id: string; text: string; weight?: number; enabled: boolean };
-export type CharBox = { id: string; lines: Line[]; uc: string; center?: { x: number; y: number }; enabled: boolean };
+/** A character's box on the canvas, as fractions of the image: x/y is its centre (what NovelAI receives). */
+export type Region = { x: number; y: number; w: number; h: number };
+export type CharBox = { id: string; lines: Line[]; uc: string; center?: { x: number; y: number }; region?: Region; enabled: boolean };
 export type Rating = "safe" | "nsfw" | "off";
 /** V5 character placement: "ai" lets NovelAI choose; "custom" sends a dot for every character. */
 export type Positions = "ai" | "custom";
-export type PromptState = { base: Line[]; chars: CharBox[]; uc: string; rating: Rating; positions: Positions };
+/** positionWords (default on): Custom mode adds "on the left, full body"… to each character so text and box agree. */
+export type PromptState = { base: Line[]; chars: CharBox[]; uc: string; rating: Rating; positions: Positions; positionWords?: boolean };
 export type CompiledChar = { prompt: string; uc: string; center?: { x: number; y: number } };
 export type Compiled = { base: string; uc: string; chars: CompiledChar[] };
 
@@ -84,14 +87,42 @@ export function hasContent(s: PromptState): boolean {
   return joinLines(s.base) !== "";
 }
 
+/** Old drafts only have a centre dot: give them a default box around it. */
+export function regionOf(c: CharBox, i: number, n: number): Region {
+  return c.region ?? { ...(c.center ?? defaultCenter(i, n)), w: 0.3, h: 0.6 };
+}
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
+
+/** Inside the canvas, at least 8% each way, NaN-proof (pointer maths can produce it on zero-size rects). */
+export function clampRegion(r: Region): Region {
+  const size = (v: number, d: number) => Math.min(1, Math.max(0.08, Number.isFinite(v) ? v : d));
+  const w = size(r.w, 0.3), h = size(r.h, 0.6);
+  const pos = (v: number, half: number) => Math.min(1 - half, Math.max(half, Number.isFinite(v) ? v : 0.5));
+  return { x: r2(pos(r.x, w / 2)), y: r2(pos(r.y, h / 2)), w: r2(w), h: r2(h) };
+}
+
+/** Natural-language placement for a box — NovelAI's positions are a nudge that works best reinforced by words. */
+export function positionWords(r: Region): string {
+  const side = r.x < 0.34 ? "on the left" : r.x > 0.66 ? "on the right" : "in the center";
+  const height = r.y < 0.34 ? "upper part of the image" : r.y > 0.66 ? "lower part of the image" : "";
+  const area = r.w * r.h;
+  const size = r.h >= 0.75 ? "full body" : area >= 0.45 ? "close-up" : area <= 0.05 ? "small in frame, in the distance" : "";
+  return [side, height, size].filter(Boolean).join(", ");
+}
+
 export function compile(s: PromptState): Compiled {
   const r = RATING_TAGS[s.rating];
   const live = s.chars.filter((c) => c.enabled && joinLines(c.lines));
   const custom = s.positions === "custom";
-  const chars = live.map((c, i) => ({
-    prompt: joinLines(c.lines),
+  const words = custom && s.positionWords !== false;
+  const placed = live.map((c, i) => ({ c, r: regionOf(c, i, live.length) }));
+  // Custom: send left→right so box order never contradicts placement (sort is stable).
+  if (custom) placed.sort((a, b) => a.r.x - b.r.x);
+  const chars = placed.map(({ c, r: reg }) => ({
+    prompt: [joinLines(c.lines), words ? positionWords(reg) : ""].filter(Boolean).join(", "),
     uc: c.uc.trim(),
-    center: custom ? (c.center ?? defaultCenter(i, live.length)) : undefined,
+    center: custom ? { x: reg.x, y: reg.y } : undefined,
   }));
   return { base: addMissing(joinLines(s.base), r.add), uc: addMissing(s.uc.trim(), r.uc), chars };
 }

@@ -141,6 +141,7 @@ export default function Studio() {
         </div>
         <CharacterBoxes chars={state.chars} onChange={(chars) => setState({ ...state, chars })}
           positions={state.positions ?? "ai"} onPositions={(positions) => setState({ ...state, positions })}
+          words={state.positionWords !== false} onWords={(positionWords) => setState({ ...state, positionWords })}
           width={params.width} height={params.height} />
         <div className="bg-surface border-border rounded-lg border p-3">
           <h2 className="mb-2 text-sm font-semibold">Undesired content</h2>
