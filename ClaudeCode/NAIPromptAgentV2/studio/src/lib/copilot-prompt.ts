@@ -53,9 +53,10 @@ ${lib}
 # How to answer
 Write a short reply in prose. When you suggest prompt changes, end with ONE fenced json block:
 \`\`\`json
-{"ops":[{"target":"base|char:N|uc","action":"add|remove|replace|weight","line":"comma, separated, tags","weight":1.15}]}
+{"ops":[{"target":"base|artist|char:N|uc","action":"add|remove|replace|weight","line":"comma, separated, tags"}]}
 \`\`\`
-"weight" is optional except for action "weight". Use real Danbooru tags or short natural-language phrases. char:N is 0-based.`;
+Use real Danbooru tags or short natural-language phrases. char:N is 0-based. Artist tags ("artist:name") go to target "artist".
+Emphasis: most lines stay unweighted. Add "weight" (0.8–1.3) to at most 1–2 lines — the single defining element — and never weight everything; over-emphasis ruins NovelAI images. "weight" is required only for action "weight".`;
 }
 
 export function trimHistory(msgs: ChatMsg[], max = 20): ChatMsg[] {

@@ -152,3 +152,18 @@ test("website prompts: blank-line sections become lines, brace emphasis survives
   assert.deepEqual(splitTags("a, {{b, c}}, [d, e], f"), ["a", "{{b, c}}", "[d, e]", "f"]);
   assert.deepEqual(parseToLines("1girl, 1.3::rain, night::, smile").map((l) => [l.text, l.weight]), [["1girl", undefined], ["rain, night", 1.3], ["smile", undefined]]);
 });
+
+test("artist section: sent at the front of Base, artist: prefix added, weights (incl. negative) kept; old states fine", async () => {
+  const { compile, emptyState, newLine } = await import("./prompt");
+  const s = { ...emptyState(), rating: "off" as const, base: [newLine("1girl, smile")], artists: [newLine("ciloranko"), newLine("artist:wlop", -0.5), newLine("")] };
+  assert.equal(compile(s).base, "artist:ciloranko, -0.5::artist:wlop::, 1girl, smile");
+  const { artists: _, ...old } = s;
+  assert.equal(compile(old).base, "1girl, smile");
+});
+
+test("splitArtists pulls artist tags (with {}/[] or numeric emphasis) out of lines", async () => {
+  const { splitArtists, newLine } = await import("./prompt");
+  const { base, artists } = splitArtists([newLine("1girl, nsfw, {{artist:Yabby}}"), newLine("artist:wlop"), newLine("rain", 1.2), newLine("0.8::artist:sho::")]);
+  assert.deepEqual(base.map((l) => [l.text, l.weight]), [["1girl, nsfw", undefined], ["rain", 1.2]]);
+  assert.deepEqual(artists.map((l) => [l.text, l.weight]), [["artist:Yabby", 1.1], ["artist:wlop", undefined], ["artist:sho", 0.8]]);
+});

@@ -36,3 +36,12 @@ test("review: characters are listed by their real index, disabled/empty ones mar
   assert.ok(p.includes("char:0 (disabled): alice"), p);
   assert.ok(p.includes("char:1: bob"));
 });
+
+test("system prompt teaches sparing emphasis and the artist target, and its example carries no weight", async () => {
+  const { systemPrompt } = await import("./copilot-prompt");
+  const { emptyState } = await import("./prompt");
+  const p = systemPrompt({ state: emptyState(), blocks: [], syntax: "", style: "" });
+  assert.ok(/most lines.*unweighted/i.test(p), "emphasis rule");
+  assert.ok(p.includes("artist"), "artist target");
+  assert.ok(!/"weight":1\.15/.test(p), "example must not show a weight");
+});

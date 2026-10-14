@@ -15,7 +15,8 @@ const lines = (ls: { text: string }[]) => ls.map((l) => l.text);
 test("recreate lays tags out the V5 way: scene + style in Base, who/look/outfit/pose on Character 1", () => {
   const s = { ...emptyState(), uc: "my uc", rating: "safe" as const };
   const r = recreate(tags, s);
-  assert.deepEqual(lines(r.base), ["1girl", "classroom", "artist:khazure"]);
+  assert.deepEqual(lines(r.base), ["1girl", "classroom"]);
+  assert.deepEqual(lines(r.artists ?? []), ["artist:khazure"]);
   assert.equal(r.chars.length, 1);
   assert.deepEqual(lines(r.chars[0].lines), ["hatsune miku, vocaloid", "aqua hair", "school uniform, wet", "sitting, smile"]);
   assert.equal(r.uc, "my uc");

@@ -12,11 +12,13 @@ export function recreate(tags: RawTag[], s: PromptState): PromptState {
   const tag = (t: RawTag) => (t.weight ? `${t.weight}::${toPromptTag(t)}::` : toPromptTag(t));
   const join = (pick: (t: RawTag) => boolean) => tags.filter(pick).map(tag).join(", ");
   const g = (...n: number[]) => (t: RawTag) => t.category === "general" && n.includes(t.group ?? 6);
-  const base = [join(g(0)), join(g(5)), join((t) => t.category === "style")].filter(Boolean);
+  const base = [join(g(0)), join(g(5))].filter(Boolean);
+  const artists = tags.filter((t) => t.category === "style").map((t) => newLine(toPromptTag(t), t.weight));
   const char = [join((t) => t.category === "character" || t.category === "copyright"), join(g(1)), join(g(2, 3)), join(g(4, 6))].filter(Boolean);
   return {
     ...s,
     base: base.length ? base.map((t) => newLine(t)) : [newLine()],
+    artists,
     chars: char.length ? [{ id: `c${Date.now().toString(36)}`, lines: char.map((t) => newLine(t)), uc: "", enabled: true }] : [],
     positions: "ai",
   };

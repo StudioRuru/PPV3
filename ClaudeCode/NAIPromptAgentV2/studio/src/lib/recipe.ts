@@ -2,7 +2,7 @@ import { gunzipSync } from "node:zlib";
 import sharp from "sharp";
 import extract from "png-chunks-extract";
 import { decode } from "png-chunk-text";
-import { emptyState, newLine, parseToLines, type PromptState } from "./prompt";
+import { emptyState, newLine, parseToLines, splitArtists, type PromptState } from "./prompt";
 import type { NaiParams } from "./nai-body";
 
 export type Recipe = {
@@ -70,11 +70,13 @@ export async function readRecipe(png: Buffer): Promise<Recipe | null> {
 }
 
 export function recipeToState(r: Recipe): { state: PromptState; params: Partial<NaiParams> } {
+  const { base, artists } = splitArtists(parseToLines(r.base));
   const state: PromptState = {
     ...emptyState(),
     rating: "off",
     positions: r.useCoords ? "custom" : "ai",
-    base: parseToLines(r.base),
+    base: base.length ? base : [newLine()],
+    artists,
     uc: r.uc,
     chars: r.chars.map((p, i) => ({ id: newLine().id, lines: parseToLines(p), uc: r.charUcs?.[i] ?? "", enabled: true, center: r.useCoords ? r.centers[i] : undefined })),
   };

@@ -73,6 +73,7 @@ test("website recipe: per-character UC, noise schedule and guidance rescale come
   chunks.splice(-1, 0, textChunk("Software", "NovelAI"), textChunk("Comment", JSON.stringify(web)));
   const { state, params } = recipeToState((await readRecipe(Buffer.from(encode(chunks))))!);
   assert.deepEqual(state.base.map((l) => l.text), ["1girl, nsfw", "{{full body}}"]);
+  assert.deepEqual(recipeToState({ ...(await readRecipe(Buffer.from(encode(chunks))))!, base: "1girl, {{artist:Yabby,}}" }).state.artists?.map((l) => [l.text, l.weight]), [["artist:Yabby", 1.1]]);
   assert.deepEqual(state.chars[0].lines.map((l) => l.text), ["girl, red hair, shy"]);
   assert.equal(state.chars[0].uc, "bad hands");
   assert.equal(params.noiseSchedule, "exponential");

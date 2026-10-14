@@ -184,6 +184,12 @@ export default function Studio() {
           <h2 className="mb-2 text-sm font-semibold">Base prompt</h2>
           <LineList lines={state.base} onChange={(base) => setState({ ...state, base })} />
         </div>
+        <div className="bg-surface border-border rounded-lg border p-3">
+          <h2 className="mb-0.5 text-sm font-semibold">Artists</h2>
+          <p className="text-faint mb-2 text-xs">Sent first in the base prompt. Tap a weight to blend styles; below 0 steers away.</p>
+          <LineList lines={state.artists?.length ? state.artists : []} onChange={(artists) => setState({ ...state, artists })}
+            placeholder="artist name" addLabel="+ artist" />
+        </div>
         <CharacterBoxes chars={state.chars} onChange={(chars) => setState({ ...state, chars })}
           positions={state.positions ?? "ai"} onPositions={(positions) => setState({ ...state, positions })}
           words={state.positionWords !== false} onWords={(positionWords) => setState({ ...state, positionWords })}

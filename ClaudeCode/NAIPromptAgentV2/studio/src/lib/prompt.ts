@@ -6,7 +6,8 @@ export type Rating = "safe" | "nsfw" | "off";
 /** V5 character placement: "ai" lets NovelAI choose; "custom" sends a dot for every character. */
 export type Positions = "ai" | "custom";
 /** positionWords (default on): Custom mode adds "on the left, full body"… to each character so text and box agree. */
-export type PromptState = { base: Line[]; chars: CharBox[]; uc: string; rating: Rating; positions: Positions; positionWords?: boolean };
+/** artists: the Artists section — sent at the front of the base prompt, each `artist:` tag with its own weight. */
+export type PromptState = { base: Line[]; chars: CharBox[]; uc: string; rating: Rating; positions: Positions; positionWords?: boolean; artists?: Line[] };
 export type CompiledChar = { prompt: string; uc: string; center?: { x: number; y: number } };
 export type Compiled = { base: string; uc: string; chars: CompiledChar[] };
 
@@ -121,6 +122,31 @@ export function positionWords(r: Region): string {
   return [side, height, size].filter(Boolean).join(", ");
 }
 
+/** Artist lines → text, each tag carrying the `artist:` prefix NovelAI expects. */
+function joinArtists(lines: Line[] = []): string {
+  const prefixed = lines.map((l) => ({ ...l, text: splitTags(l.text).map((t) => (/^artist:/i.test(t) ? t : `artist:${t}`)).join(", ") }));
+  return joinLines(prefixed);
+}
+
+const ARTIST = /^(?:(-?[\d.]+)::)?\s*([{[]*)\s*(artist:[^{}[\]:]+?)\s*[}\]]*\s*(?:::)?$/i;
+
+/** Pull artist tags out of prompt lines (imports, recreate). `{}`/`[]` emphasis becomes a numeric weight (×1.05 per brace). */
+export function splitArtists(lines: Line[]): { base: Line[]; artists: Line[] } {
+  const artists: Line[] = [];
+  const base = lines.map((l) => {
+    const keep = splitTags(l.text).filter((t) => {
+      const m = t.match(ARTIST);
+      if (!m) return true;
+      const braces = (m[2].match(/{/g)?.length ?? 0) - (m[2].match(/\[/g)?.length ?? 0);
+      const w = m[1] ? Number(m[1]) : braces ? Math.round(1.05 ** braces * 100) / 100 : l.weight;
+      artists.push(newLine(m[3].trim(), w === 1 ? undefined : w));
+      return false;
+    });
+    return { ...l, text: keep.join(", ") };
+  }).filter((l) => l.text.trim());
+  return { base, artists };
+}
+
 export function compile(s: PromptState): Compiled {
   const r = RATING_TAGS[s.rating];
   const custom = s.positions === "custom";
@@ -139,7 +165,8 @@ export function compile(s: PromptState): Compiled {
     uc: c.uc.trim(),
     center: custom ? { x: reg.x, y: reg.y } : undefined,
   }));
-  return { base: addMissing(joinLines(s.base), r.add), uc: addMissing(s.uc.trim(), r.uc), chars };
+  const base = [joinArtists(s.artists), joinLines(s.base)].filter(Boolean).join(", ");
+  return { base: addMissing(base, r.add), uc: addMissing(s.uc.trim(), r.uc), chars };
 }
 
 /**

@@ -1,6 +1,6 @@
 import { applyTags, newLine, splitTags, type Line, type PromptState } from "./prompt";
 
-export type Op = { target: "base" | "uc" | `char:${number}`; action: "add" | "remove" | "replace" | "weight"; line: string; weight?: number };
+export type Op = { target: "base" | "uc" | "artist" | `char:${number}`; action: "add" | "remove" | "replace" | "weight"; line: string; weight?: number };
 
 const ACTIONS = new Set(["add", "remove", "replace", "weight"]);
 const key = (t: string) => t.trim().toLowerCase();
@@ -9,7 +9,7 @@ const bare = (t: string) => t.replace(/^-?[\d.]+::/, "").replace(/::$/, "").trim
 function validOp(o: unknown): o is Op {
   const v = o as Op;
   if (!v || typeof v.line !== "string" || !ACTIONS.has(v.action)) return false;
-  if (!(v.target === "base" || v.target === "uc" || /^char:\d+$/.test(String(v.target)))) return false;
+  if (!(v.target === "base" || v.target === "uc" || v.target === "artist" || /^char:\d+$/.test(String(v.target)))) return false;
   if (v.weight !== undefined && typeof v.weight !== "number") return false;
   return v.action !== "weight" || typeof v.weight === "number";
 }
@@ -27,11 +27,24 @@ export function parseReply(text: string): { prose: string; ops: Op[]; error?: st
   const prose = (text.slice(0, last.index) + text.slice(last.index! + last[0].length)).replace(/\n{3,}/g, "\n\n").trim();
   try {
     const raw = JSON.parse(last[1]).ops;
-    const ops = Array.isArray(raw) ? raw.filter(validOp) : [];
+    const ops = limitEmphasis(Array.isArray(raw) ? raw.filter(validOp) : []);
     return ops.length || !raw?.length ? { prose, ops } : { prose, ops, error: "No usable changes in that reply — ask again." };
   } catch {
     return { prose, ops: [], error: "Couldn't read the suggested changes — ask again." };
   }
+}
+
+/**
+ * The brain over-emphasises. Keep weights on at most 2 added/replaced lines, within 0.8–1.3; the rest come in
+ * unweighted. An explicit "weight" op is the user asking — left alone.
+ */
+function limitEmphasis(ops: Op[]): Op[] {
+  let kept = 0;
+  return ops.map((o) => {
+    if (o.action === "weight" || o.weight === undefined || o.weight === 1) return o;
+    if (++kept > 2) return { ...o, weight: undefined };
+    return { ...o, weight: Math.min(1.3, Math.max(0.8, o.weight)) };
+  });
 }
 
 function removeTag(lines: Line[], tag: string): Line[] {
@@ -76,6 +89,7 @@ export function applyOps(s: PromptState, ops: Op[]): PromptState {
   return ops.reduce((acc, op) => {
     if (op.target === "uc") return { ...acc, uc: editUc(acc.uc, op) };
     if (op.target === "base") return { ...acc, base: editLines(acc.base, op) };
+    if (op.target === "artist") return { ...acc, artists: editLines(acc.artists ?? [], op) };
     // Out-of-range indices append one new character, never a run of empty boxes.
     const n = Math.min(Number(op.target.slice(5)), acc.chars.length);
     const grown = acc.chars.length > n ? acc : applyTags(acc, n, "append", "");

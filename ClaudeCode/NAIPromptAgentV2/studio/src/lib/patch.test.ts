@@ -85,3 +85,15 @@ test("polish: a ```JSON fence parses; a block with only invalid ops says so", ()
   assert.equal(parseReply('ok\n```JSON\n{"ops":[{"target":"uc","action":"add","line":"blurry"}]}\n```').ops.length, 1);
   assert.match(parseReply(reply('{"ops":[{"target":"moon","action":"add","line":"x"}]}')).error ?? "", /no usable changes/i);
 });
+
+test("emphasis guard: at most 2 weighted adds, clamped to 0.8–1.3; explicit weight ops untouched", () => {
+  const all = (w: number) => ["a", "b", "c", "d"].map((t) => ({ target: "base", action: "add", line: t, weight: w }));
+  const r = parseReply(reply(JSON.stringify({ ops: [...all(1.2).slice(0, 3), { target: "base", action: "add", line: "x", weight: 1.9 }, { target: "char:0", action: "weight", line: "smile", weight: 1.6 }] })));
+  assert.deepEqual(r.ops.map((o) => o.weight), [1.2, 1.2, undefined, undefined, 1.6]);
+  assert.equal(parseReply(reply('{"ops":[{"target":"base","action":"replace","line":"y","weight":1.8}]}')).ops[0].weight, 1.3);
+});
+
+test("ops can target the artist section", () => {
+  const s = applyOps(emptyState(), parseReply(reply('{"ops":[{"target":"artist","action":"add","line":"artist:ciloranko"}]}')).ops);
+  assert.deepEqual(s.artists?.map((l) => l.text), ["artist:ciloranko"]);
+});
