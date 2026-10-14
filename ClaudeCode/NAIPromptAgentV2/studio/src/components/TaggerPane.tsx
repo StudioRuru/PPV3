@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import type { PromptState } from "@/lib/prompt";
-import { chipsToText, DEFAULT_EXCLUDE, dragText, filterTags, type ChipState, type Preset, type RawTag } from "@/lib/tagger";
+import { chipsToText, DEFAULT_EXCLUDE, dragText, keepTags, toPromptTag, type ChipState, type Preset, type RawTag } from "@/lib/tagger";
 import { TagChip } from "./TagChip";
 
 type TagResponse = { tags: RawTag[]; thresholds: Record<string, number>; ms: number; recipe: null | { state: PromptState; params: Partial<NaiParams> } };
@@ -16,12 +16,15 @@ function targetAt(x: number, y: number): { el: HTMLElement; target: Target } | n
   return { el, target: v === "base" || v === "new" ? v : Number(v.split(":")[1]) };
 }
 
-export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene }: {
+export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene, onRecreate, incoming }: {
   preset: Preset; onTagged: (n: number) => void;
   onDrop: (text: string, target: Target) => void;
   onRecipe: (r: { state: PromptState; params: Partial<NaiParams> }) => void;
   onText: (text: string) => void;
   onScene: (file: File, tags: string) => void;
+  onRecreate: (tags: RawTag[]) => void;
+  /** A file handed in from outside (iOS share sheet / native import): tagged as if picked here. */
+  incoming?: File | null;
 }) {
   const [open, setOpen] = useState(true);
   const [preview, setPreview] = useState<string | null>(null);
@@ -35,10 +38,11 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
   const latest = useRef(0);
   const lastFile = useRef<File | null>(null);
 
-  const tags = useMemo(() => (res ? filterTags(res.tags, {
+  const kept = useMemo(() => (res ? keepTags(res.tags, {
     thresholds: { ...res.thresholds, ...preset.thresholds },
     enabled: preset.enabled, exclude: preset.exclude ?? DEFAULT_EXCLUDE, groups: preset.groups,
   }) : []), [res, preset]);
+  const tags = useMemo(() => kept.map(toPromptTag), [kept]);
   const text = chipsToText(tags, chips);
   useEffect(() => { onText(text); }, [text, onText]);
 
@@ -54,6 +58,11 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
     setRes(r.data);
     onTagged(r.data.tags.length);
   }
+
+  useEffect(() => {
+    if (incoming) analyze(incoming);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once per handed-in file
+  }, [incoming]);
 
   const setHover = (el: HTMLElement | null) => {
     if (hover.current === el) return;
@@ -122,6 +131,10 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
               <button type="button" data-drop="new" onClick={() => onDrop(text, "new")} disabled={!text}
                 className="border-border flex-1 rounded-md border px-3 py-2.5 text-sm disabled:opacity-40">All → new character</button>
             </div>
+          )}
+          {res && (
+            <button type="button" disabled={!text} onClick={() => onRecreate(kept.filter((t) => !chips[toPromptTag(t)]?.dropped))}
+              className="bg-accent text-accent-fg w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-40">Recreate this image</button>
           )}
           {res && (
             <button type="button" onClick={() => lastFile.current && onScene(lastFile.current, text)}

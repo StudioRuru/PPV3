@@ -17,13 +17,17 @@ export function toPromptTag(t: RawTag): string {
 }
 
 export function filterTags(tags: RawTag[], o: TagOpts): string[] {
+  return keepTags(tags, o).map(toPromptTag);
+}
+
+/** The tags a preset keeps, in prompt order, still categorised (Recreate needs the categories). */
+export function keepTags(tags: RawTag[], o: TagOpts): RawTag[] {
   const excluded = new Set(o.exclude.map((e) => spaced(e).toLowerCase()).filter(Boolean));
   const rank = (c: string) => { const i = CATEGORY_ORDER.indexOf(c); return i < 0 ? 99 : i; };
   return tags
     .filter((t) => o.enabled[t.category] && t.score >= (o.thresholds[t.category] ?? 0.2) && !excluded.has(spaced(t.name).toLowerCase())
       && (t.category !== "general" || !o.groups || o.groups.includes(t.group ?? 6)))
-    .sort((a, b) => rank(a.category) - rank(b.category) || (a.group ?? 99) - (b.group ?? 99) || b.score - a.score)
-    .map(toPromptTag);
+    .sort((a, b) => rank(a.category) - rank(b.category) || (a.group ?? 99) - (b.group ?? 99) || b.score - a.score);
 }
 
 export type Preset = {

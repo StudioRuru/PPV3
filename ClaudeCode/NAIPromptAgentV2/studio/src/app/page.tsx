@@ -14,6 +14,8 @@ import { DEFAULT_PARAMS, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import { applyOps } from "@/lib/patch";
 import { isFree } from "@/lib/grid";
+import { recreate } from "@/lib/recreate";
+import type { RawTag } from "@/lib/tagger";
 import { applyTags, emptyState, type PromptState } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
@@ -32,6 +34,18 @@ export default function Studio() {
   const [chat, setChat] = useState(false);
   const [seed, setSeed] = useState<ChatSeed>(null);
   const [grid, setGrid] = useState(false);
+  const [undo, setUndo] = useState<PromptState | null>(null);
+  const [incoming, setIncoming] = useState<File | null>(null);
+
+  function doRecreate(tags: RawTag[]) {
+    setUndo(state);
+    setState((s) => recreate(tags, s));
+  }
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 10_000);
+    return () => clearTimeout(t);
+  }, [undo]);
 
   function dropTags(text: string, target: "base" | number | "new") {
     if (!text) return;
@@ -89,6 +103,7 @@ export default function Studio() {
       <section className="space-y-4">
         <TaggerPane preset={preset} onTagged={() => setDrawer(true)} onDrop={dropTags}
           onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText}
+          onRecreate={doRecreate} incoming={incoming}
           onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); setChat(true); }} />
         <button type="button" onClick={() => setDrawer(true)} className="border-border w-full rounded-md border px-3 py-2.5 text-sm">
           Building blocks — presets, themes, clusters, library
@@ -131,7 +146,9 @@ export default function Studio() {
 
       <div className="bg-bg/90 border-border fixed inset-x-0 bottom-0 border-t p-3 backdrop-blur" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
-          {error ? <p role="alert" className="text-danger flex-1 text-sm">{error}</p>
+          {undo ? <p role="status" className="flex flex-1 items-center gap-3 text-sm">Prompt recreated
+              <button type="button" onClick={() => { setState(undo); setUndo(null); }} className="text-accent font-semibold">Undo</button></p>
+            : error ? <p role="alert" className="text-danger flex-1 text-sm">{error}</p>
             : <span className="text-faint hidden truncate font-mono text-[11px] sm:inline">{params.width}×{params.height} · {params.steps} steps · {isFree(params) ? "free" : "Anlas"}</span>}
           <button type="button" onClick={() => setGrid(true)} className="border-border ml-auto rounded-lg border px-4 py-3 text-base">Grid</button>
           <button type="button" onClick={() => setChat(true)} className="border-border rounded-lg border px-4 py-3 text-base">Chat</button>
