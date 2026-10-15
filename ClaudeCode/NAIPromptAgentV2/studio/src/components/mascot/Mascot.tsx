@@ -20,7 +20,7 @@ const SULK: Say[] = [{ expression: "pout", text: "Fine! I'll go sulk somewhere e
 const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** Miyabi: quips about `mascot` bus events on every tab. Full-body on the Stage when the outfit has pose sprites, else the corner bust.
- *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden} and `mascot:mood` {src} out (on change and on mount). */
+ *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden, show} and `mascot:mood` {src} out (on change and on mount). */
 export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab, onSettings }: {
   rating: string; prompt: string; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
 }) {
@@ -170,9 +170,9 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
   }, [hidden, hiddenUntil]);
   // Tell the island / Settings (deferred so listeners mounting in the same commit hear the first one).
   useEffect(() => {
-    const t = setTimeout(() => window.dispatchEvent(new CustomEvent("mascot:hidden", { detail: { hidden } })), 0);
+    const t = setTimeout(() => window.dispatchEvent(new CustomEvent("mascot:hidden", { detail: { hidden, show: !!settings?.show } })), 0);
     return () => clearTimeout(t);
-  }, [hidden]);
+  }, [hidden, settings?.show]);
 
   const outfit: Outfit = settings ? outfitFor({ hour: new Date().getHours(), nightFrom: settings.nightFrom, nightTo: settings.nightTo, pin: settings.pin, nsfw: rating === "nsfw", flirt: settings.mods.flirt, flirtyTalk: false }) : "day";
   const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));

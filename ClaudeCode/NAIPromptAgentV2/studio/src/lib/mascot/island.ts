@@ -21,12 +21,12 @@ export const TAP_SLOP = 10, LONG_MS = 500, SWIPE_MIN = 40;
 export const CAL_BOUNDS: Record<keyof Calibration, [number, number]> = { x: [-40, 40], y: [-40, 40], w: [-40, 60], h: [-40, 60] };
 export const CAL_ZERO: Calibration = { x: 0, y: 0, w: 0, h: 0 };
 
-/** A top safe-area inset this tall means a Dynamic Island (notch phones are ~47, others 0–20). */
-export const hasIsland = (topInsetPx: number) => topInsetPx >= 50;
+/** A top safe-area inset taller than 50 means a Dynamic Island (notch phones are ~47, others 0–20). */
+export const hasIsland = (topInsetPx: number) => topInsetPx > 50;
 
 export function nextState(s: IslandState, e: IslandEvent): IslandState {
   switch (e) {
-    case "tap": return s === "compact" ? "expanded" : "compact";
+    case "tap": return s === "expanded" ? "compact" : "expanded";
     case "expand": return "expanded";
     case "collapse": return "minimal";
     case "peek": return s === "minimal" ? "compact" : s;

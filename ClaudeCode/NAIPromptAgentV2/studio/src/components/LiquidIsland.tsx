@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { anchorBox, CAL_ZERO, classifyIslandGesture, CORNER, DRAG, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, hotRect, LONG_MS, nextState, springEasing, swipeTab, TAP_SLOP,
   type Calibration, type IslandEvent, type IslandState, type Size } from "@/lib/mascot/island";
+import { requestSeq } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 import { SETTINGS_ICON, TAB_IDS, TABS, type Tab } from "@/lib/tabs";
 
@@ -40,6 +41,8 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
   const [cal, setCal] = useState<Calibration>(CAL_ZERO);
   const [mischief, setMischief] = useState(5);
   const [hidden, setHidden] = useState(false);
+  const [shown, setShown] = useState(true); // Miyabi enabled in settings; off = nothing to hide or summon
+  const [seq] = useState(requestSeq); // only the newest Mischief response is applied
   const [mood, setMood] = useState<string | null>(null);
   const root = useRef<HTMLElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -74,7 +77,7 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
     const apply = (s: Wire | undefined) => { if (!s) return; setCal(s.island ?? CAL_ZERO); if (typeof s.mischief === "number") setMischief(s.mischief); };
     requestJson<{ settings: Wire }>("/api/mascot/state").then((r) => r.ok && apply(r.data.settings));
     const onSettings = (e: Event) => apply((e as CustomEvent<Wire>).detail);
-    const onHidden = (e: Event) => setHidden(!!(e as CustomEvent<{ hidden: boolean }>).detail?.hidden);
+    const onHidden = (e: Event) => { const d = (e as CustomEvent<{ hidden: boolean; show?: boolean }>).detail; setHidden(!!d?.hidden); setShown(d?.show !== false); };
     const onMood = (e: Event) => setMood((e as CustomEvent<{ src: string | null }>).detail?.src ?? null);
     window.addEventListener("mascot:settings", onSettings);
     window.addEventListener("mascot:hidden", onHidden);
@@ -166,8 +169,9 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
   function pick(f: () => void) { go("collapse"); toggle.current?.focus(); f(); }
   async function saveMischief(m: number) {
     setMischief(m);
+    const n = seq.start();
     const r = await requestJson<{ settings: Wire }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: { mischief: m } }) });
-    if (r.ok) window.dispatchEvent(new CustomEvent("mascot:settings", { detail: r.data.settings }));
+    if (seq.done(n) && r.ok) window.dispatchEvent(new CustomEvent("mascot:settings", { detail: r.data.settings }));
   }
 
   if (!view) return null;
@@ -177,7 +181,7 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
   const hot = hotRect(state, island, a, rest);
 
   return (
-    <nav ref={root} aria-label="Navigation" data-noswipe className="pointer-events-none fixed inset-x-0 top-0 z-[35] h-0 select-none"
+    <nav ref={root} aria-label="Navigation" data-noswipe className="pointer-events-none fixed inset-x-0 top-0 z-[36] h-0 select-none"
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={release} onLostPointerCapture={release}
       onClickCapture={(e) => { if (performance.now() < suppressUntil.current) { suppressUntil.current = 0; e.preventDefault(); e.stopPropagation(); } }}>
       {/* Goo: blur + alpha threshold fuses the anchor and the drawer. Only these two black shapes are filtered. */}
@@ -207,9 +211,11 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
           ))}
         </div>
         <div className="flex items-center gap-3 px-4 pt-1">
-          <button type="button" data-ctl onClick={hideOrSummon} className="h-9 shrink-0 rounded-full bg-white/15 px-3 text-xs font-medium">
-            {hidden ? "Summon Miyabi" : "Hide Miyabi"}
-          </button>
+          {shown && (
+            <button type="button" data-ctl onClick={hideOrSummon} className="h-9 shrink-0 rounded-full bg-white/15 px-3 text-xs font-medium">
+              {hidden ? "Summon Miyabi" : "Hide Miyabi"}
+            </button>
+          )}
           <label data-ctl className="flex min-w-0 flex-1 items-center gap-2 text-[11px] text-white/75">
             Mischief
             <input type="range" min={0} max={10} step={1} value={mischief} onChange={(e) => saveMischief(Number(e.target.value))}
@@ -222,16 +228,16 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
       <button ref={toggle} type="button" data-island aria-label={`Navigation, current: ${label}`} aria-expanded={state === "expanded"} onClick={() => go("tap")}
         className="pointer-events-auto absolute left-1/2 text-white outline-offset-2" style={{ top: 0, width: hot.w, height: hot.h, transform: centre(), touchAction: "none", WebkitTouchCallout: "none" } as React.CSSProperties}>
         {!island && state === "minimal" && (
-          <span className="absolute inset-x-0 text-[11px] font-medium text-white/80" style={{ top: a.top, lineHeight: `${a.h}px` }}>{label}</span>
+          <span className="pointer-events-none absolute inset-x-0 text-[11px] font-medium text-white/80" style={{ top: a.top, lineHeight: `${a.h}px` }}>{label}</span>
         )}
-        <span className={`absolute left-1/2 flex -translate-x-1/2 items-center gap-2 transition-opacity duration-150 ${compact ? "opacity-100" : "opacity-0"}`}
+        {compact && <span className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-2"
           style={{ top: a.top + a.h, height: rest.h - a.h, width: rest.w, paddingInline: 14 }}>
           <Icon d={TABS.find((t) => t.id === tab)?.d ?? ""} className="size-4 shrink-0" />
           <span className="flex-1 truncate text-left text-xs font-medium">{label}</span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {mood ? <img src={mood} alt="" draggable={false} className="size-6 shrink-0 rounded-full object-cover object-top" />
             : <span className="size-2 shrink-0 rounded-full bg-white/40" />}
-        </span>
+        </span>}
       </button>
     </nav>
   );

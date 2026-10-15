@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ANCHOR, anchorBox, hotRect, HOT, CAL_ZERO, classifyIslandGesture, contentVisible, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, mergeCalibration, nextState, springEasing, swipeTab } from "./island";
 
-test("nextState: tap minimal→compact→expanded→compact; expand/collapse/peek/timeout", () => {
-  assert.equal(nextState("minimal", "tap"), "compact");
+test("nextState: tap minimal→expanded, compact→expanded, expanded→compact; expand/collapse/peek/timeout", () => {
+  assert.equal(nextState("minimal", "tap"), "expanded");
   assert.equal(nextState("compact", "tap"), "expanded");
   assert.equal(nextState("expanded", "tap"), "compact");
   for (const s of ["minimal", "compact", "expanded"] as const) {
@@ -63,9 +63,10 @@ test("dragSize: grows w +1.6×, h +0.9× of the drag, clamped between the anchor
   assert.equal(contentVisible("compact", 40), false);
 });
 
-test("hasIsland: top inset ≥ 50", () => {
+test("hasIsland: top inset > 50 (a notched mini at exactly 50 has no island)", () => {
   assert.equal(hasIsland(59), true);
-  assert.equal(hasIsland(50), true);
+  assert.equal(hasIsland(50), false);
+  assert.equal(hasIsland(50.5), true);
   assert.equal(hasIsland(47), false);
   assert.equal(hasIsland(0), false);
 });
