@@ -6,24 +6,27 @@
 - **Character:** Hoshimi Miyabi (Zenless Zone Zero), canon adult. No added negative/age tags in her prompt (owner's call).
 - **Voice:** full brat — smug, flirty, teasing, mocking, playful, loud. Flirt/tease intensity follows the existing modifiers + learned boldness.
 - **Rating:** matches the app (NSFW allowed).
-- **Look:** NAI-drawn expression sprites, two outfit sets: canon default by day, sleepwear at night.
+- **Look:** NAI-drawn expression sprites in **3 outfits — day, night, lewd** — each anchored to a character sheet image the owner provides.
+- **Outfit switching:** rules + manual override.
 - **Placement:** floating corner on every tab, Clippy-style.
 - **Triggers:** generations, editing, idle/time, RP and chat.
 - **Chattiness:** smart cap + hush + slider.
 - **Models:** quips on Gemma 4 E4B (`hf.co/llmfan46/gemma-4-E4B-it-ultra-uncensored-heretic-GGUF:Q4_K_M`, pulled 2026-10-14) as the `quick` tier; deep talk on APEX (heavy tier, via HeavyGate).
 
 ## 1. Sprites
-- Expressions (9): smug, laughing, wink, pout, flirty, shocked, annoyed, excited, sleepy. Outfits: `day` (canon: white shirt, black tie, aqua jacket off one arm, gauntlet, long black skirt), `night` (sleepwear).
-- Prompt: fixed Miyabi base prompt + outfit tags + per-expression tags, `simple background, white background`, portrait 832×1216, 28 steps, fixed seed per outfit (expression only changes the tags). Owner can edit the base prompt in the mascot studio.
-- **Mascot studio** (Settings → Mascot): pick an expression → generate N candidates (default 3) → pick one → background removed → saved as `data/mascot/<outfit>/<expression>.png`. Shows Anlas balance before/after a batch (portrait 28-step should be free on Opus; any non-zero cost is shown before spending more).
-- **Background removal:** anime-segmentation ONNX (`skytnt/anime-seg` isnetis, ~170 MB) served by the tagger sidecar (`POST /cutout`), returns a transparent PNG; the original is kept beside it.
-- Missing sprites fall back to the nearest available expression, then to a lettered placeholder.
+- Expressions (9): smug, laughing, wink, pout, flirty, shocked, annoyed, excited, sleepy. Outfits: `day`, `night`, `lewd` (27 sprites).
+- **Character sheets:** the owner uploads one reference sheet per outfit (mascot studio). Each sprite request sends that sheet as a NovelAI **Precise Reference (Character)** plus the base prompt + per-expression tags, `simple background, white background`, portrait 832×1216, 28 steps, fixed seed per outfit.
+- **Cost:** Precise Reference is ~5 Anlas per generation (27 sprites × 3 candidates ≈ 400 Anlas). The studio shows the estimate before a batch and the real balance change after; nothing is spent without a tap.
+- **V5 check first:** the first implementation step sends one Precise Reference generation on V5 (≈5 Anlas, owner OK) to confirm the API accepts it. If V5 rejects it, sprite generation uses V4.5 for referenced requests (the rest of the app stays on V5).
+- **Mascot studio** (Settings → Mascot): per outfit — upload/replace sheet; per expression — generate N candidates (default 3) → pick one → background removed → saved as `data/mascot/<outfit>/<expression>.png` (original kept beside it). Base prompt and per-expression tags editable.
+- **Background removal:** anime-segmentation ONNX (`skytnt/anime-seg` isnetis, ~170 MB) served by the tagger sidecar (`POST /cutout`), returns a transparent PNG.
+- Missing sprites fall back to the same expression in `day`, then the nearest expression, then a lettered placeholder.
 
 ## 2. Floating Miyabi
 - Fixed above the tab bar, bottom-right by default; drag to any corner (remembered per device). Size ~96 px tall on phones.
 - Speech bubble beside her; fades after a read-time based on length; tapping the bubble dismisses it.
 - Idle life: expression returns to `smug` after a quip; gentle bob (CSS); occasional sleepy at night.
-- Outfit: `night` between the configured hours (default 23:00–07:00), else `day`.
+- Outfit rules (pure `outfitFor`): a pinned outfit always wins (Settings, or long-press her → outfit); else `lewd` when the Studio is in NSFW mode **and** the flirt modifier is on (or she's in a flirty deep talk); else `night` between the configured hours (default 23:00–07:00); else `day`. Pin can be cleared back to automatic.
 - Hush: swipe her down (or long-press → Hush) = silent for 30 min; she shows a small "zzz".
 - Layering: she stays visible when sheets/viewer open but sits below them (z-index), and never over the composer.
 - Never covers inputs: she moves up when the keyboard/composer is focused, and never speaks while the user is typing (any focused text field).
@@ -46,7 +49,7 @@
 - Prompt budget: facts ≤ 1200 chars, last 5 journal lines ≤ 600 chars.
 
 ## 6. Settings → Mascot
-Show/hide Miyabi, chattiness slider (incl. only-when-tapped), night hours, hush now, quick model picker (default E4B), base prompt editor + mascot studio, memory facts (edit/delete/clear).
+Show/hide Miyabi, chattiness slider (incl. only-when-tapped), night hours, outfit pin (auto/day/night/lewd), hush now, quick model picker (default E4B), base prompt editor + mascot studio, memory facts (edit/delete/clear).
 
 ## 7. Error handling
 - Sprite generation failure → readable error in the studio, nothing replaced. Cutout server down → keep the original (non-transparent) with a note.
@@ -54,8 +57,8 @@ Show/hide Miyabi, chattiness slider (incl. only-when-tapped), night hours, hush 
 - Quip requests are fire-and-forget; failures never show errors in the floating bubble.
 
 ## 8. Testing
-- TDD: `shouldSpeak` (hush, typing, cooldown, priority, in-flight, stale), `parseQuip`, `outfitFor(hour, window)`, `pickSprite` fallback, event → prompt builder (data quoted, caps), journal/facts caps and refresh trigger, canned fallback selection.
-- Sprite pipeline verified on one portrait (cost shown) before any batch; cutout checked on that portrait.
+- TDD: `shouldSpeak` (hush, typing, cooldown, priority, in-flight, stale), `parseQuip`, `outfitFor` (pin, lewd conditions, night window across midnight), `pickSprite` fallback, event → prompt builder (data quoted, caps), journal/facts caps and refresh trigger, canned fallback selection.
+- Precise Reference request body unit-tested; one live V5 test generation (≈5 Anlas, owner OK) before any batch; cutout checked on that portrait.
 - Live check on a temp dev server: floating position on phone width, bubble timing, hush, a real E4B quip.
 
 ## Out of scope
