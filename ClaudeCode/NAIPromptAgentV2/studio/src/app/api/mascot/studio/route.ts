@@ -3,7 +3,7 @@ import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
 import { activeSpriteDir, getMascotSettings } from "@/lib/mascot/settings-db";
-import { MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, spriteRequest, target } from "@/lib/mascot/sprites";
+import { MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, poseRequest, spriteRequest, target } from "@/lib/mascot/sprites";
 import type { Outfit } from "@/lib/mascot/core";
 import { anlas, generateImage, measured, NovelAIError } from "@/lib/novelai";
 
@@ -32,14 +32,14 @@ export async function POST(req: NextRequest) {
   const b = ((await req.json().catch(() => null)) ?? {}) as { action?: unknown; n?: unknown; i?: unknown; confirm?: unknown };
   const t = target(b);
   if (!t) return bad("Unknown outfit or expression.");
+  const request = (seed?: number) => (t.pose ? poseRequest(t.outfit, t.pose, t.pose === "back" ? null : t.expr, getMascotSettings(), seed) : spriteRequest(t.outfit, t.kind, t.expr, getMascotSettings(), seed));
   const n = Number.isInteger(b.n) ? Math.min(MAX_CANDIDATES, Math.max(1, b.n as number)) : 3;
 
   if (b.action === "estimate") {
-    return NextResponse.json({ anlas: await balance(), perImage: perImage(spriteRequest(t.outfit, t.kind, t.expr, getMascotSettings()).params), n });
+    return NextResponse.json({ anlas: await balance(), perImage: perImage(request().params), n });
   }
   if (b.action === "generate") {
     if (b.confirm !== true) return bad("Confirm the spend first.");
-    const s = getMascotSettings();
     try {
       const before = await balance();
       const seeds: number[] = [];
@@ -47,13 +47,13 @@ export async function POST(req: NextRequest) {
         const out: Buffer[] = [];
         for (let i = 0; i < n; i++) {
           const seed = newSeed();
-          const { compiled, params } = spriteRequest(t.outfit, t.kind, t.expr, s, seed);
+          const { compiled, params } = request(seed);
           seeds.push(seed);
           out.push((await generateImage(compiled, params, NOVELAI_TOKEN)).png);
         }
         return out;
       });
-      saveCandidates(dir, t.outfit, t.name, pngs, seeds); // only after the whole batch, so a failure replaces nothing
+      saveCandidates(dir, t.outfit, t.name, pngs, seeds, t.pose); // only after the whole batch, so a failure replaces nothing
       return NextResponse.json({ count: pngs.length, before, after: await balance(), cost });
     } catch (err) {
       const status = err instanceof NovelAIError ? err.status : 500;
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
   }
   if (b.action === "pick") {
-    const r = await pick(dir, t.outfit, t.name, Number(b.i));
+    const r = await pick(dir, t.outfit, t.name, Number(b.i), undefined, t.pose);
     return "error" in r ? bad(r.error, 404) : NextResponse.json(r);
   }
   return bad("Unknown action.");

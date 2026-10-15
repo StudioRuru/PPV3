@@ -6,6 +6,7 @@ import { DATA_DIR, TAGGER_URL } from "../env";
 import { DEFAULT_PARAMS, type NaiParams } from "../nai-body";
 import type { Compiled } from "../prompt";
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
+import { POSE_SPEC, POSES, poseKey, type Pose } from "./poses";
 import { isSafeSpriteDir, type MascotSettings } from "./settings";
 
 export const MASCOT_DIR = path.join(DATA_DIR, "mascot");
@@ -36,15 +37,32 @@ export function spriteRequest(outfit: Outfit, kind: ArtKind, expr: Expression, s
   };
 }
 
+/** Tags-only request for a pose sprite; faced poses add the expression tags, back view none. No bust UC (full body). */
+export function poseRequest(outfit: Outfit, pose: Pose, expr: Expression | null, s: MascotSettings, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
+  const { tags, width, height, faced } = POSE_SPEC[pose];
+  const parts = [s.charTags, s.constantTags, s.layerTags[outfit], ...(faced && expr ? [s.exprTags[expr]] : []), tags];
+  return {
+    compiled: { base: parts.map((p) => p.trim()).filter(Boolean).join(", "), uc: "", chars: [], rating: "nsfw" },
+    params: { ...DEFAULT_PARAMS, width, height, steps: 28, seed },
+  };
+}
+
 /** Anlas per image on Opus: free up to 1 Mpx at ≤28 steps; otherwise unknown until measured. */
 export const perImage = (p: NaiParams): number | null => (p.width * p.height <= 1048576 && p.steps <= 28 ? 0 : null);
 
 const isOutfit = (o: unknown): o is Outfit => OUTFITS.includes(o as Outfit);
 const isName = (n: unknown): n is Expression | "full" => n === "full" || EXPRESSIONS.includes(n as Expression);
 
-/** Untrusted {outfit, kind, expr} → a valid target (full ignores expr), or null. */
-export function target(b: unknown): { outfit: Outfit; kind: ArtKind; expr: Expression; name: Expression | "full" } | null {
-  const { outfit, kind = "bust", expr } = (b ?? {}) as Record<string, unknown>;
+const isPose = (p: unknown): p is Pose => POSES.includes(p as Pose);
+
+/** Untrusted {outfit, kind, expr, pose?} → a valid target (full ignores expr; back ignores expr; pose set = pose sprite), or null. */
+export function target(b: unknown): { outfit: Outfit; kind: ArtKind; expr: Expression; name: Expression | "full"; pose?: Pose } | null {
+  const { outfit, kind = "bust", expr, pose } = (b ?? {}) as Record<string, unknown>;
+  if (pose !== undefined) {
+    if (!isOutfit(outfit) || !isPose(pose)) return null;
+    if (pose === "back") return { outfit, kind: "bust", expr: "smug", name: "smug", pose };
+    return EXPRESSIONS.includes(expr as Expression) ? { outfit, kind: "bust", expr: expr as Expression, name: expr as Expression, pose } : null;
+  }
   if (!isOutfit(outfit) || (kind !== "bust" && kind !== "full")) return null;
   if (kind === "full") return { outfit, kind, expr: "smug", name: "full" };
   return EXPRESSIONS.includes(expr as Expression) ? { outfit, kind, expr: expr as Expression, name: expr as Expression } : null;
@@ -53,6 +71,20 @@ export function target(b: unknown): { outfit: Outfit; kind: ArtKind; expr: Expre
 /** Whitelisted paths only: a known outfit and an expression or "full". */
 export const spritePath = (dir: string, outfit: string, name: string): string | null =>
   isOutfit(outfit) && isName(name) ? path.join(dir, outfit, `${name}.png`) : null;
+
+/** `<dir>/pose/<pose>/<outfit>/<expr>.png`, or `<dir>/pose/back/<outfit>.png`; whitelisted names only. */
+export function posePath(dir: string, pose: string, outfit: string, expr: string | null): string | null {
+  if (!isPose(pose) || !isOutfit(outfit)) return null;
+  if (pose === "back") return path.join(dir, "pose", "back", `${outfit}.png`);
+  return EXPRESSIONS.includes(expr as Expression) ? path.join(dir, "pose", pose, outfit, `${expr}.png`) : null;
+}
+
+/** Candidate i for a pose sprite: `<dir>/candidates/pose/<pose>/<outfit>/<expr|back>/<i>.png`. */
+export function poseCandidatePath(dir: string, pose: string, outfit: string, expr: string | null, i: number): string | null {
+  const p = posePath(dir, pose, outfit, expr);
+  return p && Number.isInteger(i) && i >= 0 && i < MAX_CANDIDATES
+    ? path.join(dir, "candidates", "pose", pose, outfit, pose === "back" ? "back" : expr!, `${i}.png`) : null;
+}
 
 export const candidatePath = (dir: string, outfit: string, name: string, i: number): string | null =>
   isOutfit(outfit) && isName(name) && Number.isInteger(i) && i >= 0 && i < MAX_CANDIDATES ? path.join(dir, "candidates", outfit, name, `${i}.png`) : null;
@@ -68,13 +100,17 @@ export function listSprites(dir: string): { sprites: Record<string, number>; she
       if (st?.isFile()) sprites[`${o}/${n}`] = Math.floor(st.mtimeMs);
     }
   }
+  for (const p of POSES) for (const o of OUTFITS) for (const e of p === "back" ? [null] : EXPRESSIONS) {
+    const st = fs.statSync(posePath(dir, p, o, e)!, { throwIfNoEntry: false });
+    if (st?.isFile()) sprites[poseKey(p, o, e)] = Math.floor(st.mtimeMs);
+  }
   const sheets = Object.fromEntries(OUTFITS.map((o) => [o, fs.existsSync(sheetPath(dir, o))])) as Record<Outfit, boolean>;
   return { sprites, sheets };
 }
 
 /** Replace the candidate batch for one sprite (stale files removed); seeds, if given, go in meta.json. */
-export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "full", pngs: Buffer[], seeds?: number[]): void {
-  const d = path.dirname(candidatePath(dir, outfit, name, 0)!);
+export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "full", pngs: Buffer[], seeds?: number[], pose?: Pose): void {
+  const d = path.dirname((pose ? poseCandidatePath(dir, pose, outfit, name === "full" ? null : name, 0) : candidatePath(dir, outfit, name, 0))!);
   fs.rmSync(d, { recursive: true, force: true });
   fs.mkdirSync(d, { recursive: true });
   pngs.slice(0, MAX_CANDIDATES).forEach((png, i) => fs.writeFileSync(path.join(d, `${i}.png`), png));
@@ -84,9 +120,9 @@ export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "
 const isPng = (b: Buffer) => b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
 
 /** Cut out the candidate's background via the tagger and save it as the sprite (+ .orig.png). Cutout down → original + note. */
-export async function pick(dir: string, outfit: string, name: string, i: number, fetchFn: typeof fetch = fetch): Promise<{ ok: true; note?: string } | { error: string }> {
-  const src = candidatePath(dir, outfit, name, i);
-  const out = spritePath(dir, outfit, name);
+export async function pick(dir: string, outfit: string, name: string, i: number, fetchFn: typeof fetch = fetch, pose?: string): Promise<{ ok: true; note?: string } | { error: string }> {
+  const src = pose ? poseCandidatePath(dir, pose, outfit, name, i) : candidatePath(dir, outfit, name, i);
+  const out = pose ? posePath(dir, pose, outfit, name) : spritePath(dir, outfit, name);
   if (!src || !out || !fs.existsSync(src)) return { error: "That candidate is gone — generate again." };
   const orig = fs.readFileSync(src);
   let cut: Buffer | null = null;
