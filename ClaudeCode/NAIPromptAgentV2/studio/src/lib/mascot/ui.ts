@@ -15,7 +15,7 @@ export function diffTags(prev: string[], next: string[]): { added: string[]; rem
 export const nearestCorner = (x: number, y: number, w: number, h: number): Corner =>
   `${y >= h / 2 ? "b" : "t"}${x >= w / 2 ? "r" : "l"}` as Corner;
 
-/** Mascot bottom offset: above the tallest visible [data-composer] (0 = hidden; composers pad the safe area themselves); fallback clears the Generate bar. */
+/** Mascot bottom offset from the tallest clearance (px from the viewport bottom to a visible [data-composer]'s top; 0 = hidden); fallback clears the Generate bar. */
 export function composerBottom(heights: number[]): string {
   const h = Math.max(0, ...heights);
   return h ? `calc(${Math.ceil(h)}px + 0.5rem)` : "calc(env(safe-area-inset-bottom) + 5rem)";

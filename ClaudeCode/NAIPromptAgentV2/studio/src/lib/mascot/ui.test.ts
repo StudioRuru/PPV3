@@ -15,11 +15,12 @@ test("nearestCorner: picks the viewport quadrant of the point", () => {
   assert.equal(nearestCorner(0, 0, 400, 800), "tl");
   assert.equal(nearestCorner(200, 400, 400, 800), "br"); // dead centre stays bottom-right
 });
-test("composerBottom: tallest visible composer + gap (composers pad the safe area themselves); fallback when none", () => {
+test("composerBottom: tallest visible clearance from the viewport bottom + gap (fixed bars sit above the safe area too); fallback when none", () => {
   const fb = "calc(env(safe-area-inset-bottom) + 5rem)";
   assert.equal(composerBottom([]), fb);
   assert.equal(composerBottom([0, 0]), fb); // display:none composers measure 0
   assert.equal(composerBottom([0, 100, 72]), "calc(100px + 0.5rem)");
+  assert.equal(composerBottom([0, 130.2]), "calc(131px + 0.5rem)"); // camera roll bar floating above the bottom edge
 });
 
 test("cooldown slider: steps ↔ ms, last step = only when tapped", () => {

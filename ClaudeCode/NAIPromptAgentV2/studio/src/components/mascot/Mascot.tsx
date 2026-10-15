@@ -123,11 +123,12 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     return () => { clearInterval(tick); window.removeEventListener("pointerdown", input); window.removeEventListener("keydown", input); };
   }, []);
 
-  // Bottom corners sit above whichever [data-composer] bar is showing (hidden ones measure 0).
+  // Bottom corners sit above whichever [data-composer] bar is showing: clearance from the viewport bottom (hidden ones measure 0).
   useEffect(() => {
     const seen = new Set<Element>();
-    const measure = () => setBottomAt(composerBottom([...document.querySelectorAll<HTMLElement>("[data-composer]")].map((el) => el.offsetHeight)));
+    const measure = () => setBottomAt(composerBottom([...document.querySelectorAll<HTMLElement>("[data-composer]")].map((el) => el.offsetHeight > 0 ? window.innerHeight - el.getBoundingClientRect().top : 0)));
     const ro = new ResizeObserver(measure);
+    window.addEventListener("resize", measure); // a viewport resize moves fixed bars without resizing them
     let raf = 0;
     const scan = () => {
       cancelAnimationFrame(raf);
@@ -139,7 +140,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     const mo = new MutationObserver(scan); // composers mount/unmount (RP chat, sheets)
     mo.observe(document.body, { childList: true, subtree: true });
     scan();
-    return () => { cancelAnimationFrame(raf); mo.disconnect(); ro.disconnect(); };
+    return () => { cancelAnimationFrame(raf); mo.disconnect(); ro.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
 
   // Text field focused = typing: she moves out of the way and stays quiet.
