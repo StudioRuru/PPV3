@@ -155,3 +155,19 @@ test("review: costOf — unknown when reads failed, overlapped, or the balance w
   assert.equal(costOf(100, 88, true), null);
   assert.equal(costOf(100, 150, false), null);
 });
+
+test("Precise Reference adds the five director_reference fields only when given; img2img coexists", () => {
+  const ref = { image: "QUJD", strength: 0.6, fidelity: 0.25 };
+  const i2i = { image: "SU1H", strength: 0.5, noise: 0 };
+  const { body } = buildNaiBody(compiled, { ...DEFAULT_PARAMS, seed: 1 }, i2i, ref) as { body: any };
+  const p = body.parameters;
+  assert.deepEqual(p.director_reference_images, ["QUJD"]);
+  assert.deepEqual(p.director_reference_descriptions, [{ caption: { base_caption: "character", char_captions: [] }, legacy_uc: false }]);
+  assert.deepEqual(p.director_reference_information_extracted, [1]);
+  assert.deepEqual(p.director_reference_strength_values, [0.6]);
+  assert.deepEqual(p.director_reference_secondary_strength_values, [0.75]);
+  assert.equal(body.action, "img2img");
+  assert.equal(p.image, "SU1H");
+  const none = (buildNaiBody(compiled, { ...DEFAULT_PARAMS, seed: 1 }) as { body: any }).body.parameters;
+  assert.equal(Object.keys(none).some((k) => k.startsWith("director_reference")), false);
+});

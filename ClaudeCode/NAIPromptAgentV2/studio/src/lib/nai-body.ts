@@ -120,9 +120,12 @@ export function canResend(p: NaiParams): boolean {
 /** Image-to-image: base64 PNG of the source plus how far to move from it. */
 export type Img2Img = { image: string; strength: number; noise: number };
 
+/** Precise Reference: base64 PNG (no data: prefix) of the character sheet, how strongly to follow it, and fidelity. */
+export type CharRef = { image: string; strength: number; fidelity: number };
+
 const CENTER = { x: 0.5, y: 0.5 };
 
-export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2Img) {
+export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2Img, ref?: CharRef) {
   const { c, p } = compose(raw, rawParams);
   const seed = p.seed && p.seed > 0 ? p.seed : 1 + Math.floor(Math.random() * (2 ** 32 - 1));
   const useCoords = c.chars.some((ch) => ch.center);
@@ -153,6 +156,13 @@ export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2
       v4_prompt: caption(c.base, (ch) => ch.prompt, true),
       v4_negative_prompt: caption(c.uc, (ch) => ch.uc, false),
       ...(img2img && { image: img2img.image, strength: img2img.strength, noise: img2img.noise, color_correct: true }),
+      ...(ref && {
+        director_reference_images: [ref.image],
+        director_reference_descriptions: [{ caption: { base_caption: "character", char_captions: [] }, legacy_uc: false }],
+        director_reference_information_extracted: [1],
+        director_reference_strength_values: [ref.strength],
+        director_reference_secondary_strength_values: [1 - ref.fidelity],
+      }),
     },
   };
   return { body, seed };
