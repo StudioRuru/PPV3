@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SLIDERS, validateSlime, sliderBlock, lengthShape, driftSlider, resetLive, setSlider, mixSliders, mixMemories, EMPTY_BLOCK, emptyLines, blankSlime, type Sliders } from "./slime";
+import { SLIDERS, validateSlime, sliderBlock, lengthShape, driftSlider, resetLive, setSlider, mixSliders, mixMemories, EMPTY_BLOCK, emptyLines, blankSlime, sliderCaption, dragSlider, driftNote, type Sliders } from "./slime";
 import { HYPNOSIS_TIERS, BIMBO_TIERS } from "../rp/mods";
 
 const sl = (o: Partial<Record<(typeof SLIDERS)[number], [number, number]>> = {}): Sliders =>
@@ -147,4 +147,29 @@ test("memories are newest-first: validateSlime caps keep the first (newest) item
   assert.deepEqual(v.memories.facts, facts.slice(0, 12));
   assert.equal(v.memories.journal[0].created_at, 69);
   assert.equal(v.memories.journal.at(-1)!.created_at, 20);
+});
+
+test("sliderCaption: off at 0, tier label per level, length shows reply shape", () => {
+  assert.equal(sliderCaption("brat", 0), "off");
+  assert.equal(sliderCaption("brat", 1), "mildly cheeky");
+  assert.equal(sliderCaption("brat", 6), "smug show-off");
+  assert.equal(sliderCaption("brat", 10), "mocking tyrant");
+  assert.equal(sliderCaption("heat", 10), "overwhelmed");
+  assert.equal(sliderCaption("bimbo", 1), BIMBO_TIERS[0].label);
+  assert.equal(sliderCaption("bimbo", 10), BIMBO_TIERS[4].label);
+  assert.equal(sliderCaption("hypnosis", 10), HYPNOSIS_TIERS[4].label);
+  assert.equal(sliderCaption("length", 0), "off");
+  assert.equal(sliderCaption("length", 5), lengthShape(5).sentences);
+});
+test("dragSlider: value clamps to cap; lowering cap lowers value; live dropped", () => {
+  assert.deepEqual(dragSlider({ value: 3, cap: 5, live: 5 }, "value", 8), { value: 5, cap: 5 });
+  assert.deepEqual(dragSlider({ value: 3, cap: 5 }, "value", 1), { value: 1, cap: 5 });
+  assert.deepEqual(dragSlider({ value: 6, cap: 8 }, "cap", 4), { value: 4, cap: 4 });
+  assert.deepEqual(dragSlider({ value: 2, cap: 8 }, "cap", 10), { value: 2, cap: 10 });
+  assert.deepEqual(dragSlider({ value: 2, cap: 8 }, "cap", 12), { value: 2, cap: 10 });
+});
+test("driftNote: only when live is above value", () => {
+  assert.equal(driftNote({ value: 4, cap: 8, live: 7 }), "drifted to 7");
+  assert.equal(driftNote({ value: 4, cap: 8, live: 4 }), null);
+  assert.equal(driftNote({ value: 4, cap: 8 }), null);
 });

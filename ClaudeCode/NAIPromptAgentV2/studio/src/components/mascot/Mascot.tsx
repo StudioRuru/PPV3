@@ -24,6 +24,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
   const [typing, setTyping] = useState(false);
   const [menu, setMenu] = useState(false);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
+  const [empty, setEmpty] = useState(false); // no slime inserted: dim + desaturate
   const [bottomAt, setBottomAt] = useState(() => composerBottom([]));
   const live = useRef({ inFlight: false, lastSpokeAt: 0 });
   const press = useRef<{ x: number; y: number; t: number; moved: boolean; long: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
@@ -36,10 +37,13 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     const onSettings = (e: Event) => setSettings((e as CustomEvent<Settings>).detail);
     const onSprites = (e: Event) => setSprites((e as CustomEvent<Record<string, number>>).detail);
     const onHush = () => { setHushUntil(Date.now() + HUSH_MS); setSay(null); };
+    const onIdentity = () => requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
+    onIdentity();
+    window.addEventListener("mascot:identity", onIdentity);
     window.addEventListener("mascot:settings", onSettings);
     window.addEventListener("mascot:sprites", onSprites);
     window.addEventListener("mascot:hush", onHush);
-    return () => { window.removeEventListener("mascot:settings", onSettings); window.removeEventListener("mascot:sprites", onSprites); window.removeEventListener("mascot:hush", onHush); };
+    return () => { window.removeEventListener("mascot:settings", onSettings); window.removeEventListener("mascot:sprites", onSprites); window.removeEventListener("mascot:hush", onHush); window.removeEventListener("mascot:identity", onIdentity); };
   }, []);
 
   // Latest values for the window listener without re-subscribing every render.
@@ -203,11 +207,11 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
           </div>
         </>
       )}
-      <div role="button" tabIndex={0} aria-label={`Miyabi${hushed ? " (hushed)" : ""} — tap to talk, hold for options, drag to move`}
+      <div role="button" tabIndex={0} aria-label={`Miyabi${empty ? " (empty)" : ""}${hushed ? " (hushed)" : ""} — tap to talk, hold for options, drag to move`}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { clearTimeout(press.current?.timer); press.current = null; setDrag(null); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(outfit); } else if (e.key === "ContextMenu") setMenu(true); }}
         onContextMenu={(e) => { e.preventDefault(); setMenu(true); setSay(null); }}
-        className="relative cursor-grab" style={{ touchAction: "none", WebkitTouchCallout: "none", "--mascot-h": `${SIZE_PX[settings.size ?? "m"]}px` } as React.CSSProperties}>
+        className={`relative cursor-grab transition-[filter,opacity] duration-500 ${empty ? "opacity-70 grayscale" : ""}`} style={{ touchAction: "none", WebkitTouchCallout: "none", "--mascot-h": `${SIZE_PX[settings.size ?? "m"]}px` } as React.CSSProperties}>
         {sprite
           // eslint-disable-next-line @next/next/no-img-element
           ? <img src={`/api/mascot/sprites/${sprite}?v=${sprites[sprite]}`} alt="" draggable={false} className="mascot-bob h-[var(--mascot-h)] lg:h-[calc(var(--mascot-h)*1.25)] w-auto drop-shadow-lg" />

@@ -9,6 +9,7 @@ import type { PromptState } from "@/lib/prompt";
 import { Md } from "../ChatScreen";
 import { PatchCard } from "../PatchCard";
 import { Sheet } from "../Sheet";
+import { SlidersPanel } from "./SlidersPanel";
 
 type Thread = { id: number; persona: string; updated_at: number };
 type Msg = ChatMsg & { cid: string; error?: boolean };
@@ -24,6 +25,7 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
   const [streaming, setStreaming] = useState(false); // whole reply, not just until the first chunk
   const [rated, setRated] = useState<Record<string, "like" | "dislike">>({});
   const [sprites, setSprites] = useState<Record<string, number>>({});
+  const [mood, setMood] = useState(false); // sliders popover
   const end = useRef<HTMLDivElement>(null);
   const tidRef = useRef<number | null>(null); // the talk on screen: a reply only paints into its own talk
 
@@ -112,10 +114,21 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
   return (
     <Sheet open={open} onClose={onClose} label="Talk to Miyabi" closeLabel="Close Miyabi"
       className="h-[92dvh] rounded-t-2xl border-t lg:h-auto lg:max-w-md lg:rounded-none lg:border-l">
-      <header className="flex items-center gap-2 px-3 pb-2">
+      <header className="relative flex items-center gap-2 px-3 pb-2">
         <h2 className="flex-1 text-base font-semibold">Miyabi</h2>
+        <button type="button" aria-expanded={mood} aria-haspopup="dialog" onClick={() => setMood(!mood)}
+          className={`border-border h-11 rounded-full border px-3 text-xs font-semibold ${mood ? "bg-accent text-accent-fg" : "text-muted"}`}>Mood</button>
         <button type="button" disabled={streaming} onClick={newTalk} className="border-border text-accent h-9 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">New talk</button>
         <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 rounded-full border">×</button>
+        {mood && (
+          <>
+            <button type="button" aria-label="Close mood" className="fixed inset-0 z-10 cursor-default" onClick={() => setMood(false)} />
+            <div role="dialog" aria-label="Personality sliders" onKeyDown={(e) => e.key === "Escape" && setMood(false)}
+              className="bg-surface border-border absolute inset-x-3 top-full z-20 max-h-[70dvh] overflow-y-auto overscroll-contain rounded-xl border p-3 shadow-lg">
+              <SlidersPanel open={open} />
+            </div>
+          </>
+        )}
       </header>
       <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3">
         <div className="flex justify-center">

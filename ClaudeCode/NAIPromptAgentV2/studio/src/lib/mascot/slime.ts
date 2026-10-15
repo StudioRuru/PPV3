@@ -80,6 +80,23 @@ export function setSlider(s: Sliders, id: SliderId, p: { value?: number; cap?: n
   const fixed = p.cap !== undefined && p.value === undefined ? { value: Math.min(value, cap), cap } : { value, cap: Math.max(cap, value) };
   return { ...s, [id]: fixed };
 }
+/* ---------- UI helpers ---------- */
+const BRAT_LABELS = ["mildly cheeky", "proper brat", "smug show-off", "loud, domineering brat", "mocking tyrant"];
+const HEAT_LABELS = ["warm, distracted", "in heat", "in estrus", "heavy heat", "overwhelmed"];
+/** Short caption of a slider's tier at `level` (same tier maths as sliderBlock); "off" at 0. */
+export function sliderCaption(id: SliderId, level: number): string {
+  if (level < 1) return "off";
+  return id === "brat" ? BRAT_LABELS[tier(level)] : id === "heat" ? HEAT_LABELS[tier(level)]
+    : id === "bimbo" ? BIMBO_TIERS[bimboTier(level)].label : id === "hypnosis" ? HYPNOSIS_TIERS[tier(level)].label
+    : lengthShape(level).sentences;
+}
+/** Local drag of one handle: value can't pass the cap; lowering the cap lowers the value (mirrors setSlider); drift cleared. */
+export function dragSlider(s: Slider, field: "value" | "cap", n: number): Slider {
+  const x = clamp(Math.round(n), 0, 10);
+  return field === "value" ? { value: Math.min(x, s.cap), cap: s.cap } : { value: Math.min(s.value, x), cap: x };
+}
+export const driftNote = (s: Slider): string | null => (s.live !== undefined && s.live > s.value ? `drifted to ${s.live}` : null);
+
 export function mixSliders(a: Sliders, b: Sliders, ratioA: number): Sliders {
   const r = clamp(ratioA, 10, 90) / 100;
   const m = (x: number, y: number) => Math.round(x * r + y * (1 - r));

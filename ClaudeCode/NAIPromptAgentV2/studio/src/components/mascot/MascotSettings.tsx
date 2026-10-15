@@ -7,6 +7,7 @@ import { cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, sliderToCooldown } fro
 import type { Fact } from "@/lib/mascot/store";
 import { requestJson } from "@/lib/net";
 import { AutoTextarea } from "../TagInput";
+import { SlidersPanel } from "./SlidersPanel";
 import { SpriteStudio } from "./SpriteStudio";
 
 // Over the wire "only when tapped" is null (JSON has no Infinity).
@@ -108,6 +109,11 @@ export function MascotSettings({ open }: { open: boolean }) {
         <button type="button" onClick={() => { setStudioMounted(true); setStudio(true); }} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Sprite studio</button>
       </div>
       {error && <p role="alert" className="text-danger text-xs">{error}</p>}
+
+      <div className="pt-3">
+        <h3 className={h3}>Personality</h3>
+        <SlidersPanel open={open} />
+      </div>
 
       <div className="pt-3">
         <p className="mb-1 text-sm">What she knows <span className="text-muted text-xs">({state.facts.length})</span></p>
