@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMsg } from "@/lib/copilot-prompt";
 import type { Expression } from "@/lib/mascot/core";
-import { groupBottles, stripVialBlock, type Bottle as BottleRow } from "@/lib/mascot/ui";
-import { parseVialBlock, type AppliedVial, type Vial } from "@/lib/mascot/vial";
+import { bottledKey, groupBottles, stripVialBlock, vialOutcome, type Bottle as BottleRow } from "@/lib/mascot/ui";
+import type { AppliedVial, Vial } from "@/lib/mascot/vial";
 import { requestJson } from "@/lib/net";
 import { Md } from "../ChatScreen";
 import { Sheet } from "../Sheet";
@@ -24,6 +24,14 @@ const json = (body: unknown) => ({ method: "POST", headers: { "Content-Type": "a
 const btn = "border-border min-h-11 rounded-md border px-3 text-sm disabled:opacity-40";
 const primary = "bg-accent text-accent-fg min-h-11 rounded-md px-3 text-sm font-semibold disabled:opacity-40";
 const h3 = "text-muted mb-2 text-xs font-medium tracking-wide uppercase";
+const BOTTLED = "apothecary.bottled";
+/** "Already bottled" markers, kept in localStorage when it works (private mode / blocked storage: this session only). */
+function readBottled(): Record<string, true> {
+  try { const v = JSON.parse(localStorage.getItem(BOTTLED) ?? "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+}
+function saveBottled(b: Record<string, true>) {
+  try { localStorage.setItem(BOTTLED, JSON.stringify(Object.fromEntries(Object.entries(b).slice(-300)))); } catch { /* storage unavailable */ }
+}
 const pouring = (active: boolean) => (active ? "Pouring… Miyabi is reacting" : "Pouring…");
 
 /** Aru's shop: chat with her (persona `aru`), bottle her brews, the bottle shelf, the recipe book. */
@@ -37,6 +45,8 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
   const [counts, setCounts] = useState<Record<number, number>>({});
   const [forget, setForget] = useState<number | null>(null);
   const [bottled, setBottled] = useState<Record<string, true>>({});
+  useEffect(() => { if (open) setBottled((b) => ({ ...readBottled(), ...b })); }, [open]);
+  const markBottled = (key: string) => setBottled((b) => { const next = { ...b, [key]: true as const }; saveBottled(next); return next; });
   const inFlight = useRef(false); // double taps land in the same tick, before `busy` renders
 
   // chat (MiyabiSheet's thread pattern)
@@ -156,7 +166,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
           {!jars.length ? <p className="text-faint text-xs">No jars on the shelf yet.</p> : (
             <ul className="space-y-1">{jars.map((j) => jarButton(j, () => act({ action: "drop", id: g.ids[0], jarId: j.id }, pouring(j.active), () => setPick(null))))}</ul>
           )}
-          <button type="button" disabled={off} onClick={() => act({ action: "discard", id: g.ids[0] }, "Pouring it away…")} className={`${btn} text-danger w-full`}>
+          <button type="button" disabled={off} onClick={() => act({ action: "discard", id: g.ids[0] }, "Pouring it away…", () => { if (g.count === 1) setPick(null); })} className={`${btn} text-danger w-full`}>
             Discard one bottle
           </button>
         </>
@@ -217,7 +227,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
 
       <div role="tabpanel" aria-label={tab} className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3">
         {busy && <p role="status" className="text-accent text-sm"><span className="thinking mr-1" aria-hidden="true"><i>·</i><i>·</i><i>·</i></span>{busy}</p>}
-        {error && <p role="alert" className="text-danger text-xs">{error}</p>}
+        {error && !(tab === "shelf" && pick) && <p role="alert" className="text-danger text-xs">{error}</p>}
         {line && !busy && tab !== "shop" && <p aria-live="polite" className="text-muted text-xs italic">Miyabi: “{line}”</p>}
 
         {tab === "shop" && (
@@ -226,16 +236,17 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
             {msgs.map((m, i) => {
               if (m.role === "user") return <p key={m.cid} className="animate-rise bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap">{m.content}</p>;
               const done = !streaming || i < msgs.length - 1;
-              const v = done && !m.error ? parseVialBlock(m.content) : null;
-              const key = `${thread?.id}:${i}`; // history is append-only, so a message keeps its index across reloads
+              const o = m.error ? null : vialOutcome(m.content, done);
+              const v = o?.kind === "vial" ? o.vial : null;
+              const key = v ? bottledKey(thread?.id ?? 0, v) : "";
               return (
                 <div key={m.cid} className={`animate-rise space-y-1.5 text-sm leading-relaxed ${m.error ? "text-danger" : ""}`}>
                   <Md text={stripVialBlock(m.content)} />
-                  {v && "error" in v && <p className="text-danger text-xs">Her recipe didn&apos;t come out right: {v.error}</p>}
-                  {v && !("error" in v) && (
+                  {o?.kind === "fumbled" && <p className="text-muted text-xs italic">Aru fumbled the recipe — ask again</p>}
+                  {v && (
                     <VialCard vial={v}>
                       <button type="button" disabled={off || !!bottled[key]}
-                        onClick={() => act({ action: "bottle", vial: v }, "Bottling…", () => setBottled((b) => ({ ...b, [key]: true })))}
+                        onClick={() => act({ action: "bottle", vial: v }, "Bottling…", () => markBottled(key))}
                         className={`${primary} mt-1 w-full`}>{bottled[key] ? "Bottled ✓" : "Bottle it"}</button>
                     </VialCard>
                   )}
@@ -317,7 +328,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
         )}
       </div>
 
-      {tab === "shelf" && pick && <div className="border-border bg-surface max-h-[60%] space-y-2 overflow-y-auto border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">{pickPanel()}</div>}
+      {tab === "shelf" && pick && <div className="border-border bg-surface max-h-[60%] space-y-2 overflow-y-auto border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">{error && <p role="alert" className="text-danger text-xs">{error}</p>}{pickPanel()}</div>}
       {/* Hidden when closed or off the Shop tab: a visible [data-composer] moves the floating mascot up. */}
       <form data-composer className={`border-border gap-2 border-t p-3 ${open && tab === "shop" ? "flex" : "hidden"}`} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
         onSubmit={(e) => { e.preventDefault(); send(); }}>

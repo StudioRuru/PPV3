@@ -1,7 +1,7 @@
 // Pure helpers for the floating mascot.
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
 import { SLIDERS } from "./slime";
-import type { Vial } from "./vial";
+import { parseVialBlock, type Vial } from "./vial";
 export type Corner = "br" | "bl" | "tr" | "tl";
 
 /** Tags present in next but not prev (added) and vice versa (removed), first-seen order, no dupes. */
@@ -73,4 +73,18 @@ export const poisonTone = (poison: 0 | 1 | 2) => ["#4b5563", "#9333ea", "#581c87
 
 /** Reply text without its ```vial blocks (an unclosed one while streaming is hidden too). */
 export const stripVialBlock = (text: string) =>
-  text.replace(/```vial[ \t]*\r?\n[\s\S]*?(```|$)/gi, "").replace(/\n{3,}/g, "\n\n").trim();
+  text.replace(/```vial[ \t]*(\r?\n[\s\S]*?(```|$)|$)/gi, "").replace(/\n{3,}/g, "\n\n").trim();
+
+/** What a reply's vial block amounts to once it has finished: a vial, a fumble (cut off / invalid), or nothing (no block, or still streaming). */
+export function vialOutcome(text: string, done: boolean): { kind: "vial"; vial: Vial } | { kind: "fumbled" } | null {
+  if (!done || !/```vial/i.test(text)) return null;
+  const r = parseVialBlock(text);
+  return r && !("error" in r) ? { kind: "vial", vial: r } : { kind: "fumbled" };
+}
+
+/** Stable "already bottled" marker for a vial offered in a thread: thread id + a djb2 hash of the vial JSON. */
+export function bottledKey(threadId: number, vial: Vial): string {
+  let h = 5381;
+  for (const ch of JSON.stringify(vial)) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+  return `${threadId}:${h.toString(36)}`;
+}
