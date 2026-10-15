@@ -308,7 +308,7 @@ export default function Studio() {
           prompt={[...state.base, ...state.chars.flatMap((c) => c.lines)].filter((l) => l.enabled).flatMap((l) => splitTags(l.text))} />
       </div>
 
-      <div className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
+      <div data-composer className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           {undo ? <p role="status" className="flex flex-1 items-center gap-3 text-sm">Prompt recreated
               <button type="button" onClick={() => { setState(undo); setUndo(null); }} className="text-accent font-semibold">Undo</button></p>

@@ -356,7 +356,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       </div>
 
       {/* Composer: sits above the tab bar */}
-      <div className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 pb-2 backdrop-blur" style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
+      <div data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 pb-2 backdrop-blur" style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
         <div data-noswipe className="flex gap-1.5 overflow-x-auto">
           {MODES.map(([k, label]) => (
             <button key={k} type="button" aria-pressed={mode === k} onClick={() => { setMode(mode === k ? "chat" : k); setPreset(null); }}

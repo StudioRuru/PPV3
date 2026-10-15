@@ -2,15 +2,14 @@
 import { useEffect, useRef, useState } from "react";
 import { emitMascot } from "@/lib/mascot/bus";
 import { outfitFor, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
-import { nearestCorner, type Corner } from "@/lib/mascot/ui";
+import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 
 type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; mods: { flirt: boolean }; corner: Corner };
 type Say = { expression: Expression; text: string };
 
 const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500;
-// Bottom corners clear the tab bar plus the Generate bar / composers that sit on it.
-const BOTTOM = "calc(env(safe-area-inset-bottom) + 8.5rem)", TOP = "calc(env(safe-area-inset-top) + 4rem)";
+const TOP = "calc(env(safe-area-inset-top) + 4rem)";
 const FIELD = "textarea, [contenteditable]:not([contenteditable=false]), input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file],[type=color])";
 const isTyping = () => !!(document.activeElement as HTMLElement | null)?.matches?.(FIELD);
 const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -24,6 +23,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
   const [typing, setTyping] = useState(false);
   const [menu, setMenu] = useState(false);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
+  const [bottomAt, setBottomAt] = useState(() => composerBottom([]));
   const live = useRef({ inFlight: false, lastSpokeAt: 0 });
   const press = useRef<{ x: number; y: number; t: number; moved: boolean; long: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
   const self = useRef<HTMLDivElement>(null);
@@ -40,9 +40,11 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     const L = live.current;
     if (!shouldSpeak(e, { now: Date.now(), hushUntil, typing: isTyping(), lastSpokeAt: L.lastSpokeAt, cooldownMs: settings.cooldownMs ?? Infinity, inFlight: L.inFlight })) return;
     L.inFlight = true;
-    const r = await requestJson<Say>("/api/mascot/quip", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event: e, context: { promptSummary: prompt, nsfw: rating === "nsfw" } }) });
-    L.inFlight = false;
+    let r;
+    try {
+      r = await requestJson<Say>("/api/mascot/quip", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: e, context: { promptSummary: prompt, nsfw: rating === "nsfw" } }) });
+    } finally { L.inFlight = false; }
     if (!r.ok || !r.data.text) return; // never show errors in the bubble
     L.lastSpokeAt = Date.now();
     setSay({ expression: r.data.expression, text: r.data.text });
@@ -79,6 +81,25 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     window.addEventListener("pointerdown", input);
     window.addEventListener("keydown", input);
     return () => { clearInterval(tick); window.removeEventListener("pointerdown", input); window.removeEventListener("keydown", input); };
+  }, []);
+
+  // Bottom corners sit above the tab bar plus whichever [data-composer] bar is showing (hidden ones measure 0).
+  useEffect(() => {
+    const seen = new Set<Element>();
+    const measure = () => setBottomAt(composerBottom([...document.querySelectorAll<HTMLElement>("[data-composer]")].map((el) => el.offsetHeight)));
+    const ro = new ResizeObserver(measure);
+    let raf = 0;
+    const scan = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        document.querySelectorAll("[data-composer]").forEach((el) => { if (!seen.has(el)) { seen.add(el); ro.observe(el); } });
+        measure();
+      });
+    };
+    const mo = new MutationObserver(scan); // composers mount/unmount (RP chat, sheets)
+    mo.observe(document.body, { childList: true, subtree: true });
+    scan();
+    return () => { cancelAnimationFrame(raf); mo.disconnect(); ro.disconnect(); };
   }, []);
 
   // Text field focused = typing: she moves out of the way and stays quiet.
@@ -142,12 +163,12 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
   }
 
   // While typing in a bottom corner she slides up to the top one, out of the keyboard/composer's way.
-  const lift = typing && bottom ? `translateY(calc(${TOP} + ${BOTTOM} + 100% - 100dvh))` : "";
+  const lift = typing && bottom ? `translateY(calc(${TOP} + ${bottomAt} + 100% - 100dvh))` : "";
   const pop = `absolute ${bottom ? "bottom-full mb-1" : "top-full mt-1"} ${right ? "right-0" : "left-0"}`;
 
   return (
     <div ref={self} data-noswipe className={`fixed z-[35] select-none ${typing ? "pointer-events-none opacity-50" : ""} ${drag ? "" : "transition-transform duration-300"}`}
-      style={{ [bottom ? "bottom" : "top"]: bottom ? BOTTOM : TOP, [right ? "right" : "left"]: "0.75rem",
+      style={{ [bottom ? "bottom" : "top"]: bottom ? bottomAt : TOP, [right ? "right" : "left"]: "0.75rem",
         transform: drag ? `translate(${drag.dx}px, ${drag.dy}px)` : lift || undefined }}>
       <div aria-live="polite" className={pop}>
         {say && !menu && (
