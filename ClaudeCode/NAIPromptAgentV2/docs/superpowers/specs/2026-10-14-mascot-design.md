@@ -14,12 +14,25 @@
 - **Models:** quips on Gemma 4 E4B (`hf.co/llmfan46/gemma-4-E4B-it-ultra-uncensored-heretic-GGUF:Q4_K_M`, pulled 2026-10-14) as the `quick` tier; deep talk on APEX (heavy tier, via HeavyGate).
 
 ## 1. Sprites
-- Expressions (9): smug, laughing, wink, pout, flirty, shocked, annoyed, excited, sleepy. Outfits: `day`, `night`, `lewd` (27 sprites).
-- **Character sheets:** the owner uploads one reference sheet per outfit (mascot studio). Each sprite request sends that sheet as a NovelAI **Precise Reference (Character)** plus the base prompt + per-expression tags, `simple background, white background`, portrait 832×1216, 28 steps, fixed seed per outfit.
-- **Cost:** Precise Reference is ~5 Anlas per generation (27 sprites × 3 candidates ≈ 400 Anlas). The studio shows the estimate before a batch and the real balance change after; nothing is spent without a tap.
-- **V5 check first:** the first implementation step sends one Precise Reference generation on V5 (≈5 Anlas, owner OK) to confirm the API accepts it. If V5 rejects it, sprite generation uses V4.5 for referenced requests (the rest of the app stays on V5).
-- **Mascot studio** (Settings → Mascot): per outfit — upload/replace sheet; per expression — generate N candidates (default 3) → pick one → background removed → saved as `data/mascot/<outfit>/<expression>.png` (original kept beside it). Base prompt and per-expression tags editable.
-- **Background removal:** anime-segmentation ONNX (`skytnt/anime-seg` isnetis, ~170 MB) served by the tagger sidecar (`POST /cutout`), returns a transparent PNG.
+Owner supplied 11 reference sheets (2026-10-15); Precise Reference does not work on V5 right now, so sprites are built from tags analysed from those sheets (no reference image sent). Without references, 1024×1024 / 832×1216 at 28 steps is free on Opus.
+
+**Character tags (all sprites):** `1girl, solo, hoshimi miyabi, fox girl, animal ears, fox ears, very long hair, black hair, gradient hair, purple hair tips, twintails, blunt bangs, sidelocks, red eyes, purple eyeshadow, eyeliner, fang, heart earrings, heart ear ornament, black choker, heart choker, ring, large breasts, wide hips, thick thighs, curvy`
+**Constant pieces (all layers):** `black elbow gloves, fingerless gloves, black thighhighs, shiny thighhighs, lace-trimmed thighhighs, heart thigh strap, platform heels`
+
+**Outfit layers:**
+- `day` (layer 1): `white crop top, sleeveless, underboob, aqua skirt, frilled miniskirt, pleated skirt, lace panties`
+- `night` (layer 2): `black leotard, latex leotard, highleg leotard, strapless leotard, plunging neckline, cleavage`
+- `lewd` (layer 3): `completely nude, nipples, pussy` (with the constant pieces)
+
+**Expressions (9) → tags:** smug `smug, smirk, half-closed eyes, fang`; laughing `laughing, open mouth, closed eyes, fang`; wink `one eye closed, tongue out, :p`; pout `pout, puffed cheeks, bubble blowing, chewing gum`; flirty `seductive smile, blush, half-closed eyes, heart-shaped pupils`; shocked `surprised, wide-eyed, open mouth, sweat`; annoyed `annoyed, frown, glaring, v-shaped eyebrows`; excited `excited, open smile, sparkling eyes, fang`; sleepy `sleepy, half-closed eyes, yawning, tears`.
+
+**Art kinds:**
+- **Bust frames** (27 = 9 expressions × 3 layers): `portrait, upper body, looking at viewer, simple background, white background`, 1024×1024 — the floating mascot and bubbles use these.
+- **Full sprites** (3, one per layer): `full body, standing, hand on hip, looking at viewer, simple background, white background`, 832×1216, neutral smug — shown in the deep-talk sheet.
+- 28 steps, fixed seed per layer; tags editable in the mascot studio (base, constant, per layer, per expression).
+
+**Mascot studio** (Settings → Mascot): per layer and art kind — generate N candidates (default 3) → pick one → background removed → saved as `data/mascot/<outfit>/<expression>.png` (bust) / `data/mascot/<outfit>/full.png` (+ `.orig.png`). Shows the Anlas balance before/after a batch; any non-zero estimate needs a tap to confirm. Optional sheet upload per outfit is kept for later (if V5 Precise Reference starts working, the stored sheet can be sent via the Task 1 `CharRef`).
+**Background removal:** anime-segmentation ONNX (`skytnt/anime-seg` isnetis, ~170 MB) served by the tagger sidecar (`POST /cutout`), returns a transparent PNG.
 - Missing sprites fall back to the same expression in `day`, then the nearest expression, then a lettered placeholder.
 
 ## 2. Floating Miyabi

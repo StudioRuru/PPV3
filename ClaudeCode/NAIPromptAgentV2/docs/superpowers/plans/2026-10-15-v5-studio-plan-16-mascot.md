@@ -82,21 +82,21 @@ Commit: `feat(mascot): Miyabi persona + quip prompt`.
 ### Task 5: Journal, facts and settings store
 **Files:** Create `studio/src/lib/mascot/store.ts`, `store.test.ts`; Modify `studio/src/lib/db.ts` (call `migrateMascot(db)`).
 
-**Produces:** `migrateMascot(db)`; `class MascotStore(db)`: `log(kind, summary, line)` (keeps last 300), `recent(n)`, `facts()`, `setFacts(list)` (≤12, each ≤160 chars), `deleteFact(id)`, `clearFacts()`, `needsRefresh(): boolean` (≥25 journal rows since last refresh or >24 h), `markRefreshed()`; `factsPrompt(journal, taste, current)` + `parseFacts(raw)` (bullet list → ≤12 strings). Mascot settings read/write helpers in `lib/mascot/settings.ts`: `{ show, cooldownMs, nightFrom, nightTo, pin, mods, basePrompt, exprTags: Record<Expression,string>, corner }` with defaults (show true, cooldown 120000, 23→7, pin null, mods {bratty,tease,flirt: true}).
+**Produces:** `migrateMascot(db)`; `class MascotStore(db)`: `log(kind, summary, line)` (keeps last 300), `recent(n)`, `facts()`, `setFacts(list)` (≤12, each ≤160 chars), `deleteFact(id)`, `clearFacts()`, `needsRefresh(): boolean` (≥25 journal rows since last refresh or >24 h), `markRefreshed()`; `factsPrompt(journal, taste, current)` + `parseFacts(raw)` (bullet list → ≤12 strings). Mascot settings read/write helpers in `lib/mascot/settings.ts`: `{ show, cooldownMs, nightFrom, nightTo, pin, mods, charTags, constantTags, layerTags: Record<Outfit,string>, exprTags: Record<Expression,string>, corner }` with defaults (tag defaults = spec §1 verbatim) (show true, cooldown 120000, 23→7, pin null, mods {bratty,tease,flirt: true}).
 
 **Tests:** cap at 300; facts caps; needsRefresh by count and by age; parseFacts from bullets/numbered/garbage; settings defaults + partial merge with type checks.
 
 Commit: `feat(mascot): journal, facts, settings`.
 
 ### Task 6: Mascot API
-**Files:** Create `studio/src/app/api/mascot/quip/route.ts`, `state/route.ts`, `sprites/route.ts`, `sprites/[outfit]/[expr]/route.ts`, `studio/route.ts`; Create `studio/src/lib/mascot/sprites.ts` (paths, list, save candidate/pick, sheet storage, request builder `spriteRequest(outfit, expr, settings, sheetB64)` → `{ compiled, params, ref }`), `sprites.test.ts`.
+**Files:** Create `studio/src/app/api/mascot/quip/route.ts`, `state/route.ts`, `sprites/route.ts`, `sprites/[outfit]/[expr]/route.ts`, `studio/route.ts`; Create `studio/src/lib/mascot/sprites.ts` (paths, list, save candidate/pick, request builder `spriteRequest(outfit, kind: "bust" | "full", expr, settings)` → `{ compiled, params }` built from the spec §1 tags — character + constant + layer + expression/framing; bust 1024×1024, full 832×1216, 28 steps, fixed per-layer seed; NO reference image on V5 (owner: Precise Reference doesn't work on V5) — optional `sheet` upload stored but unused), `sprites.test.ts`.
 
 - `POST /api/mascot/quip {event, context: {promptSummary, nsfw}}` → `{ expression, text, source: "model" | "canned" }`. Canned when heavy-paused, quick model missing, or any error/timeout (8 s). Logs to journal. If `needsRefresh()`, refreshes facts detached on the quick tier.
 - `GET/POST /api/mascot/state` → settings + facts; POST accepts a settings patch (validated by the settings helper) and fact edits.
 - `GET /api/mascot/sprites` → which `outfit/expr` exist (+ sheet presence per outfit); `GET /api/mascot/sprites/[outfit]/[expr]` serves the PNG (name whitelist, long cache with `?v=mtime`).
-- `POST /api/mascot/studio`: `{ action: "sheet", outfit }` multipart upload (≤20 MB, image only, stored `data/mascot/sheets/<outfit>.png`); `{ action: "estimate", outfit, expr, n }` → `{ anlas, perImage }`; `{ action: "generate", outfit, expr, n, confirm: true }` → candidates saved to `data/mascot/candidates/<outfit>/<expr>/<i>.png`, returns balance before/after; `{ action: "pick", outfit, expr, i }` → cutout via tagger (fallback: original + note) → `data/mascot/<outfit>/<expr>.png` (+ `.orig.png`).
+- `POST /api/mascot/studio`: `{ action: "sheet", outfit }` multipart upload (≤20 MB, image only, stored `data/mascot/sheets/<outfit>.png`); `{ action: "estimate", outfit, expr, n }` → `{ anlas, perImage }`; `{ action: "generate", outfit, expr, n, confirm: true }` → candidates saved to `data/mascot/candidates/<outfit>/<expr>/<i>.png`, returns balance before/after; `{ action: "pick", outfit, expr, i }` → cutout via tagger (fallback: original + note) → `data/mascot/<outfit>/<expr>.png` or `data/mascot/<outfit>/full.png` (+ `.orig.png`). `estimate`/`generate`/`pick` take `kind: "bust" | "full"` (full ignores expr).
 
-**Tests (sprites.test.ts):** spriteRequest uses base prompt + outfit sheet ref + expression tags, white background, 832×1216, 28 steps, fixed per-outfit seed; name whitelist rejects traversal; pick never writes when cutout and original both missing.
+**Tests (sprites.test.ts):** spriteRequest composes character + constant + layer + expression (bust) or full-body framing (full) from settings, white background, bust 1024×1024 / full 832×1216, 28 steps, fixed per-layer seed, no ref; name whitelist rejects traversal; pick never writes when cutout and original both missing.
 
 Commit: `feat(mascot): API`.
 
@@ -112,7 +112,7 @@ Commit: `feat(mascot): floating Miyabi + events`.
 ### Task 8: Deep talk
 **Files:** Create `studio/src/components/mascot/MiyabiSheet.tsx`; Modify `studio/src/app/api/chat/route.ts` (persona `miyabi` threads use the heavy tier via `heavyGate.run` + think:false; other personas unchanged), `ChatScreen.tsx` (Miyabi in persona list already via PERSONAS).
 
-Sheet: portrait (current sprite), thread picker limited to `miyabi` threads (create on first open), messages + composer + PatchCard on change replies (reusing ChatScreen's parse/apply via props), like/dislike → `/api/taste`. Status line when heavy pauses.
+Sheet: full sprite of the current outfit (`<outfit>/full.png`, falls back to the bust), thread picker limited to `miyabi` threads (create on first open), messages + composer + PatchCard on change replies (reusing ChatScreen's parse/apply via props), like/dislike → `/api/taste`. Status line when heavy pauses.
 
 **Tests:** chat route helper `modelFor(persona)` → heavy for miyabi, everyday otherwise (extract to `lib/chat-model.ts`).
 
@@ -121,7 +121,7 @@ Commit: `feat(mascot): deep talk sheet`.
 ### Task 9: Settings → Mascot + studio UI
 **Files:** Create `studio/src/components/mascot/MascotSettings.tsx`, `SpriteStudio.tsx`; Modify `SettingsSheet.tsx` (section + quick model picker).
 
-Settings: show/hide, chattiness slider (30 s…10 min + "only when tapped"), night hours, outfit pin, modifiers toggles, hush now, quick model select, facts list (edit/delete/clear with confirm). Studio: per outfit — sheet upload preview; base prompt + per-expression tags editors; 3×9 grid of current sprites; per cell "Generate 3" → estimate dialog (Anlas + balance) → generate → pick candidate → saved (cutout) with a note when cutout unavailable; "Generate missing for this outfit" with total estimate.
+Settings: show/hide, chattiness slider (30 s…10 min + "only when tapped"), night hours, outfit pin, modifiers toggles, hush now, quick model select, facts list (edit/delete/clear with confirm). Studio: per outfit (layer) — tag editors (character, constant, layer, per expression), optional sheet upload; 3×9 grid of bust frames + 3 full sprites; per cell "Generate 3" → estimate dialog (Anlas + balance) → generate → pick candidate → saved (cutout) with a note when cutout unavailable; "Generate missing for this outfit" with total estimate.
 
 Commit: `feat(mascot): settings + sprite studio`.
 
