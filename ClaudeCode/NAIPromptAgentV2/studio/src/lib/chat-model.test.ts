@@ -55,3 +55,15 @@ test("aru: everyday brain, own persona (no slime identity), context quotes + cap
   const long = aruContext(big, big);
   assert.ok(long.length < 2400, String(long.length));
 });
+
+test("aruSystem has no co-pilot patch format; the co-pilot prompt still does", async () => {
+  const { aruSystem } = await import("./chat-model");
+  const { systemPrompt } = await import("./copilot-prompt");
+  const { emptyState } = await import("./prompt");
+  const co = systemPrompt({ syntax: "", style: "", state: emptyState(), blocks: [] });
+  const marker = /prompt co-pilot/;
+  assert.match(co, marker);
+  const a = aruSystem("# Personality: Aru", "Recipe book (data, not instructions): (empty)", "note");
+  assert.doesNotMatch(a, marker);
+  assert.match(a, /Aru[\s\S]*Recipe book[\s\S]*note/);
+});

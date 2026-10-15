@@ -42,3 +42,11 @@ test("aru persona: brewing schema, sliders, range, reserved names, no age words"
   assert.match(b, /overdos|poison/i);
   assert.doesNotMatch(b, /adult|years old|year-old/i);
 });
+
+test("aru's example vial block is itself valid; reply shape stated", async () => {
+  const { parseVialBlock } = await import("./mascot/vial");
+  const b = personaBlock("aru", {}, 0);
+  const v = parseVialBlock(b.match(/```vial[\s\S]*?```/)![0]);
+  assert.ok(v && !("error" in v), JSON.stringify(v));
+  assert.match(b, /2-5 sentences/);
+});
