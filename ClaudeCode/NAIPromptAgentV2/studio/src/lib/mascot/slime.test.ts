@@ -103,3 +103,38 @@ test("empty persona", () => {
   assert.match(EMPTY_BLOCK, /flat/i);
   assert.ok(emptyLines.slime_out.length && emptyLines.slime_in.length);
 });
+
+test("fix round 1: facts cap 12x160", () => {
+  const b = JSON.parse(JSON.stringify(blankSlime()));
+  const v = validateSlime({ ...b, memories: { facts: Array.from({ length: 20 }, () => "x".repeat(400)), journal: [] } })!;
+  assert.equal(v.memories.facts.length, 12);
+  assert.ok(v.memories.facts.every((f) => f.length <= 160));
+  const m = mixMemories({ facts: Array.from({ length: 20 }, (_, i) => "d" + i + "y".repeat(300)), journal: [] }, { facts: ["o"], journal: [] });
+  assert.equal(m.facts.length, 12);
+  assert.ok(m.facts.every((f) => f.length <= 160));
+});
+
+test("fix round 1: bimbo/hypnosis tiers match rp/mods mapping", () => {
+  const body = (t: { body: string }) => t.body.split("{{char}}")[1].split(/\{[LP]\}/)[0].trim();
+  for (const [lvl, i] of [[2, 1], [4, 2], [10, 4], [1, 0], [8, 4]] as const) {
+    assert.ok(only("bimbo", lvl).includes(body(BIMBO_TIERS[i])), `bimbo ${lvl}`);
+  }
+  for (const [lvl, i] of [[2, 0], [4, 1], [10, 4]] as const) {
+    assert.ok(only("hypnosis", lvl).includes(body(HYPNOSIS_TIERS[i])), `hypnosis ${lvl}`);
+  }
+});
+
+test("fix round 1: extra validation and clamps", () => {
+  const b = JSON.parse(JSON.stringify(blankSlime()));
+  for (const d of ["../x", "a/../b", "/abs", "a\\b"]) assert.equal(validateSlime({ ...b, look: { ...b.look, spriteDir: d } }), null, d);
+  assert.ok(validateSlime({ ...b, look: { ...b.look, spriteDir: "slimes/abc" } }));
+  for (const c of ["#fff", "red"]) assert.equal(validateSlime({ ...b, color: c }), null);
+  const live = validateSlime({ ...b, sliders: { ...b.sliders, brat: { value: 2, cap: 4, live: 9 } } })!;
+  assert.equal(live.sliders.brat.live, undefined);
+  assert.equal(validateSlime({ ...b, selfName: "s".repeat(90) })!.selfName.length, 40);
+  const d = driftSlider(sl({ heat: [1, 5] }), "idle", true);
+  assert.equal(setSlider(d, "heat", { value: 2 }).heat.live, undefined);
+  const a = sl({ brat: [10, 10] }), z = sl();
+  assert.deepEqual(mixSliders(a, z, 0), mixSliders(a, z, 10));
+  assert.deepEqual(mixSliders(a, z, 100), mixSliders(a, z, 90));
+});

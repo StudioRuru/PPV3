@@ -17,7 +17,7 @@ export type SlimeDoc = {
 
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 const MODS = ["bratty", "tease", "flirt"] as const;
-const MAX = { name: 40, voice: 1500, tags: 1500, fact: 300, facts: 100, journal: 50, vials: 8, text: 500, dir: 200 };
+const MAX = { name: 40, voice: 1500, tags: 1500, fact: 160, facts: 12, journal: 50, vials: 8, text: 500, dir: 200 };
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -38,6 +38,7 @@ const HEAT_TIERS = [
   "{who} is overwhelmed by heat: every thought turns lewd, she begs and pants, and she can barely finish a sentence without it turning filthy.",
 ];
 const tier = (L: number) => Math.min(4, Math.floor((L - 1) / 2));
+const bimboTier = (L: number) => Math.min(4, Math.floor(L / 2)); // same as rp/mods.ts bimboTier
 const fill = (t: string, L: number, who: string) =>
   t.replace(/\{\{char\}\}|\{who\}/g, who).replace(/\{\{user\}\}/g, "the owner").replace("{L}", String(L)).replace("{P}", String(L * 10));
 
@@ -51,12 +52,12 @@ const eff = (s: Slider) => s.live ?? s.value;
 /** Tier directives per slider at its effective level; "" when everything is 0. Length is shaped via lengthShape. */
 export function sliderBlock(s: Sliders, who = "Miyabi"): string {
   const out: string[] = [];
-  const add = (id: Exclude<SliderId, "length">, tiers: string[]) => {
+  const add = (id: Exclude<SliderId, "length">, tiers: string[], pick = tier) => {
     const L = clamp(eff(s[id]), 0, 10);
-    if (L >= 1) out.push(fill(tiers[tier(L)], L, who));
+    if (L >= 1) out.push(fill(tiers[pick(L)], L, who));
   };
   add("brat", BRAT_TIERS);
-  add("bimbo", BIMBO_TIERS.map((t) => t.body));
+  add("bimbo", BIMBO_TIERS.map((t) => t.body), bimboTier);
   add("hypnosis", HYPNOSIS_TIERS.map((t) => t.body));
   add("heat", HEAT_TIERS);
   const len = eff(s.length);
@@ -85,7 +86,7 @@ export function mixSliders(a: Sliders, b: Sliders, ratioA: number): Sliders {
   return mapS(a, (k, v) => { const value = m(v.value, b[k].value); return { value, cap: Math.max(value, m(v.cap, b[k].cap)) }; });
 }
 export function mixMemories(dominant: Memories, other: Memories): Memories {
-  const facts = [...new Set([...dominant.facts, ...other.facts])].slice(0, MAX.facts);
+  const facts = [...new Set([...dominant.facts, ...other.facts].map((f) => f.slice(0, MAX.fact)))].slice(0, MAX.facts);
   const seen = new Set<string>();
   const journal = [...dominant.journal, ...other.journal].filter((j) => { const k = `${j.created_at}|${j.summary}`; return !seen.has(k) && seen.add(k); }).slice(0, MAX.journal);
   return { facts, journal };
@@ -137,7 +138,7 @@ export function validateSlime(raw: unknown): SlimeDoc | null {
     exprTags: Object.fromEntries(EXPRESSIONS.map((e) => [e, str(et[e], MAX.tags)])) as Record<Expression, string>,
     spriteDir: str(lk.spriteDir, MAX.dir),
   };
-  if (look.spriteDir.split("/").includes("..") || look.spriteDir.startsWith("/")) return null;
+  if (look.spriteDir.split("/").includes("..") || look.spriteDir.startsWith("/") || look.spriteDir.includes("\\")) return null;
   const mem = isObj(raw.memories) ? raw.memories : {};
   const facts = (Array.isArray(mem.facts) ? mem.facts : []).filter((f): f is string => typeof f === "string").slice(0, MAX.facts).map((f) => f.slice(0, MAX.fact));
   const journal = (Array.isArray(mem.journal) ? mem.journal : []).filter(isObj).slice(0, MAX.journal).map((j) => ({
