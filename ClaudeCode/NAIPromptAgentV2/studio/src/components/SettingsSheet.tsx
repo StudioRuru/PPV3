@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { fixSchedule, SAMPLERS, schedulesFor, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import { getTheme, setTheme, THEMES, type ThemePref } from "@/lib/theme";
+import { MascotSettings } from "./mascot/MascotSettings";
 import { Sheet } from "./Sheet";
 import { useAnlas } from "./VariationSheet";
 
@@ -24,7 +25,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const [purge, setPurge] = useState<{ days: number | null; count: number } | null>(null);
   const [taste, setTaste] = useState<{ profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[] } | null>(null);
   const [forget, setForget] = useState(false);
-  const [models, setModels] = useState<{ heavy: string; models: string[] } | null>(null);
+  const [models, setModels] = useState<{ heavy: string; quick: string; models: string[] } | null>(null);
   const post = (body: object) => requestJson<{ autoDeleteDays: number | null; wouldRemove?: number }>("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   // Dry run first: if this window would delete images right now, say how many and ask.
   async function chooseRetention(days: number | null) {
@@ -32,6 +33,10 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     if (dry.ok && (dry.data.wouldRemove ?? 0) > 0) { setPurge({ days, count: dry.data.wouldRemove! }); return; }
     const r = await post({ autoDeleteDays: days });
     if (r.ok) setRetention(r.data.autoDeleteDays);
+  }
+  async function saveModel(body: { heavy?: string; quick?: string }) {
+    const r = await requestJson<NonNullable<typeof models>>("/api/rp/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.ok) setModels(r.data);
   }
   const { anlas } = useAnlas(open);
 
@@ -42,7 +47,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     requestJson<{ danbooru: boolean }>("/api/status").then((r) => setDanbooru(r.ok ? r.data.danbooru : null));
     requestJson<{ autoDeleteDays: number | null }>("/api/settings").then((r) => r.ok && setRetention(r.data.autoDeleteDays));
     requestJson<NonNullable<typeof taste>>("/api/taste").then((r) => r.ok && setTaste(r.data));
-    requestJson<{ heavy: string; models: string[] }>("/api/rp/settings").then((r) => r.ok && setModels(r.data));
+    requestJson<NonNullable<typeof models>>("/api/rp/settings").then((r) => r.ok && setModels(r.data));
   }, [open]);
 
   const pick = (p: ThemePref) => { setTheme(p); setPref(p); };
@@ -144,13 +149,24 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>Heavy model<span className="text-muted block text-xs">Roleplay and the character studio; pauses the captioner + TIPO while it runs</span></span>
             <select value={models?.heavy ?? ""} disabled={!models} aria-label="Heavy model"
-              onChange={async (e) => { const r = await requestJson<{ heavy: string; models: string[] }>("/api/rp/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heavy: e.target.value }) }); if (r.ok) setModels(r.data); }}
+              onChange={(e) => saveModel({ heavy: e.target.value })}
               className="bg-bg border-border h-10 max-w-[12rem] rounded-md border px-2 text-sm">
               {models && !models.models.includes(models.heavy) && <option value={models.heavy}>{models.heavy} (not installed)</option>}
               {models?.models.filter((m) => !/embed|bge|nomic/i.test(m)).map((m) => <option key={m} value={m}>{m.replace(/:latest$/, "")}</option>)}
             </select>
           </label>
+          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>Quick model<span className="text-muted block text-xs">Miyabi&apos;s quips</span></span>
+            <select value={models?.quick ?? ""} disabled={!models} aria-label="Quick model" onChange={(e) => saveModel({ quick: e.target.value })}
+              className="bg-bg border-border h-10 max-w-[12rem] rounded-md border px-2 text-sm">
+              <option value="">Default (Gemma 4 E4B)</option>
+              {models?.quick && !models.models.includes(models.quick) && <option value={models.quick}>{models.quick} (not installed)</option>}
+              {models?.models.filter((m) => !/embed|bge|nomic/i.test(m)).map((m) => <option key={m} value={m}>{m.replace(/:latest$/, "")}</option>)}
+            </select>
+          </label>
         </section>
+
+        <MascotSettings open={open} />
 
         <section className="text-sm">
           <h3 className={h3}>Co-pilot taste (learned)</h3>
