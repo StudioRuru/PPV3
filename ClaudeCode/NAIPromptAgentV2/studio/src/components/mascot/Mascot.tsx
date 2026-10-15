@@ -15,7 +15,7 @@ const isTyping = () => !!(document.activeElement as HTMLElement | null)?.matches
 const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** Miyabi: floats above the tab bar on every tab, quips about `mascot` bus events. */
-export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { rating: string; prompt: string; onTap?: () => void }) {
+export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { rating: string; prompt: string; onTap?: (outfit: Outfit) => void }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [sprites, setSprites] = useState<Record<string, number>>({});
   const [say, setSay] = useState<Say | null>(null);
@@ -154,7 +154,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     if (!p) return;
     clearTimeout(p.timer); setDrag(null);
     if (p.long) return;
-    if (!p.moved) { setMenu(false); onTap(); return; }
+    if (!p.moved) { setMenu(false); onTap(outfit); return; }
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     if (dy > 50 && Math.abs(dx) < dy / 2 && e.timeStamp - p.t < 400) { hush(); return; } // quick flick down
     const r = self.current!.getBoundingClientRect(); // still at the dragged spot (setDrag(null) hasn't rendered)
@@ -196,7 +196,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
       )}
       <div role="button" tabIndex={0} aria-label={`Miyabi${hushed ? " (hushed)" : ""} — tap to talk, hold for options, drag to move`}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { clearTimeout(press.current?.timer); press.current = null; setDrag(null); }}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(); } else if (e.key === "ContextMenu") setMenu(true); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(outfit); } else if (e.key === "ContextMenu") setMenu(true); }}
         onContextMenu={(e) => { e.preventDefault(); setMenu(true); setSay(null); }}
         className="relative cursor-grab" style={{ touchAction: "none", WebkitTouchCallout: "none" }}>
         {sprite

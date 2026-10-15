@@ -34,7 +34,7 @@ const json = (body: unknown) => ({ headers: { "Content-Type": "application/json"
 function Runs({ text }: { text: string }) {
   return <>{inline(text).map((r, i) => (r.b ? <strong key={i} className="font-semibold">{r.t}</strong> : r.i ? <em key={i}>{r.t}</em> : r.t))}</>;
 }
-function Md({ text }: { text: string }) {
+export function Md({ text }: { text: string }) {
   return <>{mdBlocks(text).map((b, i) =>
     b.kind === "h" ? <h3 key={i} className="text-accent pt-1 text-xs font-semibold tracking-wide uppercase"><Runs text={b.text} /></h3>
     : b.kind === "li" ? <p key={i} className="flex gap-2 pl-1"><span aria-hidden="true" className="text-muted">•</span><span><Runs text={b.text} /></span></p>
