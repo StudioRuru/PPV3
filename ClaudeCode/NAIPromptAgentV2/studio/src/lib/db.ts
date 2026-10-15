@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { DATA_DIR, DB_PATH } from "@/lib/env";
 import { migrateChat } from "@/lib/threads";
 import { migrateRp } from "@/lib/rp/schema";
+import { migrateMascot } from "@/lib/mascot/store";
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -46,3 +47,4 @@ db.exec(`CREATE TABLE IF NOT EXISTS taste_events (
   tags TEXT NOT NULL DEFAULT '[]', note TEXT NOT NULL DEFAULT '', persona TEXT NOT NULL DEFAULT 'neutral')`);
 db.exec("CREATE TABLE IF NOT EXISTS pinned_prefs (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL)");
 migrateRp(db); // after taste_events: adds its source column
+migrateMascot(db);
