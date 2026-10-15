@@ -3,7 +3,7 @@ import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
 import { getMascotSettings } from "@/lib/mascot/settings-db";
-import { MASCOT_DIR, MAX_CANDIDATES, OUTFITS, perImage, pick, saveCandidates, sheetPath, spriteRequest, target } from "@/lib/mascot/sprites";
+import { MASCOT_DIR, MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, spriteRequest, target } from "@/lib/mascot/sprites";
 import type { Outfit } from "@/lib/mascot/core";
 import { anlas, generateImage, measured, NovelAIError } from "@/lib/novelai";
 
@@ -45,8 +45,9 @@ export async function POST(req: NextRequest) {
       const { result: pngs, cost } = await measured(NOVELAI_TOKEN, async () => {
         const out: Buffer[] = [];
         for (let i = 0; i < n; i++) {
-          const { compiled, params } = spriteRequest(t.outfit, t.kind, t.expr, s);
-          seeds.push(params.seed);
+          const seed = newSeed();
+          const { compiled, params } = spriteRequest(t.outfit, t.kind, t.expr, s, seed);
+          seeds.push(seed);
           out.push((await generateImage(compiled, params, NOVELAI_TOKEN)).png);
         }
         return out;
