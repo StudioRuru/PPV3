@@ -27,6 +27,12 @@ function hint(e: MascotEvent, empty: boolean): string {
     case "tap": return "They poked you — answer the poke with attitude.";
     case "slime_out": return "You are being pulled out of her body — last words, in character.";
     case "slime_in": return "You just woke up in this body — first words, in character.";
+    case "vial_drop": {
+      const q = (v: unknown) => JSON.stringify(cut(typeof v === "string" ? v : "", 300)); // Aru's text: quoted, capped
+      return d.removed !== undefined
+        ? `A potion was just drained from your jar (${q(d.removed)}) — react in character, feel it wear off.`
+        : `A potion was just poured into your jar: ${q(d.effect)} — react in character, feel it take hold.`;
+    }
   }
 }
 

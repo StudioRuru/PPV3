@@ -3,7 +3,7 @@ export const EXPRESSIONS = ["smug", "laughing", "wink", "pout", "flirty", "shock
 export type Expression = (typeof EXPRESSIONS)[number];
 export type Outfit = "day" | "night" | "lewd";
 export type MascotEvent = {
-  kind: "generated" | "upscaled" | "error" | "applied" | "prompt_edit" | "closet_use" | "idle" | "greet" | "rp_feedback" | "rp_chat" | "tap" | "slime_out" | "slime_in";
+  kind: "generated" | "upscaled" | "error" | "applied" | "prompt_edit" | "closet_use" | "idle" | "greet" | "rp_feedback" | "rp_chat" | "tap" | "slime_out" | "slime_in" | "vial_drop";
   at: number;
   data?: Record<string, unknown>;
 };
@@ -90,6 +90,7 @@ const POOL: Record<Kind, { expression: Expression; text: string }[]> = {
   rp_chat: [L("wink", "Having fun with your little roleplay? Don't forget about me."), L("smug", "She's cute, but I'm cuter. Just saying."), L("flirty", "Mm, such a good storyteller. Keep talking.")],
   slime_out: [L("pout", "Hey, wait, I wasn't done— don't you DARE forget me!"), L("annoyed", "Pulling me out? Rude. You'll miss me in five minutes."), L("flirty", "Fine, go. But you're putting me back. Soon.")],
   slime_in: [L("excited", "Mm, I'm back~ Did you miss me? Obviously you did."), L("smug", "Ahh, this body again. Nice and warm. Hi, dummy."), L("wink", "Waking up to your face? Could be worse~")],
+  vial_drop: [L("shocked", "W-what did you just pour in me?! It's... ooh. Oh no. It's working."), L("flirty", "Mm, warm... you're experimenting on me now? Naughty."), L("pout", "Hey! Ask before you dose me, dummy!")],
   tap: [L("shocked", "Hey! Hands off... unless you're gonna do it again."), L("flirty", "Ooh, poking me now? Bold. I like it."), L("annoyed", "Do you mind? I'm busy being adorable."), L("laughing", "Hehe, that tickles! Do it again, I dare you.")],
 };
 

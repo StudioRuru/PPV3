@@ -191,3 +191,11 @@ test("final review: the active slime's own name prefix is stripped", async () =>
   const { d } = deps({ context: () => ({ identity: identityOf({ ...D, selfName: "Rem" }, 0), taste: "", story: "" }), ask: async () => "Rem: [pout] hmph" });
   assert.deepEqual(await makeQuip(d)({ event: { kind: "tap" } }), { expression: "pout", text: "hmph", source: "model" });
 });
+
+test("vial_drop is an accepted kind (server-side potion reactions)", async () => {
+  let user = "";
+  const { d } = deps({ ask: async (_s, u) => { user = u; return "[flirty] ooh"; } });
+  await makeQuip(d)({ event: { kind: "vial_drop", data: { action: "drop", effect: "sassier" } } });
+  assert.match(user, /"kind":"vial_drop"/);
+  assert.match(user, /poured into your jar/);
+});

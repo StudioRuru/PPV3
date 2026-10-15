@@ -22,7 +22,7 @@ export type QuipDeps = {
 };
 export type QuipResult = { expression: Expression; text: string; source: "model" | "canned" };
 
-const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap", "slime_out", "slime_in"];
+const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap", "slime_out", "slime_in", "vial_drop"];
 const CTX = 4096; // quick tier: small context so E4B stays light next to the brain
 
 export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {

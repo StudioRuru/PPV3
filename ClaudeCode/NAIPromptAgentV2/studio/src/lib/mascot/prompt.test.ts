@@ -42,7 +42,7 @@ test("format: one line in character with the length sentence rule; recent lines 
   assert.doesNotMatch(user, /^Recent lines/m);
 });
 
-const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap", "slime_out", "slime_in"];
+const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap", "slime_out", "slime_in", "vial_drop"];
 
 test("every event kind gets a 'What to react to' hint", () => {
   for (const kind of KINDS) {
@@ -97,4 +97,12 @@ test("jab rule only for brats (effective brat >= 5)", () => {
   assert.match(sys({ value: 2, cap: 10, live: 5 }), /Include at least one tease or jab\./);
   assert.doesNotMatch(sys({ value: 4, cap: 10 }), /tease or jab/);
   assert.doesNotMatch(quipPrompt({ kind: "tap", at: 1 }, { ...ctx, identity: identityOf({ ...D, empty: true }, 0) }).system, /tease or jab/);
+});
+
+test("vial_drop hint: poured effect (quoted, capped) or what was drained", () => {
+  const pour = quipPrompt({ kind: "vial_drop", at: 1, data: { action: "drop", name: "Brat Brew", effect: "makes you \"sassier\"" + "x".repeat(500) } }, ctx).user;
+  assert.match(pour, /What to react to: A potion was just poured into your jar: "makes you \\"sassier\\"x+" — react in character, feel it take hold/);
+  assert.ok(!pour.includes("x".repeat(301)));
+  const undo = quipPrompt({ kind: "vial_drop", at: 1, data: { action: "undo", removed: "Brat Brew" } }, ctx).user;
+  assert.match(undo, /What to react to: A potion was just drained from your jar \("Brat Brew"\) — react in character, feel it wear off/);
 });
