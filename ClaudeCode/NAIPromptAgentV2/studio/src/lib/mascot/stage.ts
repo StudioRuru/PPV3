@@ -44,6 +44,7 @@ const WEIGHTS: Record<Pose, (m: number) => number> = {
 function pickPose(m: number, hasTarget: boolean, event: StageEvent | undefined, rand: () => number): Pose {
   if (event === "bored" && rand() < 0.7) return "legs";
   if (event === "generate") return "back";
+  if (m === 0) return rand() < 0.7 ? "stand" : "peek"; // parked: only stand/peek at an edge
   const entries = (Object.keys(WEIGHTS) as Pose[]).map((p) => [p, p === "lean" && !hasTarget ? 0 : WEIGHTS[p](m)] as const);
   let r = rand() * entries.reduce((a, [, w]) => a + w, 0);
   for (const [p, w] of entries) if ((r -= w) < 0) return p;

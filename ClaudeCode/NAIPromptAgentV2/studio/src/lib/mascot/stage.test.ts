@@ -7,9 +7,14 @@ import {
   nextMoveDelay, rectsIntersect, spotBox, type Rect,
 } from "./stage";
 
-/** Deterministic LCG in [0,1). */
-const seeded = (seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-const VW = 390, VH = 844, baseH = 400;
+/** Deterministic, well-mixed mulberry32 in [0,1). */
+const seeded = (seed: number) => () => {
+  let t = (seed += 0x6d2b79f5);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const VW = 390, VH = 844, baseH = 380;
 const avoid: Rect[] = [{ x: 0, y: 760, w: 390, h: 84 }, { x: 120, y: 8, w: 150, h: 44 }];
 const targets: Rect[] = [{ x: 40, y: 200, w: 310, h: 300 }];
 const base = { vw: VW, vh: VH, baseH, avoid, targets };
@@ -24,6 +29,22 @@ test("never intersects avoid rects or leaves the screen across many draws", () =
     assert.ok(b.y >= 0 && b.y + b.h <= VH + 0.5, `vertical seed ${seed}`);
     if (s.pose !== "peek") assert.ok(b.x >= -0.5 && b.x + b.w <= VW + 0.5, `horizontal seed ${seed}`);
   }
+});
+
+test("draws are varied (guards against vacuous loops) and fit at default baseH", () => {
+  const seen = new Set<string>();
+  for (let i = 1; i <= 300; i++) seen.add(chooseSpot({ ...base, mischief: 5, event: "idle", rand: seeded(i) }).pose);
+  assert.ok(seen.size >= 4, [...seen].join());
+  const lies = new Set<string>();
+  for (let i = 1; i <= 300; i++) {
+    const { baseH: _b, ...noBase } = base; void _b;
+    const s = chooseSpot({ ...noBase, mischief: 10, event: "idle", rand: seeded(i) });
+    lies.add(s.pose);
+    const b = spotBox(s, VH * 0.45, VW, VH);
+    for (const a of avoid) assert.equal(rectsIntersect(b, a), false, `default seed ${i} ${s.pose}`);
+    assert.ok(b.y >= -0.5 && b.y + b.h <= VH + 0.5);
+  }
+  assert.ok(lies.has("lie"), [...lies].join());
 });
 
 test("typing ducks to the nearest edge as a peek", () => {
@@ -56,9 +77,11 @@ test("bored favours legs", () => {
 
 test("mischief 0 parks at an edge and never auto-moves", () => {
   assert.equal(nextMoveDelay(0, seeded(1)), Infinity);
+  const seen0 = new Set<string>();
   for (let i = 1; i <= 100; i++) {
     const s = chooseSpot({ ...base, mischief: 0, event: "idle", rand: seeded(i) });
-    assert.ok(s.pose === "stand" || s.pose === "peek");
+    assert.ok(s.pose === "stand" || s.pose === "peek", `pose ${s.pose}`);
+    seen0.add(s.pose);
     const b = spotBox(s, baseH, VW, VH);
     assert.ok(b.x <= 1 || b.x + b.w >= VW - 1, `edge ${i}`);
   }
@@ -66,16 +89,16 @@ test("mischief 0 parks at an edge and never auto-moves", () => {
 
 test("higher mischief is more central and more varied; apose stays rare", () => {
   const stat = (m: number) => {
-    let cx = 0, rare = 0, varied = new Set<string>();
+    let cx = 0, rare = 0, lazy = 0; const varied = new Set<string>();
     for (let i = 1; i <= 200; i++) {
       const s = chooseSpot({ ...base, mischief: m, event: "idle", rand: seeded(i) });
-      cx += Math.abs(s.x - VW / 2); varied.add(s.pose); if (s.pose === "apose") rare++;
+      cx += Math.abs(s.x - VW / 2); varied.add(s.pose); if (s.pose === "apose") rare++; if (s.pose === "lie" || s.pose === "sit" || s.pose === "legs") lazy++;
     }
-    return { cx: cx / 200, rare, n: varied.size };
+    return { cx: cx / 200, rare, lazy, n: varied.size };
   };
   const lo = stat(1), hi = stat(10);
   assert.ok(hi.cx < lo.cx, `${hi.cx} < ${lo.cx}`);
-  assert.ok(hi.n >= lo.n);
+  assert.ok(hi.lazy > lo.lazy, JSON.stringify({ lo, hi }));
   assert.ok(hi.rare < 40);
 });
 
