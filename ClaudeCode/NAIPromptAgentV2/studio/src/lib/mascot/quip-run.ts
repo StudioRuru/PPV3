@@ -45,7 +45,8 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     if (!(await d.installed()).includes(model)) return null;
     const c = d.context();
     const { system, user } = quipPrompt(e, {
-      ...c, promptSummary, facts: d.store.facts().map((f) => f.text), recent: d.store.recent(5).reverse().map((r) => r.line),
+      // Empty: the previous slime's lines and facts would pull her back into its voice.
+      ...c, promptSummary, facts: c.identity.empty ? [] : d.store.facts().map((f) => f.text), recent: c.identity.empty ? [] : d.store.recent(5).reverse().map((r) => r.line),
     });
     inFlight = true;
     const run = d.ask(system, user, model, { num_ctx: CTX, num_predict: c.identity.lengthShape.quipPredict, temperature: 0.9 }).finally(() => { inFlight = false; });

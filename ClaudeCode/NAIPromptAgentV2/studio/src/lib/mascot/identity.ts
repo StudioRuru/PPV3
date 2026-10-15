@@ -17,7 +17,7 @@ const MODS = ["bratty", "tease", "flirt"] as const;
 export function identityOf(s: MascotSettings, drift: number): Identity {
   const len = s.sliders.length;
   return {
-    empty: s.empty, voice: s.voice, selfName: s.selfName || "Miyabi", sliders: s.sliders, mods: s.empty ? {} : s.mods, drift,
+    empty: s.empty, voice: s.voice, selfName: s.selfName || "the mascot", sliders: s.sliders, mods: s.empty ? {} : s.mods, drift,
     lengthShape: lengthShape(s.empty ? 0 : len.live ?? len.value),
   };
 }

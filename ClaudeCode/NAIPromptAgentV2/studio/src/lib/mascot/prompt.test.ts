@@ -89,3 +89,12 @@ test("slime_out / slime_in hints", () => {
   assert.match(quipPrompt({ kind: "slime_out", at: 1 }, ctx).user, /What to react to: You are being pulled out of her body — last words, in character/);
   assert.match(quipPrompt({ kind: "slime_in", at: 1 }, ctx).user, /What to react to: You just woke up in this body — first words, in character/);
 });
+
+test("jab rule only for brats (effective brat >= 5)", () => {
+  const sys = (brat: { value: number; cap: number; live?: number }) =>
+    quipPrompt({ kind: "tap", at: 1 }, { ...ctx, identity: identityOf({ ...D, sliders: { ...D.sliders, brat } }, 0) }).system;
+  assert.match(sys(D.sliders.brat), /Include at least one tease or jab\./);
+  assert.match(sys({ value: 2, cap: 10, live: 5 }), /Include at least one tease or jab\./);
+  assert.doesNotMatch(sys({ value: 4, cap: 10 }), /tease or jab/);
+  assert.doesNotMatch(quipPrompt({ kind: "tap", at: 1 }, { ...ctx, identity: identityOf({ ...D, empty: true }, 0) }).system, /tease or jab/);
+});

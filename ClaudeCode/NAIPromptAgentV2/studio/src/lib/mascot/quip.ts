@@ -15,7 +15,10 @@ export const mascotStore = new MascotStore(db);
 export const liveIdentity = new DbIdentity(db, mascotStore);
 export const slimeStore = new SlimeStore(db, liveIdentity);
 // Jar #1 "Miyabi" exists before any API call (not while `next build` imports routes).
-if (process.env.NEXT_PHASE !== "phase-production-build") slimeStore.ensureFirstRun();
+// A busy DB must not break importing this module (chat/taste/quip routes); the next server start retries.
+if (process.env.NEXT_PHASE !== "phase-production-build") {
+  try { slimeStore.ensureFirstRun(); } catch (e) { console.error("mascot: slime first run failed:", (e as Error).message); }
+}
 /** What quips and deep talk read: the active slime (or Empty). */
 export const activeIdentity = () => liveIdentity.active(getDrift("miyabi"));
 

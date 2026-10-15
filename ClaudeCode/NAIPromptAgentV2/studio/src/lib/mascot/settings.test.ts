@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseMascotSettings, mergeMascotSettings } from "./settings";
+import { clientSettingsPatch, parseMascotSettings, mergeMascotSettings } from "./settings";
 
 const D = parseMascotSettings(null);
 
@@ -75,4 +75,15 @@ test("identity fields validate: per-slider, caps, sprite dir whitelist", () => {
   assert.deepEqual(bad, D);
   for (const d of ["../x", "a/../b", "/abs", "a\\b", 3]) assert.equal(mergeMascotSettings(D, { spriteDir: d }).spriteDir, "", String(d));
   assert.deepEqual(mergeMascotSettings(D, { sliders: { brat: { value: 1, cap: 2, live: 3 } } }).sliders.brat, { value: 1, cap: 2 }, "live above cap dropped");
+});
+
+test("client patches can't set empty or live drift; moving a slider resets drift", () => {
+  const p = clientSettingsPatch({ empty: true, show: false, sliders: { brat: { value: 3, cap: 8, live: 8 }, heat: "x" } }) as Record<string, unknown>;
+  assert.equal("empty" in p, false);
+  const drifted = { ...D, sliders: { ...D.sliders, brat: { value: 6, cap: 10, live: 9 } } };
+  const m = mergeMascotSettings(drifted, p);
+  assert.deepEqual(m.sliders.brat, { value: 3, cap: 8 });
+  assert.equal(m.show, false);
+  assert.equal(m.empty, false);
+  assert.equal(clientSettingsPatch(null), null);
 });

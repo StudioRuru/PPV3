@@ -142,3 +142,13 @@ test("slime_out / slime_in are accepted kinds; Empty canned lines are flat", asy
   assert.ok(emptyLines.slime_out.includes((await quip({ event: { kind: "slime_out" } })).text));
   assert.ok(["...", "Okay.", "Understood."].includes((await quip({ event: { kind: "tap" } })).text));
 });
+
+test("Empty: the old slime's recent lines and facts stay out of the prompt", async () => {
+  const users: string[] = [];
+  const { d } = deps({ context: () => ({ identity: identityOf({ ...D, empty: true }, 0), taste: "", story: "" }), ask: async (_s, u) => { users.push(u); return "[sleepy] ok"; } });
+  d.store.recent = () => [{ id: 1, created_at: 1, kind: "tap", summary: "", line: "HMPH, dummy!" }];
+  d.store.facts = () => [{ id: 1, text: "owner loves foxes", created_at: 1 }];
+  await makeQuip(d)({ event: { kind: "tap" } });
+  assert.doesNotMatch(users[0], /recent lines|HMPH/);
+  assert.doesNotMatch(users[0], /Facts:|loves foxes/);
+});

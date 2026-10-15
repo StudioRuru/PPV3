@@ -50,6 +50,14 @@ const tags = (v: unknown): v is string => typeof v === "string" && v.length <= M
 const int = (v: unknown, hi: number): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= hi;
 const hour = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 23;
 
+/** Untrusted client settings patch: `empty` belongs to insert/remove and `live` drift to the server, so both are dropped (moving a slider resets drift). */
+export function clientSettingsPatch(patch: unknown): unknown {
+  if (!isObj(patch)) return patch;
+  const { empty: _empty, ...rest } = patch;
+  if (isObj(rest.sliders)) rest.sliders = Object.fromEntries(Object.entries(rest.sliders).map(([k, v]) => [k, isObj(v) ? { value: v.value, cap: v.cap } : v]));
+  return rest;
+}
+
 /** Apply valid fields of an untrusted patch onto cur; invalid fields are ignored. */
 export function mergeMascotSettings(cur: MascotSettings, patch: unknown): MascotSettings {
   if (!isObj(patch)) return cur;

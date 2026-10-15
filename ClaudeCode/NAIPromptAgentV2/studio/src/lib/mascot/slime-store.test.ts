@@ -137,3 +137,11 @@ test("a dangling active pointer is treated as Empty and cleared", () => {
   s.insert(other);
   assert.equal(s.activeId(), other);
 });
+
+test("create/extract default an empty selfName to the jar name", () => {
+  const { s, live } = mk();
+  s.ensureFirstRun();
+  assert.equal(s.get(s.create({ ...blankSlime(), name: "Kit" }))!.selfName, "Kit");
+  live.state!.selfName = "";
+  assert.equal(s.get(s.extract("Echo", "#000000"))!.selfName, "Echo");
+});

@@ -49,7 +49,7 @@ export class SlimeStore {
 
   create(doc: SlimeDoc): number {
     const t = this.now();
-    return Number(this.db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES (?, ?, ?)").run(JSON.stringify(valid(doc)), t, t).lastInsertRowid);
+    return Number(this.db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES (?, ?, ?)").run(JSON.stringify(valid({ ...doc, selfName: doc.selfName || doc.name })), t, t).lastInsertRowid);
   }
   save(id: number, patch: Partial<SlimeDoc>): SlimeDoc {
     const cur = this.get(id);

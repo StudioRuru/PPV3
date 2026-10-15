@@ -94,3 +94,9 @@ test("slimePersona: voice, name and slider text; Empty = EMPTY_BLOCK only", () =
   assert.match(p, /Keep replies to 1–2 sentences\./);
   assert.equal(slimePersona(identityOf({ ...D, empty: true }, 50)), EMPTY_BLOCK);
 });
+
+test("a nameless slime is 'the mascot', never Miyabi", () => {
+  const i = identityOf({ ...D, voice: "", selfName: "" }, 0);
+  assert.equal(i.selfName, "the mascot");
+  assert.doesNotMatch(slimePersona(i), /Miyabi/);
+});
