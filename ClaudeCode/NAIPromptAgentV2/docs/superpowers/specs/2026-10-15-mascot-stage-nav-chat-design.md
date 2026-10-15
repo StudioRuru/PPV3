@@ -30,12 +30,14 @@ Per character profile (`miyabi`, `aru`) with its own tag set (Aru: tags from the
 - **Expressions on poses:** quip expression maps to the current pose's expression sprite; blink = brief swap to `sleepy` (2 frames) every few seconds; idle mood drifts.
 - **Tap menu:** first tap on her (not a poke-zone gesture) opens a swipeable **speech-bubble carousel** of tabs (Studio · Camera roll · Closet · Chat · RP · Settings); swipe to choose, tap to go.
 
-## 3. Pill navigation (P1)
-- Floating pill at the top centre (below the status bar / real Dynamic Island area), replaces the bottom tab bar.
-- **Minimal:** small handle with a dot in the current tab's colour. **Compact:** current tab name + Miyabi's mood bust. **Expanded:** tab switcher grid + Hide/Summon Miyabi + Mischief quick slider.
-- **Gestures (invisible zones on the pill):** swipe left/right = previous/next tab; swipe down = expand; swipe up = collapse; tap = toggle compact/expanded; long-press = hide/summon Miyabi.
-- Auto-collapses to minimal on scroll down, compact on scroll up. Edge-swipe between tabs (existing) kept.
-- Layout: the app gains the bottom 3.5rem; composers stick to the bottom; `[data-composer]` logic unchanged.
+## 3. Pill navigation — the liquid island (P1)
+Based on the owner's SwiftUI sample (`~/Documents/Dynamic Island Interaction Sample.rtf`): a black anchor drawn exactly behind the real Dynamic Island + a drawer shape that stretches down from it, fused by a blur + alpha-threshold "metaball" filter so the island appears to melt into a drawer; an invisible hot zone over the island takes the gestures. Built in the web app (one codebase, works in the browser too):
+- **Rendering:** an SVG goo filter (`feGaussianBlur` stdDeviation ≈ 12 → `feColorMatrix` alpha threshold ≈ 0.5) over two black shapes: the **anchor** capsule (default 126×37.33 pt at top 11 pt, centred) and the **drawer** rounded rect; content (tab names, Miyabi's mood bust, buttons) is drawn on top, outside the filter. Spring animation (response ≈ 0.45, damping ≈ 0.72, as in the sample) via Web Animations.
+- **States:** **minimal** = drawer hidden inside the anchor (looks like the real island; on non-island screens a small dark handle); **compact** = drawer stretched slightly below the island showing the current tab + Miyabi's mood bust; **expanded** = 340×150 drawer with the tab grid, Hide/Summon Miyabi and a Mischief quick slider.
+- **Gestures** on a 180×65 invisible hot zone over the island: drag down follows the finger (drawer grows ×0.65 of the drag, width +1.6×, height +0.9×, as in the sample); release > 55 → expanded; drag up > 30 → collapse; swipe left/right → previous/next tab; tap → toggle compact/expanded; long-press → hide/summon Miyabi.
+- **Calibration:** Settings → Mascot → "Island" offset and size (defaults from the sample; Reset) because the page can't read the cutout's exact geometry; hidden on devices without an island (no top safe-area inset ≥ 50 pt → plain pill).
+- **iOS shell:** the WKWebView must draw edge-to-edge under the status bar (`viewport-fit=cover`, content inset adjustment off) so the drawer can merge with the real island — part of P1's shell tweak (small rebuild) or P3.
+- Bottom tab bar removed; the app gains the bottom 3.5rem; composers stick to the bottom; `[data-composer]` logic unchanged; edge-swipe between tabs kept.
 
 ## 4. Face-to-face chat (P2)
 - **Chat tab = Miyabi:** top 40% portrait stage (her talk portraits; outfit by rules), below: chat (her threads, co-pilot patch cards, image attach) — the Miyabi sheet is removed (its features move here). Old personas removed from PERSONAS/UI; existing threads with removed personas are migrated to `miyabi`.
