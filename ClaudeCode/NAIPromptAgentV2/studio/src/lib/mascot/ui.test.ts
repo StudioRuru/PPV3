@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXPRESSIONS } from "./core";
-import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, diffTags, missingCells, nearestCorner, requestSeq, sliderToCooldown } from "./ui";
+import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, deltaChips, diffTags, groupBottles, missingCells, nearestCorner, poisonTone, requestSeq, sliderToCooldown, stripVialBlock } from "./ui";
 
 test("diffTags: added and removed, order kept, dupes ignored", () => {
   assert.deepEqual(diffTags(["a", "b", "c"], ["b", "d", "c", "d"]), { added: ["d"], removed: ["a"] });
@@ -53,4 +53,27 @@ test("requestSeq: only the latest response applies; busy while any request is ou
   assert.equal(q.busy(), false);
   const c = q.start();
   assert.equal(q.done(c), true);
+});
+
+test("deltaChips: signed value/cap labels, zeros and empties skipped, slider order", () => {
+  assert.deepEqual(deltaChips({ heat: { cap: -1 }, brat: { value: 2, cap: 0 } }), ["brat +2", "heat cap −1"]);
+  assert.deepEqual(deltaChips({ bimbo: { value: -3, cap: 1 } }), ["bimbo −3", "bimbo cap +1"]);
+  assert.deepEqual(deltaChips(undefined), []);
+  assert.deepEqual(deltaChips({ length: {} }), []);
+});
+test("groupBottles: by name (case-insensitive), ids oldest first, counts, sorted by name", () => {
+  const b = (id: number, name: string) => ({ id, name, color: "#ffffff", effect: "e" });
+  const g = groupBottles([b(3, "Zest"), b(1, "amber"), b(2, "Zest"), b(4, "zest ")]);
+  assert.deepEqual(g.map((x) => [x.name, x.ids, x.count]), [["amber", [1], 1], ["Zest", [2, 3, 4], 3]]);
+  assert.deepEqual(groupBottles([]), []);
+});
+test("poisonTone: none / poisoned purple / severe deep purple", () => {
+  assert.equal(poisonTone(0), "#4b5563");
+  assert.equal(poisonTone(1), "#9333ea");
+  assert.equal(poisonTone(2), "#581c87");
+});
+test("stripVialBlock: removes fenced vial blocks, keeps the prose", () => {
+  assert.equal(stripVialBlock('Here~\n\n```vial\n{"name":"x"}\n```\n\nEnjoy.'), "Here~\n\nEnjoy.");
+  assert.equal(stripVialBlock("no block"), "no block");
+  assert.equal(stripVialBlock("half\n```vial\n{\"na"), "half"); // still streaming: hide the open block
 });

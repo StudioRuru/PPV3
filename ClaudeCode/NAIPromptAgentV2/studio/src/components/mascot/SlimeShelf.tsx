@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Expression } from "@/lib/mascot/core";
+import { poisonTone } from "@/lib/mascot/ui";
 import { isHex, mixError, PALETTE, ratioLabel, shelfRows, type JarInfo, type MixForm } from "@/lib/mascot/shelf";
 import { requestJson } from "@/lib/net";
 import { Avatar } from "../rp/RpScreen";
 import { Sheet } from "../Sheet";
+import { ApothecarySheet, VIALS_API, type JarPotions } from "./ApothecarySheet";
 import { Jar } from "./Jar";
 
 type Listing = { jars: JarInfo[]; active: number | null; empty: boolean };
@@ -12,7 +15,7 @@ type Say = { expression: Expression; text: string };
 type Char = { id: number; name: string; avatarPath: string | null };
 /** What the bottom panel shows: a jar's actions (and its rename/recolour/delete step), or a header flow. */
 type Panel =
-  | { kind: "jar"; id: number; step: "menu" | "rename" | "recolor" | "delete"; name: string; color: string }
+  | { kind: "jar"; id: number; step: "menu" | "rename" | "recolor" | "delete" | "potions" | "neutral"; name: string; color: string }
   | { kind: "extract"; name: string; color: string }
   | { kind: "rp"; chars: Char[] | null; pick: number | null; name: string; color: string }
   | { kind: "mix"; form: MixForm }
@@ -49,9 +52,26 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState<string | null>(null);
   const [line, setLine] = useState<{ id: number; text: string } | null>(null); // her last insert/remove line, under that jar
   const inFlight = useRef(false); // double taps land in the same tick, before `busy` renders
+  const [potions, setPotions] = useState<JarPotions[]>([]); // per-jar vials/doses/poison from the vials API
+  const [shop, setShop] = useState(false), [shopMounted, setShopMounted] = useState(false);
 
   const load = () => requestJson<Listing>(API).then((r) => { if (r.ok) setData(r.data); else setError(r.error); });
   useEffect(() => { if (open) { load(); setPanel(null); setError(null); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadPotions = () => requestJson<{ jars: JarPotions[] }>(VIALS_API).then((r) => r.ok && setPotions(r.data.jars));
+  useEffect(() => { if (data) loadPotions(); }, [data]); // jars changed (insert/mix/delete…): refresh their doses
+
+  /** Undo / Neutral on a jar: same in-flight guard; her reaction (active jar) is awaited, then spoken. */
+  async function pour(action: "undo" | "neutral", j: JarInfo) {
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(j.active ? "Pouring… Miyabi is reacting" : "Pouring…"); setError(null);
+    const r = await requestJson<{ jars: JarPotions[]; quip?: Say }>(VIALS_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, jarId: j.id }) });
+    inFlight.current = false; setBusy(null);
+    if (j.active) window.dispatchEvent(new Event("mascot:identity"));
+    if (!r.ok) { setError(r.error); loadPotions(); return; }
+    setPotions(r.data.jars);
+    setPanel((p) => (p?.kind === "jar" ? { ...p, step: "potions" } : p));
+    speak(j.id)(r.data);
+  }
 
   /** One network action: buttons disabled while it runs; on success the fresh listing applies, else an inline error and a resync. */
   async function act(body: object, label: string, done?: (r: Listing & { quip?: Say }) => void): Promise<boolean> {
@@ -75,6 +95,13 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
   const activeJar = jars.find((j) => j.active) ?? null;
   const nameOf = (id: number | "blank" | null) => (id === "blank" ? "Blank" : jars.find((j) => j.id === id)?.name ?? "?");
   const off = !!busy;
+  const doseLabel = (id: number) => { const p = potions.find((x) => x.id === id); return p?.doses ? `, ${p.doses} doses${p.poison ? ", poisoned" : ""}` : ""; };
+  const dosesOf = (id: number) => {
+    const p = potions.find((x) => x.id === id);
+    if (!p?.doses) return null;
+    return <span className="rounded-full px-1.5 text-[10px] font-semibold text-white" style={{ background: poisonTone(p.poison) }}
+      title={p.poison ? "Poisoned" : undefined}>{p.doses} dose{p.doses > 1 ? "s" : ""}{p.poison ? " · poisoned" : ""}</span>;
+  };
 
   function openJar(j: JarInfo) { setPanel({ kind: "jar", id: j.id, step: "menu", name: j.name, color: j.color }); setError(null); }
   function openMix(a: number | null) {
@@ -96,6 +123,7 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
       const j = jars.find((x) => x.id === panel.id);
       if (!j) return null;
       const set = (p: Partial<typeof panel>) => setPanel({ ...panel, ...p });
+      const pot = potions.find((x) => x.id === j.id);
       return (
         <>
           <div className="flex items-center gap-2"><h3 className="flex-1 truncate text-sm font-semibold">{j.name}{j.active && <span className="text-accent ml-2 text-xs font-normal">inside her</span>}</h3>{close}</div>
@@ -107,6 +135,7 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
               <button type="button" disabled={off} onClick={() => openMix(j.id)} className={btn}>Mix with…</button>
               <button type="button" disabled={off} onClick={() => set({ step: "rename" })} className={btn}>Rename</button>
               <button type="button" disabled={off} onClick={() => set({ step: "recolor" })} className={btn}>Recolour</button>
+              <button type="button" disabled={off} onClick={() => set({ step: "potions" })} className={`${btn} col-span-2`}>Potions{pot?.doses ? ` (${pot.doses})` : ""}</button>
               <button type="button" disabled={off || j.active} onClick={() => set({ step: "delete" })} className={`${btn} text-danger col-span-2`}>
                 {j.active ? "Delete (remove her first)" : "Delete"}
               </button>
@@ -125,6 +154,39 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
                 <button type="button" disabled={off} onClick={() => set({ step: "menu", color: j.color })} className={`${btn} flex-1`}>Cancel</button>
                 <button type="button" disabled={off || !isHex(panel.color) || panel.color === j.color}
                   onClick={() => act({ action: "recolor", id: j.id, color: panel.color }, "Saving…", () => set({ step: "menu" }))} className={`${primary} flex-1`}>Save colour</button>
+              </div>
+            </div>
+          )}
+          {panel.step === "potions" && (
+            <div className="space-y-2">
+              {!pot?.vials.length ? <p className="text-faint text-xs">No potions in this jar.</p> : (
+                <>
+                  {pot.poison > 0 && <p className="text-xs font-semibold text-purple-400">{pot.poison === 2 ? "Severely poisoned" : "Poisoned"} — {pot.doses} doses</p>}
+                  <ul className="space-y-1">
+                    {pot.vials.map((v) => (
+                      <li key={v.name} className="flex items-start gap-2 text-sm">
+                        <span aria-hidden="true" className="mt-1 size-3 shrink-0 rounded-full" style={{ background: v.color }} />
+                        <span className="min-w-0 flex-1"><b>{v.name}</b> <span className="text-muted text-xs">×{v.doses.length} dose{v.doses.length > 1 ? "s" : ""}</span><span className="text-muted block text-xs">{v.effect}</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" disabled={off || !pot?.doses} onClick={() => pour("undo", j)} className={btn}>Pour the Undo vial</button>
+                <button type="button" disabled={off || !pot?.doses} onClick={() => set({ step: "neutral" })} className={btn}>Pour the Neutral vial</button>
+              </div>
+              <p className="text-faint text-xs">Undo takes back the last dose. Neutral clears every potion.</p>
+              <button type="button" disabled={off} onClick={() => set({ step: "menu" })} className={`${btn} w-full`}>Back</button>
+            </div>
+          )}
+          {panel.step === "neutral" && (
+            <div role="alertdialog" aria-label="Confirm Neutral vial" className="border-danger/40 bg-danger/10 space-y-2 rounded-lg border p-3 text-sm">
+              <p>Clear every potion in <b>{j.name}</b>? All {pot?.doses ?? 0} dose{pot?.doses === 1 ? "" : "s"} are taken back.</p>
+              <div className="flex gap-2">
+                <button type="button" disabled={off} onClick={() => set({ step: "potions" })} className={`${btn} flex-1`}>Cancel</button>
+                <button type="button" disabled={off} onClick={() => pour("neutral", j)}
+                  className="bg-danger min-h-11 flex-1 rounded-md px-3 font-semibold text-white disabled:opacity-40">Clear potions</button>
               </div>
             </div>
           )}
@@ -218,7 +280,7 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
     );
   }
 
-  return (
+  return (<>
     <Sheet open={open} onClose={onClose} label="Slime shelf" closeLabel="Close slime shelf"
       className="h-[94dvh] rounded-t-2xl border-t lg:h-auto lg:max-w-xl lg:rounded-none lg:border-l">
       <header className="flex items-center gap-2 p-3">
@@ -232,6 +294,11 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
           <button type="button" disabled={off || !data} onClick={openRp} className={btn}>From RP</button>
           <button type="button" disabled={off || !jars.length} onClick={() => openMix(activeJar?.id ?? jars[0]?.id ?? null)} className={btn}>Mix</button>
         </div>
+        <button type="button" disabled={off} onClick={() => { setShop(true); setShopMounted(true); }}
+          className="border-border flex min-h-11 w-full items-center gap-2 rounded-md border px-3 text-sm font-semibold disabled:opacity-40">
+          <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full bg-blue-600 text-xs text-white">A</span>
+          Aru&apos;s Apothecary<span aria-hidden="true" className="text-muted ml-auto">›</span>
+        </button>
         {busy && <p role="status" className="text-accent text-sm"><span className="thinking mr-1" aria-hidden="true"><i>·</i><i>·</i><i>·</i></span>{busy}</p>}
         {error && <p role="alert" className="text-danger text-xs">{error}</p>}
 
@@ -248,11 +315,12 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
                     </div>
                   ) : (
                     <button key={s.jar.id} type="button" disabled={off} onClick={() => openJar(s.jar)}
-                      aria-label={`${s.jar.name}${s.jar.active ? " (inside her)" : ""}`} aria-pressed={panel?.kind === "jar" && panel.id === s.jar.id}
+                      aria-label={`${s.jar.name}${s.jar.active ? " (inside her)" : ""}${doseLabel(s.jar.id)}`} aria-pressed={panel?.kind === "jar" && panel.id === s.jar.id}
                       className={`flex min-h-11 min-w-0 flex-col items-center gap-1 rounded-lg pt-2 ${panel?.kind === "jar" && panel.id === s.jar.id ? "bg-accent-soft" : ""}`}>
                       <Jar color={s.jar.color} active={s.jar.active} />
                       <span className="w-full truncate text-xs font-medium">{s.jar.name}</span>
                       {s.jar.active && <span className="bg-accent text-accent-fg rounded-full px-1.5 text-[10px] font-semibold">active</span>}
+                      {dosesOf(s.jar.id)}
                       {line?.id === s.jar.id && <span aria-live="polite" className="text-muted line-clamp-3 text-[11px] italic">“{line.text}”</span>}
                     </button>
                   ))}
@@ -267,5 +335,7 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
       </div>
       {panel && <div className="border-border bg-surface max-h-[60%] space-y-2 overflow-y-auto border-t p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">{renderPanel()}</div>}
     </Sheet>
-  );
+    {/* Outside the shelf's Sheet so its pointer handlers (drag-to-close) never see the shop's events. */}
+    {shopMounted && createPortal(<ApothecarySheet open={shop} onClose={() => { setShop(false); load(); }} />, document.body)}
+  </>);
 }

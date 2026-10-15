@@ -1,5 +1,7 @@
 // Pure helpers for the floating mascot.
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
+import { SLIDERS } from "./slime";
+import type { Vial } from "./vial";
 export type Corner = "br" | "bl" | "tr" | "tl";
 
 /** Tags present in next but not prev (added) and vice versa (removed), first-seen order, no dupes. */
@@ -44,3 +46,31 @@ export function requestSeq() {
     done: (n: number) => { out--; return n === last; },
   };
 }
+
+// Apothecary.
+const signed = (n: number) => `${n > 0 ? "+" : "−"}${Math.abs(n)}`;
+/** A vial's slider deltas as chip labels ("brat +2", "heat cap −1"), in slider order; zeros skipped. */
+export function deltaChips(sliders: Vial["sliders"]): string[] {
+  return SLIDERS.flatMap((k) => {
+    const d = sliders?.[k];
+    return [d?.value ? `${k} ${signed(d.value)}` : "", d?.cap ? `${k} cap ${signed(d.cap)}` : ""].filter(Boolean);
+  });
+}
+
+export type Bottle = Vial & { id: number };
+/** Bottles stacked by name (case-insensitive): oldest bottle's look, ids oldest first, sorted by name. */
+export function groupBottles(bottles: Bottle[]): (Vial & { ids: number[]; count: number })[] {
+  const by = new Map<string, Vial & { ids: number[]; count: number }>();
+  for (const b of [...bottles].sort((x, y) => x.id - y.id)) {
+    const key = b.name.trim().toLowerCase(), g = by.get(key);
+    if (g) { g.ids.push(b.id); g.count++; } else { const { id, ...v } = b; by.set(key, { ...v, ids: [id], count: 1 }); }
+  }
+  return [...by.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
+/** Jar dose badge colour: grey, purple when poisoned, deep purple when severely poisoned. */
+export const poisonTone = (poison: 0 | 1 | 2) => ["#4b5563", "#9333ea", "#581c87"][poison];
+
+/** Reply text without its ```vial blocks (an unclosed one while streaming is hidden too). */
+export const stripVialBlock = (text: string) =>
+  text.replace(/```vial[ \t]*\r?\n[\s\S]*?(```|$)/gi, "").replace(/\n{3,}/g, "\n\n").trim();
