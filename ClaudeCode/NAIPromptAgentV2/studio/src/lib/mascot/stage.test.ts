@@ -1,0 +1,142 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { POSES } from "./poses";
+import { EXPRESSIONS } from "./core";
+import {
+  FLICK_SPEED, TAP_MAX_MOVE, LONGPRESS_MS, POKE_WINDOW_MS, blinkSchedule, chooseSpot, classifyBodyGesture, idleMood,
+  nextMoveDelay, rectsIntersect, spotBox, type Rect,
+} from "./stage";
+
+/** Deterministic LCG in [0,1). */
+const seeded = (seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const VW = 390, VH = 844, baseH = 400;
+const avoid: Rect[] = [{ x: 0, y: 760, w: 390, h: 84 }, { x: 120, y: 8, w: 150, h: 44 }];
+const targets: Rect[] = [{ x: 40, y: 200, w: 310, h: 300 }];
+const base = { vw: VW, vh: VH, baseH, avoid, targets };
+
+test("never intersects avoid rects or leaves the screen across many draws", () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    const rand = seeded(seed);
+    const event = [undefined, "idle", "bored", "generate", "typing", "sheet"][seed % 6] as never;
+    const s = chooseSpot({ ...base, mischief: seed % 11, event, rand });
+    const b = spotBox(s, baseH, VW, VH);
+    for (const a of avoid) assert.equal(rectsIntersect(b, a), false, `seed ${seed} ${s.pose}`);
+    assert.ok(b.y >= 0 && b.y + b.h <= VH + 0.5, `vertical seed ${seed}`);
+    if (s.pose !== "peek") assert.ok(b.x >= -0.5 && b.x + b.w <= VW + 0.5, `horizontal seed ${seed}`);
+  }
+});
+
+test("typing ducks to the nearest edge as a peek", () => {
+  const rand = seeded(3);
+  const l = chooseSpot({ ...base, mischief: 8, event: "typing", rand, from: { x: 60, y: 600 } });
+  assert.equal(l.pose, "peek"); assert.ok(l.x < VW / 2); assert.equal(l.flip, false);
+  const r = chooseSpot({ ...base, mischief: 8, event: "typing", rand, from: { x: 340, y: 600 } });
+  assert.equal(r.pose, "peek"); assert.ok(r.x > VW / 2); assert.equal(r.flip, true);
+});
+
+test("sheet opening peeks", () => {
+  assert.equal(chooseSpot({ ...base, mischief: 5, event: "sheet", rand: seeded(9) }).pose, "peek");
+});
+
+test("generate shows her back facing the nearest target", () => {
+  const s = chooseSpot({ ...base, mischief: 5, event: "generate", rand: seeded(5) });
+  assert.equal(s.pose, "back");
+  const tc = targets[0].x + targets[0].w / 2;
+  assert.equal(s.flip, tc < s.x);
+  // no targets -> faces centre
+  const n = chooseSpot({ ...base, targets: [], mischief: 5, event: "generate", rand: seeded(5) });
+  assert.equal(n.pose, "back"); assert.equal(n.flip, VW / 2 < n.x);
+});
+
+test("bored favours legs", () => {
+  let legs = 0;
+  for (let i = 1; i <= 100; i++) if (chooseSpot({ ...base, mischief: 5, event: "bored", rand: seeded(i) }).pose === "legs") legs++;
+  assert.ok(legs >= 50, `legs ${legs}`);
+});
+
+test("mischief 0 parks at an edge and never auto-moves", () => {
+  assert.equal(nextMoveDelay(0, seeded(1)), Infinity);
+  for (let i = 1; i <= 100; i++) {
+    const s = chooseSpot({ ...base, mischief: 0, event: "idle", rand: seeded(i) });
+    assert.ok(s.pose === "stand" || s.pose === "peek");
+    const b = spotBox(s, baseH, VW, VH);
+    assert.ok(b.x <= 1 || b.x + b.w >= VW - 1, `edge ${i}`);
+  }
+});
+
+test("higher mischief is more central and more varied; apose stays rare", () => {
+  const stat = (m: number) => {
+    let cx = 0, rare = 0, varied = new Set<string>();
+    for (let i = 1; i <= 200; i++) {
+      const s = chooseSpot({ ...base, mischief: m, event: "idle", rand: seeded(i) });
+      cx += Math.abs(s.x - VW / 2); varied.add(s.pose); if (s.pose === "apose") rare++;
+    }
+    return { cx: cx / 200, rare, n: varied.size };
+  };
+  const lo = stat(1), hi = stat(10);
+  assert.ok(hi.cx < lo.cx, `${hi.cx} < ${lo.cx}`);
+  assert.ok(hi.n >= lo.n);
+  assert.ok(hi.rare < 40);
+});
+
+test("no fitting candidate falls back to an edge peek", () => {
+  const wall: Rect[] = [{ x: 200, y: 0, w: 100, h: VH }];
+  const s = chooseSpot({ ...base, avoid: wall, mischief: 10, event: "idle", rand: seeded(2) });
+  assert.equal(s.pose, "peek");
+  assert.equal(rectsIntersect(spotBox(s, baseH, VW, VH), wall[0]), false);
+});
+
+test("spotBox sizes follow POSE_SPEC aspect", () => {
+  const stand = spotBox({ pose: "stand", x: 195, y: 844, flip: false, scale: 1 }, 400, VW, VH);
+  assert.ok(Math.abs(stand.w / stand.h - 832 / 1216) < 1e-6); assert.equal(stand.h, 400);
+  const lie = spotBox({ pose: "lie", x: 195, y: 844, flip: false, scale: 1 }, 400, VW, VH);
+  assert.ok(lie.w > lie.h);
+});
+
+test("nextMoveDelay is 20-90s scaled by mischief, deterministic", () => {
+  for (const m of [1, 5, 10]) for (const r of [0, 0.5, 0.999]) {
+    const d = nextMoveDelay(m, () => r);
+    assert.ok(d >= 10_000 && d <= 135_000, `${m} ${r} ${d}`);
+  }
+  assert.equal(nextMoveDelay(5, () => 0), 20_000);
+  assert.ok(nextMoveDelay(10, () => 0.5) < nextMoveDelay(1, () => 0.5));
+});
+
+test("blink and mood helpers", () => {
+  const b = blinkSchedule(seeded(1)); assert.ok(b >= 2000 && b <= 7000);
+  for (let i = 1; i < 50; i++) assert.ok((EXPRESSIONS as readonly string[]).includes(idleMood(seeded(i), false)));
+  assert.equal(idleMood(() => 0, true), "sleepy");
+  assert.ok(POSES.length > 0);
+});
+
+// --- gestures ---
+const box: Rect = { x: 100, y: 300, w: 200, h: 400 };
+type S = { x: number; y: number; t: number }[];
+const still = (x: number, y: number, ms: number): S => [{ x, y, t: 1000 }, { x, y, t: 1000 + ms }];
+/** Horizontal move of dx px over ms, with the last 40ms covering `lastDx`. */
+const sweep = (dx: number, ms: number, x0 = 200, y0 = 500): S => [
+  { x: x0, y: y0, t: 1000 }, { x: x0 + dx * 0.5, y: y0, t: 1000 + ms - 40 }, { x: x0 + dx, y: y0, t: 1000 + ms },
+];
+const table: [string, S, number | null, string | null][] = [
+  ["empty", [], null, null],
+  ["single sample = instant tap", [{ x: 200, y: 500, t: 5 }], null, "menu"],
+  ["tap body, no prior -> menu", still(200, 500, 100), null, "menu"],
+  ["tap body, prior tap long ago -> menu", still(200, 500, 100), 1100 - POKE_WINDOW_MS - 1, "menu"],
+  ["tap top 20% -> pat", still(200, 310, 100), null, "pat"],
+  ["pat beats poke", still(200, 310, 100), 1050, "pat"],
+  ["rapid second tap -> poke", still(200, 500, 100), 1100 - 800, "poke"],
+  ["hold 500ms still -> longpress", still(200, 500, LONGPRESS_MS), null, "longpress"],
+  ["hold just short -> tap", still(200, 500, LONGPRESS_MS - 1), null, "menu"],
+  ["jitter within tap radius still tap", [{ x: 200, y: 500, t: 1000 }, { x: 200 + TAP_MAX_MOVE, y: 500, t: 1100 }], null, "menu"],
+  ["slow drag", sweep(60, 800), null, "drag"],
+  ["slow long hold-drag", [0, 1, 2, 3].map((i) => ({ x: 200 + 50 * i, y: 500, t: 1000 + 1000 * i })), null, "drag"],
+  ["fast flick stays on-screen -> flick", sweep(68, 100, 40), null, "flick"],
+  ["fast flick toward edge lands off-screen -> swipeOff", sweep(100, 60, 330), null, "swipeOff"],
+  ["fast flick left off-screen -> swipeOff", sweep(-100, 60, 60), null, "swipeOff"],
+  ["fast flick up off-screen -> swipeOff", [{ x: 200, y: 60, t: 1000 }, { x: 200, y: 30, t: 1040 }, { x: 200, y: 10, t: 1060 }], null, "swipeOff"],
+  ["just below flick speed -> drag", sweep(FLICK_SPEED * 80 * 0.9, 400), null, "drag"],
+];
+for (const [name, samples, lastTapAt, want] of table)
+  test(`gesture: ${name}`, () => {
+    assert.equal(classifyBodyGesture(samples, { box, vw: VW, vh: VH, lastTapAt }), want);
+  });
