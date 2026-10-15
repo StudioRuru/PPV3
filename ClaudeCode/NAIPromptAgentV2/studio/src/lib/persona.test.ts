@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { nextDrift, PERSONAS, personaBlock } from "./persona";
 
 test("personas: neutral default plus the chosen ones and Miyabi", () => {
-  assert.deepEqual(PERSONAS.map((p) => p.id), ["neutral", "bratty", "writer", "tagnerd", "miyabi"]);
+  assert.deepEqual(PERSONAS.map((p) => p.id), ["neutral", "bratty", "writer", "tagnerd", "miyabi", "aru"]);
 });
 
 test("personaBlock: voice + modifiers + drift level; neutral with nothing on adds nothing", () => {
@@ -29,4 +29,16 @@ test("miyabi voice: loud, bratty, name-calling, short and caps", () => {
   const v = PERSONAS.find((p) => p.id === "miyabi")!.voice;
   for (const k of ["Hoshimi Miyabi", "Section 6", "LOUD", "brat", "baka", "CAPS", "hmph", "never a doormat"]) assert.ok(v.includes(k), k);
   assert.ok(v.split(/[.!?](?:\s|$)/).filter((s) => s.trim()).length <= 5);
+});
+
+test("aru persona: brewing schema, sliders, range, reserved names, no age words", async () => {
+  const { personaBlock } = await import("./persona");
+  const b = personaBlock("aru", {}, 0);
+  assert.match(b, /```vial/);
+  for (const s of ["brat", "bimbo", "hypnosis", "heat", "length"]) assert.ok(b.includes(s), s);
+  assert.match(b, /-3|−3/);
+  assert.match(b, /Neutral vial/);
+  assert.match(b, /Undo vial/);
+  assert.match(b, /overdos|poison/i);
+  assert.doesNotMatch(b, /adult|years old|year-old/i);
 });

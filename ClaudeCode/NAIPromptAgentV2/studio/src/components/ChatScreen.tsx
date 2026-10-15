@@ -407,7 +407,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         {thread && (
           <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-6" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
             <div role="radiogroup" aria-label="Personality" className="grid gap-2">
-              {PERSONAS.filter((p) => p.id !== "miyabi").map((p) => (
+              {PERSONAS.filter((p) => p.id !== "miyabi" && p.id !== "aru").map((p) => (
                 <button key={p.id} type="button" role="radio" aria-checked={thread.persona === p.id} onClick={() => patchThread({ persona: p.id })}
                   className={`rounded-lg border p-3 text-left ${thread.persona === p.id ? "border-accent bg-accent-soft" : "border-border"}`}>
                   <span className="block text-sm font-semibold">{p.name}</span><span className="text-muted text-xs">{p.blurb}</span>

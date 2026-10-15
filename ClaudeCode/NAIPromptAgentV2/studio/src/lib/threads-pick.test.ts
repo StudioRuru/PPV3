@@ -15,3 +15,9 @@ test("new chat never inherits miyabi", () => {
   assert.equal(newThreadPersona(undefined), "neutral");
   assert.equal(newThreadPersona("tsundere"), "tsundere");
 });
+
+test("aru threads are skipped and never inherited", () => {
+  assert.equal(defaultThreadId([T(1, "aru"), T(2, "neutral")]), 2);
+  assert.equal(defaultThreadId([T(1, "aru")]), null);
+  assert.equal(newThreadPersona("aru"), "neutral");
+});
