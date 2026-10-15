@@ -43,10 +43,10 @@ export function validateVial(raw: unknown): { ok: true; vial: Vial } | { ok: fal
   return { ok: true, vial };
 }
 
-/** Untrusted AppliedVial (from a stored doc): vial fields + well-formed doses (≤5), else null. */
+/** Untrusted AppliedVial (from a stored doc): vial fields + well-formed doses (1–5), else null. */
 export function validateAppliedVial(raw: unknown): AppliedVial | null {
   const r = validateVial(raw);
-  if (!r.ok || !isObj(raw) || !Array.isArray(raw.doses) || raw.doses.length > MAX.doses) return null;
+  if (!r.ok || !isObj(raw) || !Array.isArray(raw.doses) || !raw.doses.length || raw.doses.length > MAX.doses) return null;
   const doses: Dose[] = [];
   for (const d of raw.doses) {
     if (!isObj(d) || !isInt(d.seq, 0, Number.MAX_SAFE_INTEGER) || !isObj(d.delta)) return null;
@@ -116,7 +116,7 @@ export function undoLast(doc: SlimeDoc): SlimeDoc {
 
 export function neutralize(doc: SlimeDoc): SlimeDoc {
   let d = doc;
-  while (d.vials.length) d = undoLast(d);
+  while (d.vials.length) { const n = undoLast(d); if (n === d) break; d = n; } // guard: a dose-less vial can't spin forever
   return d;
 }
 
@@ -128,7 +128,7 @@ export function vialsBlock(vials: AppliedVial[]): string {
   const lines = vials.slice(0, MAX.vials).map((a) => {
     const n = a.doses.length;
     const effect = a.effect.replace(/\s+/g, " ").replace(/"/g, "'").trim().slice(0, MAX.effect);
-    return `- ${a.name.replace(/\s+/g, " ").slice(0, MAX.name)}: "${effect}"${n > 1 ? ` (×${n} doses — much stronger)` : ""}`;
+    return `- ${JSON.stringify(a.name.replace(/\s+/g, " ").slice(0, MAX.name))}: "${effect}"${n > 1 ? ` (×${n} doses — much stronger)` : ""}`;
   });
   const p = poisonLevel(vials);
   const note = p === 2 ? "You are severely poisoned by potions — they dominate everything you say and think."

@@ -21,3 +21,8 @@ test("aru threads are skipped and never inherited", () => {
   assert.equal(defaultThreadId([T(1, "aru")]), null);
   assert.equal(newThreadPersona("aru"), "neutral");
 });
+
+test("final review: chat-tab chips exclude Miyabi and Aru threads", async () => {
+  const { chatTabThreads } = await import("./threads-pick");
+  assert.deepEqual(chatTabThreads([T(1, "aru"), T(2, "neutral"), T(3, "miyabi"), T(4, "bratty")]).map((t) => t.id), [2, 4]);
+});

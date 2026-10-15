@@ -7,7 +7,7 @@ import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
 import { PERSONAS, type Modifiers, type PersonaId } from "@/lib/persona";
 import type { PromptState } from "@/lib/prompt";
-import { defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
+import { chatTabThreads, defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
 import { PatchCard } from "./PatchCard";
 import { Sheet } from "./Sheet";
 import { AutoTextarea } from "./TagInput";
@@ -268,7 +268,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
 
       {/* Threads */}
       <div data-noswipe className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1">
-        {threads.map((t) => (
+        {chatTabThreads(threads).map((t) => (
           <span key={t.id} className={`flex h-9 shrink-0 items-center rounded-full border text-xs ${t.id === tid ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
             <button type="button" disabled={!!busy} onClick={() => setTid(t.id)} className="max-w-[10rem] truncate pr-1 pl-3 disabled:opacity-60">{t.title}</button>
             <button type="button" disabled={!!busy} aria-label={`Delete chat ${t.title}`} onClick={() => setConfirmDel(t.id)} className="grid size-8 place-items-center opacity-70 disabled:opacity-30">×</button>

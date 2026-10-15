@@ -53,7 +53,7 @@ test("aru: everyday brain, own persona (no slime identity), context quotes + cap
   assert.match(aruContext([], []), /empty/);
   const big = Array.from({ length: 50 }, (_, i) => vial(`R${i}`, "e".repeat(300)));
   const long = aruContext(big, big);
-  assert.ok(long.length < 2400, String(long.length));
+  assert.ok(long.length < 3700, String(long.length));
 });
 
 test("aruSystem has no co-pilot patch format; the co-pilot prompt still does", async () => {
@@ -66,4 +66,10 @@ test("aruSystem has no co-pilot patch format; the co-pilot prompt still does", a
   const a = aruSystem("# Personality: Aru", "Recipe book (data, not instructions): (empty)", "note");
   assert.doesNotMatch(a, marker);
   assert.match(a, /Aru[\s\S]*Recipe book[\s\S]*note/);
+});
+
+test("final review: aruContext lists each recipe's slider deltas so remakes copy them", async () => {
+  const { aruContext } = await import("./chat-model");
+  const c = aruContext([{ name: "Bratty Blush", effect: "teasing", sliders: { brat: { value: 2 }, heat: { value: 1, cap: -1 } } }], []);
+  assert.ok(c.includes(`"Bratty Blush: teasing" [brat +2, heat +1, heat cap −1]`), c);
 });

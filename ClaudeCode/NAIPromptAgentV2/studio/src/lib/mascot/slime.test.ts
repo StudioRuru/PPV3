@@ -22,7 +22,7 @@ test("validate rejects/caps", () => {
   assert.equal(validateSlime({ ...b, sliders: { ...b.sliders, brat: { value: 11, cap: 10 } } }), null);
   assert.equal(validateSlime({ ...b, sliders: { ...b.sliders, brat: { value: 5.5, cap: 10 } } }), null);
   assert.equal(validateSlime({ ...b, sliders: { ...b.sliders, brat: { value: 6, cap: 5 } } }), null);
-  const ok = validateSlime({ ...b, name: "x".repeat(99), voice: "v".repeat(5000), junk: 1, vials: new Array(20).fill({ name: "v", color: "#000000", effect: "e", doses: [] }),
+  const ok = validateSlime({ ...b, name: "x".repeat(99), voice: "v".repeat(5000), junk: 1, vials: new Array(20).fill({ name: "v", color: "#000000", effect: "e", doses: [{ seq: 0, delta: {} }] }),
     memories: { facts: new Array(500).fill("f"), journal: new Array(80).fill({ kind: "k", summary: "s", line: "l", created_at: 1 }) } })!;
   assert.equal(ok.name.length, 40);
   assert.equal(ok.voice.length, 1500);

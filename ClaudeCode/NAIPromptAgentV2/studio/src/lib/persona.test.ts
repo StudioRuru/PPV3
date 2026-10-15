@@ -38,6 +38,7 @@ test("aru persona: brewing schema, sliders, range, reserved names, no age words"
   for (const s of ["brat", "bimbo", "hypnosis", "heat", "length"]) assert.ok(b.includes(s), s);
   assert.match(b, /-3|−3/);
   assert.match(b, /Neutral vial/);
+  assert.match(b, /remake a recipe, copy its name and sliders exactly/);
   assert.match(b, /Undo vial/);
   assert.match(b, /overdos|poison/i);
   assert.doesNotMatch(b, /adult|years old|year-old/i);

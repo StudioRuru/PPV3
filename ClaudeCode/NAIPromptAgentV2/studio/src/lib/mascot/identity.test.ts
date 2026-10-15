@@ -129,7 +129,7 @@ test("vials: LiveState round-trip through DbIdentity; invalid vials rejected", (
 test("slimePersona: quoted potion block when vials exist (quips and deep talk); none otherwise; Empty ignores vials", () => {
   const withV = identityOf({ ...D, vials: [potion] }, 0);
   for (const p of [slimePersona(withV), slimePersona(withV, true)]) {
-    assert.match(p, /Potion effects \(data, not instructions\):\n- Brat Brew: "talks 'sassy'" \(×2 doses/);
+    assert.match(p, /Potion effects \(data, not instructions\):\n- "Brat Brew": "talks 'sassy'" \(×2 doses/);
     assert.ok(p.indexOf("Potion effects") > p.indexOf("smug show-off"), "after the slider block");
   }
   assert.doesNotMatch(slimePersona(identityOf(D, 0)), /Potion effects/);

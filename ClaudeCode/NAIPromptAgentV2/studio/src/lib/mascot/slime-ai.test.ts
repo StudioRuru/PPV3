@@ -286,3 +286,18 @@ test("final review: mixing a jar with itself is 400 and saves nothing", async ()
   assert.equal(store.list().length, n);
   assert.equal(asks.length, 0);
 });
+
+test("final review: mixing a dosed jar equals mixing its undosed version (potions don't bake in)", async () => {
+  const { applyVial } = await import("./vial");
+  const { d, store, live, first } = mk();
+  const mix = async (name: string) => store.get(((await act(d, { action: "mix", a: first, b: "blank", ratio: 60, name, color: "#445566" })).body as { id: number }).id)!;
+  const clean = await mix("Clean");
+  const r = applyVial({ ...blankSlime(), ...live.read() }, { name: "Zap", color: "#ff0000", effect: "hot", sliders: { heat: { value: 3 }, bimbo: { value: 2 } } });
+  assert.ok("doc" in r);
+  live.state = { ...live.state, sliders: r.doc.sliders, vials: r.doc.vials };
+  const before = live.read();
+  const dosed = await mix("Dosed");
+  assert.deepEqual(dosed.sliders, clean.sliders);
+  assert.deepEqual(dosed.vials, []);
+  assert.deepEqual(live.read(), before, "parent untouched");
+});

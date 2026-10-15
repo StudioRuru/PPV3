@@ -2,6 +2,7 @@
 import type { Expression } from "./core";
 import { blankSlime, mixMemories, mixSliders, setSlider, SLIDERS, type SliderId, type SlimeDoc, type Sliders } from "./slime";
 import type { LiveState, SlimeStore } from "./slime-store";
+import { neutralize } from "./vial";
 
 export type CardLike = { name: string; description: string; personality: string; scenario: string; exampleDialogue: string; appearancePrompt: string; outfitPrompt: string };
 export type SlimeDeps = {
@@ -148,7 +149,7 @@ async function run(b: Record<string, unknown>, d: SlimeDeps): Promise<Record<str
       const selfName = typeof b.selfName === "string" && b.selfName.trim() ? nameOf(b.selfName) : dom.selfName;
       const voice = await generate(d, mergeVoicesPrompt(A.voice, B.voice, ratio as number));
       return { id: d.store.create({
-        name, color, voice, selfName, sliders: mixSliders(A.sliders, B.sliders, ratio as number), mods: dom.mods, heatDrift: dom.heatDrift,
+        name, color, voice, selfName, sliders: mixSliders(neutralize(A).sliders, neutralize(B).sliders, ratio as number), mods: dom.mods, heatDrift: dom.heatDrift,
         look: dom.look, memories: mixMemories(dom.memories, other.memories), vials: [], origin: "mix",
       }) };
     }

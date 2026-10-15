@@ -29,12 +29,12 @@ export class VialStore {
     return Number(this.db.prepare("INSERT INTO mascot_vials (doc, created_at) VALUES (?, ?)").run(JSON.stringify(v), this.now()).lastInsertRowid);
   }
 
-  /** New bottle; its recipe is upserted (latest definition wins) and brewed+1. */
+  /** New bottle; a new name records its recipe, a known name keeps the first definition (Forget to redefine) — brewed+1 either way. */
   bottle(raw: Vial): number {
     const v = valid(raw);
     return this.db.transaction(() => {
       this.db.prepare(`INSERT INTO mascot_recipes (key, name, doc, created_at, brewed) VALUES (?, ?, ?, ?, 1)
-        ON CONFLICT(key) DO UPDATE SET name = excluded.name, doc = excluded.doc, brewed = brewed + 1`)
+        ON CONFLICT(key) DO UPDATE SET brewed = brewed + 1`)
         .run(v.name.toLowerCase(), v.name, JSON.stringify(v), this.now());
       return this.insert(v);
     })();

@@ -16,14 +16,14 @@ test("bottle / list / discard", () => {
   assert.throws(() => s.bottle({ name: "", color: "x", effect: "" } as Vial), /name/);
 });
 
-test("bottling records the recipe; same name (any case) updates it, no duplicates", () => {
+test("bottling records the recipe; same name (any case) bumps it, no duplicates", () => {
   const { s } = mk();
   s.bottle(v());
   s.bottle(v("  brat brew ", "even sassier"));
   const r = s.recipes();
   assert.equal(r.length, 1);
   assert.equal(r[0].brewed, 2);
-  assert.equal(r[0].vial.effect, "even sassier", "latest definition wins");
+  assert.equal(r[0].vial.effect, "sassier", "first definition kept");
 });
 
 test("brewAgain makes N identical bottles and bumps brewed; count bounds; unknown recipe", () => {
@@ -49,4 +49,14 @@ test("take is single-use", () => {
   assert.deepEqual(s.take(id), v());
   assert.equal(s.take(id), null);
   assert.equal(s.list().length, 0);
+});
+
+test("final review: a same-named bottle never redefines the stored recipe; only brewed bumps", () => {
+  const { s } = mk();
+  s.bottle(v());
+  s.bottle({ ...v("BRAT BREW", "different"), sliders: { brat: { value: -3 } } });
+  const r = s.recipes();
+  assert.equal(r.length, 1);
+  assert.equal(r[0].brewed, 2);
+  assert.deepEqual(r[0].vial, v(), "first definition kept");
 });
