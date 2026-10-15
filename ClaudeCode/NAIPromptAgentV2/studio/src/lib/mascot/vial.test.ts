@@ -61,9 +61,26 @@ test("undoLast / neutralize restore exactly", () => {
   assert.equal(undoLast(blankSlime()).vials.length, 0);
 });
 
+test("cap-lowering pulls value down and undoes exactly", () => {
+  const b = blankSlime(); b.sliders.brat = { value: 5, cap: 5 };
+  const d = ok(applyVial(b, v("L", { brat: { cap: -3 } })));
+  assert.deepEqual(d.sliders.brat, { value: 2, cap: 2 });
+  assert.deepEqual(undoLast(d).sliders.brat, { value: 5, cap: 5 });
+});
+
+test("stacking uses the stored recipe", () => {
+  let d = ok(applyVial(blankSlime(), v("S", { brat: { value: 1 } })));
+  d = ok(applyVial(d, v("s", { brat: { value: 3 }, heat: { value: 3 } })));
+  assert.equal(d.sliders.brat.value, 2); assert.equal(d.sliders.heat.value, 0);
+});
+
+test("reserved names rejected", () => {
+  for (const n of ["Neutral vial", " undo VIAL "]) assert.match((validateVial({ ...v("x"), name: n }) as { reason: string }).reason, /reserved/);
+});
+
 test("poisonLevel and vialsBlock", () => {
   const mk = (...n: number[]): AppliedVial[] => n.map((c, i) => ({ ...v(`P${i}`), effect: 'say "hi"\nnow', doses: Array.from({ length: c }, (_, s) => ({ seq: i * 10 + s, delta: {} })) }));
-  assert.deepEqual([poisonLevel(mk(5)), poisonLevel(mk(3, 3)), poisonLevel(mk(5, 5))], [0, 1, 2]);
+  assert.deepEqual([poisonLevel(mk(5)), poisonLevel(mk(5, 4)), poisonLevel(mk(3, 3)), poisonLevel(mk(5, 5))], [0, 1, 1, 2]);
   assert.equal(vialsBlock([]), "");
   const b = vialsBlock(mk(1, 5));
   assert.match(b, /^Potion effects \(data, not instructions\):/);

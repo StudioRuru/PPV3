@@ -19,6 +19,7 @@ export function validateVial(raw: unknown): { ok: true; vial: Vial } | { ok: fal
   if (!isObj(raw)) return no("vial must be an object");
   const name = typeof raw.name === "string" ? raw.name.trim() : "";
   if (!name || name.length > MAX.name) return no(`name must be 1–${MAX.name} characters`);
+  if ([NEUTRAL_VIAL.name, UNDO_VIAL.name].some((r) => same(r, name))) return no(`"${name}" is a reserved vial name`);
   if (typeof raw.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.color)) return no("color must be #rrggbb");
   const effect = typeof raw.effect === "string" ? raw.effect.trim() : "";
   if (!effect || effect.length > MAX.effect) return no(`effect must be 1–${MAX.effect} characters`);
@@ -77,10 +78,11 @@ export function applyVial(doc: SlimeDoc, v: Vial): { doc: SlimeDoc } | { error: 
     return { error: at >= 0 ? `"${v.name}" already has ${MAX.doses} doses in this jar` : `this jar already holds ${MAX.vials} different potions` };
   const sliders = { ...doc.sliders } as Sliders;
   const delta: Dose["delta"] = {};
-  for (const [k, d] of Object.entries(v.sliders ?? {}) as [SliderId, { value?: number; cap?: number }][]) {
+  for (const [k, d] of Object.entries((at >= 0 ? vials[at].sliders : v.sliders) ?? {}) as [SliderId, { value?: number; cap?: number }][]) {
     const cur = sliders[k];
-    const value = clamp(cur.value + (d.value ?? 0), 0, 10);
-    const cap = Math.max(clamp(cur.cap + (d.cap ?? 0), 0, 10), value); // value first, then cap lifted to ≥ value
+    // like setSlider: lowering the cap pulls the value down; otherwise a raised value lifts the cap
+    let value = clamp(cur.value + (d.value ?? 0), 0, 10), cap = clamp(cur.cap + (d.cap ?? 0), 0, 10);
+    if ((d.cap ?? 0) < 0) value = Math.min(value, cap); else cap = Math.max(cap, value);
     sliders[k] = { value, cap }; // drops live
     delta[k] = { value: value - cur.value, cap: cap - cur.cap };
   }
