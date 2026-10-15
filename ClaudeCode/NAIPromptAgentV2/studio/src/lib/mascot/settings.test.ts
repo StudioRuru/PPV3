@@ -44,3 +44,9 @@ test("cooldown: null = only when tapped, JSON round-trips", () => {
   assert.equal(parseMascotSettings(JSON.stringify(m)).cooldownMs, Infinity);
   assert.equal(JSON.parse(JSON.stringify(m)).cooldownMs, null);
 });
+
+test("size: default m; accepts s/m/l, rejects others", () => {
+  assert.equal(D.size, "m");
+  for (const s of ["s", "m", "l"]) assert.equal(mergeMascotSettings(D, { size: s }).size, s);
+  for (const s of ["xl", "", 2, null]) assert.equal(mergeMascotSettings({ ...D, size: "l" }, { size: s }).size, "l");
+});

@@ -4,16 +4,17 @@ import type { Modifiers } from "../persona";
 export type MascotSettings = {
   show: boolean; cooldownMs: number; nightFrom: number; nightTo: number; pin: Outfit | null; mods: Modifiers;
   charTags: string; constantTags: string; layerTags: Record<Outfit, string>; exprTags: Record<Expression, string>;
-  corner: "br" | "bl" | "tr" | "tl";
+  corner: "br" | "bl" | "tr" | "tl"; size: "s" | "m" | "l";
 };
 
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 const CORNERS = ["br", "bl", "tr", "tl"];
+export const SIZES = ["s", "m", "l"] as const;
 const MODS = ["bratty", "tease", "flirt"] as const;
 const MAX_TAGS = 1500;
 
 export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
-  show: true, cooldownMs: 120000, nightFrom: 23, nightTo: 7, pin: null, mods: { bratty: true, tease: true, flirt: true }, corner: "br",
+  show: true, cooldownMs: 120000, nightFrom: 23, nightTo: 7, pin: null, mods: { bratty: true, tease: true, flirt: true }, corner: "br", size: "m",
   charTags: "1girl, solo, hoshimi miyabi, fox girl, animal ears, fox ears, very long hair, black hair, gradient hair, purple hair tips, twintails, blunt bangs, sidelocks, red eyes, purple eyeshadow, eyeliner, fang, heart earrings, heart ear ornament, black choker, heart choker, ring, large breasts, wide hips, thick thighs, curvy",
   constantTags: "black elbow gloves, fingerless gloves, black thighhighs, shiny thighhighs, lace-trimmed thighhighs, heart thigh strap, platform heels",
   layerTags: {
@@ -49,6 +50,7 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
   if (hour(patch.nightTo)) out.nightTo = patch.nightTo;
   if (patch.pin === null || OUTFITS.includes(patch.pin as Outfit)) { if (patch.pin !== undefined) out.pin = patch.pin as Outfit | null; }
   if (CORNERS.includes(patch.corner as string)) out.corner = patch.corner as MascotSettings["corner"];
+  if (SIZES.includes(patch.size as MascotSettings["size"])) out.size = patch.size as MascotSettings["size"];
   if (tags(patch.charTags)) out.charTags = patch.charTags;
   if (tags(patch.constantTags)) out.constantTags = patch.constantTags;
   if (isObj(patch.mods)) for (const k of MODS) if (typeof patch.mods[k] === "boolean") out.mods[k] = patch.mods[k];

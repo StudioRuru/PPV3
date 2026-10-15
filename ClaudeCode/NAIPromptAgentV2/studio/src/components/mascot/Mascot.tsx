@@ -5,10 +5,11 @@ import { outfitFor, pickSprite, readMs, shouldSpeak, type Expression, type Masco
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 
-type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; mods: { flirt: boolean }; corner: Corner };
+type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; mods: { flirt: boolean }; corner: Corner; size: "s" | "m" | "l" };
 type Say = { expression: Expression; text: string };
 
 const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500;
+const SIZE_PX = { s: 112, m: 160, l: 208 }; // sprite height; lg screens get 1.25x
 const TOP = "calc(env(safe-area-inset-top) + 4rem)";
 const FIELD = "textarea, [contenteditable]:not([contenteditable=false]), input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file],[type=color])";
 const isTyping = () => !!(document.activeElement as HTMLElement | null)?.matches?.(FIELD);
@@ -206,11 +207,11 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { clearTimeout(press.current?.timer); press.current = null; setDrag(null); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(outfit); } else if (e.key === "ContextMenu") setMenu(true); }}
         onContextMenu={(e) => { e.preventDefault(); setMenu(true); setSay(null); }}
-        className="relative cursor-grab" style={{ touchAction: "none", WebkitTouchCallout: "none" }}>
+        className="relative cursor-grab" style={{ touchAction: "none", WebkitTouchCallout: "none", "--mascot-h": `${SIZE_PX[settings.size ?? "m"]}px` } as React.CSSProperties}>
         {sprite
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={`/api/mascot/sprites/${sprite}?v=${sprites[sprite]}`} alt="" draggable={false} className="mascot-bob h-24 w-auto drop-shadow-lg lg:h-32" />
-          : <span className="mascot-bob bg-accent-soft text-accent-ink border-border flex size-16 items-center justify-center rounded-full border text-2xl font-semibold lg:size-20">M</span>}
+          ? <img src={`/api/mascot/sprites/${sprite}?v=${sprites[sprite]}`} alt="" draggable={false} className="mascot-bob h-[var(--mascot-h)] lg:h-[calc(var(--mascot-h)*1.25)] w-auto drop-shadow-lg" />
+          : <span className="mascot-bob h-[var(--mascot-h)] lg:h-[calc(var(--mascot-h)*1.25)] bg-accent-soft text-accent-ink border-border flex aspect-square items-center justify-center rounded-full border text-2xl font-semibold">M</span>}
         {hushed && <span aria-hidden="true" className="text-muted absolute -top-1 font-mono text-xs" style={{ [right ? "left" : "right"]: 0 }}>zzz</span>}
       </div>
     </div>
