@@ -1,4 +1,5 @@
 // Mascot sprite files + NovelAI request builder. Files live under data/mascot (see spec §1).
+import { randomInt } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DATA_DIR, TAGGER_URL } from "../env";
@@ -12,17 +13,20 @@ export const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 export type ArtKind = "bust" | "full";
 export const MAX_CANDIDATES = 4;
 
-const SEED: Record<Outfit, number> = { day: 1001, night: 2002, lewd: 3003 };
-const BUST = "portrait, upper body, looking at viewer, simple background, white background";
+export const BUST = "portrait, close-up, head and shoulders, bust, face focus, looking at viewer, simple background, white background";
+export const BUST_UC = "full body, legs, thighs, feet, shoes, wide shot, lower body";
 const FULL = "full body, standing, hand on hip, looking at viewer, simple background, white background";
 
-/** Tags-only V5 request (no reference image: Precise Reference doesn't work on V5). Candidate i gets seed + i. */
-export function spriteRequest(outfit: Outfit, kind: ArtKind, expr: Expression, s: MascotSettings, i = 0): { compiled: Compiled; params: NaiParams } {
+/** A fresh random seed in 1..2^32-1, drawn per candidate so every batch differs. */
+export const newSeed = (): number => randomInt(1, 2 ** 32);
+
+/** Tags-only V5 request (no reference image: Precise Reference doesn't work on V5). */
+export function spriteRequest(outfit: Outfit, kind: ArtKind, expr: Expression, s: MascotSettings, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
   const parts = [s.charTags, s.constantTags, s.layerTags[outfit], ...(kind === "bust" ? [s.exprTags[expr], BUST] : [FULL])];
   const [width, height] = kind === "bust" ? [1024, 1024] : [832, 1216];
   return {
-    compiled: { base: parts.map((p) => p.trim()).filter(Boolean).join(", "), uc: "", chars: [], rating: "nsfw" },
-    params: { ...DEFAULT_PARAMS, width, height, steps: 28, seed: SEED[outfit] + i },
+    compiled: { base: parts.map((p) => p.trim()).filter(Boolean).join(", "), uc: kind === "bust" ? BUST_UC : "", chars: [], rating: "nsfw" },
+    params: { ...DEFAULT_PARAMS, width, height, steps: 28, seed },
   };
 }
 
@@ -62,12 +66,13 @@ export function listSprites(dir: string): { sprites: Record<string, number>; she
   return { sprites, sheets };
 }
 
-/** Replace the candidate batch for one sprite. */
-export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "full", pngs: Buffer[]): void {
+/** Replace the candidate batch for one sprite (stale files removed); seeds, if given, go in meta.json. */
+export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "full", pngs: Buffer[], seeds?: number[]): void {
   const d = path.dirname(candidatePath(dir, outfit, name, 0)!);
   fs.rmSync(d, { recursive: true, force: true });
   fs.mkdirSync(d, { recursive: true });
   pngs.slice(0, MAX_CANDIDATES).forEach((png, i) => fs.writeFileSync(path.join(d, `${i}.png`), png));
+  if (seeds) fs.writeFileSync(path.join(d, "meta.json"), JSON.stringify({ seeds: seeds.slice(0, MAX_CANDIDATES) }));
 }
 
 const isPng = (b: Buffer) => b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;

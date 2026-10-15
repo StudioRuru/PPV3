@@ -4,25 +4,38 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DEFAULT_MASCOT_SETTINGS as S } from "./settings";
-import { candidatePath, listSprites, perImage, pick, saveCandidates, spritePath, spriteRequest, target } from "./sprites";
+import { BUST, BUST_UC, candidatePath, listSprites, newSeed, perImage, pick, saveCandidates, spritePath, spriteRequest, target } from "./sprites";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "mascot-"));
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1]);
 
 test("spriteRequest bust: char + constant + layer + expression + bust framing, 1024², 28 steps, per-layer seed, no ref", () => {
   const { compiled, params } = spriteRequest("night", "bust", "pout", S);
-  assert.equal(compiled.base, [S.charTags, S.constantTags, S.layerTags.night, S.exprTags.pout, "portrait, upper body, looking at viewer, simple background, white background"].join(", "));
+  assert.equal(compiled.base, [S.charTags, S.constantTags, S.layerTags.night, S.exprTags.pout, BUST].join(", "));
   assert.deepEqual(compiled.chars, []);
-  assert.equal(compiled.uc, "");
+  assert.equal(compiled.uc, BUST_UC);
   assert.equal(compiled.rating, "nsfw");
   assert.equal(params.width, 1024);
   assert.equal(params.height, 1024);
   assert.equal(params.steps, 28);
-  assert.equal(params.seed, 2002);
-  assert.equal(spriteRequest("night", "bust", "pout", S, 2).params.seed, 2004);
-  assert.equal(spriteRequest("day", "bust", "smug", S).params.seed, 1001);
-  assert.equal(spriteRequest("lewd", "bust", "smug", S).params.seed, 3003);
+  assert.equal(spriteRequest("night", "bust", "pout", S, 1234).params.seed, 1234);
   assert.ok(!("ref" in params) && !("reference" in params));
+});
+
+test("bust framing is close-up with a sprite-only UC; full has neither", () => {
+  assert.equal(BUST, "portrait, close-up, head and shoulders, bust, face focus, looking at viewer, simple background, white background");
+  assert.equal(BUST_UC, "full body, legs, thighs, feet, shoes, wide shot, lower body");
+  const bust = spriteRequest("day", "bust", "smug", S);
+  assert.ok(bust.compiled.base.includes("head and shoulders") && bust.compiled.uc.includes("thighs"));
+  const full = spriteRequest("day", "full", "smug", S);
+  assert.ok(full.compiled.base.includes("full body") && full.compiled.uc === "");
+});
+
+test("each draw gets a fresh seed in 1..2^32-1", () => {
+  const seeds = Array.from({ length: 20 }, () => newSeed());
+  assert.ok(new Set(seeds).size > 1);
+  for (const x of seeds) assert.ok(Number.isInteger(x) && x >= 1 && x <= 2 ** 32 - 1);
+  assert.notEqual(spriteRequest("day", "bust", "smug", S).params.seed, spriteRequest("day", "bust", "smug", S).params.seed);
 });
 
 test("spriteRequest full: full-body framing, no expression tags, 832×1216", () => {
@@ -102,6 +115,11 @@ test("saveCandidates replaces the old batch; listSprites reports sprites (mtime)
   saveCandidates(d, "night", "full", [PNG, PNG, PNG]);
   saveCandidates(d, "night", "full", [PNG]);
   assert.deepEqual(fs.readdirSync(path.join(d, "candidates", "night", "full")), ["0.png"]);
+  saveCandidates(d, "night", "full", [PNG, PNG, PNG], [5, 6, 7]);
+  saveCandidates(d, "night", "full", [PNG, PNG], [8, 9]);
+  const cd = path.join(d, "candidates", "night", "full");
+  assert.deepEqual(fs.readdirSync(cd).sort(), ["0.png", "1.png", "meta.json"]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(cd, "meta.json"), "utf8")), { seeds: [8, 9] });
   fs.mkdirSync(path.join(d, "day"), { recursive: true });
   fs.writeFileSync(path.join(d, "day", "smug.png"), PNG);
   fs.writeFileSync(path.join(d, "day", "smug.orig.png"), PNG);

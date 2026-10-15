@@ -41,15 +41,17 @@ export async function POST(req: NextRequest) {
     const s = getMascotSettings();
     try {
       const before = await balance();
+      const seeds: number[] = [];
       const { result: pngs, cost } = await measured(NOVELAI_TOKEN, async () => {
         const out: Buffer[] = [];
         for (let i = 0; i < n; i++) {
-          const { compiled, params } = spriteRequest(t.outfit, t.kind, t.expr, s, i);
+          const { compiled, params } = spriteRequest(t.outfit, t.kind, t.expr, s);
+          seeds.push(params.seed);
           out.push((await generateImage(compiled, params, NOVELAI_TOKEN)).png);
         }
         return out;
       });
-      saveCandidates(MASCOT_DIR, t.outfit, t.name, pngs); // only after the whole batch, so a failure replaces nothing
+      saveCandidates(MASCOT_DIR, t.outfit, t.name, pngs, seeds); // only after the whole batch, so a failure replaces nothing
       return NextResponse.json({ count: pngs.length, before, after: await balance(), cost });
     } catch (err) {
       const status = err instanceof NovelAIError ? err.status : 500;
