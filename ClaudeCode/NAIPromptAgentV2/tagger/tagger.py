@@ -6,6 +6,7 @@ copyright, style (= artists), meta, rating.
 """
 import io
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -78,6 +79,13 @@ def load_seg():
     return _seg
 
 
+def _warm_seg():
+    try:
+        load_seg()
+    except Exception as e:  # download failure only logs; /cutout retries on demand
+        print(f"cutout model warm-up failed: {e}", flush=True)
+
+
 def load_pipe():
     global _pipe
     if _pipe is None:
@@ -93,6 +101,7 @@ def load_pipe():
 async def lifespan(_: FastAPI):
     if os.environ.get("TAGGER_PRELOAD", "1") == "1":
         load_pipe()  # ~10 s once; first /tag is then fast
+        threading.Thread(target=_warm_seg, daemon=True).start()  # first /cutout shouldn't time out downloading the model
     yield
 
 

@@ -49,6 +49,8 @@ export class MascotStore {
 
   /** >=25 journal rows since the last refresh, or >24 h with at least one new row. */
   needsRefresh(): boolean {
+    // Fresh install: start the 24 h clock now so the first journal row doesn't trigger a refresh.
+    this.db.prepare("INSERT OR IGNORE INTO mascot_meta (key, value) VALUES ('refreshed_at', ?)").run(String(this.now()));
     const since = (this.db.prepare("SELECT COUNT(*) AS n FROM mascot_journal WHERE id > ?").get(this.meta("refreshed_id")) as { n: number }).n;
     return since >= REFRESH_ROWS || (since > 0 && this.now() - this.meta("refreshed_at") > REFRESH_MS);
   }

@@ -53,7 +53,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
       r = await requestJson<Say>("/api/mascot/quip", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event: e, context: { promptSummary: prompt, nsfw: rating === "nsfw" } }) });
     } finally { L.inFlight = false; }
-    if (!r.ok || !r.data.text) return; // never show errors in the bubble
+    if (!r.ok || !r.data.text || isTyping()) return; // never show errors in the bubble
     L.lastSpokeAt = Date.now();
     setSay({ expression: r.data.expression, text: r.data.text });
   };

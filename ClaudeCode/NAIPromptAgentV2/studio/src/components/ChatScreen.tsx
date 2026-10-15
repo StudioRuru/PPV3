@@ -7,6 +7,7 @@ import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
 import { PERSONAS, type Modifiers, type PersonaId } from "@/lib/persona";
 import type { PromptState } from "@/lib/prompt";
+import { defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
 import { PatchCard } from "./PatchCard";
 import { Sheet } from "./Sheet";
 import { AutoTextarea } from "./TagInput";
@@ -75,7 +76,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     if (!r.ok) return;
     setThreads(r.data.threads);
     const ok = (id: number | null | undefined) => id != null && r.data.threads.some((t) => t.id === id);
-    setTid((cur) => (ok(pick) ? pick! : ok(cur) ? cur : r.data.threads[0]?.id ?? null));
+    setTid((cur) => (ok(pick) ? pick! : ok(cur) ? cur : defaultThreadId(r.data.threads)));
   }, []);
   useEffect(() => {
     if (!active) return;
@@ -107,13 +108,13 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   }
 
   async function newThread() {
-    const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: thread?.persona ?? "neutral" }) });
+    const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: newThreadPersona(thread?.persona) }) });
     if (r.ok) { setThreads(r.data.threads); setTid(r.data.id); }
   }
   async function deleteThread(id: number) {
     const r = await requestJson<{ threads: Thread[] }>(`/api/chat/threads?id=${id}`, { method: "DELETE" });
     setConfirmDel(null);
-    if (r.ok) { setThreads(r.data.threads); setTid(r.data.threads[0]?.id ?? null); }
+    if (r.ok) { setThreads(r.data.threads); setTid(defaultThreadId(r.data.threads)); }
   }
   async function patchThread(patch: Partial<Pick<Thread, "persona" | "mods" | "title">>) {
     if (!thread) return;
@@ -406,7 +407,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         {thread && (
           <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-6" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
             <div role="radiogroup" aria-label="Personality" className="grid gap-2">
-              {PERSONAS.map((p) => (
+              {PERSONAS.filter((p) => p.id !== "miyabi").map((p) => (
                 <button key={p.id} type="button" role="radio" aria-checked={thread.persona === p.id} onClick={() => patchThread({ persona: p.id })}
                   className={`rounded-lg border p-3 text-left ${thread.persona === p.id ? "border-accent bg-accent-soft" : "border-border"}`}>
                   <span className="block text-sm font-semibold">{p.name}</span><span className="text-muted text-xs">{p.blurb}</span>

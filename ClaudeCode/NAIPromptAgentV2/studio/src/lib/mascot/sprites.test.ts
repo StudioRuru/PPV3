@@ -83,13 +83,18 @@ test("pick saves cutout + .orig, or keeps original with a note when cutout fails
   assert.deepEqual(fs.readFileSync(path.join(d, "day", "smug.png")), cut);
   assert.deepEqual(fs.readFileSync(path.join(d, "day", "smug.orig.png")), PNG);
 
+  // cutout down with an existing sprite: error, sprite and candidate untouched
   const down = await pick(d, "day", "smug", 1, async () => { throw new Error("ECONNREFUSED"); });
-  assert.ok("note" in down && down.ok);
-  assert.deepEqual(fs.readFileSync(path.join(d, "day", "smug.png")), Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 9]));
+  assert.ok("error" in down && /kept your current sprite/.test(down.error));
+  assert.deepEqual(fs.readFileSync(path.join(d, "day", "smug.png")), cut);
+  assert.ok(fs.existsSync(candidatePath(d, "day", "smug", 1)!));
 
-  const bad = await pick(d, "day", "smug", 0, async () => new Response("nope", { status: 500 }));
-  assert.ok("note" in bad);
-  assert.deepEqual(fs.readFileSync(path.join(d, "day", "smug.png")), PNG);
+  // no sprite yet: fallback saves the original + note
+  const d2 = tmp();
+  saveCandidates(d2, "day", "smug", [PNG]);
+  const bad = await pick(d2, "day", "smug", 0, async () => new Response("nope", { status: 500 }));
+  assert.ok("note" in bad && bad.ok);
+  assert.deepEqual(fs.readFileSync(path.join(d2, "day", "smug.png")), PNG);
 });
 
 test("saveCandidates replaces the old batch; listSprites reports sprites (mtime) and sheets", () => {

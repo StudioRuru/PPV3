@@ -62,3 +62,12 @@ test("factsPrompt quotes journal/taste/current as data", () => {
   assert.match(p.user, /taste!/);
   assert.match(p.user, /old/);
 });
+
+test("fresh install: first journal rows don't trigger a refresh (marker seeded on first read)", () => {
+  let t = 1_800_000_000_000;
+  const s = mk(() => t);
+  s.log("tap", "x", "y");
+  assert.equal(s.needsRefresh(), false);
+  t += 24 * 3600_000 + 1;
+  assert.equal(s.needsRefresh(), true);
+});

@@ -86,6 +86,7 @@ export async function pick(dir: string, outfit: string, name: string, i: number,
     const b = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
     if (b && isPng(b)) cut = b;
   } catch { /* cutout server down: keep the original */ }
+  if (!cut && fs.existsSync(out)) return { error: "Background removal unavailable — kept your current sprite; try again when the tagger is warm." };
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out.replace(/\.png$/, ".orig.png"), orig);
   fs.writeFileSync(out, cut ?? orig);

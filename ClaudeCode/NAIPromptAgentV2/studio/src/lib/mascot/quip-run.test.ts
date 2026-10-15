@@ -73,3 +73,38 @@ test("a DB error while journaling or reading settings still returns the line", a
   assert.equal(r.source, "canned");
   assert.ok(r.text);
 });
+
+test("refresh: marks refreshed even with zero parsed facts", async () => {
+  let marked = 0;
+  const { d } = deps({ ask: async (_s, _u, _m, o) => (o.num_predict === 600 ? "no bullets" : "[wink] hi") });
+  d.store.needsRefresh = () => true;
+  d.store.markRefreshed = () => { marked++; };
+  await makeQuip(d)({ event: { kind: "tap" } }); await tick(); await tick();
+  assert.equal(marked, 1);
+});
+
+test("refresh skipped while a model quip is in flight; quips go canned while a refresh runs", async () => {
+  let release!: (s: string) => void;
+  let calls = 0;
+  const a = deps({ ask: () => { calls++; return new Promise<string>((r) => (release = r)); } });
+  a.d.store.needsRefresh = () => true;
+  const quip = makeQuip(a.d);
+  await quip({ event: { kind: "tap" } }); // times out, still in flight
+  assert.equal(calls, 1); // no refresh ask
+  release("[wink] x"); await tick();
+
+  let rel2!: (s: string) => void;
+  let n = 0;
+  const b = deps({ ask: () => { n++; return new Promise<string>((r) => (rel2 = r)); }, timeoutMs: 1000 });
+  let need = false;
+  b.d.store.needsRefresh = () => need;
+  const q2 = makeQuip(b.d);
+  need = true;
+  const first = q2({ event: { kind: "tap" } });
+  await tick(); rel2("[wink] hi"); await first; await tick(); // refresh now running
+  assert.equal(n, 2);
+  need = false;
+  assert.equal((await q2({ event: { kind: "tap" } })).source, "canned");
+  assert.equal(n, 2);
+  rel2("- f");
+});

@@ -26,17 +26,18 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
   let refreshing = false;
 
   async function refreshFacts(model: string): Promise<void> {
-    if (refreshing) return;
+    if (refreshing || inFlight) return; // they share one model slot
     refreshing = true;
     try {
       const p = factsPrompt(d.store.recent(25), d.context().taste, d.store.facts().map((f) => f.text));
       const facts = parseFacts(await d.ask(p.system, p.user, model, { num_ctx: CTX, num_predict: 600 }));
-      if (facts.length) { d.store.setFacts(facts); d.store.markRefreshed(); }
+      if (facts.length) d.store.setFacts(facts);
+      d.store.markRefreshed(); // even with zero facts, or it re-fires after every quip
     } finally { refreshing = false; }
   }
 
   async function modelLine(e: MascotEvent, promptSummary: string): Promise<QuipResult | null> {
-    if (inFlight || d.heavyInUse()) return null;
+    if (inFlight || refreshing || d.heavyInUse()) return null;
     const model = d.model();
     if (!(await d.installed()).includes(model)) return null;
     const c = d.context();
