@@ -145,3 +145,17 @@ test("create/extract default an empty selfName to the jar name", () => {
   live.state!.selfName = "";
   assert.equal(s.get(s.extract("Echo", "#000000"))!.selfName, "Echo");
 });
+
+test("generation bumps on insert/remove/extract so detached work can detect a switch", () => {
+  const { s } = mk();
+  const id = s.ensureFirstRun()!;
+  const g0 = s.generation;
+  s.extract("Save", "#112233");
+  assert.ok(s.generation > g0);
+  const g1 = s.generation;
+  s.remove();
+  assert.ok(s.generation > g1);
+  const g2 = s.generation;
+  s.insert(id);
+  assert.ok(s.generation > g2);
+});

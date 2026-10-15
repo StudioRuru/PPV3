@@ -59,6 +59,8 @@ export function cleanVoice(raw: string): string {
 }
 
 /* ---------- actions ---------- */
+/** SlimeStore / live-identity refusals the owner can act on; anything else (DB trouble) is a 500. */
+const KNOWN = /not found|Can't delete the active|Nothing to extract|Invalid slime doc|Invalid live identity/;
 class Fail extends Error { constructor(public status: number, msg: string) { super(msg); } }
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const idOf = (v: unknown): number => { if (!Number.isInteger(v)) throw new Fail(400, "A jar id is required."); return v as number; };
@@ -101,8 +103,10 @@ async function run(b: Record<string, unknown>, d: SlimeDeps): Promise<Record<str
     case "recolor": { const id = idOf(b.id); const color = colorOf(b.color); jar(d, id); d.store.save(id, { color }); return {}; }
     case "delete": { const id = idOf(b.id); jar(d, id); d.store.delete(id); return {}; }
     case "remove": {
-      if (d.store.activeId() === null) throw new Fail(400, "No slime inserted.");
-      const quip = await safeQuip(d, "slime_out"); // outgoing voice
+      const id = d.store.activeId();
+      if (id === null) throw new Fail(400, "No slime inserted.");
+      const quip = await safeQuip(d, "slime_out"); // outgoing voice (can take seconds)
+      if (d.store.activeId() !== id) throw new Fail(409, "Changed while she was talking — try again");
       d.store.remove();
       return { quip };
     }
@@ -151,7 +155,7 @@ async function run(b: Record<string, unknown>, d: SlimeDeps): Promise<Record<str
       const cid = idOf(b.characterId);
       const c = d.card(cid);
       if (!c) throw new Fail(404, "RP character not found.");
-      const name = b.name === undefined || b.name === "" ? c.name.slice(0, 40) : nameOf(b.name);
+      const name = b.name === undefined || (typeof b.name === "string" && !b.name.trim()) ? nameOf(c.name.trim().slice(0, 40)) : nameOf(b.name);
       const color = b.color === undefined ? DEFAULT_COLOR : colorOf(b.color);
       const voice = await generate(d, distillCardPrompt(c));
       const blank = blankSlime();
@@ -172,6 +176,8 @@ export async function slimeAction(body: unknown, d: SlimeDeps): Promise<SlimeRes
     const extra = await run(body, d);
     return { status: 200, body: { ...listing(d), ...extra } };
   } catch (e) {
-    return { status: e instanceof Fail ? e.status : 400, body: { error: (e as Error).message || "Something went wrong." } };
+    if (e instanceof Fail) return { status: e.status, body: { error: e.message } };
+    const msg = (e as Error).message ?? "";
+    return KNOWN.test(msg) ? { status: 400, body: { error: msg } } : { status: 500, body: { error: "Something went wrong saving the slime" } };
   }
 }

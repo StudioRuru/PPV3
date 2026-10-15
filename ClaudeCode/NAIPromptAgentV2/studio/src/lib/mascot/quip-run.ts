@@ -17,6 +17,8 @@ export type QuipDeps = {
   /** One full reply; no timeout (the runner adds it). */
   ask: (system: string, user: string, model: string, options: Record<string, unknown>) => Promise<string>;
   timeoutMs?: number;
+  /** Identity marker (active slime + switch count): a facts refresh is dropped if it changed meanwhile. */
+  generation?: () => unknown;
 };
 export type QuipResult = { expression: Expression; text: string; source: "model" | "canned" };
 
@@ -31,9 +33,11 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
   async function refreshFacts(model: string): Promise<void> {
     if (refreshing || inFlight) return; // they share one model slot
     refreshing = true;
+    const gen = d.generation?.();
     try {
       const p = factsPrompt(d.store.recent(25), d.context().taste, d.store.facts().map((f) => f.text));
       const facts = parseFacts(await d.ask(p.system, p.user, model, { num_ctx: CTX, num_predict: 600 }));
+      if (d.generation && d.generation() !== gen) return; // slime switched: these facts belong to the old jar
       if (facts.length) d.store.setFacts(facts);
       d.store.markRefreshed(); // even with zero facts, or it re-fires after every quip
     } finally { refreshing = false; }
@@ -80,7 +84,7 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     try { if (kind === "idle") d.drift("idle"); } catch { /* drift is best-effort */ }
     try {
       d.store.log(kind, data ? JSON.stringify(data).slice(0, 200) : "", out.text);
-      if (!d.heavyInUse() && d.store.needsRefresh()) void refreshFacts(d.model()).catch(() => {});
+      if (kind !== "slime_out" && kind !== "slime_in" && !d.heavyInUse() && d.store.needsRefresh()) void refreshFacts(d.model()).catch(() => {});
     } catch { /* journal/DB trouble never costs the line */ }
     return out;
   };

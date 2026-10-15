@@ -152,3 +152,28 @@ test("Empty: the old slime's recent lines and facts stay out of the prompt", asy
   assert.doesNotMatch(users[0], /recent lines|HMPH/);
   assert.doesNotMatch(users[0], /Facts:|loves foxes/);
 });
+
+test("facts refresh is dropped when the slime changed while it ran (no cross-jar facts)", async () => {
+  const set: string[][] = [];
+  let gen = 1;
+  let release!: (s: string) => void;
+  const { d } = deps({ generation: () => gen, ask: (_s, u) => (u.includes("<data>") ? new Promise<string>((r) => (release = r)) : Promise.resolve("[smug] ok")) });
+  d.store.needsRefresh = () => true;
+  d.store.setFacts = (f) => { set.push(f); };
+  await makeQuip(d)({ event: { kind: "tap" } });
+  await tick();
+  gen = 2; // remove → insert happened
+  release("- old jar fact"); await tick(); await tick();
+  assert.deepEqual(set, []);
+});
+
+test("slime_out / slime_in never start a facts refresh", async () => {
+  let refreshed = 0;
+  const { d } = deps();
+  d.store.needsRefresh = () => { refreshed++; return true; };
+  const q = makeQuip(d);
+  await q({ event: { kind: "slime_out" } });
+  await q({ event: { kind: "slime_in" } });
+  await tick();
+  assert.equal(refreshed, 0);
+});

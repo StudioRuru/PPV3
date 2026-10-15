@@ -24,6 +24,8 @@ const pickLive = ({ voice, selfName, sliders, mods, heatDrift, look, memories }:
   ({ voice, selfName, sliders: resetLive(sliders), mods, heatDrift, look, memories });
 
 export class SlimeStore {
+  /** Bumped by extract/remove/insert so detached work (facts refresh) can tell the identity moved on. */
+  generation = 0;
   constructor(private db: Database.Database, private live: LiveIdentity, private now: () => number = Date.now) {}
 
   list(): SlimeRow[] {
@@ -77,6 +79,7 @@ export class SlimeStore {
   extract(name: string, color: string): number {
     const id = this.activeId();
     if (id === null) throw new Error("Nothing to extract — insert a slime first");
+    this.generation++;
     return this.create({ ...this.get(id)!, ...this.live.read(), name, color });
   }
 
@@ -88,6 +91,7 @@ export class SlimeStore {
 
   /** Snapshot the active jar, then go Empty. Returns the removed jar, or null if already Empty. */
   remove(): SlimeDoc | null {
+    this.generation++;
     return this.db.transaction(() => {
       const doc = this.snapshot();
       if (!doc) return null;
@@ -99,6 +103,7 @@ export class SlimeStore {
 
   /** Snapshot the active jar (if any), then load jar `id` with drift cleared. No-op if already active. */
   insert(id: number): void {
+    this.generation++;
     this.db.transaction(() => {
       if (this.activeId() === id) return;
       const doc = this.get(id);

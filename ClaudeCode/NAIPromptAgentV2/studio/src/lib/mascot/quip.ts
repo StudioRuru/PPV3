@@ -30,6 +30,7 @@ export const quip = makeQuip({
   context: () => ({ identity: activeIdentity(), taste: learnedBlock(), story: learnedStoryBlock() }),
   drift: (e) => liveIdentity.drift(e),
   store: mascotStore,
+  generation: () => `${slimeStore.activeId()}:${slimeStore.generation}`,
   ask: async (system, user, model, options) => {
     let s = "";
     for await (const c of chatStream(system, [{ role: "user", content: user }], { model, options })) s += c;

@@ -234,3 +234,37 @@ test("fromRp builds a neutral jar from the card; unknown card 404; model failure
   assert.equal((await act(f.d, { action: "fromRp", characterId: 7 })).status, 502);
   assert.equal(f.store.list().length, 1);
 });
+
+/* ---------- fix round 1 ---------- */
+test("remove: if the active jar changed during the quip, skip the remove and 409", async () => {
+  const { d, store } = mk();
+  const other = store.create({ ...blankSlime(), name: "Other", color: "#000000" });
+  d.quip = async (kind) => { if (kind === "slime_out") store.insert(other); return { expression: "smug", text: kind }; };
+  const r = await act(d, { action: "remove" });
+  assert.equal(r.status, 409);
+  assert.match((r.body as { error: string }).error, /Changed while she was talking/);
+  assert.equal(store.activeId(), other);
+});
+
+test("fromRp: bad name is 400 before any model call; blank name falls back to card name", async () => {
+  const { d, asks } = mk();
+  for (const name of ["x".repeat(41), 5, "   "]) {
+    const r = await act(d, { action: "fromRp", characterId: 7, name });
+    if (name === "   ") { assert.equal(r.status, 200); continue; }
+    assert.equal(r.status, 400, String(name));
+  }
+  assert.equal(asks.length, 1);
+  const long = mk({ card: () => ({ ...card, name: "y".repeat(60) }) });
+  assert.equal((await act(long.d, { action: "fromRp", characterId: 1 })).status, 200);
+});
+
+test("known store errors are 400; unexpected errors are 500 with a readable message", async () => {
+  const { d, store } = mk();
+  store.save = () => { throw new Error("SQLITE_BUSY: database is locked"); };
+  const r = await act(d, { action: "heatDrift", on: true });
+  assert.equal(r.status, 500);
+  assert.equal((r.body as { error: string }).error, "Something went wrong saving the slime");
+  const e = mk();
+  e.store.delete = () => { throw new Error("Can't delete the active slime — remove it first"); };
+  assert.equal((await act(e.d, { action: "delete", id: e.first })).status, 400);
+});
