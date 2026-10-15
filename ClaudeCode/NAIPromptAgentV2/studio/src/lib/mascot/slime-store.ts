@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { resetLive, validateSlime, type SlimeDoc } from "./slime";
 
-export type LiveState = Pick<SlimeDoc, "voice" | "selfName" | "sliders" | "mods" | "heatDrift" | "look" | "memories">;
+export type LiveState = Pick<SlimeDoc, "voice" | "selfName" | "sliders" | "mods" | "heatDrift" | "look" | "memories" | "vials">;
 /** Adapter over the live mascot identity; write(null) = Empty. */
 export interface LiveIdentity { read(): LiveState; write(state: LiveState | null): void }
 export type SlimeRow = { id: number; doc: SlimeDoc };
@@ -20,8 +20,8 @@ const valid = (raw: unknown): SlimeDoc => {
   if (!d) throw new Error("Invalid slime doc");
   return d;
 };
-const pickLive = ({ voice, selfName, sliders, mods, heatDrift, look, memories }: SlimeDoc): LiveState =>
-  ({ voice, selfName, sliders: resetLive(sliders), mods, heatDrift, look, memories });
+const pickLive = ({ voice, selfName, sliders, mods, heatDrift, look, memories, vials }: SlimeDoc): LiveState =>
+  ({ voice, selfName, sliders: resetLive(sliders), mods, heatDrift, look, memories, vials });
 
 export class SlimeStore {
   /** Bumped by extract/remove/insert so detached work (facts refresh) can tell the identity moved on. */
@@ -69,7 +69,7 @@ export class SlimeStore {
   ensureFirstRun(): number | null {
     return this.db.transaction(() => {
       if ((this.db.prepare("SELECT COUNT(*) AS n FROM mascot_slimes").get() as { n: number }).n > 0) return this.activeId();
-      const id = this.create({ ...this.live.read(), name: "Miyabi", color: "#b7a4ff", origin: "miyabi", vials: [] });
+      const id = this.create({ ...this.live.read(), name: "Miyabi", color: "#b7a4ff", origin: "miyabi" });
       this.setActive(id);
       return id;
     })();

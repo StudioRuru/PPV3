@@ -6,9 +6,11 @@ import { driftSlider, EMPTY_BLOCK, lengthShape, sliderBlock, type Sliders } from
 import type { LiveIdentity, LiveState } from "./slime-store";
 import { MASCOT_SETTINGS_KEY, mergeMascotSettings, parseMascotSettings, type MascotSettings } from "./settings";
 import { MascotStore } from "./store";
+import { validateAppliedVial, vialsBlock, type AppliedVial } from "./vial";
 
 export type Identity = {
   empty: boolean; voice: string; selfName: string; sliders: Sliders; mods: Modifiers; drift: number; lengthShape: ReturnType<typeof lengthShape>;
+  vials: AppliedVial[];
 };
 
 const MODS = ["bratty", "tease", "flirt"] as const;
@@ -18,13 +20,13 @@ export function identityOf(s: MascotSettings, drift: number): Identity {
   const len = s.sliders.length;
   return {
     empty: s.empty, voice: s.voice, selfName: s.selfName || "the mascot", sliders: s.sliders, mods: s.empty ? {} : s.mods, drift,
-    lengthShape: lengthShape(s.empty ? 0 : len.live ?? len.value),
+    lengthShape: lengthShape(s.empty ? 0 : len.live ?? len.value), vials: s.empty ? [] : s.vials,
   };
 }
 
-/** Miyabi's persona block: the slime's name + voice + slider directives, or EMPTY_BLOCK. deepTalk drops the quip length rule. */
+/** Miyabi's persona block: the slime's name + voice + slider directives + potion effects (quoted data), or EMPTY_BLOCK. deepTalk drops the quip length rule. */
 export const slimePersona = (i: Identity, deepTalk = false): string =>
-  i.empty ? EMPTY_BLOCK : [personaBlock("miyabi", i.mods, i.drift, { name: i.selfName, voice: i.voice }), sliderBlock(i.sliders, i.selfName, { length: !deepTalk })].filter(Boolean).join("\n");
+  i.empty ? EMPTY_BLOCK : [personaBlock("miyabi", i.mods, i.drift, { name: i.selfName, voice: i.voice }), sliderBlock(i.sliders, i.selfName, { length: !deepTalk }), vialsBlock(i.vials)].filter(Boolean).join("\n");
 
 export class DbIdentity implements LiveIdentity {
   constructor(private db: Database.Database, private store = new MascotStore(db)) {}
@@ -47,7 +49,7 @@ export class DbIdentity implements LiveIdentity {
       voice: s.voice, selfName: s.selfName, sliders: s.sliders, heatDrift: s.heatDrift,
       mods: Object.fromEntries(MODS.filter((k) => s.mods[k]).map((k) => [k, true])),
       look: { charTags: s.charTags, constantTags: s.constantTags, layerTags: s.layerTags, exprTags: s.exprTags, spriteDir: s.spriteDir },
-      memories: this.store.memories(),
+      memories: this.store.memories(), vials: s.vials,
     };
   }
 
@@ -57,7 +59,8 @@ export class DbIdentity implements LiveIdentity {
     const { memories, look, mods, ...rest } = state;
     // Replace whole fields: merge would silently keep old values on an invalid one, so check it took.
     const next = this.patch({ ...rest, ...look, mods: Object.fromEntries(MODS.map((k) => [k, mods[k] === true])), empty: false });
-    if (next.voice !== rest.voice || next.selfName !== rest.selfName || next.spriteDir !== look.spriteDir) throw new Error("Invalid live identity");
+    if (next.voice !== rest.voice || next.selfName !== rest.selfName || next.spriteDir !== look.spriteDir
+      || JSON.stringify(next.vials) !== JSON.stringify(rest.vials.map(validateAppliedVial))) throw new Error("Invalid live identity");
     this.store.setMemories(memories);
   }
 

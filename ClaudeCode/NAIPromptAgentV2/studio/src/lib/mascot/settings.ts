@@ -1,6 +1,7 @@
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
 import { PERSONAS, type Modifiers } from "../persona";
 import type { Sliders } from "./slime"; // type only: slime.ts imports this module's defaults
+import { validateAppliedVial, type AppliedVial } from "./vial"; // runtime cycle (vial → slime → settings) is safe: only used inside functions
 
 export type MascotSettings = {
   show: boolean; cooldownMs: number; nightFrom: number; nightTo: number; pin: Outfit | null; mods: Modifiers;
@@ -8,6 +9,8 @@ export type MascotSettings = {
   corner: "br" | "bl" | "tr" | "tl"; size: "s" | "m" | "l";
   /** Live identity (the active slime): voice, name, sliders, sprite dir under data/mascot; empty = no slime inserted. */
   voice: string; selfName: string; sliders: Sliders; heatDrift: boolean; spriteDir: string; empty: boolean;
+  /** Potions applied to the active slime (changed only via the vials API). */
+  vials: AppliedVial[];
   /** Settings → "Unlock the slime shelf". */
   shelf: boolean;
 };
@@ -43,7 +46,7 @@ export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
     excited: "excited, open smile, sparkling eyes, fang",
     sleepy: "sleepy, half-closed eyes, yawning, tears",
   },
-  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false,
+  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false, vials: [],
   sliders: { brat: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } },
 };
 
@@ -52,10 +55,10 @@ const tags = (v: unknown): v is string => typeof v === "string" && v.length <= M
 const int = (v: unknown, hi: number): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= hi;
 const hour = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 23;
 
-/** Untrusted client settings patch: `empty` belongs to insert/remove and `live` drift to the server, so both are dropped (moving a slider resets drift). */
+/** Untrusted client settings patch: `empty` belongs to insert/remove, `vials` to the vials API and `live` drift to the server, so all are dropped (moving a slider resets drift). */
 export function clientSettingsPatch(patch: unknown): unknown {
   if (!isObj(patch)) return patch;
-  const { empty: _empty, ...rest } = patch;
+  const { empty: _empty, vials: _vials, ...rest } = patch;
   if (isObj(rest.sliders)) rest.sliders = Object.fromEntries(Object.entries(rest.sliders).map(([k, v]) => [k, isObj(v) ? { value: v.value, cap: v.cap } : v]));
   return rest;
 }
@@ -83,6 +86,10 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
   if (typeof patch.empty === "boolean") out.empty = patch.empty;
   if (typeof patch.shelf === "boolean") out.shelf = patch.shelf;
   if (typeof patch.spriteDir === "string" && patch.spriteDir.length <= 200 && isSafeSpriteDir(patch.spriteDir)) out.spriteDir = patch.spriteDir;
+  if (Array.isArray(patch.vials) && patch.vials.length <= 8) {
+    const vials = patch.vials.map(validateAppliedVial);
+    if (vials.every(Boolean)) out.vials = vials as AppliedVial[];
+  }
   if (isObj(patch.sliders)) for (const k of SLIDER_IDS) {
     const x = patch.sliders[k];
     if (isObj(x) && int(x.value, 10) && int(x.cap, 10) && x.cap >= x.value) out.sliders[k] = int(x.live, x.cap) ? { value: x.value, cap: x.cap, live: x.live } : { value: x.value, cap: x.cap };

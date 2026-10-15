@@ -100,3 +100,13 @@ test("final review: first run (no saved sliders) follows the bratty mod; saved s
   assert.equal(parseMascotSettings(null).sliders.brat.value, 6);
   assert.equal(parseMascotSettings(JSON.stringify({ mods: { bratty: false }, sliders: { brat: { value: 3, cap: 10 } } })).sliders.brat.value, 3);
 });
+
+test("vials: default [], validated as applied vials (≤8), client patches can't set them", () => {
+  const ok = { name: "Brew", color: "#123456", effect: "e", doses: [{ seq: 0, delta: { brat: { value: 1, cap: 0 } } }] };
+  assert.deepEqual(D.vials, []);
+  assert.deepEqual(mergeMascotSettings(D, { vials: [ok] }).vials, [ok]);
+  assert.deepEqual(mergeMascotSettings(D, { vials: [ok, { name: "bad" }] }).vials, [], "any invalid vial rejects the field");
+  assert.deepEqual(mergeMascotSettings(D, { vials: new Array(9).fill(ok) }).vials, []);
+  assert.deepEqual(mergeMascotSettings(D, { vials: "x" }).vials, []);
+  assert.equal("vials" in (clientSettingsPatch({ vials: [ok], show: true }) as object), false);
+});
