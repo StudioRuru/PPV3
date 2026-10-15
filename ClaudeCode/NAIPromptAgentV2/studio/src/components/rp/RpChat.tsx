@@ -75,6 +75,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       if (warn) setError(warn[1]);
     } catch (e) {
       setError((e as Error).message);
+      // Not sent (conflict, offline…): give the typed text back instead of losing it.
+      if (body.text) setInput((cur) => cur || body.text!);
     }
     setStream(null); setStatus(null);
     await load();
@@ -105,7 +107,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-semibold">{character.name}</h1>
           {personas.length > 1 && v ? (
-            <select value={v.chat.personaId ?? ""} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
+            <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
               className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
           ) : <p className="text-muted truncate text-[11px]">as {persona?.name ?? "User"}</p>}
         </div>
@@ -117,7 +119,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           <summary className="text-muted cursor-pointer px-3 py-2 text-xs">📌 Memory {v.chat.memorySummary ? "· story so far" : "· builds as the chat grows"}</summary>
           <div className="space-y-2 px-3 pb-3">
             <AutoTextarea value={memory ?? v.chat.memorySummary} onChange={setMemory} />
-            <button type="button" disabled={memory === null || memory === v.chat.memorySummary} onClick={() => patch({ op: "chat", memorySummary: memory })}
+            <button type="button" disabled={busy || memory === null || memory === v.chat.memorySummary} onClick={() => patch({ op: "chat", memorySummary: memory })}
               className="text-accent text-xs font-semibold disabled:opacity-40">Save memory</button>
           </div>
         </details>

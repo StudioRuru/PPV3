@@ -20,7 +20,9 @@ export class RpStore {
     const row = Object.fromEntries(Object.entries(snake(obj)).filter(([k]) => known.has(k) && k !== "id" && k !== "created_at"));
     const id = obj.id as number | undefined;
     if (id) {
-      if (known.has("updated_at")) row.updated_at = Date.now();
+      // rp_chats.updated_at is the message version, owned by write(): metadata (persona, memory, title…) never moves it,
+      // so a background summary or a persona switch can't make the next send 409.
+      if (known.has("updated_at") && table !== "rp_chats") row.updated_at = Date.now();
       const keys = Object.keys(row);
       if (keys.length) this.db.prepare(`UPDATE ${table} SET ${keys.map((k) => `${k} = @${k}`).join(", ")} WHERE id = @id`).run({ ...row, id });
       return id;
@@ -130,6 +132,7 @@ export class RpStore {
       return id;
     })();
   }
+  /** Metadata only — doesn't change the chat's version. */
   updateChat(id: number, patch: Partial<RpChat>): void {
     this.upsert("rp_chats", { ...patch, id });
   }

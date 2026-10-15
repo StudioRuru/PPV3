@@ -11,11 +11,13 @@ test("tierModel: defaults, then settings override", () => {
   assert.equal(tierModel("heavy", () => "  ", "brain"), "gemma4-26b-apex:latest");
 });
 
-const fake = () => {
+const fake = (opts: { active?: boolean; slowUp?: Promise<void> } = {}) => {
   const calls: string[] = [];
   const timers: (() => void)[] = [];
   const gate = new HeavyGate({
-    power: async (a) => { calls.push(a); return { ok: true, err: "" }; },
+    power: async (a) => { calls.push(a); if (a === "up" && opts.slowUp) await opts.slowUp; calls.push(`${a}:done`); return { ok: true, err: "" }; },
+    active: async () => opts.active ?? true,
+    unloadHeavy: async () => { calls.push("unload"); },
     setTimer: (fn) => { timers.push(fn); return timers.length; },
     clearTimer: (id) => { if (id) timers[(id as number) - 1] = () => {}; },
   });
@@ -30,13 +32,13 @@ test("two overlapping heavy runs pause once, and restore once after both finish 
   const a = gate.run(() => hold);
   const b = gate.run(async () => "b");
   assert.equal(await b, "b");
-  assert.deepEqual(calls, ["down"]);
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down"]);
   fire(); // idle timer from b must have been cancelled/ignored while a still runs
   await tick();
-  assert.deepEqual(calls, ["down"]);
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down"]);
   release(); await a;
   fire(); await tick();
-  assert.deepEqual(calls, ["down", "up"]);
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down", "unload", "up"]);
   assert.equal(gate.state, "light");
 });
 
@@ -53,7 +55,7 @@ test("a failed heavy run restores right away", async () => {
   const { gate, calls } = fake();
   await assert.rejects(gate.run(async () => { throw new Error("out of memory"); }), /out of memory/);
   await tick();
-  assert.deepEqual(calls, ["down", "up"]);
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down", "unload", "up"]);
   assert.equal(gate.state, "light");
 });
 
@@ -62,7 +64,7 @@ test("ensureLight while paused and idle restores once; while busy refuses", asyn
   await gate.run(async () => {});
   assert.equal(await gate.ensureLight(), true);
   assert.equal(await gate.ensureLight(), true);
-  assert.deepEqual(calls, ["down", "up"]);
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down", "unload", "up"]);
   let release!: () => void;
   const p = gate.run(() => new Promise<void>((r) => (release = r)));
   await tick();
@@ -73,5 +75,35 @@ test("ensureLight while paused and idle restores once; while busy refuses", asyn
 test("ensureLight never powers up servers the gate didn't pause", async () => {
   const { gate, calls } = fake();
   assert.equal(await gate.ensureLight(), true);
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), []);
+});
+
+test("review I1: servers the owner had off stay off — no pause, no restore", async () => {
+  const { gate, calls, fire } = fake({ active: false });
+  await gate.run(async () => {});
+  fire(); await tick();
+  assert.equal(await gate.ensureLight(), true);
   assert.deepEqual(calls, []);
+  assert.equal(gate.state, "light");
+});
+
+test("review I2: restore unloads the heavy model before restarting the captioner + TIPO", async () => {
+  const { gate, calls, fire } = fake();
+  await gate.run(async () => {});
+  fire(); await tick();
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down", "unload", "up"]);
+});
+
+test("review M1: a heavy call during a restore waits for it instead of racing power up/down", async () => {
+  let finish!: () => void;
+  const slowUp = new Promise<void>((r) => (finish = r));
+  const { gate, calls, fire } = fake({ slowUp });
+  await gate.run(async () => {});
+  fire(); await tick();                 // restore started, `up` still running
+  const second = gate.run(async () => "x");
+  await tick();
+  assert.equal(calls.includes("down") && calls.lastIndexOf("down") > calls.indexOf("up") && !calls.includes("up:done"), false, "down must not start before up finished");
+  finish();
+  assert.equal(await second, "x");
+  assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down", "unload", "up", "down"]);
 });

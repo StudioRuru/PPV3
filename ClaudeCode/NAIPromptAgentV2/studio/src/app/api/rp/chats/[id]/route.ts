@@ -29,8 +29,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   else if (b.op === "swipe" && own()) ok = rp.pickSwipe(msgId, Number(b.index), expect);
   else if (b.op === "rewind" && own()) ok = rp.rewind(id, msgId, expect);
   else if (b.op === "chat") {
-    if (expect !== undefined && rp.version(id) !== expect) ok = false;
-    else { rp.updateChat(id, Object.fromEntries(CHAT_FIELDS.filter((k) => k in b).map((k) => [k, b[k]]))); ok = true; }
+    // Metadata: last write wins and the message version doesn't move (safe while a reply is streaming).
+    rp.updateChat(id, Object.fromEntries(CHAT_FIELDS.filter((k) => k in b).map((k) => [k, b[k]])));
+    ok = true;
   } else return NextResponse.json({ error: "Unknown change." }, { status: 400 });
   if (!ok) return NextResponse.json({ error: "This chat changed on another device — reload it.", conflict: true, ...view(id) }, { status: 409 });
   return NextResponse.json(view(id));

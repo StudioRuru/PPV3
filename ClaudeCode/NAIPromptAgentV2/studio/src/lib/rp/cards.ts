@@ -1,5 +1,6 @@
 // Ported from Delfino Plaza src/lib/card-import.ts; adds a size cap, a Chub host allow-list and V2 export.
 import extractChunks from "png-chunks-extract";
+import { readCapped } from "./ingest";
 import * as pngText from "png-chunk-text";
 import type { RpCharacter } from "./types";
 
@@ -267,6 +268,7 @@ export async function fetchChubCharacter(urlOrPath: string): Promise<ChubImportR
     res = await fetch(`${CHUB_API}/api/characters/${fullPath}?full=true`, {
       headers: { accept: "application/json" },
       cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
     });
   } catch {
     throw new Error("Couldn't reach Chub. Check your connection.");
@@ -279,7 +281,12 @@ export async function fetchChubCharacter(urlOrPath: string): Promise<ChubImportR
     throw new Error(`Chub returned ${res.status}.`);
   }
 
-  const data = (await res.json()) as { node?: Record<string, unknown> };
+  let data: { node?: Record<string, unknown> };
+  try {
+    data = JSON.parse((await readCapped(res, MAX_CARD_BYTES)).toString("utf8"));
+  } catch {
+    throw new Error("Chub sent something that isn't a character (or it's too big).");
+  }
   const node = (data.node ?? data) as Record<string, unknown>;
   const imported = parseChubNode(node);
   if (!imported) {

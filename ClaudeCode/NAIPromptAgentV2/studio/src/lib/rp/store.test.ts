@@ -114,3 +114,13 @@ test("loreFor merges character, world and chat lorebooks once, keys parsed", () 
   assert.deepEqual(lore[0].keys, ["castle"]);
   assert.equal(lore[1].enabled, false);
 });
+
+test("review C1/I3: chat metadata and memory writes never move the message version", () => {
+  const { s, charId } = setup();
+  const chatId = s.createChat(charId);
+  const v = s.version(chatId)!;
+  s.updateChat(chatId, { memorySummary: "They met.", summarizedThrough: 1, personaId: null, title: "T" });
+  assert.equal(s.version(chatId), v);
+  assert.equal(s.chat(chatId)!.memorySummary, "They met.");
+  assert.ok(s.append(chatId, "user", "next", v));
+});

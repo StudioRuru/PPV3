@@ -57,8 +57,21 @@ export function power(action: "up" | "down" | "status"): Promise<{ ok: boolean; 
   });
 }
 
-/** One shared pause for heavy-model calls (see HeavyGate). */
-export const heavyGate = new HeavyGate({ power });
+/** Unload every resident Ollama model except the everyday brain (the heavy one, before servers restart). */
+async function unloadOthers(): Promise<void> {
+  const ps = await fetch(`${OLLAMA_URL}/api/ps`, { signal: AbortSignal.timeout(3000) }).then((r) => r.json(), () => null);
+  for (const m of (ps?.models ?? []) as { name: string }[]) {
+    if (m.name !== BRAIN_MODEL) await post(`${OLLAMA_URL}/api/generate`, { model: m.name, prompt: "", keep_alive: 0 }, 60_000).catch(() => null);
+  }
+}
+
+/** One shared pause for heavy-model calls (see HeavyGate). On globalThis so a dev hot-reload doesn't forget a pause. */
+const g = globalThis as unknown as { __heavyGate?: HeavyGate };
+export const heavyGate = (g.__heavyGate ??= new HeavyGate({
+  power,
+  active: async () => (await Promise.all([captionUp(), tipoUp(), brainLoaded()])).some(Boolean),
+  unloadHeavy: unloadOthers,
+}));
 const paused = (what: string) => new Error(`${what} is paused while the heavy model is replying — try again in a moment`);
 
 export type StreamOpts = { model?: string; options?: Record<string, unknown>; stop?: string[]; system?: boolean };

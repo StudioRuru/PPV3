@@ -17,6 +17,24 @@ const CHUNK_CHARS = 1500;
 
 export class IngestError extends Error {}
 
+/** Read a response body, giving up as soon as it passes `max` bytes (a chunked multi-GB reply is never buffered). */
+export async function readCapped(res: Response, max: number): Promise<Buffer> {
+  if (Number(res.headers.get("content-length") ?? 0) > max) throw new IngestError("That response is too big.");
+  if (!res.body) return Buffer.alloc(0);
+  const reader = res.body.getReader();
+  const parts: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.byteLength;
+    if (n > max) { await reader.cancel().catch(() => {}); throw new IngestError("That response is too big."); }
+    parts.push(value);
+  }
+  return Buffer.concat(parts);
+}
+const readJson = async (res: Response, max = MAX_BYTES) => JSON.parse((await readCapped(res, max)).toString("utf8"));
+
 /**
  * Hosts the server must never fetch on a user's behalf: loopback, private ranges, link-local, mDNS and the tailnet
  * (the model servers and this app live there).
@@ -25,7 +43,7 @@ export class IngestError extends Error {}
 export function privateHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".ts.net") || h.endsWith(".internal")) return true;
-  if (h === "::1" || h === "::" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return h.includes(":");
+  if (h.includes(":")) return true; // any IPv6 literal (::1, ::ffff:127.0.0.1 …) — wiki sources are never raw IPv6
   const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
   if (!m) return false;
   const [a, b] = [Number(m[1]), Number(m[2])];
@@ -163,7 +181,7 @@ async function fetchViaMediaWiki(u: URL): Promise<{ text: string; title: string 
 
   let data: { parse?: { title?: string; wikitext?: string }; error?: unknown };
   try {
-    data = (await res.json()) as typeof data;
+    data = (await readJson(res)) as typeof data;
   } catch {
     return null;
   }
@@ -245,7 +263,7 @@ export async function searchWiki(hostInput: string, query: string): Promise<Wiki
 
   let data: { query?: { search?: { title?: string }[] } };
   try {
-    data = (await res.json()) as typeof data;
+    data = (await readJson(res)) as typeof data;
   } catch {
     throw new IngestError(`${host} didn't return a MediaWiki search response.`);
   }
@@ -307,7 +325,8 @@ export async function fetchPageText(url: string): Promise<{ text: string; title:
     throw new IngestError(`That URL serves ${type || "an unknown type"}, not a web page.`);
   }
 
-  const raw = await res.text();
+  // Read at most 4× the text cap (multi-byte pages), then keep the first MAX_BYTES characters.
+  const raw = await readCapped(res, MAX_BYTES * 4).then((b) => b.toString("utf8"), (e) => { throw e instanceof IngestError ? new IngestError(`${parsed.hostname} sent a page that's too big to read.`) : e; });
   const body = raw.length > MAX_BYTES ? raw.slice(0, MAX_BYTES) : raw;
 
   const title = decodeEntities(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(body)?.[1] ?? "")

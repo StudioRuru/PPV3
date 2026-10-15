@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 /** Import a Tavern/Chub card: multipart `file` (PNG/JSON) or JSON `{ url }`. Embedded lorebooks come along. */
 export async function POST(req: NextRequest) {
   let input: { file?: { name: string; bytes: Buffer }; url?: string } = {};
+  if (Number(req.headers.get("content-length") ?? 0) > 9 * 1024 * 1024) return NextResponse.json({ error: "That file is too big for a character card (8 MB max)." }, { status: 413 });
   if ((req.headers.get("content-type") ?? "").includes("multipart/form-data")) {
     const f = (await req.formData().catch(() => null))?.get("file");
     if (f instanceof File) input = { file: { name: f.name, bytes: Buffer.from(await f.arrayBuffer()) } };

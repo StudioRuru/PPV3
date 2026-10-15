@@ -43,3 +43,17 @@ test("wiki search refuses private hosts too", async () => {
   const { searchWiki } = await import("./ingest");
   await assert.rejects(searchWiki("192.168.1.10", "Mio"), /local|private/i);
 });
+
+test("review I4: IPv6 literals (incl. IPv4-mapped loopback) are refused", async () => {
+  for (const h of ["[::ffff:7f00:1]", "::ffff:c0a8:101", "[2001:db8::1]", "[::]"]) assert.equal(privateHost(h), true, h);
+  await assert.rejects(fetchPageText("http://[::ffff:7f00:1]:11434/"), /local|private/i);
+});
+
+test("review I5: readCapped stops reading past the cap; small bodies come back whole", async () => {
+  const { readCapped } = await import("./ingest");
+  let pulled = 0;
+  const endless = new ReadableStream<Uint8Array>({ pull(c) { pulled++; c.enqueue(new Uint8Array(1024)); } });
+  await assert.rejects(readCapped(new Response(endless), 10_000), /too big/i);
+  assert.ok(pulled < 50, `stopped early (pulled ${pulled} chunks)`);
+  assert.equal((await readCapped(new Response("hello"), 100)).toString(), "hello");
+});

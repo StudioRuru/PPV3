@@ -1,4 +1,5 @@
 import { extractLorebookFromCard, extractPngCardObject, fetchChubCharacter, MAX_CARD_BYTES, parseCardObject, parseLorebookObject, importedToCharacterValues, type ParsedLorebook } from "./cards";
+import { readCapped } from "./ingest";
 import type { RpCharacter } from "./types";
 
 export type ImportResult =
@@ -24,11 +25,9 @@ export async function importCard(input: { file?: { name: string; bytes: Buffer }
       let avatar: { bytes: Buffer; ext: string } | null = null;
       if (r.avatarUrl) {
         const res = await fetch(r.avatarUrl, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
-        const len = Number(res?.headers.get("content-length") ?? 0);
-        if (res?.ok && len <= MAX_CARD_BYTES) {
-          const bytes = Buffer.from(await res.arrayBuffer());
-          if (bytes.length <= MAX_CARD_BYTES) avatar = { bytes, ext: (res.headers.get("content-type") ?? "").includes("webp") ? "webp" : (res.headers.get("content-type") ?? "").includes("jpeg") ? "jpg" : "png" };
-        }
+        const bytes = res?.ok ? await readCapped(res, MAX_CARD_BYTES).catch(() => null) : null;
+        const type = res?.headers.get("content-type") ?? "";
+        if (bytes?.length && type.startsWith("image/")) avatar = { bytes, ext: type.includes("webp") ? "webp" : type.includes("jpeg") ? "jpg" : "png" };
       }
       return { ok: true, character: importedToCharacterValues(r.imported, null), lorebook: parseLorebookObject(r.embeddedLorebook), avatar };
     } catch (e) {
