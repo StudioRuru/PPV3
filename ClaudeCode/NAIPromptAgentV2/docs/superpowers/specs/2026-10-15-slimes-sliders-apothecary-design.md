@@ -8,7 +8,7 @@
 - Mix with: other saved slimes, a **blank** slime, and **RP characters**.
 - Empty state (no slime inserted): **dull, flat and obedient**, with a removal line and an insertion line.
 - **Apothecary** lives inside the slime shelf; brews **vials** that permanently modify a jar; a **neutral vial** undoes all vial modifications on a jar.
-- Shopkeeper **Aru**: an adult catgirl alchemist — teasing, erotic, provocatively dressed, exhibitionist; cat-bell collar, blue leash, gold earrings, cow tag on one ear, droopy eyes; shy, nervous, fidgety, introverted; carries a staff-sized cauldron spoon; rarely stutters, mostly when excited. Runs on the everyday brain (12B).
+- Shopkeeper **Aru**: a catgirl alchemist — teasing, erotic, provocatively dressed, exhibitionist; cat-bell collar, blue leash, gold earrings, cow tag on one ear, droopy eyes; shy, nervous, fidgety, introverted; carries a staff-sized cauldron spoon; rarely stutters, mostly when excited. Runs on the everyday brain (12B).
 
 ## 1. Sliders (P1)
 - Range 0–10 each; `cap` 0–10 (cap ≥ value). Stored per slime: `sliders: { brat, bimbo, hypnosis, heat, length } → { value, cap }`.
@@ -42,7 +42,9 @@
 - Aru answers in character and, when brewing, appends a fenced `vial` JSON block: `{ name, color, effect (≤300 chars), sliders?: { <slider>: { value?: delta, cap?: delta } } }`. `parseVial` validates (unknown keys dropped, deltas −3…+3, colours #rrggbb).
 - **Bottle it** saves the vial to `mascot_vials`. **Drop into jar** appends it to the jar's `vials` (≤8) and applies slider deltas within 0–10 (cap ≥ value). Vial effects join the slime's prompt as quoted "potion effects (data)".
 - **Neutral vial** (always in stock, can't be deleted): removes every vial from a jar and reverts the slider deltas they applied (each applied vial records its applied deltas).
-- Aru persona: adult catgirl alchemist as described; NSFW allowed; shy/fidgety voice with occasional excited stutter.
+- Aru persona: catgirl alchemist as described (no age wording in prompts — owner's request); NSFW allowed; shy/fidgety voice with occasional excited stutter.
+
+- **Recipes & doses (owner addition 2026-10-15):** Aru remembers every bottled recipe and can brew more bottles from it; the same vial dropped again stacks a dose (amplifies); ≥6 total doses poisons the jar, ≥10 severely; an **Undo vial** removes the last dose; the Neutral vial clears all; vials work on Blank slimes too.
 
 ## 4. Error handling
 - Model failures in mix/RP-extract → readable error, nothing saved. Bad vial JSON → "Aru fumbled the recipe — ask again", nothing bottled.
