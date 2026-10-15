@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { compose } from "../nai-body";
 import { DEFAULT_MASCOT_SETTINGS as S } from "./settings";
 import { BUST, BUST_UC, candidatePath, listSprites, newSeed, perImage, pick, saveCandidates, spritePath, spriteRequest, target } from "./sprites";
 
@@ -27,6 +28,7 @@ test("bust framing is close-up with a sprite-only UC; full has neither", () => {
   assert.equal(BUST_UC, "full body, legs, thighs, feet, shoes, wide shot, lower body");
   const bust = spriteRequest("day", "bust", "smug", S);
   assert.ok(bust.compiled.base.includes("head and shoulders") && bust.compiled.uc.includes("thighs"));
+  assert.ok(compose(bust.compiled, bust.params).c.uc.includes("thighs"));
   const full = spriteRequest("day", "full", "smug", S);
   assert.ok(full.compiled.base.includes("full body") && full.compiled.uc === "");
 });

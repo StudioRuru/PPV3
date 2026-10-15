@@ -88,6 +88,15 @@ export function MascotSettings({ open }: { open: boolean }) {
           ))}
         </div>
       </div>
+      <div className="py-1">
+        <p className="mb-1 text-sm">Size</p>
+        <div role="group" aria-label="Size" className="border-border grid grid-cols-3 overflow-hidden rounded-md border">
+          {(["s", "m", "l"] as const).map((z) => (
+            <button key={z} type="button" aria-pressed={s.size === z} onClick={() => save({ size: z })}
+              className={`h-11 text-xs font-medium uppercase ${s.size === z ? "bg-accent text-accent-fg" : "text-muted"}`}>{z}</button>
+          ))}
+        </div>
+      </div>
       {(["bratty", "tease", "flirt"] as const).map((k) => (
         <label key={k} className={row}>
           <span className="capitalize">{k}</span>
