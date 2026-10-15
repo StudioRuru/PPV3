@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXPRESSIONS } from "./core";
-import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, diffTags, missingCells, nearestCorner, sliderToCooldown } from "./ui";
+import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, diffTags, missingCells, nearestCorner, requestSeq, sliderToCooldown } from "./ui";
 
 test("diffTags: added and removed, order kept, dupes ignored", () => {
   assert.deepEqual(diffTags(["a", "b", "c"], ["b", "d", "c", "d"]), { added: ["d"], removed: ["a"] });
@@ -41,4 +41,16 @@ test("missingCells: full first, then bust expressions without a sprite for that 
   assert.equal(cells.length, 10);
   assert.deepEqual(cells[0], { kind: "full", expr: "smug" });
   assert.deepEqual(cells[1], { kind: "bust", expr: "smug" });
+});
+
+test("requestSeq: only the latest response applies; busy while any request is out", () => {
+  const q = requestSeq();
+  assert.equal(q.busy(), false);
+  const a = q.start(), b = q.start();
+  assert.equal(q.busy(), true);
+  assert.equal(q.done(b), true);   // newest lands first: applied
+  assert.equal(q.done(a), false);  // older lands late: dropped
+  assert.equal(q.busy(), false);
+  const c = q.start();
+  assert.equal(q.done(c), true);
 });

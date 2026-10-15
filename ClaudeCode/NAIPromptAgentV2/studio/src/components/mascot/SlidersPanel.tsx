@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { dragSlider, driftNote, sliderCaption, SLIDERS, type Slider, type SliderId, type Sliders } from "@/lib/mascot/slime";
+import { requestSeq } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 
 type Listing = { empty: boolean; sliders: Sliders; heatDrift: boolean };
@@ -12,36 +13,57 @@ const step = "border-border size-11 shrink-0 rounded-md border text-base disable
 /** Miyabi's five personality sliders (value + cap) and the heat-drift toggle, for the active slime. Saves on release, one slider at a time. */
 export function SlidersPanel({ open = true }: { open?: boolean }) {
   const [data, setData] = useState<Listing | null>(null);
-  const [drag, setDrag] = useState<{ id: SliderId; s: Slider } | null>(null);
+  const [drag, setDragState] = useState<{ id: SliderId; s: Slider } | null>(null);
+  const dragRef = useRef(drag); // release can fire twice (pointerup + touchend) in one tick: read/clear synchronously
+  const setDrag = (v: typeof drag) => { dragRef.current = v; setDragState(v); };
   const [errors, setErrors] = useState<Partial<Record<SliderId | "heat-drift", string>>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [seq] = useState(requestSeq); // only the newest response is applied
+  const [me] = useState(() => ({})); // tags our own "mascot:identity" so we don't refetch on it
+
+  const load = useCallback(async () => {
+    if (seq.busy()) return; // a save in flight brings back a fresh listing itself
+    const n = seq.start();
+    const r = await requestJson<Listing>(API);
+    if (!seq.done(n)) return;
+    if (r.ok) { setData(r.data); setLoadError(null); } else setLoadError(r.error);
+  }, [seq]);
 
   useEffect(() => {
     if (!open) return;
-    const load = () => requestJson<Listing>(API).then((r) => r.ok && setData(r.data));
     load();
-    window.addEventListener("mascot:identity", load); // shelf/other panels changed who she is
-    return () => window.removeEventListener("mascot:identity", load);
-  }, [open]);
+    const on = (e: Event) => { if ((e as CustomEvent).detail !== me) load(); }; // shelf/other panels changed who she is
+    window.addEventListener("mascot:identity", on);
+    return () => window.removeEventListener("mascot:identity", on);
+  }, [open, load, me]);
 
-  if (!data) return <p className="text-faint text-xs">Loading…</p>;
+  if (!data) return loadError
+    ? <p role="alert" className="text-danger flex items-center gap-2 text-xs">{loadError}<button type="button" onClick={load} className="border-border text-fg min-h-11 rounded-md border px-3">Retry</button></p>
+    : <p className="text-faint text-xs">Loading…</p>;
   const d = data;
 
   /** POST one change; optimistic, reverted (with an inline error under `key`) on failure. */
   async function send(key: SliderId | "heat-drift", optimistic: Listing, body: object) {
     const before = d;
     setData(optimistic);
+    const n = seq.start();
     const r = await post(body);
-    if (!r.ok) { setData(before); setErrors((e) => ({ ...e, [key]: r.error })); return; }
+    const latest = seq.done(n); // an older response landing late must not overwrite a newer one
+    if (!r.ok) {
+      setErrors((e) => ({ ...e, [key]: r.error }));
+      if (latest) { setData(before); load(); } // revert, then resync with the server
+      return;
+    }
     setErrors((e) => ({ ...e, [key]: undefined }));
-    setData(r.data);
-    window.dispatchEvent(new Event("mascot:identity"));
+    if (latest) setData(r.data);
+    window.dispatchEvent(new CustomEvent("mascot:identity", { detail: me }));
   }
   function commit(id: SliderId, field: "value" | "cap", s: Slider) {
     setDrag(null);
     if (s[field] === d.sliders[id][field] && d.sliders[id].live === undefined) return;
     send(id, { ...d, sliders: { ...d.sliders, [id]: s } }, { action: "sliders", slider: id, [field]: s[field] });
   }
-  const release = () => { if (drag) commit(drag.id, "value", drag.s); };
+  const release = () => { const g = dragRef.current; if (g) commit(g.id, "value", g.s); };
 
   return (
     <div className="space-y-2">
@@ -59,7 +81,7 @@ export function SlidersPanel({ open = true }: { open?: boolean }) {
               <input type="range" min={0} max={10} step={1} value={s.value} disabled={d.empty}
                 aria-label={`${LABELS[id]} level`} aria-valuetext={`${s.value} — ${sliderCaption(id, s.value)}`}
                 onChange={(e) => setDrag({ id, s: dragSlider(s, "value", Number(e.target.value)) })}
-                onPointerUp={release} onKeyUp={release} onBlur={release}
+                onPointerUp={release} onPointerCancel={release} onTouchEnd={release} onKeyUp={release} onBlur={release}
                 className="accent-accent h-11 min-w-0 flex-1 disabled:opacity-40" />
               <span className="text-muted w-5 text-right font-mono text-xs">{s.value}</span>
               <button type="button" disabled={d.empty || s.cap <= 0} aria-label={`Lower ${LABELS[id]} cap`}

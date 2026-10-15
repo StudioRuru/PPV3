@@ -34,3 +34,13 @@ export function missingCells(sprites: Record<string, number>, outfit: Outfit): {
   const cells = [{ kind: "full" as const, expr: "smug" as Expression }, ...EXPRESSIONS.map((expr) => ({ kind: "bust" as const, expr }))];
   return cells.filter((c) => !(`${outfit}/${c.kind === "full" ? "full" : c.expr}` in sprites));
 }
+
+/** Request sequencing: `start()` numbers a request; `done(n)` says whether its response is still the latest to apply. */
+export function requestSeq() {
+  let last = 0, out = 0;
+  return {
+    busy: () => out > 0,
+    start: () => { out++; return ++last; },
+    done: (n: number) => { out--; return n === last; },
+  };
+}

@@ -26,6 +26,15 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
   const [rated, setRated] = useState<Record<string, "like" | "dislike">>({});
   const [sprites, setSprites] = useState<Record<string, number>>({});
   const [mood, setMood] = useState(false); // sliders popover
+  const moodBtn = useRef<HTMLButtonElement>(null), moodBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!mood) return;
+    moodBox.current?.focus();
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMood(false); };
+    window.addEventListener("keydown", esc);
+    const btn = moodBtn.current;
+    return () => { window.removeEventListener("keydown", esc); btn?.focus(); };
+  }, [mood]);
   const end = useRef<HTMLDivElement>(null);
   const tidRef = useRef<number | null>(null); // the talk on screen: a reply only paints into its own talk
 
@@ -116,15 +125,15 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
       className="h-[92dvh] rounded-t-2xl border-t lg:h-auto lg:max-w-md lg:rounded-none lg:border-l">
       <header className="relative flex items-center gap-2 px-3 pb-2">
         <h2 className="flex-1 text-base font-semibold">Miyabi</h2>
-        <button type="button" aria-expanded={mood} aria-haspopup="dialog" onClick={() => setMood(!mood)}
-          className={`border-border h-11 rounded-full border px-3 text-xs font-semibold ${mood ? "bg-accent text-accent-fg" : "text-muted"}`}>Mood</button>
-        <button type="button" disabled={streaming} onClick={newTalk} className="border-border text-accent h-9 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">New talk</button>
-        <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 rounded-full border">×</button>
+        <button ref={moodBtn} type="button" aria-expanded={mood} aria-haspopup="dialog" onClick={() => setMood(!mood)}
+          className={`border-border relative z-30 h-11 rounded-full border px-3 text-xs font-semibold ${mood ? "bg-accent text-accent-fg" : "text-muted"}`}>Mood</button>
+        <button type="button" disabled={streaming} onClick={newTalk} className="border-border text-accent relative z-30 h-9 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">New talk</button>
+        <button type="button" onClick={onClose} aria-label="Close" className="border-border relative z-30 h-11 w-11 rounded-full border">×</button>
         {mood && (
           <>
             <button type="button" aria-label="Close mood" className="fixed inset-0 z-10 cursor-default" onClick={() => setMood(false)} />
-            <div role="dialog" aria-label="Personality sliders" onKeyDown={(e) => e.key === "Escape" && setMood(false)}
-              className="bg-surface border-border absolute inset-x-3 top-full z-20 max-h-[70dvh] overflow-y-auto overscroll-contain rounded-xl border p-3 shadow-lg">
+            <div ref={moodBox} tabIndex={-1} role="dialog" aria-label="Personality sliders"
+              className="bg-surface border-border absolute inset-x-3 top-full z-20 max-h-[70dvh] overflow-y-auto overscroll-contain rounded-xl border p-3 shadow-lg outline-none">
               <SlidersPanel open={open} />
             </div>
           </>
