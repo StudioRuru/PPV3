@@ -11,5 +11,5 @@ export function modelFor(persona: PersonaId, get: (key: string) => string | null
 export function chatPersona(persona: PersonaId, mods: Modifiers, drift: number, identity: () => Identity): { block: string; options?: Record<string, unknown> } {
   if (persona !== "miyabi") return { block: personaBlock(persona, mods, drift) };
   const i = identity();
-  return { block: slimePersona(i), options: { num_predict: i.lengthShape.talkPredict } };
+  return { block: slimePersona(i, true), options: { num_predict: Math.max(i.lengthShape.talkPredict, 800) } }; // room for co-pilot patch cards
 }

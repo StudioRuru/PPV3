@@ -268,3 +268,21 @@ test("known store errors are 400; unexpected errors are 500 with a readable mess
   e.store.delete = () => { throw new Error("Can't delete the active slime — remove it first"); };
   assert.equal((await act(e.d, { action: "delete", id: e.first })).status, 400);
 });
+
+/* ---------- final review ---------- */
+test("final review: fromRp gets its own sprite dir slimes/<id>, under data/mascot", async () => {
+  const { spriteDirFor, MASCOT_DIR } = await import("./sprites");
+  const path = await import("node:path");
+  const { d, store } = mk();
+  const id = (( await act(d, { action: "fromRp", characterId: 7 })).body as { id: number }).id;
+  assert.equal(store.get(id)!.look.spriteDir, `slimes/${id}`);
+  assert.equal(spriteDirFor(store.get(id)!.look.spriteDir), path.join(MASCOT_DIR, "slimes", String(id)));
+});
+
+test("final review: mixing a jar with itself is 400 and saves nothing", async () => {
+  const { d, store, first, asks } = mk();
+  const n = store.list().length;
+  assert.equal((await act(d, { action: "mix", a: first, b: first, ratio: 50, name: "M", color: "#445566" })).status, 400);
+  assert.equal(store.list().length, n);
+  assert.equal(asks.length, 0);
+});

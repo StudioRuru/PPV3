@@ -93,3 +93,10 @@ test("shelf unlock: default off, boolean only", () => {
   assert.equal(mergeMascotSettings(D, { shelf: true }).shelf, true);
   assert.equal(mergeMascotSettings(D, { shelf: "yes" }).shelf, false);
 });
+
+test("final review: first run (no saved sliders) follows the bratty mod; saved sliders win", () => {
+  assert.equal(parseMascotSettings(JSON.stringify({ mods: { bratty: false } })).sliders.brat.value, 0);
+  assert.equal(parseMascotSettings(JSON.stringify({ mods: { bratty: true } })).sliders.brat.value, 6);
+  assert.equal(parseMascotSettings(null).sliders.brat.value, 6);
+  assert.equal(parseMascotSettings(JSON.stringify({ mods: { bratty: false }, sliders: { brat: { value: 3, cap: 10 } } })).sliders.brat.value, 3);
+});

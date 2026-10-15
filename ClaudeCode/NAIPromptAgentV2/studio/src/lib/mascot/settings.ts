@@ -92,5 +92,11 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
 
 export function parseMascotSettings(json: string | null): MascotSettings {
   if (!json) return DEFAULT_MASCOT_SETTINGS;
-  try { return mergeMascotSettings(DEFAULT_MASCOT_SETTINGS, JSON.parse(json)); } catch { return DEFAULT_MASCOT_SETTINGS; }
+  try {
+    const raw = JSON.parse(json);
+    const out = mergeMascotSettings(DEFAULT_MASCOT_SETTINGS, raw);
+    // First run (no sliders saved yet): brat follows the old bratty toggle.
+    if (!isObj(raw) || !isObj(raw.sliders)) out.sliders.brat = { ...out.sliders.brat, value: out.mods.bratty ? 6 : 0 };
+    return out;
+  } catch { return DEFAULT_MASCOT_SETTINGS; }
 }

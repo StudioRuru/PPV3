@@ -22,9 +22,9 @@ export function identityOf(s: MascotSettings, drift: number): Identity {
   };
 }
 
-/** Miyabi's persona block: the slime's name + voice + slider directives, or EMPTY_BLOCK. */
-export const slimePersona = (i: Identity): string =>
-  i.empty ? EMPTY_BLOCK : [personaBlock("miyabi", i.mods, i.drift, { name: i.selfName, voice: i.voice }), sliderBlock(i.sliders, i.selfName)].filter(Boolean).join("\n");
+/** Miyabi's persona block: the slime's name + voice + slider directives, or EMPTY_BLOCK. deepTalk drops the quip length rule. */
+export const slimePersona = (i: Identity, deepTalk = false): string =>
+  i.empty ? EMPTY_BLOCK : [personaBlock("miyabi", i.mods, i.drift, { name: i.selfName, voice: i.voice }), sliderBlock(i.sliders, i.selfName, { length: !deepTalk })].filter(Boolean).join("\n");
 
 export class DbIdentity implements LiveIdentity {
   constructor(private db: Database.Database, private store = new MascotStore(db)) {}

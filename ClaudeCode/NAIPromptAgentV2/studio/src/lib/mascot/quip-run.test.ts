@@ -177,3 +177,17 @@ test("slime_out / slime_in never start a facts refresh", async () => {
   await tick();
   assert.equal(refreshed, 0);
 });
+
+test("final review: no facts refresh while Empty", async () => {
+  let refreshed = 0;
+  const { d } = deps({ context: () => ({ identity: identityOf({ ...D, empty: true }, 0), taste: "", story: "" }) });
+  d.store.needsRefresh = () => { refreshed++; return true; };
+  await makeQuip(d)({ event: { kind: "tap" } });
+  await tick();
+  assert.equal(refreshed, 0);
+});
+
+test("final review: the active slime's own name prefix is stripped", async () => {
+  const { d } = deps({ context: () => ({ identity: identityOf({ ...D, selfName: "Rem" }, 0), taste: "", story: "" }), ask: async () => "Rem: [pout] hmph" });
+  assert.deepEqual(await makeQuip(d)({ event: { kind: "tap" } }), { expression: "pout", text: "hmph", source: "model" });
+});

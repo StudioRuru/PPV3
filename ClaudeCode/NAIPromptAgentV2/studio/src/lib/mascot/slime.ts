@@ -50,7 +50,8 @@ export const lengthShape = (level: number): { sentences: string; quipPredict: nu
 const eff = (s: Slider) => s.live ?? s.value;
 
 /** Tier directives per slider at its effective level; "" when everything is 0. Length is shaped via lengthShape. */
-export function sliderBlock(s: Sliders, who = "Miyabi"): string {
+/** opts.length false = no reply-length rule (deep talk sets its own length). */
+export function sliderBlock(s: Sliders, who = "Miyabi", opts: { length?: boolean } = {}): string {
   const out: string[] = [];
   const add = (id: Exclude<SliderId, "length">, tiers: string[], pick = tier) => {
     const L = clamp(eff(s[id]), 0, 10);
@@ -61,7 +62,7 @@ export function sliderBlock(s: Sliders, who = "Miyabi"): string {
   add("hypnosis", HYPNOSIS_TIERS.map((t) => t.body));
   add("heat", HEAT_TIERS);
   const len = eff(s.length);
-  if (len >= 1) out.push(`Keep replies to ${lengthShape(len).sentences}.`);
+  if (len >= 1 && opts.length !== false) out.push(`Keep replies to ${lengthShape(len).sentences}.`);
   return out.join("\n");
 }
 

@@ -100,3 +100,15 @@ test("a nameless slime is 'the mascot', never Miyabi", () => {
   assert.equal(i.selfName, "the mascot");
   assert.doesNotMatch(slimePersona(i), /Miyabi/);
 });
+
+test("final review: inserting a jar with its own sprite dir makes it the active sprite folder", async () => {
+  const { spriteDirFor, MASCOT_DIR } = await import("./sprites");
+  const path = await import("node:path");
+  const { db, id } = mk();
+  const store = new SlimeStore(db, id);
+  store.ensureFirstRun();
+  const jar = store.create({ ...blankSlime(), name: "Mio", color: "#665544" });
+  store.save(jar, { look: { ...blankSlime().look, spriteDir: `slimes/${jar}` } });
+  store.insert(jar);
+  assert.equal(spriteDirFor(id.settings().spriteDir), path.join(MASCOT_DIR, "slimes", String(jar)));
+});

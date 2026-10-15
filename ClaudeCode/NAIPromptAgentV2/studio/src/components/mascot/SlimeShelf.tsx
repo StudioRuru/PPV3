@@ -59,7 +59,7 @@ export function SlimeShelf({ open, onClose }: { open: boolean; onClose: () => vo
     inFlight.current = true; setBusy(label); setError(null);
     const r = await post(body);
     inFlight.current = false; setBusy(null);
-    if (!r.ok) { setError(r.error); load(); return false; }
+    if (!r.ok) { setError(r.error); load(); window.dispatchEvent(new Event("mascot:identity")); return false; } // a timeout may still have landed server-side
     setData(r.data);
     done?.(r.data);
     window.dispatchEvent(new Event("mascot:identity"));

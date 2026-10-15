@@ -173,3 +173,9 @@ test("driftNote: only when live is above value", () => {
   assert.equal(driftNote({ value: 4, cap: 8, live: 4 }), null);
   assert.equal(driftNote({ value: 4, cap: 8 }), null);
 });
+
+test("final review: sliderBlock length rule can be left out (deep talk)", () => {
+  const s = { ...blankSlime().sliders, length: { value: 2, cap: 10 } };
+  assert.match(sliderBlock(s), /Keep replies to one short burst/);
+  assert.doesNotMatch(sliderBlock(s, "Miyabi", { length: false }), /Keep replies to/);
+});

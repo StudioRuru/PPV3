@@ -58,7 +58,7 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     let t: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), d.timeoutMs ?? 8000); });
     try {
-      const q = parseQuip(await Promise.race([run, timeout]));
+      const q = parseQuip(await Promise.race([run, timeout]), [c.identity.selfName, "miyabi"]);
       return q && { ...q, source: "model" };
     } finally { clearTimeout(t); }
   }
@@ -84,7 +84,7 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     try { if (kind === "idle") d.drift("idle"); } catch { /* drift is best-effort */ }
     try {
       d.store.log(kind, data ? JSON.stringify(data).slice(0, 200) : "", out.text);
-      if (kind !== "slime_out" && kind !== "slime_in" && !d.heavyInUse() && d.store.needsRefresh()) void refreshFacts(d.model()).catch(() => {});
+      if (kind !== "slime_out" && kind !== "slime_in" && !d.heavyInUse() && !d.context().identity.empty && d.store.needsRefresh()) void refreshFacts(d.model()).catch(() => {});
     } catch { /* journal/DB trouble never costs the line */ }
     return out;
   };

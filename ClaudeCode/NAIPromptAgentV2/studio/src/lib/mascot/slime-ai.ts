@@ -142,6 +142,7 @@ async function run(b: Record<string, unknown>, d: SlimeDeps): Promise<Record<str
       const name = nameOf(b.name), color = colorOf(b.color);
       const active = d.store.activeId();
       const docOf = (v: unknown) => { const id = idOf(v); return id === active ? { ...jar(d, id), ...d.live.read() } : jar(d, id); }; // active jar: its latest live state
+      if (b.a === b.b) throw new Fail(400, "Pick two different jars.");
       const A = docOf(b.a), B = b.b === "blank" ? blankSlime() : docOf(b.b);
       const [dom, other] = (ratio as number) >= 50 ? [A, B] : [B, A];
       const selfName = typeof b.selfName === "string" && b.selfName.trim() ? nameOf(b.selfName) : dom.selfName;
@@ -160,10 +161,10 @@ async function run(b: Record<string, unknown>, d: SlimeDeps): Promise<Record<str
       const voice = await generate(d, distillCardPrompt(c));
       const blank = blankSlime();
       const none = <K extends string>(r: Record<K, string>) => Object.fromEntries(Object.keys(r).map((k) => [k, ""])) as Record<K, string>;
-      return { id: d.store.create({
-        ...blank, name, color, voice, selfName: c.name.slice(0, 40), origin: `rp:${cid}`,
-        look: { charTags: c.appearancePrompt.slice(0, 1500), constantTags: "", layerTags: { ...none(blank.look.layerTags), day: c.outfitPrompt.slice(0, 1500) }, exprTags: none(blank.look.exprTags), spriteDir: "" },
-      }) };
+      const look = { charTags: c.appearancePrompt.slice(0, 1500), constantTags: "", layerTags: { ...none(blank.look.layerTags), day: c.outfitPrompt.slice(0, 1500) }, exprTags: none(blank.look.exprTags), spriteDir: "" };
+      const id = d.store.create({ ...blank, name, color, voice, selfName: c.name.slice(0, 40), origin: `rp:${cid}`, look });
+      d.store.save(id, { look: { ...look, spriteDir: `slimes/${id}` } }); // own sprite folder, so its studio never overwrites Miyabi's
+      return { id };
     }
     default: throw new Fail(400, "Unknown action.");
   }

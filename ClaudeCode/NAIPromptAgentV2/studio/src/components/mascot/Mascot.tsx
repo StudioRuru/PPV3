@@ -31,12 +31,12 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
   const self = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings));
     // Settings sheet / sprite studio push changes here; "mascot:hush" = Hush now.
     const onSettings = (e: Event) => setSettings((e as CustomEvent<Settings>).detail);
     const onSprites = (e: Event) => setSprites((e as CustomEvent<Record<string, number>>).detail);
     const onHush = () => { setHushUntil(Date.now() + HUSH_MS); setSay(null); };
     const onIdentity = () => {
+      requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings)); // the new slime's mods (flirt → outfit)
       requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
       requestJson<{ sprites: Record<string, number> }>("/api/mascot/sprites").then((r) => r.ok && setSprites(r.data.sprites)); // an inserted jar may bring its own look
     };

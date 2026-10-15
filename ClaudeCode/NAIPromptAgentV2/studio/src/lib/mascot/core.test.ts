@@ -151,3 +151,17 @@ test("parseQuip: Miyabi- names are kept", () => {
   assert.equal(parseQuip("Miyabi — hi")?.text, "hi");
   assert.equal(parseQuip("Miyabi - hi")?.text, "hi");
 });
+
+test("final review: parseQuip strips the slime's name and bare/wrapped leading expression words", () => {
+  assert.deepEqual(parseQuip("sleepy The fox girl and maid are present."), { expression: "sleepy", text: "The fox girl and maid are present." });
+  assert.deepEqual(parseQuip("smug: \"Told you.\""), { expression: "smug", text: "Told you." });
+  assert.deepEqual(parseQuip("(sleepy) Mm, five more minutes."), { expression: "sleepy", text: "Mm, five more minutes." });
+  assert.deepEqual(parseQuip("*pout* Fine."), { expression: "pout", text: "Fine." });
+  assert.deepEqual(parseQuip("Rem: [smug] hi", ["Rem"]), { expression: "smug", text: "hi" });
+  assert.deepEqual(parseQuip("**Rem:** [wink] yo", ["Rem"]), { expression: "wink", text: "yo" });
+  assert.deepEqual(parseQuip("rem – [annoyed] stop", ["Rem"]), { expression: "annoyed", text: "stop" });
+  assert.deepEqual(parseQuip("A.B: [smug] x", ["A.B"]), { expression: "smug", text: "x" });
+  assert.deepEqual(parseQuip("Excited to see you"), { expression: "smug", text: "Excited to see you" });
+  assert.deepEqual(parseQuip("sleepy cats are cute"), { expression: "smug", text: "sleepy cats are cute" });
+  assert.deepEqual(parseQuip("Miyabi: [pout] ugh"), { expression: "pout", text: "ugh" });
+});

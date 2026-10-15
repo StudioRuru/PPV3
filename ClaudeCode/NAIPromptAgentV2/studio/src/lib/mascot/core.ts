@@ -22,17 +22,26 @@ export function shouldSpeak(
   return s.now - s.lastSpokeAt >= (priority ? s.cooldownMs / 2 : s.cooldownMs);
 }
 
-export function parseQuip(raw: string): { expression: Expression; text: string } | null {
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const EX = EXPRESSIONS.join("|");
+// "(sleepy) …", "*sleepy* …", or a bare lowercase "sleepy …"/"smug: …" before a capital/quote (case-sensitive so "Excited to see you" survives)
+const EXPR_WORD = new RegExp(`^(?:\\((${EX})\\)|\\*(${EX})\\*|(${EX})\\s*[:)\\-–—]?(?=\\s+[A-Z"'*.…“‘]))\\s*`);
+
+/** names: the speaker names a model may prefix ("Rem:", "**Rem:**", "Rem –"), matched case-insensitively. */
+export function parseQuip(raw: string, names: string[] = ["miyabi"]): { expression: Expression; text: string } | null {
+  const ns = names.map((n) => n.trim()).filter(Boolean).map(esc).join("|") || "miyabi";
+  const lead1 = new RegExp(`^(?:${ns}|\\[)`, "i");
+  const prefix = new RegExp(`^(?:${ns})[*_]*(?:\\s*[:：–—]|\\s+-\\s)\\s*[*_]*\\s*`, "i");
   let t = raw.trim();
   let expression: Expression | null = null;
-  // peel quote/markdown wrappers, "Miyabi:" prefixes and [tag] in any order
+  // peel quote/markdown wrappers, "Name:" prefixes and [tag]/expression words in any order
   for (let i = 0; i < 3; i++) {
     const lead = t.replace(/^[\s*_"'“‘]+/, "");
-    if (/^(miyabi|\[)/i.test(lead)) t = lead;
-    t = t.replace(/^miyabi(?:\s*[:：–—]|\s+-\s)\s*[*_]*\s*/i, "");
-    const m = t.match(/^\[([^\]]*)\]/);
+    if (lead1.test(lead)) t = lead;
+    t = t.replace(prefix, "");
+    const m = t.match(/^\[([^\]]*)\]/) ?? t.match(EXPR_WORD);
     if (!m) continue;
-    const x = m[1].trim().toLowerCase() as Expression;
+    const x = (m.slice(1).find((g) => g !== undefined) ?? "").trim().toLowerCase() as Expression;
     if (!expression && EXPRESSIONS.includes(x)) expression = x;
     t = t.slice(m[0].length);
     t = t.replace(/^[*_`"'”’]+/, ""); // closers stuck to the tag, e.g. **[smug]**
