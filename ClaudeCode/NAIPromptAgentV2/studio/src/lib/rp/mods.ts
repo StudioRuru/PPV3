@@ -129,7 +129,7 @@ const deceptionMod: ModDef = {
  * insistence clause at the top tiers and a clause that preserves the character's
  * voice — the trance changes what {{char}} believes, not who they are.
  */
-const HYPNOSIS_TIERS: { label: string; body: string }[] = [
+export const HYPNOSIS_TIERS: { label: string; body: string }[] = [
   {
     label: "faintly suggestible",
     body: "{{char}} is faintly suggestible (hypnosis level {L}/10): {{user}}'s words gently colour {{char}}'s mood and focus, though {{char}} still reasons normally and would notice anything far-fetched.",
@@ -186,7 +186,7 @@ const hypnosisMod: ModDef = {
  * strength it overwrites the character's voice and personality (no preservation
  * clause). Five escalating tiers; the caption shows a percentage.
  */
-const BIMBO_TIERS: { label: string; body: string }[] = [
+export const BIMBO_TIERS: { label: string; body: string }[] = [
   {
     label: "lightly ditzy",
     body: "{{char}} is a touch ditzy and preoccupied with looking cute ({P}% bimbofied): a little more flirty and airheaded than usual, easily distracted by their appearance, but still mostly themselves.",
