@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { requestJson } from "@/lib/net";
+import { substituteMacros } from "@/lib/rp/prompt";
 import type { RpCharacter, RpChat as Chat, RpPersona } from "@/lib/rp/types";
 import { Sheet } from "../Sheet";
 import { CharacterSheet } from "./CharacterSheet";
@@ -130,7 +131,7 @@ export function RpScreen({ active }: { active: boolean }) {
             <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold">{current.name}</h1>
             <button type="button" onClick={() => setEditing(current.id)} className="border-border h-10 rounded-full border px-3 text-sm">Edit</button>
           </header>
-          {current.description && <p className="text-muted line-clamp-3 text-sm">{current.description}</p>}
+          {current.description && <p className="text-muted line-clamp-3 text-sm">{substituteMacros(current.description, current.name, personas[0]?.name || "User")}</p>}
           <button type="button" onClick={() => newChat(current.id)} className="bg-accent text-accent-fg h-11 w-full rounded-lg font-semibold">New chat</button>
           {error && <p role="alert" className="text-danger text-sm">{error}</p>}
           <ul className="space-y-1.5">
