@@ -1,6 +1,7 @@
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
 import { DEFAULT_MASCOT_SETTINGS, isSafeSpriteDir } from "./settings";
 import type { Modifiers } from "../persona";
+import { validateAppliedVial, type AppliedVial } from "./vial";
 import { BIMBO_TIERS, HYPNOSIS_TIERS } from "../rp/mods";
 
 export const SLIDERS = ["brat", "bimbo", "hypnosis", "heat", "length"] as const;
@@ -12,7 +13,7 @@ export type Memories = { facts: string[]; journal: JournalEntry[] };
 export type SlimeDoc = {
   name: string; color: string; voice: string; selfName: string; sliders: Sliders; mods: Modifiers; heatDrift: boolean;
   look: { charTags: string; constantTags: string; layerTags: Record<Outfit, string>; exprTags: Record<Expression, string>; spriteDir: string };
-  memories: Memories; vials: unknown[]; origin: string;
+  memories: Memories; vials: AppliedVial[]; origin: string;
 };
 
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
@@ -165,6 +166,6 @@ export function validateSlime(raw: unknown): SlimeDoc | null {
   return {
     name, color: raw.color, voice: str(raw.voice, MAX.voice), selfName: str(raw.selfName, MAX.name), sliders, mods,
     heatDrift: raw.heatDrift === true, look, memories: { facts, journal },
-    vials: Array.isArray(raw.vials) ? raw.vials.slice(0, MAX.vials) : [], origin: str(raw.origin, 80) || "blank",
+    vials: Array.isArray(raw.vials) ? raw.vials.map(validateAppliedVial).filter((x): x is AppliedVial => !!x).slice(0, MAX.vials) : [], origin: str(raw.origin, 80) || "blank",
   };
 }
