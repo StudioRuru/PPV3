@@ -6,8 +6,8 @@
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { migrateRp } from "../src/lib/rp/schema.ts";
-import { runMigration } from "../src/lib/rp/migrate.ts";
+import { migrateRp } from "../src/lib/rp/schema";
+import { runMigration } from "../src/lib/rp/migrate";
 
 const arg = (name: string) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
 const apply = process.argv.includes("--apply");

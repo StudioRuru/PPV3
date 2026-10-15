@@ -98,8 +98,8 @@ export async function runMigration(src: Database.Database, dst: Database.Databas
       // Global RP settings: only the fields RP uses (never keys, passwords or image settings).
       const s = src.prepare("SELECT * FROM settings WHERE id = 1").get() as Row | undefined;
       if (s) {
-        const camel = (k: string) => k.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());
-        const picked = Object.fromEntries(Object.entries(s).map(([k, v]) => [camel(k), v]).filter(([k, v]) => k in DEFAULT_RP_SETTINGS && typeof v === typeof DEFAULT_RP_SETTINGS[k as keyof typeof DEFAULT_RP_SETTINGS]));
+        const camel = (k: string): string => k.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());
+        const picked = Object.fromEntries(Object.entries(s).map(([k, v]): [string, unknown] => [camel(k), v]).filter(([k, v]) => k in DEFAULT_RP_SETTINGS && typeof v === typeof DEFAULT_RP_SETTINGS[k as keyof typeof DEFAULT_RP_SETTINGS]));
         if (!picked.embedModel) delete picked.embedModel;
         dst.prepare("INSERT INTO settings (key, value) VALUES ('rp:settings', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify({ ...DEFAULT_RP_SETTINGS, ...picked }));
       }

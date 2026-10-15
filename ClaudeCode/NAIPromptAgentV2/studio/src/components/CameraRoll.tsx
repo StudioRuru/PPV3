@@ -5,8 +5,9 @@ import { developed, mb, type Generation } from "./HistoryStrip";
 import { Sheet } from "./Sheet";
 import { Trash } from "./icons";
 
-type Filter = "all" | "today" | "upscaled" | "runs";
-const FILTERS: [Filter, string][] = [["all", "All"], ["today", "Today"], ["upscaled", "Upscaled"], ["runs", "Grid & variations"]];
+type Filter = "all" | "today" | "upscaled" | "runs" | "rp";
+const FILTERS: [Filter, string][] = [["all", "All"], ["today", "Today"], ["upscaled", "Upscaled"], ["runs", "Grid & variations"], ["rp", "RP"]];
+type RpImage = { id: number; file: string; prompt: string; character: string | null };
 
 const midnight = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const pass = (g: Generation & { grid_id?: string | null }, f: Filter) =>
@@ -24,12 +25,15 @@ export function CameraRoll({ active, onOpen, onChanged }: {
   const [confirm, setConfirm] = useState<"selected" | "all" | null>(null);
   const [retention, setRetention] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rpImages, setRpImages] = useState<RpImage[]>([]);
 
   const load = useCallback(async () => {
     const r = await requestJson<{ items: Generation[] }>("/api/generations?limit=1000");
     if (r.ok) setItems(r.data.items);
     const s = await requestJson<{ autoDeleteDays: number | null }>("/api/settings");
     if (s.ok) setRetention(s.data.autoDeleteDays);
+    const rp = await requestJson<{ images: RpImage[] }>("/api/rp/images");
+    if (rp.ok) setRpImages(rp.data.images);
   }, []);
   useEffect(() => { if (active) load(); }, [active, load]);
 
@@ -65,19 +69,32 @@ export function CameraRoll({ active, onOpen, onChanged }: {
             {items.length} images · {mb(bytes(items)) || "0 MB"} · auto-delete {retention ? `${retention} day${retention > 1 ? "s" : ""}` : "off"}
           </p>
         </div>
-        <button type="button" onClick={() => { setSelecting(!selecting); setPicked([]); }} className="text-accent h-11 px-2 text-sm">{selecting ? "Done" : "Select"}</button>
+        {filter !== "rp" && <button type="button" onClick={() => { setSelecting(!selecting); setPicked([]); }} className="text-accent h-11 px-2 text-sm">{selecting ? "Done" : "Select"}</button>}
       </header>
 
       <div data-noswipe className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
         {FILTERS.map(([f, label]) => (
-          <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}
+          <button key={f} type="button" aria-pressed={filter === f} onClick={() => { setFilter(f); if (f === "rp") { setSelecting(false); setPicked([]); } }}
             className={`h-9 shrink-0 rounded-full px-3.5 text-sm ${filter === f ? "bg-fg text-bg font-semibold" : "border-border text-muted border"}`}>
-            {label} <span className="font-mono text-[11px] opacity-70">{items.filter((g) => pass(g, f)).length}</span>
+            {label} <span className="font-mono text-[11px] opacity-70">{f === "rp" ? rpImages.length : items.filter((g) => pass(g, f)).length}</span>
           </button>
         ))}
       </div>
 
       {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+      {/* RP images (from roleplay chats) are view-only here: never selected, zipped, deleted or auto-deleted by the roll. */}
+      {filter === "rp" ? (
+        <div className="grid grid-cols-3 gap-1 lg:grid-cols-6">
+          {!rpImages.length && <p className="text-muted col-span-full py-10 text-center text-sm">No roleplay images.</p>}
+          {rpImages.map((g) => (
+            <a key={g.id} href={`/api/rp/files/images/${g.file}`} target="_blank" rel="noreferrer" data-noswipe title={g.prompt} className="relative overflow-hidden rounded-md bg-black/20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/api/rp/files/images/${g.file}`} alt={g.character ? `From a chat with ${g.character}` : ""} loading="lazy" className="aspect-square w-full object-cover" />
+              {g.character && <span className="absolute inset-x-1 bottom-1 truncate font-mono text-[9px] text-white drop-shadow">{g.character}</span>}
+            </a>
+          ))}
+        </div>
+      ) : <>
       {!shown.length && <p className="text-muted py-10 text-center text-sm">No images here yet.</p>}
 
       <div className="grid grid-cols-3 gap-1 lg:grid-cols-6">
@@ -111,7 +128,8 @@ export function CameraRoll({ active, onOpen, onChanged }: {
           <button type="button" disabled={!sel.length} onClick={() => setConfirm("selected")} aria-label="Delete selected" className="text-danger grid size-10 place-items-center disabled:opacity-40"><Trash className="size-5" /></button>
         </div>
       )}
-      {!selecting && items.length > 0 && (
+      </>}
+      {!selecting && filter !== "rp" && items.length > 0 && (
         <div className="flex gap-2 pt-2">
           <button type="button" onClick={() => zip(shown)} className="border-border flex-1 rounded-lg border px-3 py-2.5 text-sm">Zip {filter === "all" ? "everything" : "these"} · {shown.length}</button>
           <button type="button" onClick={() => setConfirm("all")} className="border-danger/40 text-danger rounded-lg border px-3 py-2.5 text-sm">Clear all</button>

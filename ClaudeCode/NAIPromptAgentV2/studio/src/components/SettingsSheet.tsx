@@ -24,6 +24,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const [purge, setPurge] = useState<{ days: number | null; count: number } | null>(null);
   const [taste, setTaste] = useState<{ profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[] } | null>(null);
   const [forget, setForget] = useState(false);
+  const [models, setModels] = useState<{ heavy: string; models: string[] } | null>(null);
   const post = (body: object) => requestJson<{ autoDeleteDays: number | null; wouldRemove?: number }>("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   // Dry run first: if this window would delete images right now, say how many and ask.
   async function chooseRetention(days: number | null) {
@@ -41,6 +42,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     requestJson<{ danbooru: boolean }>("/api/status").then((r) => setDanbooru(r.ok ? r.data.danbooru : null));
     requestJson<{ autoDeleteDays: number | null }>("/api/settings").then((r) => r.ok && setRetention(r.data.autoDeleteDays));
     requestJson<NonNullable<typeof taste>>("/api/taste").then((r) => r.ok && setTaste(r.data));
+    requestJson<{ heavy: string; models: string[] }>("/api/rp/settings").then((r) => r.ok && setModels(r.data));
   }, [open]);
 
   const pick = (p: ThemePref) => { setTheme(p); setPref(p); };
@@ -134,6 +136,19 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             <span>Position words<span className="text-muted block text-xs">In Custom placement, add where each box is to its prompt</span></span>
             <input type="checkbox" role="switch" checked={words} onChange={(e) => onWords(e.target.checked)} className="accent-accent size-5" />
+          </label>
+        </section>
+
+        <section>
+          <h3 className={h3}>Models</h3>
+          <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+            <span>Heavy model<span className="text-muted block text-xs">Roleplay and the character studio; pauses the captioner + TIPO while it runs</span></span>
+            <select value={models?.heavy ?? ""} disabled={!models} aria-label="Heavy model"
+              onChange={async (e) => { const r = await requestJson<{ heavy: string; models: string[] }>("/api/rp/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heavy: e.target.value }) }); if (r.ok) setModels(r.data); }}
+              className="bg-bg border-border h-10 max-w-[12rem] rounded-md border px-2 text-sm">
+              {models && !models.models.includes(models.heavy) && <option value={models.heavy}>{models.heavy} (not installed)</option>}
+              {models?.models.filter((m) => !/embed|bge|nomic/i.test(m)).map((m) => <option key={m} value={m}>{m.replace(/:latest$/, "")}</option>)}
+            </select>
           </label>
         </section>
 

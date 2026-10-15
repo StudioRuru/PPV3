@@ -6,6 +6,7 @@ import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
 import { CameraRoll } from "@/components/CameraRoll";
 import { Closet } from "@/components/Closet";
+import { RpScreen } from "@/components/rp/RpScreen";
 import { SaveFlash } from "@/components/SaveFlash";
 import { TabBar, type Tab } from "@/components/TabBar";
 import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
@@ -56,7 +57,7 @@ export default function Studio() {
   // The viewer browses whichever list it was opened from (studio history or the camera roll).
   const [viewerItems, setViewerItems] = useState<Generation[] | null>(null);
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
-  const TABS: Tab[] = ["studio", "roll", "closet", "chat"];
+  const TABS: Tab[] = ["studio", "roll", "closet", "chat", "rp"];
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
@@ -276,6 +277,9 @@ export default function Studio() {
       </div>
       <div className={tab === "chat" ? "lg:col-span-2" : "hidden"}>
         <ChatScreen active={tab === "chat"} state={state} seed={seed} onApply={(ops) => setState((s) => applyOps(s, ops))} />
+      </div>
+      <div className={tab === "rp" ? "lg:col-span-2" : "hidden"}>
+        <RpScreen active={tab === "rp"} />
       </div>
       <div className={tab === "closet" ? "lg:col-span-2" : "hidden"}>
         <Closet active={tab === "closet"} onUse={useFromCloset}

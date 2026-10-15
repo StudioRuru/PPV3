@@ -68,13 +68,19 @@ export type StreamOpts = { model?: string; options?: Record<string, unknown>; st
  * restored first if the heavy gate paused them); heavy callers wrap this in `heavyGate.run`.
  * `system: false` sends `messages` as-is (RP assembles its own system turns).
  */
-export async function* chatStream(system: string, messages: ChatMsg[] | { role: string; content: string }[], opts: StreamOpts = {}): AsyncGenerator<string> {
-  if (!opts.model && !(await heavyGate.ensureLight())) throw paused("The co-pilot");
-  const r = await post(`${OLLAMA_URL}/api/chat`, {
+/** Ollama /api/chat body. Heavy calls (explicit model) turn thinking off: APEX would otherwise think away the whole reply budget. */
+export function chatBody(system: string, messages: ChatMsg[] | { role: string; content: string }[], opts: StreamOpts = {}): Record<string, unknown> {
+  return {
     model: opts.model ?? BRAIN_MODEL, stream: true, keep_alive: opts.model ? "30m" : "2h",
+    ...(opts.model ? { think: false } : {}),
     messages: opts.system === false ? messages : [{ role: "system", content: system }, ...messages],
     options: { temperature: 0.6, top_k: 64, top_p: 0.9, min_p: 0.05, repeat_penalty: 1.1, num_ctx: 16384, ...opts.options, ...(opts.stop?.length ? { stop: opts.stop } : {}) },
-  }, 600_000);
+  };
+}
+
+export async function* chatStream(system: string, messages: ChatMsg[] | { role: string; content: string }[], opts: StreamOpts = {}): AsyncGenerator<string> {
+  if (!opts.model && !(await heavyGate.ensureLight())) throw paused("The co-pilot");
+  const r = await post(`${OLLAMA_URL}/api/chat`, chatBody(system, messages, opts), 600_000);
   if (!r.ok || !r.body) throw new Error(`Ollama ${r.status}: ${await r.text()}`);
   const dec = new TextDecoder();
   let buf = "";

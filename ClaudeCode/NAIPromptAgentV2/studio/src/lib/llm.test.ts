@@ -28,3 +28,15 @@ test("focusQuery: the user's focus steers ToriiGate; tags ground it; no focus = 
   assert.match(q, /\[1girl, broken armor\]/);
   assert.match(q, /Focus/);
 });
+
+test("chatBody: heavy calls turn thinking off (Gemma 4 APEX otherwise spends the whole reply budget thinking)", async () => {
+  const { chatBody } = await import("./llm");
+  const heavy = chatBody("", [{ role: "user", content: "hi" }], { model: "gemma4-26b-apex:latest", options: { num_predict: 220 }, system: false });
+  assert.equal(heavy.think, false);
+  assert.equal(heavy.model, "gemma4-26b-apex:latest");
+  assert.deepEqual(heavy.messages, [{ role: "user", content: "hi" }]);
+  assert.equal((heavy.options as { num_predict: number }).num_predict, 220);
+  const everyday = chatBody("SYS", [{ role: "user", content: "hi" }]);
+  assert.equal(everyday.think, undefined);
+  assert.equal((everyday.messages as { role: string }[])[0].role, "system");
+});

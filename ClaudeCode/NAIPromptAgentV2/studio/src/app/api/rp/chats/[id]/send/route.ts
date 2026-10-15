@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * `{ text, version }` sends a message; `{ regenerate: msgId, version }` adds another swipe to that reply.
+ * `{ text, version }` sends a message; `{ regenerate: msgId, version }` adds another swipe to that reply;
+ * `{ retry: true, version }` answers the chat's last message when it's the user's (after a failed reply).
  * Streams the reply as plain text. The user's message is saved first, so a failed reply never loses it.
  * Header `X-Paused: 1` = the captioner/TIPO were paused to fit the heavy model.
  */
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (replacing) {
     const last = rp.messages(chatId).at(-1);
     if (last?.id !== replacing || last.role !== "assistant") return NextResponse.json({ error: "Only the last reply can be regenerated." }, { status: 400 });
+    if (expect !== undefined && rp.version(chatId) !== expect) return conflict();
+  } else if (b.retry) {
+    if (rp.messages(chatId).at(-1)?.role !== "user") return NextResponse.json({ error: "Nothing to answer." }, { status: 400 });
     if (expect !== undefined && rp.version(chatId) !== expect) return conflict();
   } else {
     const text = typeof b.text === "string" ? b.text.trim() : "";
@@ -49,6 +53,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
             reply += t;
             try { ctl.enqueue(enc.encode(t)); } catch { /* client gone: keep generating so the reply is saved */ }
           }
+          if (!reply.trim()) try { ctl.enqueue(enc.encode(`\n\n⚠️ ${turn.model} returned nothing — tap Retry.`)); } catch { /* gone */ }
           const saved = reply.trim() ? (replacing ? rp.addSwipe(replacing, reply.trim(), expect) : rp.append(chatId, "assistant", reply.trim(), expect) !== null) : true;
           if (!saved) try { ctl.enqueue(enc.encode("\n\n⚠️ Not saved: this chat changed on another device while I was answering.")); } catch { /* gone */ }
           // Memory refresh on the model that's already loaded; detached so the stream can close.
