@@ -137,3 +137,17 @@ test("parseQuip: cut landing on a space keeps the word", () => {
   const r2 = parseQuip("a".repeat(215) + " bbbb cc")!;
   assert.equal(r2.text, "a".repeat(215) + " bbbb");
 });
+
+test("parseQuip: leftover closers around the tag", () => {
+  assert.deepEqual(parseQuip("Miyabi: **[smug]** hi"), { expression: "smug", text: "hi" });
+  assert.deepEqual(parseQuip("**[smug] nice**"), { expression: "smug", text: "nice" });
+  assert.deepEqual(parseQuip("[smug]**  hi"), { expression: "smug", text: "hi" });
+  assert.equal(parseQuip("[smug] `hi`")?.text, "hi");
+});
+test("parseQuip: Miyabi- names are kept", () => {
+  assert.equal(parseQuip("Miyabi-chan is here")?.text, "Miyabi-chan is here");
+  assert.equal(parseQuip("[smug] Miyabi-chan says hi")?.text, "Miyabi-chan says hi");
+  assert.equal(parseQuip("Miyabi：hi")?.text, "hi");
+  assert.equal(parseQuip("Miyabi — hi")?.text, "hi");
+  assert.equal(parseQuip("Miyabi - hi")?.text, "hi");
+});

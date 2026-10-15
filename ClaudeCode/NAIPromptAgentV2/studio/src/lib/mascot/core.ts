@@ -28,15 +28,14 @@ export function parseQuip(raw: string): { expression: Expression; text: string }
   // peel quote/markdown wrappers, "Miyabi:" prefixes and [tag] in any order
   for (let i = 0; i < 3; i++) {
     const lead = t.replace(/^[\s*_"'“‘]+/, "");
-    const wrapped = /^(miyabi|\[)/i.test(lead) && lead !== t.trimStart();
     if (/^(miyabi|\[)/i.test(lead)) t = lead;
-    t = t.replace(/^miyabi\s*[:\-–]\s*[*_]*\s*/i, "");
+    t = t.replace(/^miyabi(?:\s*[:：–—]|\s+-\s)\s*[*_]*\s*/i, "");
     const m = t.match(/^\[([^\]]*)\]/);
     if (!m) continue;
     const x = m[1].trim().toLowerCase() as Expression;
     if (!expression && EXPRESSIONS.includes(x)) expression = x;
     t = t.slice(m[0].length);
-    if (wrapped) t = t.replace(/^[*_"'”’]+/, ""); // closer of a wrapped tag, e.g. **[smug]**
+    t = t.replace(/^[*_`"'”’]+/, ""); // closers stuck to the tag, e.g. **[smug]**
   }
   t = t.replace(/^\s*["'“‘]+/, "");
   t = (t.split("\n").find((l) => l.trim()) ?? "").trim();
@@ -45,6 +44,7 @@ export function parseQuip(raw: string): { expression: Expression; text: string }
     .replace(/(\*\*|\*)(.+?)\1/g, "$2")
     .replace(/(?<!\w)_(.+?)_(?!\w)/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
+    .replace(/^[*_`]+|[*_`]+$/g, "") // unpaired leftovers
     .replace(/["'“”‘’]+$/, "")
     .trim();
   if (!t) return null;
