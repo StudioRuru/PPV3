@@ -108,4 +108,7 @@ test("missingPoseCells: a pose = outfits x expressions (back: one per outfit); a
   assert.equal(s.length, 8);
   assert.ok(!s.some((c) => c.expr === "smug"));
   assert.equal(missingPoseCells(have, { pose: "back" }).length, 2);
+  assert.deepEqual(missingPoseCells({ ...Object.fromEntries(EXPRESSIONS.flatMap((e) => ["day", "night", "lewd"].map((o) => [`pose/sit/${o}/${e}`, 1]))) }, { pose: "sit" }), []);
+  assert.deepEqual(missingPoseCells(none, { pose: "lie", outfit: "night" }).map((c) => c.expr), [...EXPRESSIONS]);
+  assert.deepEqual(missingPoseCells(none, { outfit: "lewd" }).slice(0, 2).map((c) => `${c.pose}/${c.expr}`), ["stand/smug", "stand/laughing"]);
 });

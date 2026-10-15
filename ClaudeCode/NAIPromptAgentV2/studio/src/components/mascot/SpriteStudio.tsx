@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { EXPRESSIONS, type Expression, type Outfit } from "@/lib/mascot/core";
+import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "@/lib/mascot/core";
 import { DEFAULT_MASCOT_SETTINGS } from "@/lib/mascot/settings";
 import { POSES, POSE_SPEC, poseKey, type Pose } from "@/lib/mascot/poses";
-import { missingCells, missingPoseCells } from "@/lib/mascot/ui";
+import { missingCells, missingPoseCells, poseCells as allPoseCells } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 import { Sheet } from "../Sheet";
 import { AutoTextarea } from "../TagInput";
@@ -15,7 +15,6 @@ type Estimate = { anlas: number | null; perImage: number | null; n: number };
 type Spent = { before: number | null; after: number | null; cost: number | null };
 type Confirm = { outfit: Outfit; cells: Cell[]; n: number; total: number | null; anlas: number | null };
 
-const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 const name = (c: Cell) => (c.kind === "full" ? "full" : c.expr);
 const isBack = (c: Cell) => c.pose === "back";
 const label = (c: Cell) => (c.kind === "full" ? "Full sprite" : c.kind === "pose" ? (isBack(c) ? "Back" : c.expr) : c.expr);
@@ -23,7 +22,7 @@ const label = (c: Cell) => (c.kind === "full" ? "Full sprite" : c.kind === "pose
 const keyOf = (o: Outfit, c: Cell) => (c.kind === "pose" ? poseKey(c.pose!, c.outfit ?? o, isBack(c) ? null : c.expr) : `${o}/${name(c)}`);
 /** Extra API fields addressing a cell's sprite. */
 const target = (o: Outfit, c: Cell) => (c.kind === "pose" ? { outfit: c.outfit ?? o, pose: c.pose, expr: c.expr } : { outfit: o, kind: c.kind, expr: c.expr });
-const poseCells = (pose: Pose, outfit: Outfit): Cell[] => (pose === "back" ? [{ kind: "pose", pose, outfit, expr: "smug" }] : EXPRESSIONS.map((expr) => ({ kind: "pose" as const, pose, outfit, expr })));
+const poseCells = (pose: Pose, outfit: Outfit): Cell[] => allPoseCells({ pose, outfit }).map((p) => ({ kind: "pose", ...p }));
 const cellName = (c: Cell) => (c.kind === "pose" ? `${c.pose} · ${c.outfit} · ${label(c)}` : label(c));
 const studio = <T,>(body: object) => requestJson<T>("/api/mascot/studio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const h3 = "text-muted mb-2 text-xs font-medium tracking-wide uppercase";

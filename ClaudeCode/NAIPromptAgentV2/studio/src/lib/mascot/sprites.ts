@@ -5,7 +5,7 @@ import path from "node:path";
 import { DATA_DIR, TAGGER_URL } from "../env";
 import { DEFAULT_PARAMS, type NaiParams } from "../nai-body";
 import type { Compiled } from "../prompt";
-import { EXPRESSIONS, type Expression, type Outfit } from "./core";
+import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "./core";
 import { POSE_SPEC, POSES, poseKey, type Pose } from "./poses";
 import { isSafeSpriteDir, type MascotSettings } from "./settings";
 
@@ -16,7 +16,7 @@ export function spriteDirFor(dir: string): string | null {
   const out = path.resolve(MASCOT_DIR, dir);
   return isSafeSpriteDir(dir) && (out === MASCOT_DIR || out.startsWith(MASCOT_DIR + path.sep)) ? out : null;
 }
-export const OUTFITS: Outfit[] = ["day", "night", "lewd"];
+export { OUTFITS };
 export type ArtKind = "bust" | "full";
 export const MAX_CANDIDATES = 4;
 

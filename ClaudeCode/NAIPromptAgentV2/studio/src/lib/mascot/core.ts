@@ -2,6 +2,7 @@
 export const EXPRESSIONS = ["smug", "laughing", "wink", "pout", "flirty", "shocked", "annoyed", "excited", "sleepy"] as const;
 export type Expression = (typeof EXPRESSIONS)[number];
 export type Outfit = "day" | "night" | "lewd";
+export const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 export type MascotEvent = {
   kind: "generated" | "upscaled" | "error" | "applied" | "prompt_edit" | "closet_use" | "idle" | "greet" | "rp_feedback" | "rp_chat" | "tap" | "slime_out" | "slime_in" | "vial_drop";
   at: number;
