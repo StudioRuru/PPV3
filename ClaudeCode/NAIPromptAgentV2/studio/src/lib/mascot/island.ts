@@ -73,6 +73,14 @@ export function dragSize(base: Size, anchor: Size, max: Size, drag: number): Siz
   return { w: clamp(base.w + drag * DRAG.w, anchor.w, max.w), h: clamp(base.h + drag * DRAG.h, anchor.h, max.h) };
 }
 
+/** The toggle's hit area (centred, from y = 0): the sample's 180×65 over the island (pill + 6 px without one), the whole compact strip,
+ *  and only the anchor's band when expanded so it never covers the content below (which starts at a.top + a.h + 4). */
+export function hotRect(s: IslandState, island: boolean, a: { top: number; h: number }, rest: Size): Size {
+  if (s === "compact") return { w: Math.max(HOT.w, rest.w), h: a.top + rest.h };
+  if (s === "expanded") return { w: HOT.w, h: a.top + a.h };
+  return { w: HOT.w, h: island ? Math.max(HOT.h, a.top + a.h) : a.top + a.h + 6 };
+}
+
 export const contentVisible = (s: IslandState, drag: number) => s === "expanded" || drag > DRAG.content;
 
 /** Untrusted calibration patch onto cur: each field kept only if a finite number within CAL_BOUNDS. */

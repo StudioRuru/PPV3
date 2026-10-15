@@ -244,7 +244,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const lastAssistant = msgs.map((m) => m.role).lastIndexOf("assistant");
 
   return (
-    <section aria-label="Chat" className="flex min-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] flex-col gap-2">
+    <section aria-label="Chat" className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
       <header className="flex items-center gap-2">
         <h1 className="text-[15px] font-semibold tracking-wide">Chat</h1>
         <span className="text-muted flex min-w-0 flex-1 gap-2 overflow-hidden font-mono text-[11px]">

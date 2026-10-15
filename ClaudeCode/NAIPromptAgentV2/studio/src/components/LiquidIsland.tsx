@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { anchorBox, CAL_ZERO, classifyIslandGesture, CORNER, DRAG, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, HOT, LONG_MS, nextState, springEasing, swipeTab, TAP_SLOP,
+import { anchorBox, CAL_ZERO, classifyIslandGesture, CORNER, DRAG, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, hotRect, LONG_MS, nextState, springEasing, swipeTab, TAP_SLOP,
   type Calibration, type IslandEvent, type IslandState, type Size } from "@/lib/mascot/island";
 import { requestJson } from "@/lib/net";
 import { SETTINGS_ICON, TAB_IDS, TABS, type Tab } from "@/lib/tabs";
@@ -46,7 +46,7 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
   const drawer = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const press = useRef<Press | null>(null);
-  const suppress = useRef(false); // swallow the click that follows a drag / swipe / long-press
+  const suppressUntil = useRef(0); // swallow the click that follows a drag / swipe / long-press (a short window, so later keyboard/VoiceOver clicks pass)
   const reduced = useRef(false);
   const go = (e: IslandEvent) => setState((s) => nextState(s, e));
 
@@ -131,10 +131,9 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
   const hideOrSummon = () => window.dispatchEvent(new CustomEvent(hidden ? "mascot:summon" : "mascot:hide"));
 
   function down(e: React.PointerEvent) {
-    suppress.current = false;
     if (press.current || e.button !== 0 || (e.target as Element).closest("[data-ctl]")) return;
     const p: Press = { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, el: e.target as Element, long: false, axis: null };
-    p.timer = setTimeout(() => { p.long = true; suppress.current = true; hideOrSummon(); }, LONG_MS);
+    p.timer = setTimeout(() => { p.long = true; hideOrSummon(); }, LONG_MS);
     press.current = p;
   }
   function move(e: React.PointerEvent) {
@@ -159,7 +158,7 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
     const g = p.long ? "longpress" : classifyIslandGesture({ dx: e.clientX - p.x, dy: e.clientY - p.y, ms: e.timeStamp - p.t });
     release();
     if (g === "tap") return; // the native click toggles (one path for touch, mouse and keyboard)
-    suppress.current = true;
+    suppressUntil.current = performance.now() + 400;
     if (g === "swipeLeft" || g === "swipeRight") { const t = swipeTab(TAB_IDS, tab, g); if (t) onTab(t); return; }
     if (g === "down" || g === "up") { const next = nextState(state, g === "down" ? "expand" : "collapse"); paint(drawerSize(next, a, vw), true); setState(next); }
   }
@@ -175,12 +174,12 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
   const open = state === "expanded" || peek;
   const compact = state === "compact" && !dragging;
   const centre = (x = a.x) => `translateX(calc(-50% + ${x}px))`;
-  const hotH = state === "compact" ? a.top + rest.h : island ? Math.max(HOT.h, a.top + a.h) : a.top + a.h + 6;
+  const hot = hotRect(state, island, a, rest);
 
   return (
     <nav ref={root} aria-label="Navigation" data-noswipe className="pointer-events-none fixed inset-x-0 top-0 z-[35] h-0 select-none"
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={release} onLostPointerCapture={release}
-      onClickCapture={(e) => { if (suppress.current) { suppress.current = false; e.preventDefault(); e.stopPropagation(); } }}>
+      onClickCapture={(e) => { if (performance.now() < suppressUntil.current) { suppressUntil.current = 0; e.preventDefault(); e.stopPropagation(); } }}>
       {/* Goo: blur + alpha threshold fuses the anchor and the drawer. Only these two black shapes are filtered. */}
       {island && (
         <svg aria-hidden="true" width="0" height="0" className="absolute">
@@ -221,7 +220,7 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
 
       {/* Hot zone: the toggle (data-island: Miyabi's avoid list needs a non-empty rect; the nav is h-0). Taps arrive as clicks; drags/swipes/long-press are read from the pointer events above. */}
       <button ref={toggle} type="button" data-island aria-label={`Navigation, current: ${label}`} aria-expanded={state === "expanded"} onClick={() => go("tap")}
-        className="pointer-events-auto absolute left-1/2 text-white outline-offset-2" style={{ top: 0, width: Math.max(HOT.w, rest.w), height: hotH, transform: centre(), touchAction: "none", WebkitTouchCallout: "none" } as React.CSSProperties}>
+        className="pointer-events-auto absolute left-1/2 text-white outline-offset-2" style={{ top: 0, width: hot.w, height: hot.h, transform: centre(), touchAction: "none", WebkitTouchCallout: "none" } as React.CSSProperties}>
         {!island && state === "minimal" && (
           <span className="absolute inset-x-0 text-[11px] font-medium text-white/80" style={{ top: a.top, lineHeight: `${a.h}px` }}>{label}</span>
         )}

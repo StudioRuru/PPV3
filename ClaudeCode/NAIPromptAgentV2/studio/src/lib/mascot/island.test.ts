@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ANCHOR, anchorBox, CAL_ZERO, classifyIslandGesture, contentVisible, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, mergeCalibration, nextState, springEasing, swipeTab } from "./island";
+import { ANCHOR, anchorBox, hotRect, HOT, CAL_ZERO, classifyIslandGesture, contentVisible, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, mergeCalibration, nextState, springEasing, swipeTab } from "./island";
 
 test("nextState: tap minimal→compact→expanded→compact; expand/collapse/peek/timeout", () => {
   assert.equal(nextState("minimal", "tap"), "compact");
@@ -86,4 +86,16 @@ test("springEasing: linear() from 0 to 1 with a small overshoot, settles in ~0.5
   assert.equal(pts.at(-1), 1);
   assert.ok(Math.max(...pts) > 1 && Math.max(...pts) < 1.1, "underdamped (0.72): slight overshoot");
   assert.ok(ms > 400 && ms < 700, String(ms));
+});
+
+test("hotRect: 180×65 over the island; covers the compact strip; never overlaps the expanded content", () => {
+  const a = anchorBox(CAL_ZERO, true, 59);
+  assert.deepEqual(hotRect("minimal", true, a, drawerSize("minimal", a, 393)), { w: HOT.w, h: HOT.h });
+  const c = drawerSize("compact", a, 393);
+  assert.deepEqual(hotRect("compact", true, a, c), { w: Math.max(HOT.w, c.w), h: a.top + c.h });
+  const e = hotRect("expanded", true, a, drawerSize("expanded", a, 393));
+  assert.ok(e.h <= a.top + a.h, "expanded content starts at a.top + a.h + 4");
+  const pill = anchorBox(CAL_ZERO, false, 0);
+  assert.equal(hotRect("minimal", false, pill, pill).h, pill.top + pill.h + 6);
+  assert.ok(hotRect("expanded", false, pill, drawerSize("expanded", pill, 393)).h <= pill.top + pill.h);
 });

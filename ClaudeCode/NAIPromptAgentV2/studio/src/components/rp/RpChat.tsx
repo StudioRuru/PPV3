@@ -103,7 +103,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const lastId = msgs.at(-1)?.id;
 
   return (
-    <section aria-label={`Chat with ${character.name}`} className="flex min-h-[calc(100dvh-9rem)] flex-col gap-2">
+    <section aria-label={`Chat with ${character.name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
       <header className="bg-bg/95 sticky top-0 z-10 -mx-4 flex items-center gap-2 px-4 py-1 backdrop-blur">
         <button type="button" onClick={onBack} aria-label="Back to chats" className="border-border grid size-10 place-items-center rounded-full border">‹</button>
         <Avatar c={character} size="size-9" />
