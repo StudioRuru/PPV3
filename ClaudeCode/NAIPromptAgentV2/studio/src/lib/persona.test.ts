@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { nextDrift, PERSONAS, personaBlock } from "./persona";
 
-test("personas: neutral default plus the three chosen ones", () => {
-  assert.deepEqual(PERSONAS.map((p) => p.id), ["neutral", "bratty", "writer", "tagnerd"]);
+test("personas: neutral default plus the chosen ones and Miyabi", () => {
+  assert.deepEqual(PERSONAS.map((p) => p.id), ["neutral", "bratty", "writer", "tagnerd", "miyabi"]);
 });
 
 test("personaBlock: voice + modifiers + drift level; neutral with nothing on adds nothing", () => {

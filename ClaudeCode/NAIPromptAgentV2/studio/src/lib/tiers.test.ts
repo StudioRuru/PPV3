@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HeavyGate, tierModel } from "./tiers";
+import { HeavyGate, QUICK_DEFAULT, tierModel } from "./tiers";
 
 test("tierModel: defaults, then settings override", () => {
   const none = () => null;
   assert.equal(tierModel("everyday", none, "brain"), "brain");
-  assert.equal(tierModel("quick", none, "brain"), "brain");
+  assert.equal(tierModel("quick", none, "brain"), QUICK_DEFAULT);
+  assert.equal(tierModel("quick", (k) => (k === "model.quick" ? "m" : null), "brain"), "m");
   assert.equal(tierModel("heavy", none, "brain"), "gemma4-26b-apex:latest");
   assert.equal(tierModel("heavy", (k) => (k === "model.heavy" ? "cydonia-24b:latest" : null), "brain"), "cydonia-24b:latest");
   assert.equal(tierModel("heavy", () => "  ", "brain"), "gemma4-26b-apex:latest");

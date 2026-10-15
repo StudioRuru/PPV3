@@ -1,11 +1,12 @@
 // Model tiers: light features on small models, long RP/story on the heavy one.
 export type Tier = "quick" | "everyday" | "heavy";
+export const QUICK_DEFAULT = "hf.co/llmfan46/gemma-4-E4B-it-ultra-uncensored-heretic-GGUF:Q4_K_M";
 export const HEAVY_DEFAULT = "gemma4-26b-apex:latest";
 
-/** The Ollama model for a tier: settings key `model.<tier>`, else the brain (quick/everyday) or APEX (heavy). */
+/** The Ollama model for a tier: settings key `model.<tier>`, else the brain (everyday), QUICK_DEFAULT (quick) or APEX (heavy). */
 export function tierModel(tier: Tier, get: (key: string) => string | null, brain: string): string {
   const v = get(`model.${tier}`)?.trim();
-  return v || (tier === "heavy" ? HEAVY_DEFAULT : brain);
+  return v || (tier === "heavy" ? HEAVY_DEFAULT : tier === "quick" ? QUICK_DEFAULT : brain);
 }
 
 type Deps = {
