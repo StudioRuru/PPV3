@@ -214,7 +214,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         <div ref={end} />
       </div>
 
-      <form data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 flex gap-2 border-t px-4 py-2 backdrop-blur" style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}
+      <form data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 flex gap-2 border-t px-4 py-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
         onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder={`Message ${character.name}…`}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); submit(); } }}

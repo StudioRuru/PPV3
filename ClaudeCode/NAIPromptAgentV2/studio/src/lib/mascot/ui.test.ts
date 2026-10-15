@@ -15,11 +15,11 @@ test("nearestCorner: picks the viewport quadrant of the point", () => {
   assert.equal(nearestCorner(0, 0, 400, 800), "tl");
   assert.equal(nearestCorner(200, 400, 400, 800), "br"); // dead centre stays bottom-right
 });
-test("composerBottom: tab bar + tallest visible composer + gap; fallback when none", () => {
-  const fb = "calc(env(safe-area-inset-bottom) + 8.5rem)";
+test("composerBottom: tallest visible composer + gap (composers pad the safe area themselves); fallback when none", () => {
+  const fb = "calc(env(safe-area-inset-bottom) + 5rem)";
   assert.equal(composerBottom([]), fb);
   assert.equal(composerBottom([0, 0]), fb); // display:none composers measure 0
-  assert.equal(composerBottom([0, 100, 72]), "calc(env(safe-area-inset-bottom) + 3.5rem + 100px + 0.5rem)");
+  assert.equal(composerBottom([0, 100, 72]), "calc(100px + 0.5rem)");
 });
 
 test("cooldown slider: steps ↔ ms, last step = only when tapped", () => {

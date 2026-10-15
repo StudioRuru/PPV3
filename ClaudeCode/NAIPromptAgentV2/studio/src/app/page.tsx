@@ -8,7 +8,8 @@ import { CameraRoll } from "@/components/CameraRoll";
 import { Closet } from "@/components/Closet";
 import { RpScreen } from "@/components/rp/RpScreen";
 import { SaveFlash } from "@/components/SaveFlash";
-import { TabBar, type Tab } from "@/components/TabBar";
+import { LiquidIsland } from "@/components/LiquidIsland";
+import { TAB_IDS, type Tab } from "@/lib/tabs";
 import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
 import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
@@ -63,7 +64,6 @@ export default function Studio() {
   // The viewer browses whichever list it was opened from (studio history or the camera roll).
   const [viewerItems, setViewerItems] = useState<Generation[] | null>(null);
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
-  const TABS: Tab[] = ["studio", "roll", "closet", "chat", "rp"];
   const [vary, setVary] = useState<Generation | null>(null);
   const [upscale, setUpscale] = useState<Generation | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
@@ -204,8 +204,9 @@ export default function Studio() {
   }
 
   return (
-    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+10rem)]" : "pb-[calc(env(safe-area-inset-bottom)+6rem)]"}`}
-      style={{ touchAction: "pan-y" }}
+    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]" : "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]"}`}
+      // Below the top pill on screens without a Dynamic Island (inset < 50px → +2.5rem); island screens keep 1rem (the island lives in the inset).
+      style={{ touchAction: "pan-y", paddingTop: "calc(1rem + clamp(0px, (50px - env(safe-area-inset-top)) * 999, 2.5rem))" }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}
       // Swipe left/right on free page areas to change tab; never from controls, the Tagger, the canvas or sheets.
@@ -214,8 +215,8 @@ export default function Studio() {
         const s = swipe.current; swipe.current = null;
         if (!s || window.getSelection()?.toString()) return;
         const dir = swipeDirection({ dx: e.clientX - s.x, dy: e.clientY - s.y, ms: e.timeStamp - s.t });
-        const i = TABS.indexOf(tab) + (dir === "next" ? 1 : dir === "prev" ? -1 : 0);
-        if (dir && TABS[i]) setTab(TABS[i]);
+        const i = TAB_IDS.indexOf(tab) + (dir === "next" ? 1 : dir === "prev" ? -1 : 0);
+        if (dir && TAB_IDS[i]) setTab(TAB_IDS[i]);
       }}
       onPointerCancel={() => { swipe.current = null; }}>
       {/* Studio stays mounted (hidden) on other tabs so the Tagger and drafts keep their state. */}
@@ -312,7 +313,7 @@ export default function Studio() {
           prompt={[...state.base, ...state.chars.flatMap((c) => c.lines)].filter((l) => l.enabled).flatMap((l) => splitTags(l.text))} />
       </div>
 
-      <div data-composer className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
+      <div data-composer className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           {undo ? <p role="status" className="flex flex-1 items-center gap-3 text-sm">Prompt recreated
               <button type="button" onClick={() => { setState(undo); setUndo(null); }} className="text-accent font-semibold">Undo</button></p>
@@ -334,7 +335,7 @@ export default function Studio() {
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
-      <TabBar tab={tab} onTab={setTab} />
+      <LiquidIsland tab={tab} onTab={setTab} onSettings={() => setSettings(true)} />
       <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} onTap={(outfit) => setTalk({ open: true, outfit })} onTab={setTab} onSettings={() => setSettings(true)} />
       <MiyabiSheet open={talk.open} onClose={() => setTalk((t) => ({ ...t, open: false }))} outfit={talk.outfit} state={state} onApply={(ops) => setState((s) => applyOps(s, ops))} />
       <SaveFlash text={flash} onDone={clearFlash} />

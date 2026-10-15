@@ -117,3 +117,11 @@ test("mischief: default 5, int 0-10 only", () => {
   for (const m of [-1, 11, 2.5, "5", null]) assert.equal(mergeMascotSettings(D, { mischief: m }).mischief, 5, String(m));
   assert.equal(parseMascotSettings(JSON.stringify({ mischief: 0 })).mischief, 0);
 });
+
+test("island calibration: default zeros, bounded offsets merged per field", () => {
+  assert.deepEqual(D.island, { x: 0, y: 0, w: 0, h: 0 });
+  assert.deepEqual(mergeMascotSettings(D, { island: { x: 3, y: -2, w: 60, h: -40 } }).island, { x: 3, y: -2, w: 60, h: -40 });
+  assert.deepEqual(mergeMascotSettings(D, { island: { x: 99, w: "4" } }).island, D.island);
+  assert.deepEqual(mergeMascotSettings(D, { island: "x" }).island, D.island);
+  assert.deepEqual(parseMascotSettings(JSON.stringify({ island: { y: 4 } })).island, { x: 0, y: 4, w: 0, h: 0 });
+});

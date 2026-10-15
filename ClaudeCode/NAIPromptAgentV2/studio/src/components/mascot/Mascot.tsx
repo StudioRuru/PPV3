@@ -5,7 +5,7 @@ import { cannedLine, outfitFor, pickSprite, readMs, shouldSpeak, type Expression
 import { stageSprite } from "@/lib/mascot/poses";
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
-import type { Tab } from "@/components/TabBar";
+import { TABS, type Tab } from "@/lib/tabs";
 import { isTyping, Stage } from "./Stage";
 import { TabCarousel, type Bubble } from "./TabCarousel";
 
@@ -15,13 +15,12 @@ type Say = { expression: Expression; text: string };
 const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500, HIDE_MS = 10 * 60_000;
 const SIZE_PX = { s: 112, m: 160, l: 208 }; // sprite height; lg screens get 1.25x
 const TOP = "calc(env(safe-area-inset-top) + 4rem)";
-const TABS: [Tab, string][] = [["studio", "Studio"], ["roll", "Camera roll"], ["closet", "Closet"], ["chat", "Chat"], ["rp", "RP"]];
 const PINS = [null, "day", "night", "lewd"] as const;
 const SULK: Say[] = [{ expression: "pout", text: "Fine! I'll go sulk somewhere else. Ten minutes. Maybe." }, { expression: "annoyed", text: "Wow. Rude. Don't come crying when you miss me." }];
 const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** Miyabi: quips about `mascot` bus events on every tab. Full-body on the Stage when the outfit has pose sprites, else the corner bust.
- *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden} out (on change and on mount). */
+ *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden} and `mascot:mood` {src} out (on change and on mount). */
 export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab, onSettings }: {
   rating: string; prompt: string; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
 }) {
@@ -124,7 +123,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     return () => { clearInterval(tick); window.removeEventListener("pointerdown", input); window.removeEventListener("keydown", input); };
   }, []);
 
-  // Bottom corners sit above the tab bar plus whichever [data-composer] bar is showing (hidden ones measure 0).
+  // Bottom corners sit above whichever [data-composer] bar is showing (hidden ones measure 0).
   useEffect(() => {
     const seen = new Set<Element>();
     const measure = () => setBottomAt(composerBottom([...document.querySelectorAll<HTMLElement>("[data-composer]")].map((el) => el.offsetHeight)));
@@ -175,11 +174,18 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     return () => clearTimeout(t);
   }, [hidden]);
 
+  const outfit: Outfit = settings ? outfitFor({ hour: new Date().getHours(), nightFrom: settings.nightFrom, nightTo: settings.nightTo, pin: settings.pin, nsfw: rating === "nsfw", flirt: settings.mods.flirt, flirtyTalk: false }) : "day";
+  const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));
+  // Tell the island which bust to show (null = hidden / no sprite), deferred like mascot:hidden.
+  const mood = settings?.show && !hidden && sprite ? `/api/mascot/sprites/${sprite}?v=${sprites[sprite]}` : null;
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new CustomEvent("mascot:mood", { detail: { src: mood } })), 0);
+    return () => clearTimeout(t);
+  }, [mood]);
+
   if (!settings?.show) return null;
 
   const corner = settings.corner, bottom = corner[0] === "b", right = corner[1] === "r";
-  const outfit = outfitFor({ hour: new Date().getHours(), nightFrom: settings.nightFrom, nightTo: settings.nightTo, pin: settings.pin, nsfw: rating === "nsfw", flirt: settings.mods.flirt, flirtyTalk: false });
-  const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));
 
   function hush() { setHushUntil(Date.now() + HUSH_MS); setSay(null); setMenu(false); }
   const have = new Set(Object.keys(sprites));
@@ -220,7 +226,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     const close = () => setMenu(false), go = (f: () => void) => () => { close(); f(); };
     const bubbles: Bubble[] = [
       { label: "Talk", onSelect: go(() => onTap(outfit)) },
-      ...(onTab ? TABS.map(([id, label]) => ({ label, onSelect: go(() => onTab(id)) })) : []),
+      ...(onTab ? TABS.map(({ id, label }) => ({ label, onSelect: go(() => onTab(id)) })) : []),
       ...(onSettings ? [{ label: "Settings", onSelect: go(onSettings) }] : []),
       { label: hushed ? "Wake up" : "Hush 30 min", small: true, onSelect: hushed ? go(() => setHushUntil(0)) : hush },
       { label: `Outfit: ${settings.pin ?? "auto"}`, small: true, onSelect: () => save({ pin: PINS[(PINS.indexOf(settings.pin) + 1) % PINS.length] }) },

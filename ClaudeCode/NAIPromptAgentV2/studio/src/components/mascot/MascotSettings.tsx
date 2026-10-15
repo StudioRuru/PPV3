@@ -2,10 +2,12 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Outfit } from "@/lib/mascot/core";
+import { CAL_BOUNDS, CAL_ZERO, hasIsland, type Calibration } from "@/lib/mascot/island";
 import type { MascotSettings as Settings } from "@/lib/mascot/settings";
 import { cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, sliderToCooldown } from "@/lib/mascot/ui";
 import type { Fact } from "@/lib/mascot/store";
 import { requestJson } from "@/lib/net";
+import { useViewport } from "../LiquidIsland";
 import { AutoTextarea } from "../TagInput";
 import { SlidersPanel } from "./SlidersPanel";
 import { SlimeShelf } from "./SlimeShelf";
@@ -32,6 +34,7 @@ export function MascotSettings({ open }: { open: boolean }) {
   const [shelf, setShelf] = useState(false);
   const [shelfMounted, setShelfMounted] = useState(false);
   const [hidden, setHidden] = useState(false); // Miyabi swiped off / hidden: offer Summon
+  const view = useViewport(); // island calibration only on Dynamic Island screens
 
   useEffect(() => {
     const on = (e: Event) => setHidden(!!(e as CustomEvent<{ hidden: boolean }>).detail?.hidden);
@@ -113,6 +116,21 @@ export function MascotSettings({ open }: { open: boolean }) {
         <input type="range" min={0} max={10} step={1} value={s.mischief} onChange={(e) => save({ mischief: Number(e.target.value) })} className="accent-accent mt-1 h-8 w-full" />
         <span className="text-faint flex justify-between text-[11px]"><span>Stays put</span><span>Always in the way</span></span>
       </label>
+      {view && hasIsland(view.top) && (
+        <div className="py-1">
+          <p className="flex items-center justify-between text-sm">Island
+            <button type="button" onClick={() => save({ island: CAL_ZERO })} className="text-accent h-9 px-1 text-xs">Reset</button></p>
+          <p className="text-faint mb-1 text-xs">Line the black drawer up with the real Dynamic Island (pt).</p>
+          {(Object.keys(CAL_BOUNDS) as (keyof Calibration)[]).map((k) => (
+            <label key={k} className="flex items-center gap-3 text-sm">
+              <span className="text-muted w-20 text-xs">{{ x: "Left/right", y: "Up/down", w: "Width", h: "Height" }[k]}</span>
+              <input type="range" min={CAL_BOUNDS[k][0]} max={CAL_BOUNDS[k][1]} step={1} value={s.island[k]} aria-label={`Island ${k}`}
+                onChange={(e) => save({ island: { ...s.island, [k]: Number(e.target.value) } })} className="accent-accent h-8 flex-1" />
+              <span className="text-muted w-8 text-right font-mono text-xs">{s.island[k]}</span>
+            </label>
+          ))}
+        </div>
+      )}
       {(["bratty", "tease", "flirt"] as const).map((k) => (
         <label key={k} className={row}>
           <span className="capitalize">{k}</span>

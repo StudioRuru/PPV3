@@ -244,7 +244,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const lastAssistant = msgs.map((m) => m.role).lastIndexOf("assistant");
 
   return (
-    <section aria-label="Chat" className="flex min-h-[calc(100dvh-9rem)] flex-col gap-2">
+    <section aria-label="Chat" className="flex min-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] flex-col gap-2">
       <header className="flex items-center gap-2">
         <h1 className="text-[15px] font-semibold tracking-wide">Chat</h1>
         <span className="text-muted flex min-w-0 flex-1 gap-2 overflow-hidden font-mono text-[11px]">
@@ -356,8 +356,8 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         <div ref={end} />
       </div>
 
-      {/* Composer: sits above the tab bar */}
-      <div data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 pb-2 backdrop-blur" style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}>
+      {/* Composer: sticks to the bottom, padded clear of the home indicator */}
+      <div data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}>
         <div data-noswipe className="flex gap-1.5 overflow-x-auto">
           {MODES.map(([k, label]) => (
             <button key={k} type="button" aria-pressed={mode === k} onClick={() => { setMode(mode === k ? "chat" : k); setPreset(null); }}

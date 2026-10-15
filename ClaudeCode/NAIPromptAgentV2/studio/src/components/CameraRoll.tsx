@@ -119,9 +119,9 @@ export function CameraRoll({ active, onOpen, onChanged }: {
         })}
       </div>
 
-      {/* Selection bar floats above the tab bar. */}
+      {/* Selection bar floats above the home indicator. */}
       {selecting && (
-        <div className="bg-surface border-border fixed inset-x-3 z-30 flex items-center gap-2 rounded-xl border p-2 shadow-xl" style={{ bottom: "calc(env(safe-area-inset-bottom) + 4.5rem)" }}>
+        <div className="bg-surface border-border fixed inset-x-3 z-30 flex items-center gap-2 rounded-xl border p-2 shadow-xl" style={{ bottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}>
           <span className="text-muted flex-1 px-1 font-mono text-xs">{sel.length} selected{sel.length ? ` · ${mb(bytes(sel))}` : ""}</span>
           <button type="button" onClick={() => setPicked(sel.length === shown.length ? [] : shown.map((g) => g.id))} className="text-accent h-10 px-2 text-sm">{sel.length === shown.length && shown.length ? "None" : "All"}</button>
           <button type="button" disabled={!sel.length} onClick={() => zip(sel)} className="bg-accent text-accent-fg h-10 rounded-lg px-3 text-sm font-semibold disabled:opacity-40">Zip to Files</button>
