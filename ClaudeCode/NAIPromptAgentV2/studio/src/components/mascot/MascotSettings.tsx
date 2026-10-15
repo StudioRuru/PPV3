@@ -30,22 +30,29 @@ export function MascotSettings({ open }: { open: boolean }) {
 
   useEffect(() => { if (open) requestJson<State>("/api/mascot/state").then((r) => r.ok && setState(r.data)); }, [open]);
 
-  async function send(body: object) {
+  /** POST; null on success, else the error (and the optimistic change is rolled back to the server's state). */
+  async function send(body: object): Promise<string | null> {
     const r = await post(body);
-    if (!r.ok) { setError(r.error); return false; }
+    if (!r.ok) {
+      setError(r.error);
+      requestJson<State>("/api/mascot/state").then((g) => g.ok && setState(g.data));
+      return r.error;
+    }
     setError(null);
     setState(r.data);
     window.dispatchEvent(new CustomEvent("mascot:settings", { detail: r.data.settings }));
-    return true;
+    return null;
   }
   const save = (patch: Partial<WireSettings>) => {
     if (state) setState({ ...state, settings: { ...state.settings, ...patch } });
     return send({ settings: patch });
   };
+  const [drag, setDrag] = useState<number | null>(null); // chattiness slider position while dragging; saved on release
+  const commitSlider = () => { if (drag !== null) { save({ cooldownMs: sliderToCooldown(drag) }); setDrag(null); } };
 
   if (!state) return <section><h3 className={h3}>Mascot</h3><p className="text-faint text-xs">Loading…</p></section>;
   const s = state.settings;
-  const slider = cooldownToSlider(s.cooldownMs);
+  const slider = drag ?? cooldownToSlider(s.cooldownMs);
 
   return (
     <section className="space-y-1">
@@ -57,7 +64,7 @@ export function MascotSettings({ open }: { open: boolean }) {
       <label className="block py-1 text-sm">
         <span className="flex justify-between">Chattiness<span className="text-muted font-mono text-xs">{cooldownLabel(sliderToCooldown(slider))}</span></span>
         <input type="range" min={0} max={COOLDOWN_STEPS.length} step={1} value={slider} aria-valuetext={cooldownLabel(sliderToCooldown(slider))}
-          onChange={(e) => save({ cooldownMs: sliderToCooldown(Number(e.target.value)) })} className="accent-accent mt-1 h-8 w-full" />
+          onChange={(e) => setDrag(Number(e.target.value))} onPointerUp={commitSlider} onKeyUp={commitSlider} onBlur={commitSlider} className="accent-accent mt-1 h-8 w-full" />
         <span className="text-faint flex justify-between text-[11px]"><span>Every 30 s</span><span>Only when tapped</span></span>
       </label>
       <div className={row}>
@@ -77,7 +84,7 @@ export function MascotSettings({ open }: { open: boolean }) {
         <div role="radiogroup" aria-label="Outfit" className="border-border grid grid-cols-4 overflow-hidden rounded-md border">
           {([null, "day", "night", "lewd"] as (Outfit | null)[]).map((o) => (
             <button key={o ?? "auto"} type="button" role="radio" aria-checked={s.pin === o} onClick={() => save({ pin: o })}
-              className={`h-10 text-xs font-medium capitalize ${s.pin === o ? "bg-accent text-accent-fg" : "text-muted"}`}>{o ?? "Auto"}</button>
+              className={`h-11 text-xs font-medium capitalize ${s.pin === o ? "bg-accent text-accent-fg" : "text-muted"}`}>{o ?? "Auto"}</button>
           ))}
         </div>
       </div>
@@ -88,8 +95,8 @@ export function MascotSettings({ open }: { open: boolean }) {
         </label>
       ))}
       <div className="grid grid-cols-2 gap-2 pt-1">
-        <button type="button" onClick={() => window.dispatchEvent(new Event("mascot:hush"))} className="border-border rounded-md border px-3 py-2.5 text-sm">Hush 30 min</button>
-        <button type="button" onClick={() => { setStudioMounted(true); setStudio(true); }} className="border-border rounded-md border px-3 py-2.5 text-sm">Sprite studio</button>
+        <button type="button" onClick={() => window.dispatchEvent(new Event("mascot:hush"))} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Hush 30 min</button>
+        <button type="button" onClick={() => { setStudioMounted(true); setStudio(true); }} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Sprite studio</button>
       </div>
       {error && <p role="alert" className="text-danger text-xs">{error}</p>}
 
@@ -102,15 +109,15 @@ export function MascotSettings({ open }: { open: boolean }) {
               {edit?.id === f.id ? (
                 <>
                   <AutoTextarea value={edit.text} onChange={(text) => setEdit({ id: f.id, text })} className="flex-1 text-sm" />
-                  <button type="button" onClick={() => setEdit(null)} className="text-muted px-2 py-2 text-xs">Cancel</button>
+                  <button type="button" onClick={() => setEdit(null)} className="text-muted min-h-11 px-2 text-xs">Cancel</button>
                   <button type="button" disabled={!edit.text.trim()}
-                    onClick={async () => { if (await send({ facts: state.facts.map((x) => (x.id === f.id ? edit.text.trim() : x.text)) })) setEdit(null); }}
-                    className="text-accent px-2 py-2 text-xs font-semibold">Save</button>
+                    onClick={async () => { if (!(await send({ facts: state.facts.map((x) => (x.id === f.id ? edit.text.trim() : x.text)) }))) setEdit(null); }}
+                    className="text-accent min-h-11 px-2 text-xs font-semibold">Save</button>
                 </>
               ) : (
                 <>
                   <button type="button" onClick={() => setEdit({ id: f.id, text: f.text })} className="flex-1 py-1.5 text-left" aria-label={`Edit: ${f.text}`}>{f.text}</button>
-                  <button type="button" onClick={() => send({ deleteFact: f.id })} aria-label={`Delete: ${f.text}`} className="text-muted h-9 w-9 shrink-0">×</button>
+                  <button type="button" onClick={() => send({ deleteFact: f.id })} aria-label={`Delete: ${f.text}`} className="text-muted size-11 shrink-0">×</button>
                 </>
               )}
             </li>
@@ -125,7 +132,7 @@ export function MascotSettings({ open }: { open: boolean }) {
                 className="bg-danger flex-1 rounded-md px-3 py-2 font-semibold text-white">Forget everything</button>
             </div>
           </div>
-        ) : state.facts.length > 0 && <button type="button" onClick={() => setForget(true)} className="text-danger mt-1 py-1 text-xs">Forget everything she knows</button>}
+        ) : state.facts.length > 0 && <button type="button" onClick={() => setForget(true)} className="text-danger min-h-11 text-xs">Forget everything she knows</button>}
       </div>
 
       {studioMounted && createPortal(<SpriteStudio open={studio} onClose={() => setStudio(false)} settings={s} onSave={save} />, document.body)}

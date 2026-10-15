@@ -23,7 +23,7 @@ const btn = "border-border rounded-md border px-3 py-2.5 text-sm disabled:opacit
 
 /** Mascot studio: per outfit, tag editors + generate candidates → pick → saved sprite. Every spend needs a confirm tap. */
 export function SpriteStudio({ open, onClose, settings, onSave }: {
-  open: boolean; onClose: () => void; settings: WireSettings; onSave: (patch: Partial<WireSettings>) => Promise<boolean>;
+  open: boolean; onClose: () => void; settings: WireSettings; onSave: (patch: Partial<WireSettings>) => Promise<string | null>;
 }) {
   const [outfit, setOutfit] = useState<Outfit>("day");
   const [sprites, setSprites] = useState<Record<string, number>>({});
@@ -44,7 +44,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
     setSprites(r.data.sprites); setSheets(r.data.sheets);
     window.dispatchEvent(new CustomEvent("mascot:sprites", { detail: r.data.sprites }));
   });
-  useEffect(() => { if (open) { stop.current = false; refresh(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) refresh(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const close = () => { stop.current = true; setConfirm(null); onClose(); }; // closing ends a run: no spending out of sight
   const choose = (c: Cell | null) => { setSel(c); setConfirm(null); setError(null); setNote(null); };
   const pickOutfit = (o: Outfit) => { setOutfit(o); choose(null); };
@@ -126,7 +126,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
         <div role="tablist" aria-label="Outfit" className="border-border grid grid-cols-3 overflow-hidden rounded-md border">
           {OUTFITS.map((o) => (
             <button key={o} type="button" role="tab" aria-selected={outfit === o} disabled={!!busy} onClick={() => pickOutfit(o)}
-              className={`h-10 text-sm font-medium capitalize ${outfit === o ? "bg-accent text-accent-fg" : "text-muted"}`}>{o}</button>
+              className={`h-11 text-sm font-medium capitalize ${outfit === o ? "bg-accent text-accent-fg" : "text-muted"}`}>{o}</button>
           ))}
         </div>
 
@@ -138,7 +138,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
         <section className="space-y-2">
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
             Candidates per sprite
-            <select value={n} onChange={(e) => setN(Number(e.target.value))} disabled={!!busy} className="bg-bg border-border h-10 rounded-md border px-2 text-sm">
+            <select value={n} onChange={(e) => setN(Number(e.target.value))} disabled={!!busy} className="bg-bg border-border h-11 rounded-md border px-2 text-sm">
               {[1, 2, 3, 4].map((v) => <option key={v} value={v}>{v}</option>)}
             </select>
           </label>
@@ -162,7 +162,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
               </div>
             </div>
           )}
-          {busy && <p aria-live="polite" className="text-muted text-sm">{busy}{busy.startsWith("Generating") && <button type="button" onClick={() => { stop.current = true; }} className="text-accent ml-2">Stop after this</button>}</p>}
+          {busy && <p aria-live="polite" className="text-muted text-sm">{busy}{busy.startsWith("Generating") && <button type="button" onClick={() => { stop.current = true; }} className="text-accent ml-2 min-h-11 px-2">Stop after this</button>}</p>}
           {error && <p role="alert" className="text-danger text-sm">{error}</p>}
           {note && <p aria-live="polite" className="text-sm">{note}</p>}
           {spent && !busy && <p className="text-muted text-xs">Anlas {spent.before ?? "?"} → {spent.after ?? "?"}{spent.cost !== null ? ` (spent ${spent.cost})` : ""}</p>}
@@ -201,7 +201,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
 type Field = { key: string; label: string; value: string; def: string; patch: (v: string) => Partial<WireSettings> };
 
 /** Collapsible tag editors: character, constant, this outfit's layer, per expression. Each saves its own patch. */
-function TagEditors({ outfit, settings: s, onSave }: { outfit: Outfit; settings: WireSettings; onSave: (patch: Partial<WireSettings>) => Promise<boolean> }) {
+function TagEditors({ outfit, settings: s, onSave }: { outfit: Outfit; settings: WireSettings; onSave: (patch: Partial<WireSettings>) => Promise<string | null> }) {
   const D = DEFAULT_MASCOT_SETTINGS;
   const fields: Field[] = [
     { key: "char", label: "Character", value: s.charTags, def: D.charTags, patch: (v) => ({ charTags: v }) },
@@ -217,9 +217,10 @@ function TagEditors({ outfit, settings: s, onSave }: { outfit: Outfit; settings:
   );
 }
 
-function TagField({ field: f, onSave }: { field: Field; onSave: (patch: Partial<WireSettings>) => Promise<boolean> }) {
+function TagField({ field: f, onSave }: { field: Field; onSave: (patch: Partial<WireSettings>) => Promise<string | null> }) {
   const [draft, setDraft] = useState(f.value);
-  useEffect(() => setDraft(f.value), [f.value]);
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => { if (!failed) setDraft(f.value); }, [f.value]); // eslint-disable-line react-hooks/exhaustive-deps -- a failed save keeps the draft
   const dirty = draft !== f.value;
   return (
     <details className="border-border rounded-md border px-2">
@@ -227,9 +228,10 @@ function TagField({ field: f, onSave }: { field: Field; onSave: (patch: Partial<
       <div className="space-y-2 pb-2">
         <AutoTextarea value={draft} onChange={setDraft} className="font-mono text-sm" />
         {draft.length > 1500 && <p className="text-danger text-xs">Too long ({draft.length}/1500) — won&apos;t save.</p>}
+        {failed && <p role="alert" className="text-danger text-xs">Not saved — {failed}</p>}
         <div className="flex gap-2">
           <button type="button" disabled={draft === f.def} onClick={() => setDraft(f.def)} className={`${btn} flex-1`}>Reset to default</button>
-          <button type="button" disabled={!dirty || draft.length > 1500} onClick={() => onSave(f.patch(draft))} className={`${btn} bg-accent text-accent-fg flex-1 border-transparent font-semibold`}>Save</button>
+          <button type="button" disabled={!dirty || draft.length > 1500} onClick={async () => setFailed(await onSave(f.patch(draft)))} className={`${btn} bg-accent text-accent-fg flex-1 border-transparent font-semibold`}>Save</button>
         </div>
       </div>
     </details>
