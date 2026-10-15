@@ -50,3 +50,29 @@ test("size: default m; accepts s/m/l, rejects others", () => {
   for (const s of ["s", "m", "l"]) assert.equal(mergeMascotSettings(D, { size: s }).size, s);
   for (const s of ["xl", "", 2, null]) assert.equal(mergeMascotSettings({ ...D, size: "l" }, { size: s }).size, "l");
 });
+
+test("identity defaults: miyabi voice, name, sliders, no heat drift, root sprite dir, not empty", () => {
+  assert.match(D.voice, /Hoshimi Miyabi/);
+  assert.equal(D.selfName, "Miyabi");
+  assert.deepEqual(D.sliders, { brat: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } });
+  assert.equal(D.heatDrift, false);
+  assert.equal(D.spriteDir, "");
+  assert.equal(D.empty, false);
+});
+
+test("identity fields validate: per-slider, caps, sprite dir whitelist", () => {
+  const m = mergeMascotSettings(D, { voice: "meek", selfName: "Kit", heatDrift: true, empty: true, spriteDir: "slimes/3",
+    sliders: { brat: { value: 2, cap: 4, live: 3 }, heat: { value: 5, cap: 4 }, bimbo: "x" } });
+  assert.equal(m.voice, "meek");
+  assert.equal(m.selfName, "Kit");
+  assert.equal(m.heatDrift, true);
+  assert.equal(m.empty, true);
+  assert.equal(m.spriteDir, "slimes/3");
+  assert.deepEqual(m.sliders.brat, { value: 2, cap: 4, live: 3 });
+  assert.deepEqual(m.sliders.heat, D.sliders.heat, "cap < value rejected");
+  assert.deepEqual(m.sliders.bimbo, D.sliders.bimbo);
+  const bad = mergeMascotSettings(D, { voice: "v".repeat(1501), selfName: "n".repeat(41), heatDrift: "yes", sliders: { brat: { value: 11, cap: 11 } } });
+  assert.deepEqual(bad, D);
+  for (const d of ["../x", "a/../b", "/abs", "a\\b", 3]) assert.equal(mergeMascotSettings(D, { spriteDir: d }).spriteDir, "", String(d));
+  assert.deepEqual(mergeMascotSettings(D, { sliders: { brat: { value: 1, cap: 2, live: 3 } } }).sliders.brat, { value: 1, cap: 2 }, "live above cap dropped");
+});

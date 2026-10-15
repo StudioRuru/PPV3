@@ -1,7 +1,8 @@
 // Quip orchestration with injected deps (db/llm wiring lives in quip.ts) so it can be unit-tested.
-import type { Modifiers } from "../persona";
 import { cannedLine, parseQuip, type Expression, type MascotEvent } from "./core";
+import type { Identity } from "./identity";
 import { quipPrompt } from "./prompt";
+import { emptyLines } from "./slime";
 import { factsPrompt, parseFacts, type MascotStore } from "./store";
 
 export type QuipDeps = {
@@ -9,7 +10,9 @@ export type QuipDeps = {
   heavyInUse: () => boolean;
   model: () => string;
   installed: () => Promise<string[]>;
-  context: () => { mods: Modifiers; drift: number; taste: string; story: string };
+  context: () => { identity: Identity; taste: string; story: string };
+  /** Owner ignored her: nudge the active slime's sliders (no-op when Empty). */
+  drift: (event: "idle") => void;
   store: Pick<MascotStore, "log" | "recent" | "facts" | "needsRefresh" | "setFacts" | "markRefreshed">;
   /** One full reply; no timeout (the runner adds it). */
   ask: (system: string, user: string, model: string, options: Record<string, unknown>) => Promise<string>;
@@ -17,7 +20,7 @@ export type QuipDeps = {
 };
 export type QuipResult = { expression: Expression; text: string; source: "model" | "canned" };
 
-const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap"];
+const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap", "slime_out", "slime_in"];
 const CTX = 4096; // quick tier: small context so E4B stays light next to the brain
 
 export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
@@ -45,7 +48,7 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
       ...c, promptSummary, facts: d.store.facts().map((f) => f.text), recent: d.store.recent(5).reverse().map((r) => r.line),
     });
     inFlight = true;
-    const run = d.ask(system, user, model, { num_ctx: CTX, num_predict: 120, temperature: 0.9 }).finally(() => { inFlight = false; });
+    const run = d.ask(system, user, model, { num_ctx: CTX, num_predict: c.identity.lengthShape.quipPredict, temperature: 0.9 }).finally(() => { inFlight = false; });
     run.catch(() => {});
     let t: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), d.timeoutMs ?? 8000); });
@@ -53,6 +56,14 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
       const q = parseQuip(await Promise.race([run, timeout]));
       return q && { ...q, source: "model" };
     } finally { clearTimeout(t); }
+  }
+
+  function canned(kind: MascotEvent["kind"]): { expression: Expression; text: string } {
+    let empty = false;
+    try { empty = d.context().identity.empty; } catch { /* settings unreadable: her usual lines */ }
+    if (!empty) return cannedLine(kind);
+    const pool = kind === "slime_out" || kind === "slime_in" ? emptyLines[kind] : ["...", "Okay.", "Understood."];
+    return { expression: "sleepy", text: pool[Math.floor(Math.random() * pool.length)] };
   }
 
   /** Never throws: any failure (offline, timeout, busy, DB) falls back to a canned line. */
@@ -64,7 +75,8 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     const mode = b.context?.nsfw === true ? "(NSFW mode)" : b.context?.nsfw === false ? "(SFW mode)" : "";
     let out: QuipResult | null = null;
     try { out = await modelLine({ kind, at: Date.now(), data }, [mode, ps].filter(Boolean).join(" ")); } catch { /* canned below */ }
-    out ??= { ...cannedLine(kind), source: "canned" };
+    out ??= { ...canned(kind), source: "canned" };
+    try { if (kind === "idle") d.drift("idle"); } catch { /* drift is best-effort */ }
     try {
       d.store.log(kind, data ? JSON.stringify(data).slice(0, 200) : "", out.text);
       if (!d.heavyInUse() && d.store.needsRefresh()) void refreshFacts(d.model()).catch(() => {});

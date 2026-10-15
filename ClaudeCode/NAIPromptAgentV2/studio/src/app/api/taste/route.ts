@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentProfile, getDrift, pin, pinned, recordEvent, resetLearning, setDrift, unpin } from "@/lib/learning";
+import { liveIdentity } from "@/lib/mascot/quip";
 import { PERSONAS, type PersonaId } from "@/lib/persona";
 
 export const runtime = "nodejs";
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest) {
   const e = b.event as { kind?: string; tags?: unknown; note?: unknown; persona?: unknown } | undefined;
   if (e && ["apply", "like", "dislike"].includes(e.kind ?? "")) {
     recordEvent(e.kind as "apply", Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === "string") : [], typeof e.note === "string" ? e.note : "", isPersona(e.persona) ? e.persona : "neutral");
+    if (e.kind === "dislike" && e.persona === "miyabi") liveIdentity.drift("dislike"); // brat (+heat if allowed) creeps up; no-op when Empty
   } else if (typeof b.pin === "string" && b.pin.trim()) pin(b.pin);
   else if (typeof b.unpin === "number") unpin(b.unpin);
   else if (b.drift && isPersona((b.drift as { persona?: unknown }).persona)) setDrift((b.drift as { persona: PersonaId }).persona, Number((b.drift as { value?: unknown }).value) || 0);

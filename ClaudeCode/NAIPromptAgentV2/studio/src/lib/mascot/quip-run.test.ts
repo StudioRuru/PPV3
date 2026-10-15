@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeQuip, type QuipDeps } from "./quip-run";
+import { identityOf } from "./identity";
+import { DEFAULT_MASCOT_SETTINGS as D } from "./settings";
+import { emptyLines } from "./slime";
 
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -11,7 +14,8 @@ const deps = (over: Partial<QuipDeps> = {}) => {
     heavyInUse: () => false,
     model: () => "quick",
     installed: async () => ["quick"],
-    context: () => ({ mods: {}, drift: 0, taste: "", story: "" }),
+    context: () => ({ identity: identityOf(D, 0), taste: "", story: "" }),
+    drift: () => {},
     store: { log: (_k, _s, l) => { logged.push(l); }, recent: () => [], facts: () => [], needsRefresh: () => false, setFacts: () => {}, markRefreshed: () => {} },
     ask: async (_s, _u, model, options) => { asks.push({ model, options }); return "[wink] hi there"; },
     timeoutMs: 20,
@@ -107,4 +111,34 @@ test("refresh skipped while a model quip is in flight; quips go canned while a r
   assert.equal((await q2({ event: { kind: "tap" } })).source, "canned");
   assert.equal(n, 2);
   rel2("- f");
+});
+
+test("length band sets the quip num_predict", async () => {
+  for (const [value, n] of [[2, 60], [4, 120], [9, 220]] as const) {
+    const { d, asks } = deps({ context: () => ({ identity: identityOf({ ...D, sliders: { ...D.sliders, length: { value, cap: 10 } } }, 0), taste: "", story: "" }) });
+    await makeQuip(d)({ event: { kind: "tap" } });
+    assert.equal(asks[0].options.num_predict, n, String(value));
+  }
+});
+
+test("idle events drift the sliders (model or canned); other kinds don't", async () => {
+  const drifts: string[] = [];
+  const { d } = deps({ drift: (e) => { drifts.push(e); } });
+  const quip = makeQuip(d);
+  await quip({ event: { kind: "tap" } });
+  await quip({ event: { kind: "idle", data: { minutes: 10 } } });
+  d.heavyInUse = () => true;
+  await quip({ event: { kind: "idle" } });
+  assert.deepEqual(drifts, ["idle", "idle"]);
+  d.drift = () => { throw new Error("SQLITE_BUSY"); };
+  assert.ok((await quip({ event: { kind: "idle" } })).text, "a drift failure never costs the line");
+});
+
+test("slime_out / slime_in are accepted kinds; Empty canned lines are flat", async () => {
+  const { d } = deps({ heavyInUse: () => true, context: () => ({ identity: identityOf({ ...D, empty: true }, 0), taste: "", story: "" }) });
+  const quip = makeQuip(d);
+  const out = await quip({ event: { kind: "slime_in" } });
+  assert.ok(emptyLines.slime_in.includes(out.text), out.text);
+  assert.ok(emptyLines.slime_out.includes((await quip({ event: { kind: "slime_out" } })).text));
+  assert.ok(["...", "Okay.", "Understood."].includes((await quip({ event: { kind: "tap" } })).text));
 });

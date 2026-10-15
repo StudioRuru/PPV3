@@ -6,9 +6,15 @@ import { DATA_DIR, TAGGER_URL } from "../env";
 import { DEFAULT_PARAMS, type NaiParams } from "../nai-body";
 import type { Compiled } from "../prompt";
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
-import type { MascotSettings } from "./settings";
+import { isSafeSpriteDir, type MascotSettings } from "./settings";
 
 export const MASCOT_DIR = path.join(DATA_DIR, "mascot");
+
+/** A look's sprite folder under data/mascot ("" = data/mascot itself); null if it would escape. */
+export function spriteDirFor(dir: string): string | null {
+  const out = path.resolve(MASCOT_DIR, dir);
+  return isSafeSpriteDir(dir) && (out === MASCOT_DIR || out.startsWith(MASCOT_DIR + path.sep)) ? out : null;
+}
 export const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 export type ArtKind = "bust" | "full";
 export const MAX_CANDIDATES = 4;

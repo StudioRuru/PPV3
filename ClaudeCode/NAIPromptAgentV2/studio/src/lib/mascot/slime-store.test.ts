@@ -117,3 +117,23 @@ test("a throwing live.write during insert rolls back active id and jars", () => 
   assert.equal(s.activeId(), miyabi);
   assert.deepEqual(s.list(), before);
 });
+
+test("extract refuses while Empty", () => {
+  const { s } = mk();
+  s.ensureFirstRun();
+  s.remove();
+  assert.throws(() => s.extract("x", "#000000"), /Nothing to extract — insert a slime first/);
+});
+
+test("a dangling active pointer is treated as Empty and cleared", () => {
+  const { s, db, live } = mk();
+  const id = s.ensureFirstRun()!;
+  db.prepare("DELETE FROM mascot_slimes WHERE id = ?").run(id);
+  assert.equal(s.activeId(), null);
+  assert.equal(live.writes.at(-1), null, "live goes Empty too");
+  assert.equal((db.prepare("SELECT value FROM mascot_meta WHERE key = 'active_slime'").get() as { value: string }).value, "");
+  assert.equal(s.remove(), null);
+  const other = s.create({ ...blankSlime(), name: "Other" });
+  s.insert(other);
+  assert.equal(s.activeId(), other);
+});

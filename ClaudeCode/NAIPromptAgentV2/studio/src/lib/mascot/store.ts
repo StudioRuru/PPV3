@@ -1,9 +1,10 @@
 import type Database from "better-sqlite3";
+import type { JournalEntry, Memories } from "./slime";
 
 export type JournalRow = { id: number; created_at: number; kind: string; summary: string; line: string };
 export type Fact = { id: number; text: string; created_at: number };
 
-const KEEP = 300, MAX_FACTS = 12, FACT_LEN = 160, REFRESH_ROWS = 25, REFRESH_MS = 24 * 3600_000;
+const SNAPSHOT = 50, KEEP = 300, MAX_FACTS = 12, FACT_LEN = 160, REFRESH_ROWS = 25, REFRESH_MS = 24 * 3600_000;
 
 /** Mascot journal, facts and meta tables. Idempotent. */
 export function migrateMascot(db: Database.Database): void {
@@ -36,6 +37,25 @@ export class MascotStore {
     this.db.transaction(() => {
       this.db.prepare("DELETE FROM mascot_facts").run();
       for (const t of clean) ins.run(t, this.now());
+    })();
+  }
+
+  /** Slime snapshot: facts (≤12) and journal (≤50), newest first. */
+  memories(): Memories {
+    return {
+      facts: (this.db.prepare("SELECT text FROM mascot_facts ORDER BY id DESC LIMIT ?").all(MAX_FACTS) as { text: string }[]).map((r) => r.text),
+      journal: this.db.prepare("SELECT kind, summary, line, created_at FROM mascot_journal ORDER BY id DESC LIMIT ?").all(SNAPSHOT) as JournalEntry[],
+    };
+  }
+
+  /** Replace facts and journal with a snapshot (newest first); the restored rows don't count toward a facts refresh. */
+  setMemories(m: Memories): void {
+    const ins = this.db.prepare("INSERT INTO mascot_journal (created_at, kind, summary, line) VALUES (?, ?, ?, ?)");
+    this.db.transaction(() => {
+      this.setFacts(m.facts.slice(0, MAX_FACTS).reverse());
+      this.db.prepare("DELETE FROM mascot_journal").run();
+      for (const j of m.journal.slice(0, SNAPSHOT).reverse()) ins.run(j.created_at, j.kind, j.summary, j.line);
+      this.markRefreshed();
     })();
   }
 

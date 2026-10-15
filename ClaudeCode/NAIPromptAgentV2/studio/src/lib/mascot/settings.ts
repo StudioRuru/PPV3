@@ -1,11 +1,19 @@
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
-import type { Modifiers } from "../persona";
+import { PERSONAS, type Modifiers } from "../persona";
+import type { Sliders } from "./slime"; // type only: slime.ts imports this module's defaults
 
 export type MascotSettings = {
   show: boolean; cooldownMs: number; nightFrom: number; nightTo: number; pin: Outfit | null; mods: Modifiers;
   charTags: string; constantTags: string; layerTags: Record<Outfit, string>; exprTags: Record<Expression, string>;
   corner: "br" | "bl" | "tr" | "tl"; size: "s" | "m" | "l";
+  /** Live identity (the active slime): voice, name, sliders, sprite dir under data/mascot; empty = no slime inserted. */
+  voice: string; selfName: string; sliders: Sliders; heatDrift: boolean; spriteDir: string; empty: boolean;
 };
+
+export const MASCOT_SETTINGS_KEY = "mascot:settings";
+/** Relative, no "..", no leading "/", no backslash. */
+export const isSafeSpriteDir = (d: string) => !d.split("/").includes("..") && !d.startsWith("/") && !d.includes("\\");
+const SLIDER_IDS = ["brat", "bimbo", "hypnosis", "heat", "length"] as const;
 
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 const CORNERS = ["br", "bl", "tr", "tl"];
@@ -33,16 +41,19 @@ export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
     excited: "excited, open smile, sparkling eyes, fang",
     sleepy: "sleepy, half-closed eyes, yawning, tears",
   },
+  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false,
+  sliders: { brat: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } },
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const tags = (v: unknown): v is string => typeof v === "string" && v.length <= MAX_TAGS;
+const int = (v: unknown, hi: number): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= hi;
 const hour = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 23;
 
 /** Apply valid fields of an untrusted patch onto cur; invalid fields are ignored. */
 export function mergeMascotSettings(cur: MascotSettings, patch: unknown): MascotSettings {
   if (!isObj(patch)) return cur;
-  const out: MascotSettings = { ...cur, mods: { ...cur.mods }, layerTags: { ...cur.layerTags }, exprTags: { ...cur.exprTags } };
+  const out: MascotSettings = { ...cur, mods: { ...cur.mods }, layerTags: { ...cur.layerTags }, exprTags: { ...cur.exprTags }, sliders: { ...cur.sliders } };
   if (typeof patch.show === "boolean") out.show = patch.show;
   if (patch.cooldownMs === null) out.cooldownMs = Infinity; // JSON has no Infinity: null = only when tapped
   else if (typeof patch.cooldownMs === "number" && patch.cooldownMs >= 30000 && patch.cooldownMs <= 600000) out.cooldownMs = patch.cooldownMs;
@@ -56,6 +67,15 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
   if (isObj(patch.mods)) for (const k of MODS) if (typeof patch.mods[k] === "boolean") out.mods[k] = patch.mods[k];
   if (isObj(patch.layerTags)) for (const k of OUTFITS) if (tags(patch.layerTags[k])) out.layerTags[k] = patch.layerTags[k];
   if (isObj(patch.exprTags)) for (const k of EXPRESSIONS) if (tags(patch.exprTags[k])) out.exprTags[k] = patch.exprTags[k];
+  if (typeof patch.voice === "string" && patch.voice.length <= 1500) out.voice = patch.voice;
+  if (typeof patch.selfName === "string" && patch.selfName.length <= 40) out.selfName = patch.selfName;
+  if (typeof patch.heatDrift === "boolean") out.heatDrift = patch.heatDrift;
+  if (typeof patch.empty === "boolean") out.empty = patch.empty;
+  if (typeof patch.spriteDir === "string" && patch.spriteDir.length <= 200 && isSafeSpriteDir(patch.spriteDir)) out.spriteDir = patch.spriteDir;
+  if (isObj(patch.sliders)) for (const k of SLIDER_IDS) {
+    const x = patch.sliders[k];
+    if (isObj(x) && int(x.value, 10) && int(x.cap, 10) && x.cap >= x.value) out.sliders[k] = int(x.live, x.cap) ? { value: x.value, cap: x.cap, live: x.live } : { value: x.value, cap: x.cap };
+  }
   return out;
 }
 

@@ -138,3 +138,13 @@ test("fix round 1: extra validation and clamps", () => {
   assert.deepEqual(mixSliders(a, z, 0), mixSliders(a, z, 10));
   assert.deepEqual(mixSliders(a, z, 100), mixSliders(a, z, 90));
 });
+
+test("memories are newest-first: validateSlime caps keep the first (newest) items", () => {
+  const b = blankSlime();
+  const facts = Array.from({ length: 20 }, (_, i) => `f${19 - i}`); // f19 newest … f0 oldest
+  const journal = Array.from({ length: 70 }, (_, i) => ({ kind: "tap", summary: "", line: "", created_at: 69 - i }));
+  const v = validateSlime({ ...b, memories: { facts, journal } })!;
+  assert.deepEqual(v.memories.facts, facts.slice(0, 12));
+  assert.equal(v.memories.journal[0].created_at, 69);
+  assert.equal(v.memories.journal.at(-1)!.created_at, 20);
+});

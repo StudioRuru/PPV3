@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { compose } from "../nai-body";
 import { DEFAULT_MASCOT_SETTINGS as S } from "./settings";
-import { BUST, BUST_UC, candidatePath, listSprites, newSeed, perImage, pick, saveCandidates, spritePath, spriteRequest, target } from "./sprites";
+import { BUST, BUST_UC, MASCOT_DIR, spriteDirFor, candidatePath, listSprites, newSeed, perImage, pick, saveCandidates, spritePath, spriteRequest, target } from "./sprites";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "mascot-"));
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1]);
@@ -133,4 +133,10 @@ test("saveCandidates replaces the old batch; listSprites reports sprites (mtime)
   assert.equal(typeof l.sprites["day/smug"], "number");
   assert.deepEqual(l.sheets, { day: false, night: false, lewd: true });
   assert.deepEqual(listSprites(path.join(d, "missing")), { sprites: {}, sheets: { day: false, night: false, lewd: false } });
+});
+
+test("spriteDirFor: look.spriteDir under data/mascot (\"\" = root); traversal rejected", () => {
+  assert.equal(spriteDirFor(""), MASCOT_DIR);
+  assert.equal(spriteDirFor("slimes/3"), path.join(MASCOT_DIR, "slimes", "3"));
+  for (const d of ["..", "../x", "a/../../b", "/etc", "a\\b", "slimes/./../.."]) assert.equal(spriteDirFor(d), null, d);
 });

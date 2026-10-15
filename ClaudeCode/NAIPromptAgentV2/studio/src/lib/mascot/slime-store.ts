@@ -34,9 +34,14 @@ export class SlimeStore {
     const r = this.db.prepare("SELECT doc FROM mascot_slimes WHERE id = ?").get(id) as { doc: string } | undefined;
     return r ? JSON.parse(r.doc) : null;
   }
+  /** Active jar id, or null when Empty. A pointer to a missing jar is cleared (and the live identity goes Empty). */
   activeId(): number | null {
     const r = this.db.prepare("SELECT value FROM mascot_meta WHERE key = ?").get(ACTIVE) as { value: string } | undefined;
-    return r && r.value !== "" ? Number(r.value) : null;
+    if (!r || r.value === "") return null;
+    const id = Number(r.value);
+    if (this.get(id)) return id;
+    this.db.transaction(() => { this.setActive(null); this.live.write(null); })();
+    return null;
   }
   private setActive(id: number | null): void {
     this.db.prepare("INSERT OR REPLACE INTO mascot_meta (key, value) VALUES (?, ?)").run(ACTIVE, id === null ? "" : String(id));
@@ -68,10 +73,11 @@ export class SlimeStore {
     })();
   }
 
-  /** Save the live identity (incl. live slider drift) as a new jar; the active jar stays active. */
+  /** Save the live identity (incl. live slider drift) as a new jar; the active jar stays active. Refused while Empty. */
   extract(name: string, color: string): number {
-    const base = this.activeId() !== null ? this.get(this.activeId()!) : null;
-    return this.create({ ...(base ?? { vials: [], origin: "miyabi" }), ...this.live.read(), name, color } as SlimeDoc);
+    const id = this.activeId();
+    if (id === null) throw new Error("Nothing to extract — insert a slime first");
+    return this.create({ ...this.get(id)!, ...this.live.read(), name, color });
   }
 
   /** Copy live state back into the active jar (memories, drift…). */

@@ -14,7 +14,8 @@ export async function GET() {
 /** { settings?: patch, facts?: string[] (replace all), deleteFact?: id, clearFacts?: true } */
 export async function POST(req: NextRequest) {
   const b = ((await req.json().catch(() => null)) ?? {}) as { settings?: unknown; facts?: unknown; deleteFact?: unknown; clearFacts?: unknown };
-  if (b.settings !== undefined) saveMascotSettings(b.settings);
+  // Empty is owned by the slime shelf (insert/remove), never set directly.
+  if (b.settings !== undefined) saveMascotSettings(b.settings && typeof b.settings === "object" ? { ...b.settings, empty: undefined } : b.settings);
   if (Array.isArray(b.facts)) mascotStore.setFacts(b.facts.filter((f): f is string => typeof f === "string"));
   if (Number.isInteger(b.deleteFact)) mascotStore.deleteFact(b.deleteFact as number);
   if (b.clearFacts === true) mascotStore.clearFacts();

@@ -1,5 +1,5 @@
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
-import { DEFAULT_MASCOT_SETTINGS } from "./settings";
+import { DEFAULT_MASCOT_SETTINGS, isSafeSpriteDir } from "./settings";
 import type { Modifiers } from "../persona";
 import { BIMBO_TIERS, HYPNOSIS_TIERS } from "../rp/mods";
 
@@ -138,7 +138,7 @@ export function validateSlime(raw: unknown): SlimeDoc | null {
     exprTags: Object.fromEntries(EXPRESSIONS.map((e) => [e, str(et[e], MAX.tags)])) as Record<Expression, string>,
     spriteDir: str(lk.spriteDir, MAX.dir),
   };
-  if (look.spriteDir.split("/").includes("..") || look.spriteDir.startsWith("/") || look.spriteDir.includes("\\")) return null;
+  if (!isSafeSpriteDir(look.spriteDir)) return null;
   const mem = isObj(raw.memories) ? raw.memories : {};
   const facts = (Array.isArray(mem.facts) ? mem.facts : []).filter((f): f is string => typeof f === "string").slice(0, MAX.facts).map((f) => f.slice(0, MAX.fact));
   const journal = (Array.isArray(mem.journal) ? mem.journal : []).filter(isObj).slice(0, MAX.journal).map((j) => ({

@@ -20,9 +20,9 @@ const MOD_TEXT: Record<keyof Modifiers, string> = {
   flirt: "Flirt with the user in a playful, affectionate way; enjoy their attention.",
 };
 
-/** Persona voice + attitude modifiers + how bold to be (drift 0–100). Empty for plain neutral. */
-export function personaBlock(id: PersonaId, mods: Modifiers, drift: number): string {
-  const p = PERSONAS.find((x) => x.id === id) ?? PERSONAS[0];
+/** Persona voice + attitude modifiers + how bold to be (drift 0–100). Empty for plain neutral. `as` overrides name + voice (Miyabi's active slime). */
+export function personaBlock(id: PersonaId, mods: Modifiers, drift: number, as?: { name: string; voice: string }): string {
+  const p = { ...(PERSONAS.find((x) => x.id === id) ?? PERSONAS[0]), ...as };
   const on = (Object.keys(MOD_TEXT) as (keyof Modifiers)[]).filter((k) => mods[k]);
   const d = Math.min(100, Math.max(0, Math.round(drift)));
   if (p.id === "neutral" && !on.length && !d) return "";

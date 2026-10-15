@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
-import { getMascotSettings } from "@/lib/mascot/settings-db";
-import { MASCOT_DIR, MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, spriteRequest, target } from "@/lib/mascot/sprites";
+import { activeSpriteDir, getMascotSettings } from "@/lib/mascot/settings-db";
+import { MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, spriteRequest, target } from "@/lib/mascot/sprites";
 import type { Outfit } from "@/lib/mascot/core";
 import { anlas, generateImage, measured, NovelAIError } from "@/lib/novelai";
 
@@ -16,13 +16,14 @@ const balance = () => anlas(NOVELAI_TOKEN, 5000).catch(() => null);
 
 /** Mascot studio: sheet upload (multipart), estimate, generate (confirm: true), pick. */
 export async function POST(req: NextRequest) {
+  const dir = activeSpriteDir(); // the active look's folder, fixed for this request
   if (req.headers.get("content-type")?.startsWith("multipart/form-data")) {
     const fd = await req.formData().catch(() => null);
     const outfit = fd?.get("outfit");
     const file = fd?.get("file");
     if (fd?.get("action") !== "sheet" || !OUTFITS.includes(outfit as Outfit)) return bad("Expected action=sheet and an outfit.");
     if (!(file instanceof Blob) || !file.size || file.size > MAX_SHEET || !file.type.startsWith("image/")) return bad("Upload an image up to 20 MB.");
-    const out = sheetPath(MASCOT_DIR, outfit as Outfit);
+    const out = sheetPath(dir, outfit as Outfit);
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, Buffer.from(await file.arrayBuffer()));
     return NextResponse.json({ ok: true });
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
         }
         return out;
       });
-      saveCandidates(MASCOT_DIR, t.outfit, t.name, pngs, seeds); // only after the whole batch, so a failure replaces nothing
+      saveCandidates(dir, t.outfit, t.name, pngs, seeds); // only after the whole batch, so a failure replaces nothing
       return NextResponse.json({ count: pngs.length, before, after: await balance(), cost });
     } catch (err) {
       const status = err instanceof NovelAIError ? err.status : 500;
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
   }
   if (b.action === "pick") {
-    const r = await pick(MASCOT_DIR, t.outfit, t.name, Number(b.i));
+    const r = await pick(dir, t.outfit, t.name, Number(b.i));
     return "error" in r ? bad(r.error, 404) : NextResponse.json(r);
   }
   return bad("Unknown action.");
