@@ -143,6 +143,10 @@ button:active:not(:disabled):not(.sheet-backdrop) { scale: 0.97; transition-dura
 @keyframes draw { from { stroke-dashoffset: 20; } }
 .check-draw { stroke-dasharray: 20; animation: draw 360ms var(--ease-out) 80ms backwards; }
 
+/* Mascot: a gentle idle bob. */
+@keyframes bob { 50% { translate: 0 -3px; } }
+.mascot-bob { animation: bob 2.8s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   :root { --dur-sheet: 1ms; --dur-exit: 1ms; --dur-state: 1ms; --dur-press: 1ms; --dur-develop: 1ms; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }

@@ -1,0 +1,189 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { emitMascot } from "@/lib/mascot/bus";
+import { outfitFor, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
+import { nearestCorner, type Corner } from "@/lib/mascot/ui";
+import { requestJson } from "@/lib/net";
+
+type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; mods: { flirt: boolean }; corner: Corner };
+type Say = { expression: Expression; text: string };
+
+const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500;
+// Bottom corners clear the tab bar plus the Generate bar / composers that sit on it.
+const BOTTOM = "calc(env(safe-area-inset-bottom) + 8.5rem)", TOP = "calc(env(safe-area-inset-top) + 4rem)";
+const FIELD = "textarea, [contenteditable]:not([contenteditable=false]), input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file],[type=color])";
+const isTyping = () => !!(document.activeElement as HTMLElement | null)?.matches?.(FIELD);
+const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+/** Miyabi: floats above the tab bar on every tab, quips about `mascot` bus events. */
+export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { rating: string; prompt: string; onTap?: () => void }) {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [sprites, setSprites] = useState<Record<string, number>>({});
+  const [say, setSay] = useState<Say | null>(null);
+  const [hushUntil, setHushUntil] = useState(0);
+  const [typing, setTyping] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
+  const live = useRef({ inFlight: false, lastSpokeAt: 0 });
+  const press = useRef<{ x: number; y: number; t: number; moved: boolean; long: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
+  const self = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings));
+    requestJson<{ sprites: Record<string, number> }>("/api/mascot/sprites").then((r) => r.ok && setSprites(r.data.sprites));
+  }, []);
+
+  // Latest values for the window listener without re-subscribing every render.
+  const handle = useRef<(e: MascotEvent) => void>(() => {});
+  handle.current = async (e) => {
+    if (!settings?.show) return;
+    const L = live.current;
+    if (!shouldSpeak(e, { now: Date.now(), hushUntil, typing: isTyping(), lastSpokeAt: L.lastSpokeAt, cooldownMs: settings.cooldownMs ?? Infinity, inFlight: L.inFlight })) return;
+    L.inFlight = true;
+    const r = await requestJson<Say>("/api/mascot/quip", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: e, context: { promptSummary: prompt, nsfw: rating === "nsfw" } }) });
+    L.inFlight = false;
+    if (!r.ok || !r.data.text) return; // never show errors in the bubble
+    L.lastSpokeAt = Date.now();
+    setSay({ expression: r.data.expression, text: r.data.text });
+  };
+  useEffect(() => {
+    const on = (e: Event) => handle.current((e as CustomEvent<MascotEvent>).detail);
+    window.addEventListener("mascot", on);
+    return () => window.removeEventListener("mascot", on);
+  }, []);
+
+  // Greet once per app open, as soon as settings are in.
+  const greeted = useRef(false);
+  useEffect(() => {
+    if (!settings || greeted.current) return;
+    greeted.current = true;
+    let sinceLast: number | null = null;
+    try {
+      const last = Number(localStorage.getItem("mascot.seen"));
+      if (last) sinceLast = Math.round((Date.now() - last) / 60_000);
+      localStorage.setItem("mascot.seen", String(Date.now()));
+    } catch {}
+    emitMascot("greet", { hour: new Date().getHours(), sinceLast });
+  }, [settings]);
+
+  // Idle: one nudge per 10-minute stretch without input.
+  useEffect(() => {
+    let last = Date.now(), fired = false;
+    const input = () => { last = Date.now(); fired = false; };
+    const tick = setInterval(() => {
+      if (fired || Date.now() - last < IDLE_MS) return;
+      fired = true;
+      emitMascot("idle", { minutes: Math.round((Date.now() - last) / 60_000) });
+    }, 60_000);
+    window.addEventListener("pointerdown", input);
+    window.addEventListener("keydown", input);
+    return () => { clearInterval(tick); window.removeEventListener("pointerdown", input); window.removeEventListener("keydown", input); };
+  }, []);
+
+  // Text field focused = typing: she moves out of the way and stays quiet.
+  useEffect(() => {
+    const check = () => setTimeout(() => setTyping(isTyping()), 0);
+    document.addEventListener("focusin", check);
+    document.addEventListener("focusout", check);
+    return () => { document.removeEventListener("focusin", check); document.removeEventListener("focusout", check); };
+  }, []);
+
+  useEffect(() => {
+    if (!say) return;
+    const t = setTimeout(() => setSay(null), readMs(say.text));
+    return () => clearTimeout(t);
+  }, [say]);
+  const hushed = hushUntil > Date.now();
+  useEffect(() => {
+    if (!hushed) return;
+    const t = setTimeout(() => setHushUntil(0), hushUntil - Date.now());
+    return () => clearTimeout(t);
+  }, [hushed, hushUntil]);
+
+  if (!settings?.show) return null;
+
+  const corner = settings.corner, bottom = corner[0] === "b", right = corner[1] === "r";
+  const outfit = outfitFor({ hour: new Date().getHours(), nightFrom: settings.nightFrom, nightTo: settings.nightTo, pin: settings.pin, nsfw: rating === "nsfw", flirt: settings.mods.flirt, flirtyTalk: false });
+  const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));
+
+  function hush() { setHushUntil(Date.now() + HUSH_MS); setSay(null); setMenu(false); }
+  async function save(patch: Partial<Settings>) {
+    setSettings({ ...settings!, ...patch });
+    const r = await post({ settings: patch });
+    if (r.ok) setSettings(r.data.settings);
+  }
+
+  function down(e: React.PointerEvent) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const p = { x: e.clientX, y: e.clientY, t: e.timeStamp, moved: false, long: false } as NonNullable<typeof press.current>;
+    p.timer = setTimeout(() => { p.long = true; setMenu(true); setSay(null); }, LONG_MS);
+    press.current = p;
+  }
+  function move(e: React.PointerEvent) {
+    const p = press.current;
+    if (!p || p.long) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!p.moved && Math.hypot(dx, dy) < 8) return;
+    p.moved = true; clearTimeout(p.timer);
+    setDrag({ dx, dy });
+  }
+  function up(e: React.PointerEvent) {
+    const p = press.current; press.current = null;
+    if (!p) return;
+    clearTimeout(p.timer); setDrag(null);
+    if (p.long) return;
+    if (!p.moved) { setMenu(false); onTap(); return; }
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (dy > 50 && Math.abs(dx) < dy / 2 && e.timeStamp - p.t < 400) { hush(); return; } // quick flick down
+    const r = self.current!.getBoundingClientRect(); // still at the dragged spot (setDrag(null) hasn't rendered)
+    const next = nearestCorner(r.left + r.width / 2, r.top + r.height / 2, window.innerWidth, window.innerHeight);
+    if (next !== corner) save({ corner: next });
+  }
+
+  // While typing in a bottom corner she slides up to the top one, out of the keyboard/composer's way.
+  const lift = typing && bottom ? `translateY(calc(${TOP} + ${BOTTOM} + 100% - 100dvh))` : "";
+  const pop = `absolute ${bottom ? "bottom-full mb-1" : "top-full mt-1"} ${right ? "right-0" : "left-0"}`;
+
+  return (
+    <div ref={self} data-noswipe className={`fixed z-[35] select-none ${typing ? "pointer-events-none opacity-50" : ""} ${drag ? "" : "transition-transform duration-300"}`}
+      style={{ [bottom ? "bottom" : "top"]: bottom ? BOTTOM : TOP, [right ? "right" : "left"]: "0.75rem",
+        transform: drag ? `translate(${drag.dx}px, ${drag.dy}px)` : lift || undefined }}>
+      <div aria-live="polite" className={pop}>
+        {say && !menu && (
+          <button type="button" onClick={() => setSay(null)}
+            className="bg-surface border-border animate-rise block w-max max-w-[16rem] rounded-2xl border px-3 py-2 text-left text-sm shadow-lg">
+            {say.text}
+          </button>
+        )}
+      </div>
+      {menu && (
+        <>
+          <button type="button" aria-label="Close menu" className="fixed inset-0 -z-10 cursor-default" onClick={() => setMenu(false)} />
+          <div role="menu" aria-label="Miyabi" className={`${pop} bg-surface border-border w-44 rounded-xl border p-1 text-sm shadow-lg`}
+            onKeyDown={(e) => e.key === "Escape" && setMenu(false)}>
+            <button type="button" role="menuitem" autoFocus onClick={() => (hushed ? (setHushUntil(0), setMenu(false)) : hush())}
+              className="w-full rounded-lg px-3 py-2 text-left">{hushed ? "Wake up" : "Hush 30 min"}</button>
+            <p className="text-faint px-3 pt-2 pb-1 text-[11px] uppercase tracking-wide">Outfit</p>
+            {([null, "day", "night", "lewd"] as const).map((o) => (
+              <button key={o ?? "auto"} type="button" role="menuitemradio" aria-checked={settings.pin === o}
+                onClick={() => { save({ pin: o }); setMenu(false); }}
+                className={`w-full rounded-lg px-3 py-2 text-left capitalize ${settings.pin === o ? "text-accent font-semibold" : ""}`}>{o ?? "auto"}</button>
+            ))}
+          </div>
+        </>
+      )}
+      <div role="button" tabIndex={0} aria-label={`Miyabi${hushed ? " (hushed)" : ""} — tap to talk, hold for options, drag to move`}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { clearTimeout(press.current?.timer); press.current = null; setDrag(null); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(); } else if (e.key === "ContextMenu") setMenu(true); }}
+        onContextMenu={(e) => { e.preventDefault(); setMenu(true); setSay(null); }}
+        className="relative cursor-grab" style={{ touchAction: "none", WebkitTouchCallout: "none" }}>
+        {sprite
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={`/api/mascot/sprites/${sprite}?v=${sprites[sprite]}`} alt="" draggable={false} className="mascot-bob h-24 w-auto drop-shadow-lg lg:h-32" />
+          : <span className="mascot-bob bg-accent-soft text-accent-ink border-border flex size-16 items-center justify-center rounded-full border text-2xl font-semibold lg:size-20">M</span>}
+        {hushed && <span aria-hidden="true" className="text-muted absolute -top-1 font-mono text-xs" style={{ [right ? "left" : "right"]: 0 }}>zzz</span>}
+      </div>
+    </div>
+  );
+}

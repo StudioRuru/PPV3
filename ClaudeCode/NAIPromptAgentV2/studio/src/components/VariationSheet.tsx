@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { isFree } from "@/lib/grid";
+import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
 import type { Generation } from "./HistoryStrip";
 import { developed } from "./HistoryStrip";
@@ -137,9 +138,10 @@ export function UpscaleSheet({ source: open, onClose, onDone }: { source: Genera
     const after = await refresh();
     running.current = false;
     setBusy(false);
-    if (!r.ok) { setError(r.error); return; }
+    if (!r.ok) { setError(r.error); emitMascot("error", { where: "upscale", message: r.error }); return; }
     const fresh = await requestJson<{ items: Generation[] }>("/api/generations?limit=5");
     const size = fresh.ok ? fresh.data.items.find((g) => g.id === r.data.id)?.size : null;
+    emitMascot("upscaled", { factor: scale, mb: size ? +(size / 1_048_576).toFixed(2) : null });
     setResult({ id: r.data.id, spent: before !== null && after !== null ? before - after : null, size });
     onDone(r.data.id);
   }

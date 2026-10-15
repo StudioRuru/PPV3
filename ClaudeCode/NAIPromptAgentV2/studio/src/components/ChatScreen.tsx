@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMsg, Mode } from "@/lib/copilot-prompt";
 import { inline, mdBlocks } from "@/lib/md";
+import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
 import { PERSONAS, type Modifiers, type PersonaId } from "@/lib/persona";
@@ -222,6 +223,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   }
   async function applyOps(picked: Op[]) {
     onApply(picked);
+    emitMascot("applied", { ops: picked.map((o) => `${o.action} ${o.target}: ${o.line}`) });
     requestJson("/api/taste", { method: "POST", ...json({ event: { kind: "apply", tags: learnTags(picked), note: "", persona: thread?.persona ?? "neutral" } }) });
   }
 

@@ -16,6 +16,9 @@ import { loadDefaults, SettingsSheet } from "@/components/SettingsSheet";
 import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
 import { costLabel, developed, HistoryStrip, mb, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
+import { Mascot } from "@/components/mascot/Mascot";
+import { emitMascot } from "@/lib/mascot/bus";
+import { diffTags } from "@/lib/mascot/ui";
 import { ParamsBar } from "@/components/ParamsBar";
 import { AutoTextarea } from "@/components/TagInput";
 import { PosNegTabs, tagCount, type Side } from "@/components/PosNegTabs";
@@ -81,6 +84,7 @@ export default function Studio() {
     if (!b) { setError("That item has no prompt to use yet — fill it in and save first."); setTab("studio"); return; }
     setState((s) => (b.kind === "scene" ? loadScene(b, s.rating) : applyBlock(s, b, s.chars.length ? 0 : "base")));
     setNote(b.kind === "scene" ? `Loaded ${b.name}` : `Added ${b.name}`);
+    emitMascot("closet_use", { kind: b.kind, name: b.name });
     setTab("studio");
   }
 
@@ -153,13 +157,31 @@ export default function Studio() {
     if (loaded) saveDraft({ state, params });
   }, [loaded, state, params]);
 
+  // Mascot: base-prompt tags, and a prompt_edit 20 s after the last change.
+  const baseTags = state.base.filter((l) => l.enabled).flatMap((l) => splitTags(l.text));
+  const editedFrom = useRef<string[] | null>(null);
+  const generatedOnce = useRef(false);
+  useEffect(() => {
+    if (!loaded) return;
+    if (!editedFrom.current) { editedFrom.current = baseTags; return; }
+    const t = setTimeout(() => {
+      const d = diffTags(editedFrom.current!, baseTags);
+      editedFrom.current = baseTags;
+      if (d.added.length || d.removed.length) emitMascot("prompt_edit", d);
+    }, 20_000);
+    return () => clearTimeout(t);
+  }, [loaded, state]); // eslint-disable-line react-hooks/exhaustive-deps -- baseTags derives from state
+
   async function generate() {
     setBusy(true); setError(null);
     const r = await requestJson<{ id: number }>("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, params }) });
     setBusy(false);
-    if (!r.ok) { setError(r.error); return; }
+    if (!r.ok) { setError(r.error); emitMascot("error", { where: "generate", message: r.error }); return; }
     const items = await loadHistory();
-    setCurrent(items.find((g) => g.id === r.data.id) ?? null);
+    const g = items.find((x) => x.id === r.data.id) ?? null;
+    setCurrent(g);
+    emitMascot("generated", { tags: baseTags.slice(0, 30), cost: g?.cost ?? null, count: 1, first: !generatedOnce.current });
+    generatedOnce.current = true;
   }
 
   function reuse(g: Pick<Generation, "state" | "params">) {
@@ -309,6 +331,7 @@ export default function Studio() {
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <TabBar tab={tab} onTab={setTab} />
+      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}

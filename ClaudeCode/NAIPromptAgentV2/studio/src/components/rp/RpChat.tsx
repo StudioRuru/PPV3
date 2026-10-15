@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inline, mdBlocks } from "@/lib/md";
+import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
 import { substituteMacros } from "@/lib/rp/prompt";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
@@ -38,6 +39,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     if (r.ok) setV(r.data); else setError(r.error);
   }, [chatId]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { emitMascot("rp_chat", { character: character.name }); }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps -- once per opened chat
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [v?.messages.length, stream?.text]);
 
   const persona = personas.find((p) => p.id === v?.chat.personaId) ?? personas[0];
@@ -93,6 +95,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   async function sendFeedback(note: string) {
     if (!feedback) return;
     await requestJson("/api/rp/feedback", { method: "POST", ...json({ kind: feedback.kind, note }) });
+    emitMascot("rp_feedback", { kind: feedback.kind, note, character: character.name });
     setFeedback(null);
   }
 
