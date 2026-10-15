@@ -24,3 +24,9 @@ test("nextDrift: likes/applies push bolder, dislikes pull back, always 0–100",
   assert.equal(nextDrift(99, "like"), 100);
   assert.equal(nextDrift(2, "dislike"), 0);
 });
+
+test("miyabi voice: loud, bratty, name-calling, short and caps", () => {
+  const v = PERSONAS.find((p) => p.id === "miyabi")!.voice;
+  for (const k of ["Hoshimi Miyabi", "Section 6", "LOUD", "brat", "baka", "CAPS", "hmph", "never a doormat"]) assert.ok(v.includes(k), k);
+  assert.ok(v.split(/[.!?](?:\s|$)/).filter((s) => s.trim()).length <= 5);
+});
