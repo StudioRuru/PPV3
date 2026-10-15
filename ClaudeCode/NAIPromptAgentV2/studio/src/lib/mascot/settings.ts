@@ -13,6 +13,8 @@ export type MascotSettings = {
   vials: AppliedVial[];
   /** Settings → "Unlock the slime shelf". */
   shelf: boolean;
+  /** Stage: how often and how far she wanders into the way (0 = parked at an edge). */
+  mischief: number;
 };
 
 export const MASCOT_SETTINGS_KEY = "mascot:settings";
@@ -46,7 +48,7 @@ export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
     excited: "excited, open smile, sparkling eyes, fang",
     sleepy: "sleepy, half-closed eyes, yawning, tears",
   },
-  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false, vials: [],
+  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false, vials: [], mischief: 5,
   sliders: { brat: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } },
 };
 
@@ -85,6 +87,7 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
   if (typeof patch.heatDrift === "boolean") out.heatDrift = patch.heatDrift;
   if (typeof patch.empty === "boolean") out.empty = patch.empty;
   if (typeof patch.shelf === "boolean") out.shelf = patch.shelf;
+  if (int(patch.mischief, 10)) out.mischief = patch.mischief;
   if (typeof patch.spriteDir === "string" && patch.spriteDir.length <= 200 && isSafeSpriteDir(patch.spriteDir)) out.spriteDir = patch.spriteDir;
   if (Array.isArray(patch.vials) && patch.vials.length <= 8) {
     const vials = patch.vials.map(validateAppliedVial);

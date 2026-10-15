@@ -19,6 +19,7 @@ export function Sheet({ open, onClose, label, closeLabel, className, children }:
     const back = document.activeElement as HTMLElement | null;
     lockScroll();
     panel.current?.focus({ preventScroll: true });
+    window.dispatchEvent(new CustomEvent("mascot:stage", { detail: "sheet" })); // Miyabi peeks in
     return () => {
       unlockScroll();
       back?.focus?.({ preventScroll: true });

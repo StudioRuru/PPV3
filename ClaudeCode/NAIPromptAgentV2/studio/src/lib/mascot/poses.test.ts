@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pickPoseSprite, POSE_SPEC, POSES, poseKey } from "./poses";
+import { pickPoseSprite, POSE_SPEC, POSES, poseKey, stageSprite } from "./poses";
 import { DEFAULT_MASCOT_SETTINGS as S } from "./settings";
 import { listSprites, pick, poseCandidatePath, posePath, poseRequest, saveCandidates, target } from "./sprites";
 
@@ -71,4 +71,15 @@ test("pose candidates → pick saves sprite + .orig; listing includes pose sprit
   assert.ok(fs.existsSync(path.join(d, "pose", "sit", "day", "wink.orig.png")));
   assert.deepEqual(Object.keys(listSprites(d).sprites).sort(), ["pose/back/night", "pose/sit/day/wink"]);
   assert.ok("error" in (await pick(d, "day", "wink", 1, down, "sit")));
+});
+
+test("stageSprite: only sprites with the pose's aspect (same-shape poses fall back to stand)", () => {
+  const have = new Set(["pose/stand/day/smug", "pose/stand/day/pout", "pose/lie/day/laughing", "pose/back/day", "pose/peek/day/smug"]);
+  assert.equal(stageSprite(have, "peek", "day", "smug"), "pose/peek/day/smug");
+  assert.equal(stageSprite(have, "peek", "day", "pout"), "pose/peek/day/smug");
+  assert.equal(stageSprite(have, "apose", "day", "pout"), "pose/stand/day/pout", "same aspect: stand fallback ok");
+  assert.equal(stageSprite(have, "back", "day", "pout"), "pose/back/day");
+  assert.equal(stageSprite(have, "sit", "day", "smug"), null, "no sit sprite; stand is the wrong shape");
+  assert.equal(stageSprite(have, "lie", "day", "smug"), "pose/lie/day/laughing", "any expression of the pose beats the wrong shape");
+  assert.equal(stageSprite(have, "stand", "night", "smug"), null);
 });

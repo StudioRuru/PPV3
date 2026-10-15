@@ -15,7 +15,7 @@ const ITEMS: Item[] = [
 /** Bottom tabs. */
 export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   return (
-    <nav aria-label="Sections" className="bg-bg/95 border-border fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur"
+    <nav aria-label="Sections" data-island className="bg-bg/95 border-border fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="mx-auto grid h-14 max-w-6xl grid-cols-5">
         {ITEMS.map((it) => {

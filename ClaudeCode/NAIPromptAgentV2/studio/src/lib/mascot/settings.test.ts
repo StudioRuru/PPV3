@@ -110,3 +110,10 @@ test("vials: default [], validated as applied vials (≤8), client patches can't
   assert.deepEqual(mergeMascotSettings(D, { vials: "x" }).vials, []);
   assert.equal("vials" in (clientSettingsPatch({ vials: [ok], show: true }) as object), false);
 });
+
+test("mischief: default 5, int 0-10 only", () => {
+  assert.equal(D.mischief, 5);
+  for (const m of [0, 7, 10]) assert.equal(mergeMascotSettings(D, { mischief: m }).mischief, m);
+  for (const m of [-1, 11, 2.5, "5", null]) assert.equal(mergeMascotSettings(D, { mischief: m }).mischief, 5, String(m));
+  assert.equal(parseMascotSettings(JSON.stringify({ mischief: 0 })).mischief, 0);
+});

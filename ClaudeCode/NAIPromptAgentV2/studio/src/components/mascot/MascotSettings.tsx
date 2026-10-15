@@ -31,6 +31,13 @@ export function MascotSettings({ open }: { open: boolean }) {
   const [studioMounted, setStudioMounted] = useState(false); // portal needs document: mount on first open
   const [shelf, setShelf] = useState(false);
   const [shelfMounted, setShelfMounted] = useState(false);
+  const [hidden, setHidden] = useState(false); // Miyabi swiped off / hidden: offer Summon
+
+  useEffect(() => {
+    const on = (e: Event) => setHidden(!!(e as CustomEvent<{ hidden: boolean }>).detail?.hidden);
+    window.addEventListener("mascot:hidden", on);
+    return () => window.removeEventListener("mascot:hidden", on);
+  }, []);
 
   useEffect(() => { if (open) requestJson<State>("/api/mascot/state").then((r) => r.ok && setState(r.data)); }, [open]);
 
@@ -101,6 +108,11 @@ export function MascotSettings({ open }: { open: boolean }) {
           ))}
         </div>
       </div>
+      <label className="block py-1 text-sm">
+        <span className="flex justify-between">Mischief<span className="text-muted font-mono text-xs">{s.mischief}</span></span>
+        <input type="range" min={0} max={10} step={1} value={s.mischief} onChange={(e) => save({ mischief: Number(e.target.value) })} className="accent-accent mt-1 h-8 w-full" />
+        <span className="text-faint flex justify-between text-[11px]"><span>Stays put</span><span>Always in the way</span></span>
+      </label>
       {(["bratty", "tease", "flirt"] as const).map((k) => (
         <label key={k} className={row}>
           <span className="capitalize">{k}</span>
@@ -111,6 +123,7 @@ export function MascotSettings({ open }: { open: boolean }) {
         <button type="button" onClick={() => window.dispatchEvent(new Event("mascot:hush"))} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Hush 30 min</button>
         <button type="button" onClick={() => { setStudioMounted(true); setStudio(true); }} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Sprite studio</button>
       </div>
+      {hidden && <button type="button" onClick={() => window.dispatchEvent(new Event("mascot:summon"))} className="bg-accent text-accent-fg min-h-11 w-full rounded-md px-3 py-2.5 text-sm font-semibold">Summon Miyabi now</button>}
       {error && <p role="alert" className="text-danger text-xs">{error}</p>}
 
       <div className="pt-3">

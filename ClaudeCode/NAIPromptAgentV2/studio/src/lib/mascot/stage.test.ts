@@ -4,7 +4,7 @@ import { POSES } from "./poses";
 import { EXPRESSIONS } from "./core";
 import {
   FLICK_SPEED, TAP_MAX_MOVE, LONGPRESS_MS, POKE_WINDOW_MS, blinkSchedule, chooseSpot, classifyBodyGesture, idleMood,
-  nextMoveDelay, rectsIntersect, spotBox, type Rect,
+  nextMoveDelay, onScreen, rectsIntersect, settleSpot, spotBox, type Rect,
 } from "./stage";
 
 /** Deterministic, well-mixed mulberry32 in [0,1). */
@@ -163,3 +163,26 @@ for (const [name, samples, lastTapAt, want] of table)
   test(`gesture: ${name}`, () => {
     assert.equal(classifyBodyGesture(samples, { box, vw: VW, vh: VH, lastTapAt }), want);
   });
+
+test("onScreen keeps rects that are non-empty and inside the viewport", () => {
+  const rs: Rect[] = [{ x: 0, y: 760, w: 390, h: 84 }, { x: 0, y: 0, w: 0, h: 0 }, { x: 10, y: 900, w: 50, h: 50 }, { x: -60, y: 10, w: 50, h: 50 }, { x: -10, y: -10, w: 50, h: 50 }];
+  assert.deepEqual(onScreen(rs, VW, VH), [rs[0], rs[4]]);
+});
+
+test("settleSpot lands near the drop, on-screen, clear of avoid; picks a fitting pose", () => {
+  const all = () => true, ctx = { ...base, rand: seeded(3) };
+  const s = settleSpot({ x: 200, y: 600 }, ctx, all);
+  assert.equal(s.pose, "stand");
+  assert.ok(Math.abs(s.x - 200) < 1 && Math.abs(s.y - 600) <= 200);
+  const floor = settleSpot({ x: 200, y: 830 }, ctx, all);
+  assert.equal(floor.pose, "lie", "dropped low: lies down");
+  const card = settleSpot({ x: 200, y: 510 }, { ...ctx, targets: [{ x: 40, y: 500, w: 310, h: 200 }] }, all);
+  assert.equal(card.pose, "sit", "dropped on a card's top edge: sits on it");
+  assert.equal(card.y, 500);
+  assert.equal(settleSpot({ x: 200, y: 830 }, ctx, (p) => p === "stand").pose, "stand", "only renderable poses");
+  for (const d of [{ x: -50, y: 830 }, { x: 500, y: 100 }, { x: 195, y: 790 }, { x: 0, y: 0 }]) {
+    const t = settleSpot(d, ctx, all), b = spotBox(t, baseH, VW, VH);
+    for (const a of avoid) assert.equal(rectsIntersect(b, a), false, JSON.stringify(d));
+    assert.ok(b.y >= -0.5 && b.y + b.h <= VH + 0.5 && (t.pose === "peek" || (b.x >= -0.5 && b.x + b.w <= VW + 0.5)), JSON.stringify(d));
+  }
+});

@@ -147,3 +147,21 @@ export function classifyBodyGesture(samples: PointerSample[], ctx: GestureCtx): 
   const lx = z.x + vx * FLICK_PROJECT_MS, ly = z.y + vy * FLICK_PROJECT_MS;
   return lx < 0 || lx > ctx.vw || ly < 0 || ly > ctx.vh ? "swipeOff" : "flick";
 }
+
+/** Rects worth avoiding/targeting: non-empty and at least partly inside the viewport. */
+export const onScreen = (rs: Rect[], vw: number, vh: number): Rect[] =>
+  rs.filter((r) => r.w > 0 && r.h > 0 && r.x < vw && r.x + r.w > 0 && r.y < vh && r.y + r.h > 0);
+
+/** Where a dropped/thrown Miyabi settles: feet near `drop`, lie when low, sit on a card's top edge, else stand; clear of avoid. `can` = poses that have a sprite. */
+export function settleSpot(drop: { x: number; y: number }, ctx: Omit<SpotCtx, "mischief" | "event" | "from">, can: (p: Pose) => boolean): Spot {
+  const { vw, vh, avoid, targets } = ctx, baseH = ctx.baseH ?? vh * 0.45;
+  const card = targets.find((t) => Math.abs(drop.y - t.y) < 48 && drop.x >= t.x && drop.x <= t.x + t.w);
+  const first: Pose = drop.y > vh * 0.85 ? "lie" : card ? "sit" : "stand";
+  for (const pose of [...new Set<Pose>([first, "stand", "sit", "lie"])].filter(can)) for (const dy of [0, -48, 48, -96, 96, -192, 192, -320]) {
+    const sp = POSE_SPEC[pose], h = baseH * (sp.height / STAND_H), w = (h * sp.width) / sp.height;
+    const x = clamp(drop.x, w / 2, vw - w / 2), y = clamp((pose === "sit" && card ? card.y : drop.y) + dy, h, vh);
+    const s: Spot = { pose, x, y, flip: x > vw / 2, scale: 1 };
+    if (!avoid.some((a) => rectsIntersect(spotBox(s, baseH, vw, vh), a))) return s;
+  }
+  return chooseSpot({ ...ctx, mischief: 0, from: drop });
+}

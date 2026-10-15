@@ -25,3 +25,12 @@ export function pickPoseSprite(have: Set<string>, pose: Pose, outfit: string, ex
     : [poseKey(pose, outfit, expr), poseKey(pose, outfit, "smug"), poseKey("stand", outfit, expr), poseKey("stand", outfit, "smug")];
   return chain.find((k) => have.has(k)) ?? null;
 }
+
+const shape = (p: Pose) => POSE_SPEC[p].width / POSE_SPEC[p].height;
+/** Stage sprite whose canvas shape matches the pose: the chain's pick if same shape, else any expression of that pose; null = can't draw this pose. */
+export function stageSprite(have: Set<string>, pose: Pose, outfit: string, expr: string): string | null {
+  const k = pickPoseSprite(have, pose, outfit, expr);
+  if (k && shape(k.split("/")[1] as Pose) === shape(pose)) return k;
+  const pre = `pose/${pose}/${outfit}/`;
+  return [...have].find((h) => h.startsWith(pre)) ?? null;
+}

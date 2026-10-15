@@ -146,6 +146,9 @@ button:active:not(:disabled):not(.sheet-backdrop) { scale: 0.97; transition-dura
 /* Mascot: a gentle idle bob. */
 @keyframes bob { 50% { translate: 0 -3px; } }
 .mascot-bob { animation: bob 2.8s ease-in-out infinite; }
+/* Stage: dangling flail while she's carried (rotate only; the sway uses its own wrapper). */
+@keyframes flail { 25% { rotate: -7deg; } 75% { rotate: 7deg; } }
+.mascot-flail { animation: flail 260ms ease-in-out infinite; }
 /* Slime shelf: the active jar's liquid sloshes gently. */
 @keyframes wobble { 25% { rotate: -4deg; } 75% { rotate: 4deg; } }
 .jar-wobble { animation: wobble 3.2s ease-in-out infinite; transform-box: view-box; transform-origin: 32px 60px; }

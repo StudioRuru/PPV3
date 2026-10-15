@@ -1,26 +1,35 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { emitMascot } from "@/lib/mascot/bus";
-import { outfitFor, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
+import { cannedLine, outfitFor, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
+import { stageSprite } from "@/lib/mascot/poses";
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
+import type { Tab } from "@/components/TabBar";
+import { isTyping, Stage } from "./Stage";
+import { TabCarousel, type Bubble } from "./TabCarousel";
 
-type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; mods: { flirt: boolean }; corner: Corner; size: "s" | "m" | "l" };
+type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; mods: { flirt: boolean }; corner: Corner; size: "s" | "m" | "l"; mischief?: number };
 type Say = { expression: Expression; text: string };
 
-const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500;
+const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500, HIDE_MS = 10 * 60_000;
 const SIZE_PX = { s: 112, m: 160, l: 208 }; // sprite height; lg screens get 1.25x
 const TOP = "calc(env(safe-area-inset-top) + 4rem)";
-const FIELD = "textarea, [contenteditable]:not([contenteditable=false]), input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file],[type=color])";
-const isTyping = () => !!(document.activeElement as HTMLElement | null)?.matches?.(FIELD);
+const TABS: [Tab, string][] = [["studio", "Studio"], ["roll", "Camera roll"], ["closet", "Closet"], ["chat", "Chat"], ["rp", "RP"]];
+const PINS = [null, "day", "night", "lewd"] as const;
+const SULK: Say[] = [{ expression: "pout", text: "Fine! I'll go sulk somewhere else. Ten minutes. Maybe." }, { expression: "annoyed", text: "Wow. Rude. Don't come crying when you miss me." }];
 const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-/** Miyabi: floats above the tab bar on every tab, quips about `mascot` bus events. */
-export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { rating: string; prompt: string; onTap?: (outfit: Outfit) => void }) {
+/** Miyabi: quips about `mascot` bus events on every tab. Full-body on the Stage when the outfit has pose sprites, else the corner bust.
+ *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden} out (on change and on mount). */
+export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab, onSettings }: {
+  rating: string; prompt: string; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
+}) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [sprites, setSprites] = useState<Record<string, number>>({});
   const [say, setSay] = useState<Say | null>(null);
   const [hushUntil, setHushUntil] = useState(0);
+  const [hiddenUntil, setHiddenUntil] = useState(0); // swiped off / Hide: gone until then (summon clears)
   const [typing, setTyping] = useState(false);
   const [menu, setMenu] = useState(false);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
@@ -35,6 +44,8 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     const onSettings = (e: Event) => setSettings((e as CustomEvent<Settings>).detail);
     const onSprites = (e: Event) => setSprites((e as CustomEvent<Record<string, number>>).detail);
     const onHush = () => { setHushUntil(Date.now() + HUSH_MS); setSay(null); };
+    const onHide = (e: Event) => { const ms = (e as CustomEvent<{ ms?: number } | null>).detail?.ms; setHiddenUntil(Date.now() + (typeof ms === "number" && ms > 0 ? ms : HIDE_MS)); setMenu(false); setSay(null); };
+    const onSummon = () => setHiddenUntil(0);
     const onIdentity = () => {
       requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings)); // the new slime's mods (flirt → outfit)
       requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
@@ -45,13 +56,18 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     window.addEventListener("mascot:settings", onSettings);
     window.addEventListener("mascot:sprites", onSprites);
     window.addEventListener("mascot:hush", onHush);
-    return () => { window.removeEventListener("mascot:settings", onSettings); window.removeEventListener("mascot:sprites", onSprites); window.removeEventListener("mascot:hush", onHush); window.removeEventListener("mascot:identity", onIdentity); };
+    window.addEventListener("mascot:hide", onHide);
+    window.addEventListener("mascot:summon", onSummon);
+    return () => {
+      window.removeEventListener("mascot:settings", onSettings); window.removeEventListener("mascot:sprites", onSprites); window.removeEventListener("mascot:hush", onHush); window.removeEventListener("mascot:identity", onIdentity);
+      window.removeEventListener("mascot:hide", onHide); window.removeEventListener("mascot:summon", onSummon);
+    };
   }, []);
 
   // Latest values for the window listener without re-subscribing every render.
   const handle = useRef<(e: MascotEvent) => void>(() => {});
   handle.current = async (e) => {
-    if (!settings?.show) return;
+    if (!settings?.show || hiddenUntil > Date.now()) return;
     const L = live.current;
     if (!shouldSpeak(e, { now: Date.now(), hushUntil, typing: isTyping(), lastSpokeAt: L.lastSpokeAt, cooldownMs: settings.cooldownMs ?? Infinity, inFlight: L.inFlight })) return;
     L.inFlight = true;
@@ -67,7 +83,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
   // "mascot:say" = show this line now (shelf insert/remove): skips the speak gate, but never while typing.
   const sayNow = useRef<(s: Say) => void>(() => {});
   sayNow.current = (s) => {
-    if (!settings?.show || !s?.text || isTyping()) return;
+    if (!settings?.show || !s?.text || isTyping() || hiddenUntil > Date.now()) return;
     live.current.lastSpokeAt = Date.now();
     setMenu(false);
     setSay({ expression: s.expression, text: s.text });
@@ -147,6 +163,18 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     return () => clearTimeout(t);
   }, [hushed, hushUntil]);
 
+  const hidden = hiddenUntil > Date.now();
+  useEffect(() => {
+    if (!hidden) return;
+    const t = setTimeout(() => setHiddenUntil(0), hiddenUntil - Date.now());
+    return () => clearTimeout(t);
+  }, [hidden, hiddenUntil]);
+  // Tell the island / Settings (deferred so listeners mounting in the same commit hear the first one).
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new CustomEvent("mascot:hidden", { detail: { hidden } })), 0);
+    return () => clearTimeout(t);
+  }, [hidden]);
+
   if (!settings?.show) return null;
 
   const corner = settings.corner, bottom = corner[0] === "b", right = corner[1] === "r";
@@ -154,6 +182,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
   const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));
 
   function hush() { setHushUntil(Date.now() + HUSH_MS); setSay(null); setMenu(false); }
+  const have = new Set(Object.keys(sprites));
   async function save(patch: Partial<Settings>) {
     setSettings({ ...settings!, ...patch });
     const r = await post({ settings: patch });
@@ -186,6 +215,29 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     const next = nearestCorner(r.left + r.width / 2, r.top + r.height / 2, window.innerWidth, window.innerHeight);
     if (next !== corner) save({ corner: next });
   }
+
+  if (stageSprite(have, "stand", outfit, "smug")) {
+    const close = () => setMenu(false), go = (f: () => void) => () => { close(); f(); };
+    const bubbles: Bubble[] = [
+      { label: "Talk", onSelect: go(() => onTap(outfit)) },
+      ...(onTab ? TABS.map(([id, label]) => ({ label, onSelect: go(() => onTab(id)) })) : []),
+      ...(onSettings ? [{ label: "Settings", onSelect: go(onSettings) }] : []),
+      { label: hushed ? "Wake up" : "Hush 30 min", small: true, onSelect: hushed ? go(() => setHushUntil(0)) : hush },
+      { label: `Outfit: ${settings.pin ?? "auto"}`, small: true, onSelect: () => save({ pin: PINS[(PINS.indexOf(settings.pin) + 1) % PINS.length] }) },
+      { label: "Hide 10 min", small: true, onSelect: go(() => setHiddenUntil(Date.now() + HIDE_MS)) },
+    ];
+    return (
+      <Stage sprites={sprites} outfit={outfit} expression={say?.expression ?? (hushed ? "sleepy" : null)} size={settings.size ?? "m"} mischief={settings.mischief ?? 5}
+        empty={empty} hushed={hushed} typing={typing} hidden={hidden} layout={bottomAt} menuOpen={menu && !hidden}
+        label={`Miyabi${empty ? " (empty)" : ""}${hushed ? " (hushed)" : ""} — tap for the menu, drag to move, flick to throw`}
+        onMenu={() => { setMenu(true); setSay(null); }} onCloseMenu={close}
+        onPoke={() => { if (!hushed && Math.random() < 0.4) sayNow.current(cannedLine("tap")); }}
+        onSwipeOff={() => { setMenu(false); const s = SULK[Math.floor(Math.random() * SULK.length)]; if (!isTyping()) { live.current.lastSpokeAt = Date.now(); setSay(s); } setHiddenUntil(Date.now() + HIDE_MS); }}
+        overlay={menu && !hidden ? <TabCarousel items={bubbles} onClose={close} />
+          : say && <button type="button" onClick={() => setSay(null)} className="bg-surface border-border animate-rise block w-max max-w-full rounded-2xl border px-3 py-2 text-left text-sm shadow-lg">{say.text}</button>} />
+    );
+  }
+  if (hidden) return null;
 
   // While typing in a bottom corner she slides up to the top one, out of the keyboard/composer's way.
   const lift = typing && bottom ? `translateY(calc(${TOP} + ${bottomAt} + 100% - 100dvh))` : "";

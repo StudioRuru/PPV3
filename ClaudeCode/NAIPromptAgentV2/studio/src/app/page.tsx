@@ -177,6 +177,7 @@ export default function Studio() {
 
   async function generate() {
     setBusy(true); setError(null);
+    window.dispatchEvent(new CustomEvent("mascot:stage", { detail: "generate" })); // Miyabi turns her back to watch
     const r = await requestJson<{ id: number }>("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, params }) });
     setBusy(false);
     if (!r.ok) { setError(r.error); emitMascot("error", { where: "generate", message: r.error }); return; }
@@ -246,7 +247,7 @@ export default function Studio() {
           </button>
         </div>
         <ParamsBar params={params} onParams={setParams} rating={state.rating} onRating={(rating) => setState({ ...state, rating })} />
-        <div data-drop="base" className="bg-surface border-border rounded-lg border p-3">
+        <div data-drop="base" data-mascot-target className="bg-surface border-border rounded-lg border p-3">
           <header className="mb-2 flex items-center gap-2">
             <h2 className="flex-1 text-sm font-semibold">Base prompt</h2>
             <PosNegTabs side={baseSide} onSide={setBaseSide} pos={state.base.reduce((n, l) => n + tagCount(l.text), 0)} neg={tagCount(state.uc)} />
@@ -271,7 +272,7 @@ export default function Studio() {
         {current ? (
           <figure className="space-y-2">
             {/* Keyed so each new image remounts and develops in (the hero moment). */}
-            <button type="button" onClick={() => setViewing(current.id)}
+            <button type="button" onClick={() => setViewing(current.id)} data-mascot-target
               aria-label="Open full screen" className="border-border block w-full overflow-hidden rounded-lg border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img key={current.id} src={`/api/gallery/${current.file}`} alt="Latest generation" onLoad={developed} onError={developed} className="animate-develop w-full" />
@@ -288,7 +289,7 @@ export default function Studio() {
               </span>
             </figcaption>
           </figure>
-        ) : <div className="border-border text-muted grid aspect-[832/1216] place-items-center rounded-lg border">Nothing yet</div>}
+        ) : <div data-mascot-target className="border-border text-muted grid aspect-[832/1216] place-items-center rounded-lg border">Nothing yet</div>}
         <div className="flex items-center justify-between">
           <h2 className="text-muted text-xs font-medium tracking-wide uppercase">History</h2>
           {history.length > 0 && <button type="button" onClick={() => setTab("roll")} className="text-accent px-1 py-2 text-sm">Camera roll ›</button>}
@@ -334,7 +335,7 @@ export default function Studio() {
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <TabBar tab={tab} onTab={setTab} />
-      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} onTap={(outfit) => setTalk({ open: true, outfit })} />
+      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} onTap={(outfit) => setTalk({ open: true, outfit })} onTab={setTab} onSettings={() => setSettings(true)} />
       <MiyabiSheet open={talk.open} onClose={() => setTalk((t) => ({ ...t, open: false }))} outfit={talk.outfit} state={state} onApply={(ops) => setState((s) => applyOps(s, ops))} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
