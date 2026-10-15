@@ -42,7 +42,7 @@ export default function Studio() {
   const [params, setParams] = useState<NaiParams>(DEFAULT_PARAMS);
   const [history, setHistory] = useState<Generation[]>([]);
   const [current, setCurrent] = useState<Generation | null>(null);
-  const [talk, setTalk] = useState<Outfit | null>(null); // Miyabi sheet open, in this outfit
+  const [talk, setTalk] = useState<{ open: boolean; outfit: Outfit }>({ open: false, outfit: "day" }); // Miyabi sheet; outfit kept while it slides out
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Saving before the draft has loaded would overwrite it with the empty initial state.
@@ -334,8 +334,8 @@ export default function Studio() {
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <TabBar tab={tab} onTab={setTab} />
-      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} onTap={setTalk} />
-      <MiyabiSheet open={!!talk} onClose={() => setTalk(null)} outfit={talk ?? "day"} state={state} onApply={(ops) => setState((s) => applyOps(s, ops))} />
+      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} onTap={(outfit) => setTalk({ open: true, outfit })} />
+      <MiyabiSheet open={talk.open} onClose={() => setTalk((t) => ({ ...t, open: false }))} outfit={talk.outfit} state={state} onApply={(ops) => setState((s) => applyOps(s, ops))} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}

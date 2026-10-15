@@ -8,7 +8,7 @@ import { BRAIN_MODEL, DATA_DIR, REPO_DIR } from "@/lib/env";
 import { getDrift, learnedBlock, learnedStoryBlock } from "@/lib/learning";
 import { listBlocks } from "@/lib/library";
 import { chatStream, heavyGate, Offline } from "@/lib/llm";
-import { personaBlock } from "@/lib/persona";
+import { PERSONAS, personaBlock } from "@/lib/persona";
 import { emptyState } from "@/lib/prompt";
 import { ThreadStore } from "@/lib/threads";
 
@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
 
   const store = new ThreadStore(db);
   let threadId = Number(body.thread);
-  if (!store.list().some((t) => t.id === threadId)) threadId = store.create("New chat", "neutral");
+  // Thread gone (deleted elsewhere): a fresh one, keeping the sender's persona (Miyabi's sheet sends "miyabi").
+  if (!store.list().some((t) => t.id === threadId)) threadId = store.create("New chat", PERSONAS.some((p) => p.id === body.persona) ? body.persona : "neutral");
   const thread = store.list().find((t) => t.id === threadId)!;
   // Another device (or tab) wrote to this thread since the client loaded it: don't let one overwrite the other.
   const expect = typeof body.version === "number" ? body.version : undefined;
@@ -64,18 +65,19 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(ctl) {
       let reply = "";
+      const put = (t: string) => { try { ctl.enqueue(enc.encode(t)); } catch { /* client gone: keep generating so the reply is saved */ } };
       const answer = async () => {
-        for await (const t of chatStream(system, sent, { model })) { reply += t; ctl.enqueue(enc.encode(t)); }
+        for await (const t of chatStream(system, sent, { model })) { reply += t; put(t); }
         // Only complete exchanges are stored; the client's list (with edits) is the thread's truth.
         if (!store.replace(threadId, [...messages, { role: "assistant", content: reply }], expect)) {
-          ctl.enqueue(enc.encode("\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering."));
+          put("\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.");
         }
       };
       try {
         await (model ? heavyGate.run(answer) : answer());
       } catch (e) {
         const msg = e instanceof Offline ? (model ? "Ollama is offline — start it on the Mac." : "Brain offline — turn the co-pilot on.") : (e as Error).message;
-        try { ctl.enqueue(enc.encode(`\n\n⚠️ ${msg}`)); } catch { /* client already gone */ }
+        put(`\n\n⚠️ ${msg}`);
       }
       try { ctl.close(); } catch { /* client already gone */ }
     },

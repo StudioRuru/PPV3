@@ -21,15 +21,18 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false); // whole reply, not just until the first chunk
   const [rated, setRated] = useState<Record<string, "like" | "dislike">>({});
   const [sprites, setSprites] = useState<Record<string, number>>({});
   const end = useRef<HTMLDivElement>(null);
+  const tidRef = useRef<number | null>(null); // the talk on screen: a reply only paints into its own talk
 
   async function load(id: number) {
+    tidRef.current = id;
     const r = await requestJson<{ threads: Thread[] }>("/api/chat/threads");
-    if (r.ok) setThread(r.data.threads.find((t) => t.id === id) ?? null);
+    if (r.ok && tidRef.current === id) setThread(r.data.threads.find((t) => t.id === id) ?? null);
     const h = await requestJson<{ messages: ChatMsg[] }>(`/api/chat/history?thread=${id}`);
-    if (h.ok) setMsgs(h.data.messages.map(withId));
+    if (h.ok && tidRef.current === id) setMsgs(h.data.messages.map(withId));
   }
   async function newTalk() {
     const r = await requestJson<{ id: number }>("/api/chat/threads", json({ persona: "miyabi" }));
@@ -50,17 +53,19 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
 
   async function send() {
     const text = input.trim();
-    if (!text || busy || !thread) return;
+    if (!text || streaming || !thread) return;
+    let id = thread.id;
+    const show = (ms: Msg[]) => { if (tidRef.current === id) setMsgs(ms); };
     const history = [...msgs.filter((m) => !m.error), withId({ role: "user", content: text })];
     const reply = withId({ role: "assistant", content: "" });
-    setInput(""); setMsgs([...history, reply]); setBusy("Thinking…");
+    setInput(""); show([...history, reply]); setBusy("Thinking…"); setStreaming(true);
     let out = "";
     try {
-      const res = await fetch("/api/chat", json({ thread: thread.id, version: thread.updated_at, messages: history.map(({ role, content }) => ({ role, content })), state, mode: "chat" }));
+      const res = await fetch("/api/chat", json({ thread: id, version: thread.updated_at, messages: history.map(({ role, content }) => ({ role, content })), state, mode: "chat", persona: "miyabi" }));
       if (res.status === 409) {
-        await load(thread.id);
-        setMsgs((ms) => [...ms, withId({ role: "assistant", content: "⚠️ This talk changed on another device — reloaded. Send again.", error: true })]);
-        setBusy(null); return;
+        await load(id);
+        if (tidRef.current === id) setMsgs((ms) => [...ms, withId({ role: "assistant", content: "⚠️ This talk changed on another device — reloaded. Send again.", error: true })]);
+        setBusy(null); setStreaming(false); return;
       }
       if (!res.ok || !res.body) {
         const body = await res.text();
@@ -68,19 +73,23 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
         try { msg = JSON.parse(body).error ?? body; } catch { /* plain text */ }
         throw new Error(res.status === 401 ? "Session expired — reload the page and sign in again." : msg || `Server error ${res.status}.`);
       }
+      // Talk deleted elsewhere: the server answered in a new thread; follow it if she's still on screen.
+      const realId = Number(res.headers.get("X-Thread"));
+      if (realId && realId !== id) { if (tidRef.current === id) tidRef.current = realId; id = realId; }
       if (res.headers.get("X-Paused") === "1") setBusy("Pausing captioner + TIPO for the heavy model…");
       const reader = res.body.getReader(), dec = new TextDecoder();
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         out += dec.decode(value, { stream: true });
-        setBusy(null); setMsgs([...history, { ...reply, content: out }]);
+        setBusy(null); show([...history, { ...reply, content: out }]);
       }
-      if (/\n\n⚠️ [^\n]*$/.test(out)) setMsgs([...history, { ...reply, content: out, error: true }]);
+      if (/\n\n⚠️ [^\n]*$/.test(out)) show([...history, { ...reply, content: out, error: true }]);
     } catch (e) {
-      setMsgs([...history, { ...reply, content: `${out}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
+      show([...history, { ...reply, content: `${out}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
     }
-    setBusy(null); load(thread.id); // fresh version for the next send
+    setBusy(null); setStreaming(false);
+    if (tidRef.current === id) load(id); // fresh version for the next send
   }
 
   function taste(kind: "like" | "dislike" | "apply", ops: Op[]) {
@@ -105,7 +114,7 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
       className="h-[92dvh] rounded-t-2xl border-t lg:h-auto lg:max-w-md lg:rounded-none lg:border-l">
       <header className="flex items-center gap-2 px-3 pb-2">
         <h2 className="flex-1 text-base font-semibold">Miyabi</h2>
-        <button type="button" disabled={!!busy} onClick={newTalk} className="border-border text-accent h-9 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">New talk</button>
+        <button type="button" disabled={streaming} onClick={newTalk} className="border-border text-accent h-9 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">New talk</button>
         <button type="button" onClick={onClose} aria-label="Close" className="border-border h-11 w-11 rounded-full border">×</button>
       </header>
       <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3">
@@ -124,7 +133,7 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
               <Md text={p.prose} />
               {p.error && <p className="text-danger mt-1 text-xs">{p.error}</p>}
               {p.ops.length > 0 && <PatchCard ops={p.ops} onApply={apply} />}
-              {!busy && m.content && !m.error && (
+              {!streaming && m.content && !m.error && (
                 <div className="text-faint flex gap-3 text-xs">
                   <button type="button" aria-label="Like reply" aria-pressed={rated[m.cid] === "like"} disabled={!!rated[m.cid]} onClick={() => rate(m, "like")} className={rated[m.cid] === "like" ? "text-ok" : ""}>👍</button>
                   <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.cid] === "dislike"} disabled={!!rated[m.cid]} onClick={() => rate(m, "dislike")} className={rated[m.cid] === "dislike" ? "text-danger" : ""}>👎</button>
@@ -141,7 +150,7 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
         onSubmit={(e) => { e.preventDefault(); send(); }}>
         <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder="Say something to her…" aria-label="Message Miyabi"
           className="bg-bg border-border min-w-0 flex-1 resize-none rounded-md border px-2 py-2.5 text-base" />
-        <button type="submit" disabled={!!busy || !thread || !input.trim()} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
+        <button type="submit" disabled={streaming || !thread || !input.trim()} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
       </form>
     </Sheet>
   );
