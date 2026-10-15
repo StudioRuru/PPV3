@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXPRESSIONS } from "./core";
-import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, deltaChips, diffTags, groupBottles, missingCells, nearestCorner, poisonTone, requestSeq, sliderToCooldown, stripVialBlock, vialOutcome, bottledKey } from "./ui";
+import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, deltaChips, diffTags, groupBottles, missingCells, missingPoseCells, nearestCorner, poisonTone, requestSeq, sliderToCooldown, stripVialBlock, vialOutcome, bottledKey } from "./ui";
 
 test("diffTags: added and removed, order kept, dupes ignored", () => {
   assert.deepEqual(diffTags(["a", "b", "c"], ["b", "d", "c", "d"]), { added: ["d"], removed: ["a"] });
@@ -96,4 +96,16 @@ test("bottledKey: same thread + same vial → same key; differs by vial or threa
   assert.equal(bottledKey(1, v), bottledKey(1, { ...v }));
   assert.notEqual(bottledKey(1, v), bottledKey(1, { ...v, effect: "f" }));
   assert.notEqual(bottledKey(1, v), bottledKey(2, v));
+});
+
+test("missingPoseCells: a pose = outfits x expressions (back: one per outfit); an outfit = every pose", () => {
+  const none = {};
+  assert.equal(missingPoseCells(none, { pose: "stand" }).length, 27);
+  assert.deepEqual(missingPoseCells(none, { pose: "back" }).map((c) => c.outfit), ["day", "night", "lewd"]);
+  assert.equal(missingPoseCells(none, { outfit: "day" }).length, 7 * 9 + 1);
+  const have = { "pose/stand/day/smug": 1, "pose/back/night": 1 };
+  const s = missingPoseCells(have, { pose: "stand", outfit: "day" });
+  assert.equal(s.length, 8);
+  assert.ok(!s.some((c) => c.expr === "smug"));
+  assert.equal(missingPoseCells(have, { pose: "back" }).length, 2);
 });

@@ -1,5 +1,6 @@
 // Pure helpers for the floating mascot.
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
+import { POSES, type Pose } from "./poses";
 import { SLIDERS } from "./slime";
 import { parseVialBlock, type Vial } from "./vial";
 export type Corner = "br" | "bl" | "tr" | "tl";
@@ -35,6 +36,15 @@ export const cooldownLabel = (ms: number | null): string =>
 export function missingCells(sprites: Record<string, number>, outfit: Outfit): { kind: "bust" | "full"; expr: Expression }[] {
   const cells = [{ kind: "full" as const, expr: "smug" as Expression }, ...EXPRESSIONS.map((expr) => ({ kind: "bust" as const, expr }))];
   return cells.filter((c) => !(`${outfit}/${c.kind === "full" ? "full" : c.expr}` in sprites));
+}
+
+const OUTFIT_LIST: Outfit[] = ["day", "night", "lewd"];
+export type PoseCell = { pose: Pose; outfit: Outfit; expr: Expression };
+/** Pose sprites not saved yet, for a pose (all outfits), an outfit (all poses), or both. Back = one cell per outfit (expr smug, ignored). */
+export function missingPoseCells(sprites: Record<string, number>, f: { pose?: Pose; outfit?: Outfit }): PoseCell[] {
+  return (f.pose ? [f.pose] : [...POSES]).flatMap((pose) => (f.outfit ? [f.outfit] : OUTFIT_LIST).flatMap((outfit) =>
+    (pose === "back" ? ["smug" as Expression] : [...EXPRESSIONS]).map((expr) => ({ pose, outfit, expr }))))
+    .filter((c) => !((c.pose === "back" ? `pose/back/${c.outfit}` : `pose/${c.pose}/${c.outfit}/${c.expr}`) in sprites));
 }
 
 /** Request sequencing: `start()` numbers a request; `done(n)` says whether its response is still the latest to apply. */

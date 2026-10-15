@@ -2,21 +2,29 @@
 import { useEffect, useRef, useState } from "react";
 import { EXPRESSIONS, type Expression, type Outfit } from "@/lib/mascot/core";
 import { DEFAULT_MASCOT_SETTINGS } from "@/lib/mascot/settings";
-import { missingCells } from "@/lib/mascot/ui";
+import { POSES, POSE_SPEC, poseKey, type Pose } from "@/lib/mascot/poses";
+import { missingCells, missingPoseCells } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 import { Sheet } from "../Sheet";
 import { AutoTextarea } from "../TagInput";
 import type { WireSettings } from "./MascotSettings";
 
-type Kind = "bust" | "full";
-type Cell = { kind: Kind; expr: Expression };
+type Kind = "bust" | "full" | "pose";
+type Cell = { kind: Kind; expr: Expression; pose?: Pose; outfit?: Outfit }; // pose cells carry their own outfit (batches span outfits)
 type Estimate = { anlas: number | null; perImage: number | null; n: number };
 type Spent = { before: number | null; after: number | null; cost: number | null };
 type Confirm = { outfit: Outfit; cells: Cell[]; n: number; total: number | null; anlas: number | null };
 
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 const name = (c: Cell) => (c.kind === "full" ? "full" : c.expr);
-const label = (c: Cell) => (c.kind === "full" ? "Full sprite" : c.expr);
+const isBack = (c: Cell) => c.pose === "back";
+const label = (c: Cell) => (c.kind === "full" ? "Full sprite" : c.kind === "pose" ? (isBack(c) ? "Back" : c.expr) : c.expr);
+/** Listing/serve key of a cell's sprite. */
+const keyOf = (o: Outfit, c: Cell) => (c.kind === "pose" ? poseKey(c.pose!, c.outfit ?? o, isBack(c) ? null : c.expr) : `${o}/${name(c)}`);
+/** Extra API fields addressing a cell's sprite. */
+const target = (o: Outfit, c: Cell) => (c.kind === "pose" ? { outfit: c.outfit ?? o, pose: c.pose, expr: c.expr } : { outfit: o, kind: c.kind, expr: c.expr });
+const poseCells = (pose: Pose, outfit: Outfit): Cell[] => (pose === "back" ? [{ kind: "pose", pose, outfit, expr: "smug" }] : EXPRESSIONS.map((expr) => ({ kind: "pose" as const, pose, outfit, expr })));
+const cellName = (c: Cell) => (c.kind === "pose" ? `${c.pose} · ${c.outfit} · ${label(c)}` : label(c));
 const studio = <T,>(body: object) => requestJson<T>("/api/mascot/studio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const h3 = "text-muted mb-2 text-xs font-medium tracking-wide uppercase";
 const btn = "border-border rounded-md border px-3 py-2.5 text-sm disabled:opacity-50";
@@ -28,6 +36,8 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
   const [outfit, setOutfit] = useState<Outfit>("day");
   const [sprites, setSprites] = useState<Record<string, number>>({});
   const [sheets, setSheets] = useState<Record<Outfit, boolean>>({ day: false, night: false, lewd: false });
+  const [mode, setMode] = useState<"bust" | "pose">("bust");
+  const [pose, setPose] = useState<Pose>("stand");
   const [sel, setSel] = useState<Cell | null>(null);
   const [n, setN] = useState(3);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -54,11 +64,13 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
     if (!cells.length || busy) return;
     setError(null); setNote(null); setBusy("Checking cost…");
     let total: number | null = 0, anlas: number | null = null;
-    for (const kind of new Set(cells.map((c) => c.kind))) {
-      const r = await studio<Estimate>({ action: "estimate", outfit, kind, expr: cells.find((c) => c.kind === kind)!.expr, n });
+    const group = (c: Cell) => `${c.kind}/${c.pose ?? ""}`; // canvas size differs per art kind / pose
+    for (const g of new Set(cells.map(group))) {
+      const first = cells.find((c) => group(c) === g)!;
+      const r = await studio<Estimate>({ action: "estimate", ...target(outfit, first), n });
       if (!r.ok) { setBusy(null); setError(r.error); return; }
       anlas = r.data.anlas;
-      const count = cells.filter((c) => c.kind === kind).length;
+      const count = cells.filter((c) => group(c) === g).length;
       total = total === null || r.data.perImage === null ? null : total + r.data.perImage * r.data.n * count;
     }
     setBusy(null);
@@ -71,9 +83,9 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
     let before: number | null = null, after: number | null = null, cost: number | null = 0;
     for (const [i, cell] of c.cells.entries()) {
       if (stop.current) break;
-      setBusy(c.cells.length > 1 ? `Generating ${label(cell)} (${i + 1}/${c.cells.length})…` : "Generating…");
-      const r = await studio<Spent>({ action: "generate", outfit: c.outfit, kind: cell.kind, expr: cell.expr, n: c.n, confirm: true });
-      if (!r.ok) { setError(`${label(cell)}: ${r.error}`); break; }
+      setBusy(c.cells.length > 1 ? `Generating ${cellName(cell)} (${i + 1}/${c.cells.length})…` : "Generating…");
+      const r = await studio<Spent>({ action: "generate", ...target(c.outfit, cell), n: c.n, confirm: true });
+      if (!r.ok) { setError(`${cellName(cell)}: ${r.error}`); break; }
       before ??= r.data.before; after = r.data.after;
       cost = cost === null || r.data.cost === null ? null : cost + r.data.cost;
     }
@@ -85,7 +97,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
 
   async function pick(cell: Cell, i: number) {
     setBusy("Saving (removing background)…"); setError(null); setNote(null);
-    const r = await studio<{ ok: true; note?: string }>({ action: "pick", outfit, kind: cell.kind, expr: cell.expr, i });
+    const r = await studio<{ ok: true; note?: string }>({ action: "pick", ...target(outfit, cell), i });
     setBusy(null);
     if (!r.ok) { setError(r.error); return; }
     setNote(r.data.note ?? "Saved.");
@@ -99,14 +111,16 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
     if (r.ok) refresh(); else setError(r.error);
   }
 
-  const src = (c: Cell) => { const k = `${outfit}/${name(c)}`; return k in sprites ? `/api/mascot/sprites/${k}?v=${sprites[k]}` : null; };
+  const src = (c: Cell) => { const k = keyOf(outfit, c); return k in sprites ? `/api/mascot/sprites/${k}?v=${sprites[k]}` : null; };
   const missing = missingCells(sprites, outfit);
-  const candidates = sel ? [0, 1, 2, 3].map((i) => `/api/mascot/sprites/${outfit}/${name(sel)}?c=${i}&b=${batch}`) : [];
+  const toCells = (m: ReturnType<typeof missingPoseCells>): Cell[] => m.map((c) => ({ kind: "pose", ...c }));
+  const missPose = toCells(missingPoseCells(sprites, { pose })), missOutfit = toCells(missingPoseCells(sprites, { outfit }));
+  const candidates = sel ? [0, 1, 2, 3].map((i) => `/api/mascot/sprites/${keyOf(outfit, sel)}?c=${i}&b=${batch}`) : [];
 
   const cellBtn = (c: Cell, cls: string) => {
-    const s = src(c), on = sel?.kind === c.kind && sel.expr === c.expr;
+    const s = src(c), on = !!sel && keyOf(outfit, sel) === keyOf(outfit, c);
     return (
-      <button key={name(c)} type="button" onClick={() => choose(on ? null : c)} aria-pressed={on} aria-label={`${label(c)}${s ? "" : " (missing)"}`}
+      <button key={keyOf(outfit, c)} type="button" onClick={() => choose(on ? null : c)} aria-pressed={on} aria-label={`${cellName(c)}${s ? "" : " (missing)"}`}
         className={`relative flex flex-col items-center justify-end overflow-hidden rounded-lg border ${s ? "border-border bg-bg" : "border-border border-dashed"} ${on ? "ring-accent ring-2" : ""} ${cls}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {s && <img src={s} alt="" className="absolute inset-0 size-full object-contain" />}
@@ -130,10 +144,33 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
           ))}
         </div>
 
-        <section className="grid grid-cols-[1fr_2fr] gap-2">
-          {cellBtn({ kind: "full", expr: "smug" }, "min-h-48")}
-          <div className="grid grid-cols-3 gap-2">{EXPRESSIONS.map((expr) => cellBtn({ kind: "bust", expr }, "aspect-square"))}</div>
-        </section>
+        <div role="tablist" aria-label="Sprite kind" className="border-border grid grid-cols-2 overflow-hidden rounded-md border">
+          {(["bust", "pose"] as const).map((m) => (
+            <button key={m} type="button" role="tab" aria-selected={mode === m} disabled={!!busy} onClick={() => { setMode(m); choose(null); }}
+              className={`h-11 text-sm font-medium ${mode === m ? "bg-accent text-accent-fg" : "text-muted"}`}>{m === "bust" ? "Busts" : "Poses"}</button>
+          ))}
+        </div>
+
+        {mode === "bust" ? (
+          <section className="grid grid-cols-[1fr_2fr] gap-2">
+            {cellBtn({ kind: "full", expr: "smug" }, "min-h-48")}
+            <div className="grid grid-cols-3 gap-2">{EXPRESSIONS.map((expr) => cellBtn({ kind: "bust", expr }, "aspect-square"))}</div>
+          </section>
+        ) : (
+          <section className="space-y-2">
+            <div role="tablist" aria-label="Pose" className="flex flex-wrap gap-2">
+              {POSES.map((p) => (
+                <button key={p} type="button" role="tab" aria-selected={pose === p} disabled={!!busy} onClick={() => { setPose(p); choose(null); }}
+                  className={`border-border flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm capitalize ${pose === p ? "bg-accent text-accent-fg" : "text-muted"}`}>
+                  <span aria-hidden className="inline-block h-4 border border-current" style={{ aspectRatio: `${POSE_SPEC[p].width} / ${POSE_SPEC[p].height}` }} />{p}
+                </button>
+              ))}
+            </div>
+            <div className={pose === "back" ? "mx-auto grid w-1/2 grid-cols-1 gap-2" : "grid grid-cols-3 gap-2"}>
+              {poseCells(pose, outfit).map((c) => cellBtn(c, POSE_SPEC[pose].width > POSE_SPEC[pose].height ? "aspect-[3/2]" : POSE_SPEC[pose].width === POSE_SPEC[pose].height ? "aspect-square" : "aspect-[2/3]"))}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-2">
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
@@ -144,12 +181,21 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
           </label>
           {sel ? (
             <button type="button" disabled={!!busy || !!confirm} onClick={() => ask([sel])} className={`${btn} bg-accent text-accent-fg w-full border-transparent font-semibold`}>
-              Generate {n} — <span className="capitalize">{label(sel)}</span>
+              Generate {n} — <span className="capitalize">{cellName(sel)}</span>
             </button>
           ) : <p className="text-faint text-xs">Tap a cell to generate or pick its sprite.</p>}
-          <button type="button" disabled={!!busy || !!confirm || !missing.length} onClick={() => ask(missing)} className={`${btn} w-full`}>
-            Generate missing for this outfit ({missing.length})
-          </button>
+          {mode === "bust" ? (
+            <button type="button" disabled={!!busy || !!confirm || !missing.length} onClick={() => ask(missing)} className={`${btn} w-full`}>
+              Generate missing for this outfit ({missing.length})
+            </button>
+          ) : (<>
+            <button type="button" disabled={!!busy || !!confirm || !missPose.length} onClick={() => ask(missPose)} className={`${btn} w-full`}>
+              Generate missing for this pose ({missPose.length})
+            </button>
+            <button type="button" disabled={!!busy || !!confirm || !missOutfit.length} onClick={() => ask(missOutfit)} className={`${btn} w-full`}>
+              Generate missing for this outfit ({missOutfit.length})
+            </button>
+          </>)}
 
           {confirm && (
             <div role="alertdialog" aria-label="Confirm generation" className="border-accent/40 bg-accent-soft space-y-2 rounded-lg border p-3 text-sm">
@@ -169,7 +215,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
 
           {sel && candidates.some((u) => !gone.has(u)) && (
             <div>
-              <p className="mb-1 text-sm">Pick one for <span className="capitalize">{label(sel)}</span></p>
+              <p className="mb-1 text-sm">Pick one for <span className="capitalize">{cellName(sel)}</span></p>
               <div className="grid grid-cols-2 gap-2">
                 {candidates.map((u, i) => !gone.has(u) && (
                   <button key={u} type="button" disabled={!!busy} onClick={() => pick(sel, i)} aria-label={`Use candidate ${i + 1}`}
