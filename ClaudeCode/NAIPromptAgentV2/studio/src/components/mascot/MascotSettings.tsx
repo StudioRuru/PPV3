@@ -8,6 +8,7 @@ import type { Fact } from "@/lib/mascot/store";
 import { requestJson } from "@/lib/net";
 import { AutoTextarea } from "../TagInput";
 import { SlidersPanel } from "./SlidersPanel";
+import { SlimeShelf } from "./SlimeShelf";
 import { SpriteStudio } from "./SpriteStudio";
 
 // Over the wire "only when tapped" is null (JSON has no Infinity).
@@ -28,6 +29,8 @@ export function MascotSettings({ open }: { open: boolean }) {
   const [forget, setForget] = useState(false);
   const [studio, setStudio] = useState(false);
   const [studioMounted, setStudioMounted] = useState(false); // portal needs document: mount on first open
+  const [shelf, setShelf] = useState(false);
+  const [shelfMounted, setShelfMounted] = useState(false);
 
   useEffect(() => { if (open) requestJson<State>("/api/mascot/state").then((r) => r.ok && setState(r.data)); }, [open]);
 
@@ -113,6 +116,11 @@ export function MascotSettings({ open }: { open: boolean }) {
       <div className="pt-3">
         <h3 className={h3}>Personality</h3>
         <SlidersPanel open={open} />
+        <label className={row}>
+          <span>Unlock the slime shelf<span className="text-muted block text-xs">Save, swap and mix who she is, in jars</span></span>
+          <input type="checkbox" role="switch" checked={s.shelf} onChange={(e) => save({ shelf: e.target.checked })} className="accent-accent size-5" />
+        </label>
+        {s.shelf && <button type="button" onClick={() => { setShelfMounted(true); setShelf(true); }} className="border-border min-h-11 w-full rounded-md border px-3 py-2.5 text-sm">Open slime shelf</button>}
       </div>
 
       <div className="pt-3">
@@ -150,6 +158,7 @@ export function MascotSettings({ open }: { open: boolean }) {
         ) : state.facts.length > 0 && <button type="button" onClick={() => setForget(true)} className="text-danger min-h-11 text-xs">Forget everything she knows</button>}
       </div>
 
+      {shelfMounted && createPortal(<SlimeShelf open={shelf} onClose={() => setShelf(false)} />, document.body)}
       {studioMounted && createPortal(<SpriteStudio open={studio} onClose={() => setStudio(false)} settings={s} onSave={save} />, document.body)}
     </section>
   );

@@ -8,6 +8,8 @@ export type MascotSettings = {
   corner: "br" | "bl" | "tr" | "tl"; size: "s" | "m" | "l";
   /** Live identity (the active slime): voice, name, sliders, sprite dir under data/mascot; empty = no slime inserted. */
   voice: string; selfName: string; sliders: Sliders; heatDrift: boolean; spriteDir: string; empty: boolean;
+  /** Settings → "Unlock the slime shelf". */
+  shelf: boolean;
 };
 
 export const MASCOT_SETTINGS_KEY = "mascot:settings";
@@ -41,7 +43,7 @@ export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
     excited: "excited, open smile, sparkling eyes, fang",
     sleepy: "sleepy, half-closed eyes, yawning, tears",
   },
-  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false,
+  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false,
   sliders: { brat: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } },
 };
 
@@ -79,6 +81,7 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
   if (typeof patch.selfName === "string" && patch.selfName.length <= 40) out.selfName = patch.selfName;
   if (typeof patch.heatDrift === "boolean") out.heatDrift = patch.heatDrift;
   if (typeof patch.empty === "boolean") out.empty = patch.empty;
+  if (typeof patch.shelf === "boolean") out.shelf = patch.shelf;
   if (typeof patch.spriteDir === "string" && patch.spriteDir.length <= 200 && isSafeSpriteDir(patch.spriteDir)) out.spriteDir = patch.spriteDir;
   if (isObj(patch.sliders)) for (const k of SLIDER_IDS) {
     const x = patch.sliders[k];

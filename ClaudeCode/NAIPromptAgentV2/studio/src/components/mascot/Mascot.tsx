@@ -32,12 +32,14 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
 
   useEffect(() => {
     requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings));
-    requestJson<{ sprites: Record<string, number> }>("/api/mascot/sprites").then((r) => r.ok && setSprites(r.data.sprites));
     // Settings sheet / sprite studio push changes here; "mascot:hush" = Hush now.
     const onSettings = (e: Event) => setSettings((e as CustomEvent<Settings>).detail);
     const onSprites = (e: Event) => setSprites((e as CustomEvent<Record<string, number>>).detail);
     const onHush = () => { setHushUntil(Date.now() + HUSH_MS); setSay(null); };
-    const onIdentity = () => requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
+    const onIdentity = () => {
+      requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
+      requestJson<{ sprites: Record<string, number> }>("/api/mascot/sprites").then((r) => r.ok && setSprites(r.data.sprites)); // an inserted jar may bring its own look
+    };
     onIdentity();
     window.addEventListener("mascot:identity", onIdentity);
     window.addEventListener("mascot:settings", onSettings);
@@ -62,10 +64,20 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap") }: { ra
     L.lastSpokeAt = Date.now();
     setSay({ expression: r.data.expression, text: r.data.text });
   };
+  // "mascot:say" = show this line now (shelf insert/remove): skips the speak gate, but never while typing.
+  const sayNow = useRef<(s: Say) => void>(() => {});
+  sayNow.current = (s) => {
+    if (!settings?.show || !s?.text || isTyping()) return;
+    live.current.lastSpokeAt = Date.now();
+    setMenu(false);
+    setSay({ expression: s.expression, text: s.text });
+  };
   useEffect(() => {
     const on = (e: Event) => handle.current((e as CustomEvent<MascotEvent>).detail);
+    const onSay = (e: Event) => sayNow.current((e as CustomEvent<Say>).detail);
     window.addEventListener("mascot", on);
-    return () => window.removeEventListener("mascot", on);
+    window.addEventListener("mascot:say", onSay);
+    return () => { window.removeEventListener("mascot", on); window.removeEventListener("mascot:say", onSay); };
   }, []);
 
   // Greet once per app open, as soon as settings are in.

@@ -87,3 +87,9 @@ test("client patches can't set empty or live drift; moving a slider resets drift
   assert.equal(m.empty, false);
   assert.equal(clientSettingsPatch(null), null);
 });
+
+test("shelf unlock: default off, boolean only", () => {
+  assert.equal(D.shelf, false);
+  assert.equal(mergeMascotSettings(D, { shelf: true }).shelf, true);
+  assert.equal(mergeMascotSettings(D, { shelf: "yes" }).shelf, false);
+});
