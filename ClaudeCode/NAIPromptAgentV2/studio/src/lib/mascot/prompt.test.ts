@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { quipPrompt } from "./prompt";
 import { personaBlock } from "../persona";
-import { EXPRESSIONS } from "./core";
+import { EXPRESSIONS, type MascotEvent } from "./core";
 
 const ctx = { mods: { bratty: true, flirt: true }, drift: 50, promptSummary: "1girl, fox ears", taste: "likes red", story: "", facts: ["f1"], recent: ["a", "b"] };
 
@@ -38,4 +38,24 @@ test("format demands a loud bratty one-liner; recent lines are labelled as her o
   assert.match(system, /tease or jab/);
   assert.match(user, /Your own recent lines \(don't repeat or reply to them\):\na\nb/);
   assert.doesNotMatch(user, /^Recent lines/m);
+});
+
+const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap"];
+
+test("every event kind gets a 'What to react to' hint", () => {
+  for (const kind of KINDS) {
+    const { user } = quipPrompt({ kind, at: 1 }, ctx);
+    assert.match(user, /What to react to: \S/, kind);
+  }
+});
+
+test("idle hint carries minutes; greet hint carries hour and gap", () => {
+  const idle = quipPrompt({ kind: "idle", at: 1, data: { minutes: 12 } }, ctx).user;
+  assert.match(idle, /What to react to: .*quiet on you for 12 min/);
+  const greet = quipPrompt({ kind: "greet", at: 1, data: { hour: 23, sinceLast: 5 } }, ctx).user;
+  assert.match(greet, /What to react to: .*\(23h\)/);
+});
+
+test("system tells her to vary openers", () => {
+  assert.match(quipPrompt({ kind: "tap", at: 1 }, ctx).system, /Don't start with 'Ooh' or 'look at'; vary how you open\./);
 });
