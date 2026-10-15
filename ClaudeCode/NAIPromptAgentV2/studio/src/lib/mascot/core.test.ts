@@ -112,3 +112,28 @@ test("readMs: 2.5s + 45ms/char, max 9s", () => {
   assert.equal(readMs("a".repeat(10)), 2950);
   assert.equal(readMs("a".repeat(1000)), 9000);
 });
+
+test("parseQuip: markdown/quote-wrapped tags and prefixes", () => {
+  assert.deepEqual(parseQuip("**[smug]** nice"), { expression: "smug", text: "nice" });
+  assert.deepEqual(parseQuip("*[pout]* ugh"), { expression: "pout", text: "ugh" });
+  assert.deepEqual(parseQuip('"[pout] ugh"'), { expression: "pout", text: "ugh" });
+  assert.deepEqual(parseQuip("[pout] Miyabi: hi"), { expression: "pout", text: "hi" });
+  assert.deepEqual(parseQuip("**Miyabi:** [wink] hey"), { expression: "wink", text: "hey" });
+  assert.deepEqual(parseQuip("Miyabi - [wink] hey"), { expression: "wink", text: "hey" });
+  assert.deepEqual(parseQuip("[Smug] hi"), { expression: "smug", text: "hi" });
+});
+test("parseQuip: first non-empty line only", () => {
+  assert.deepEqual(parseQuip("[smug] Nice.\n(She smirks.)"), { expression: "smug", text: "Nice." });
+  assert.deepEqual(parseQuip("[pout]\n\nugh\nmore"), { expression: "pout", text: "ugh" });
+});
+test("parseQuip: paired emphasis only", () => {
+  assert.equal(parseQuip("use snake_case and #1 ok~")?.text, "use snake_case and #1 ok~");
+  assert.equal(parseQuip("# *hey* **you**")?.text, "hey you");
+  assert.equal(parseQuip("> hi")?.text, "hi");
+});
+test("parseQuip: cut landing on a space keeps the word", () => {
+  const r = parseQuip("a".repeat(219) + " bbb")!;
+  assert.equal(r.text, "a".repeat(219));
+  const r2 = parseQuip("a".repeat(215) + " bbbb cc")!;
+  assert.equal(r2.text, "a".repeat(215) + " bbbb");
+});

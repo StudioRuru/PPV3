@@ -23,22 +23,36 @@ export function shouldSpeak(
 }
 
 export function parseQuip(raw: string): { expression: Expression; text: string } | null {
-  let t = raw.trim().replace(/^miyabi\s*:\s*/i, "");
-  let expression: Expression = "smug";
-  const m = t.match(/^\[([^\]]*)\]\s*/);
-  if (m) {
+  let t = raw.trim();
+  let expression: Expression | null = null;
+  // peel quote/markdown wrappers, "Miyabi:" prefixes and [tag] in any order
+  for (let i = 0; i < 3; i++) {
+    const lead = t.replace(/^[\s*_"'“‘]+/, "");
+    const wrapped = /^(miyabi|\[)/i.test(lead) && lead !== t.trimStart();
+    if (/^(miyabi|\[)/i.test(lead)) t = lead;
+    t = t.replace(/^miyabi\s*[:\-–]\s*[*_]*\s*/i, "");
+    const m = t.match(/^\[([^\]]*)\]/);
+    if (!m) continue;
     const x = m[1].trim().toLowerCase() as Expression;
-    if (EXPRESSIONS.includes(x)) expression = x;
+    if (!expression && EXPRESSIONS.includes(x)) expression = x;
     t = t.slice(m[0].length);
+    if (wrapped) t = t.replace(/^[*_"'”’]+/, ""); // closer of a wrapped tag, e.g. **[smug]**
   }
-  t = t.replace(/[*_`#>~]/g, "").trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
+  t = t.replace(/^\s*["'“‘]+/, "");
+  t = (t.split("\n").find((l) => l.trim()) ?? "").trim();
+  t = t
+    .replace(/^[#>]+\s*/, "")
+    .replace(/(\*\*|\*)(.+?)\1/g, "$2")
+    .replace(/(?<!\w)_(.+?)_(?!\w)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/["'“”‘’]+$/, "")
+    .trim();
   if (!t) return null;
   if (t.length > 220) {
-    const cut = t.slice(0, 220);
-    const sp = cut.lastIndexOf(" ");
-    t = (sp > 0 ? cut.slice(0, sp) : cut).trim();
+    const sp = t.slice(0, 221).lastIndexOf(" "); // 221 so a space at index 220 keeps the whole word
+    t = (sp > 0 ? t.slice(0, sp) : t.slice(0, 220)).trim();
   }
-  return { expression, text: t };
+  return { expression: expression ?? "smug", text: t };
 }
 
 export function outfitFor(o: { hour: number; nightFrom: number; nightTo: number; pin: Outfit | null; nsfw: boolean; flirt: boolean; flirtyTalk?: boolean }): Outfit {
