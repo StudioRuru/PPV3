@@ -55,3 +55,9 @@ export async function summarizeChat(store: RpStore, chatId: number, deps: Summar
   if (!summary) return; // never clobber a good summary with an empty result
   store.updateChat(chatId, { memorySummary: summary, summarizedThrough: plan.through });
 }
+
+/** Refresh memory once enough new turns accrued, or as soon as history started being trimmed (Delfino's trigger). */
+export function shouldSummarize(messages: Turn[], summarizedThrough: number, truncated: boolean, trigger = 20): boolean {
+  const fresh = messages.filter((m) => m.role !== "system" && m.id > summarizedThrough).length;
+  return fresh > 0 && (truncated || fresh >= trigger);
+}

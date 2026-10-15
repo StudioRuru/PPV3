@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { migrateRp } from "./schema";
 import { RpStore } from "./store";
 import { embedVoiceLines, rankVoiceLines, selectVoiceLines, toBuffer, toVector } from "./voice";
-import { foldPlan, summarizeChat } from "./memory";
+import { foldPlan, shouldSummarize, summarizeChat } from "./memory";
 
 const line = (text: string, v: number[] | null, embedModel = "bge-m3:latest") => ({ text, context: "", embedding: v ? toBuffer(new Float32Array(v)) : null, embedModel });
 
@@ -66,4 +66,13 @@ test("summarizeChat stores the summary and mark; an empty reply keeps the old su
   await summarizeChat(s, chat, { model: "m", stream: async function* () { yield "  "; } });
   assert.equal(s.chat(chat)!.memorySummary, "They headed to the castle.");
   assert.equal(s.chat(chat)!.summarizedThrough, mark);
+});
+
+test("shouldSummarize: after 20 new turns, or as soon as history is trimmed", () => {
+  const msgs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: i + 1, role: "user", content: "" }));
+  assert.equal(shouldSummarize(msgs(19), 0, false), false);
+  assert.equal(shouldSummarize(msgs(20), 0, false), true);
+  assert.equal(shouldSummarize(msgs(25), 10, false), false);
+  assert.equal(shouldSummarize(msgs(3), 0, true), true);
+  assert.equal(shouldSummarize(msgs(3), 3, true), false);
 });
