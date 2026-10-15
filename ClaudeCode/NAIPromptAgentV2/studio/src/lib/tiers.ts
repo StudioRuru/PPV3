@@ -42,6 +42,9 @@ export class HeavyGate {
     this.clearTimer = deps.clearTimer ?? ((id) => clearTimeout(id as NodeJS.Timeout));
   }
 
+  /** A heavy run is in flight (state can stay "light" when nothing was running to pause). */
+  get busy(): boolean { return this.users > 0; }
+
   private cancel() {
     if (this.timer !== null) this.clearTimer(this.timer);
     this.timer = null;

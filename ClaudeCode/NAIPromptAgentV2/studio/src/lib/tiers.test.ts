@@ -108,3 +108,15 @@ test("review M1: a heavy call during a restore waits for it instead of racing po
   assert.equal(await second, "x");
   assert.deepEqual(calls.filter((c) => !c.endsWith(":done")), ["down", "unload", "up", "down"]);
 });
+
+test("busy: true while any heavy run is in flight, even when nothing was paused", async () => {
+  const { gate } = fake({ active: false });
+  assert.equal(gate.busy, false);
+  let release!: () => void;
+  const a = gate.run(() => new Promise<void>((r) => (release = r)));
+  await tick();
+  assert.equal(gate.state, "light");
+  assert.equal(gate.busy, true);
+  release(); await a;
+  assert.equal(gate.busy, false);
+});
