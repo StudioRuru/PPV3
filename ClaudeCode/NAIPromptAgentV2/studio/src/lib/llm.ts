@@ -3,6 +3,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { BRAIN_MODEL, CAPTION_URL, OLLAMA_URL, TIPO_URL } from "./env";
 import type { ChatMsg } from "./copilot-prompt";
+import { HeavyGate } from "./tiers";
 
 export class Offline extends Error {}
 
@@ -56,12 +57,23 @@ export function power(action: "up" | "down" | "status"): Promise<{ ok: boolean; 
   });
 }
 
-/** Streams reply text chunks; thinking tokens are skipped. */
-export async function* chatStream(system: string, messages: ChatMsg[]): AsyncGenerator<string> {
+/** One shared pause for heavy-model calls (see HeavyGate). */
+export const heavyGate = new HeavyGate({ power });
+const paused = (what: string) => new Error(`${what} is paused while the heavy model is replying — try again in a moment`);
+
+export type StreamOpts = { model?: string; options?: Record<string, unknown>; stop?: string[]; system?: boolean };
+
+/**
+ * Streams reply text chunks; thinking tokens are skipped. Without `opts.model` it's the everyday brain (servers
+ * restored first if the heavy gate paused them); heavy callers wrap this in `heavyGate.run`.
+ * `system: false` sends `messages` as-is (RP assembles its own system turns).
+ */
+export async function* chatStream(system: string, messages: ChatMsg[] | { role: string; content: string }[], opts: StreamOpts = {}): AsyncGenerator<string> {
+  if (!opts.model && !(await heavyGate.ensureLight())) throw paused("The co-pilot");
   const r = await post(`${OLLAMA_URL}/api/chat`, {
-    model: BRAIN_MODEL, stream: true, keep_alive: "2h",
-    messages: [{ role: "system", content: system }, ...messages],
-    options: { temperature: 0.6, top_k: 64, top_p: 0.9, min_p: 0.05, repeat_penalty: 1.1, num_ctx: 16384 },
+    model: opts.model ?? BRAIN_MODEL, stream: true, keep_alive: opts.model ? "30m" : "2h",
+    messages: opts.system === false ? messages : [{ role: "system", content: system }, ...messages],
+    options: { temperature: 0.6, top_k: 64, top_p: 0.9, min_p: 0.05, repeat_penalty: 1.1, num_ctx: 16384, ...opts.options, ...(opts.stop?.length ? { stop: opts.stop } : {}) },
   }, 600_000);
   if (!r.ok || !r.body) throw new Error(`Ollama ${r.status}: ${await r.text()}`);
   const dec = new TextDecoder();
@@ -79,7 +91,15 @@ export async function* chatStream(system: string, messages: ChatMsg[]): AsyncGen
   }
 }
 
+/** Embeddings via Ollama /api/embed (one vector per text). */
+export async function embed(model: string, texts: string[]): Promise<number[][]> {
+  const r = await post(`${OLLAMA_URL}/api/embed`, { model, input: texts, keep_alive: "30m" }, 120_000);
+  if (!r.ok) throw new Error(`Ollama ${r.status}: ${await r.text()}`);
+  return (await r.json()).embeddings as number[][];
+}
+
 export async function tipoComplete(prompt: string): Promise<string> {
+  if (!(await heavyGate.ensureLight())) throw paused("TIPO");
   const r = await post(`${TIPO_URL}/completion`, { prompt, n_predict: 256, temperature: 1.0, min_p: 0.1 }, 60_000);
   if (!r.ok) throw new Error(`TIPO ${r.status}`);
   return (await r.json()).content as string;
@@ -87,6 +107,7 @@ export async function tipoComplete(prompt: string): Promise<string> {
 
 /** ToriiGate single-turn caption; `query` is built from its prompts.py templates. */
 export async function caption(imageUrl: string, query: string): Promise<string> {
+  if (!(await heavyGate.ensureLight())) throw paused("The captioner");
   const r = await post(`${CAPTION_URL}/v1/chat/completions`, {
     messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: imageUrl } }, { type: "text", text: query }] }],
     temperature: 0.5, max_tokens: 1024,

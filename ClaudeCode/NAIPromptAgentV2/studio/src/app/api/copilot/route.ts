@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUTH_ENABLED, TAGGER_URL } from "@/lib/env";
-import { brainLoaded, brainUp, captionUp, ping, power, setBrain, tipoUp } from "@/lib/llm";
+import { brainLoaded, brainUp, captionUp, heavyGate, ping, power, setBrain, tipoUp } from "@/lib/llm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +18,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const on = !!(await req.json().catch(() => null))?.on;
+  heavyGate.state = "light"; // a manual On/Off wins: the heavy gate must not restart servers the owner just stopped
   if (AUTH_ENABLED) {
     const r = await power(on ? "up" : "down");
     return NextResponse.json({ ...(await status()), ...(r.ok ? {} : { error: r.err || "Power script failed — see studio/.run/*.log" }) }, { status: r.ok ? 200 : 503 });
