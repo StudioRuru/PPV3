@@ -4,6 +4,8 @@ import Database from "better-sqlite3";
 import { blankSlime, type Sliders } from "./slime";
 import { SlimeStore, migrateSlimes, type LiveIdentity, type LiveState } from "./slime-store";
 import { VialStore, migrateVials } from "./vial-store";
+import { DbIdentity } from "./identity";
+import { MascotStore, migrateMascot } from "./store";
 import { NEUTRAL_VIAL, UNDO_VIAL, type AppliedVial, type Vial } from "./vial";
 import { vialAction, type VialDeps } from "./vial-api";
 
@@ -16,6 +18,7 @@ class FakeLive implements LiveIdentity {
   writes = 0;
   read() { return structuredClone(this.state); }
   write(s: LiveState | null) { this.writes++; if (s) this.state = structuredClone(s); }
+  setPotions(sliders: Sliders, vials: AppliedVial[]) { this.writes++; this.state = { ...this.state, sliders: structuredClone(sliders), vials: structuredClone(vials) }; }
 }
 
 const brew = (name = "Brat Brew", value = 2): Vial => ({ name, color: "#ff0000", effect: `${name} makes you sassier`, sliders: { brat: { value } } });
@@ -126,7 +129,7 @@ test("double drop of the same bottle: second is 404, no double dose", async () =
   const id = await bottle(d);
   const [a, b] = await Promise.all([act(d, { action: "drop", id, jarId: active }), act(d, { action: "drop", id, jarId: active })]);
   assert.deepEqual([a.status, b.status].sort(), [200, 404]);
-  assert.match((a.status === 404 ? a : b).b.error!, /That bottle is gone/);
+  assert.match((a.status === 404 ? a : b).b.error!, /^That bottle is gone\.$/);
   assert.equal(live.state.vials[0].doses.length, 1);
 });
 
@@ -164,4 +167,47 @@ test("Empty (no active jar): dropping into any jar works, no quip, live untouche
   assert.equal(live.writes, 0);
   assert.equal(quips.length, 0);
   assert.equal(store.get(active)!.vials.length, 1);
+});
+
+test("potion actions on the active jar never rewrite memories (journal, fact ids, refresh marker)", async () => {
+  const db = new Database(":memory:");
+  db.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  migrateMascot(db); migrateSlimes(db); migrateVials(db);
+  let t = 0;
+  const ms = new MascotStore(db, () => ++t);
+  for (let i = 0; i < 80; i++) ms.log("tap", `s${i}`, `l${i}`);
+  ms.setFacts(["likes cats", "hates mornings"]);
+  ms.markRefreshed();
+  const live = new DbIdentity(db, ms);
+  const store = new SlimeStore(db, live);
+  const active = store.ensureFirstRun()!;
+  const d: VialDeps = { db, store, live, vials: new VialStore(db), quip: async () => ({ expression: "flirty", text: "mm~" }) };
+  const snap = () => ({
+    journal: db.prepare("SELECT id, line FROM mascot_journal ORDER BY id").all(),
+    facts: db.prepare("SELECT id, text FROM mascot_facts ORDER BY id").all(),
+    meta: db.prepare("SELECT key, value FROM mascot_meta WHERE key <> 'active_slime' ORDER BY key").all(),
+  });
+  const before = snap();
+  assert.equal(before.journal.length, 80);
+  const brat0 = live.read().sliders.brat;
+  for (const id of [await bottle(d), await bottle(d)]) assert.equal((await act(d, { action: "drop", id, jarId: active })).status, 200);
+  assert.equal(live.read().vials[0].doses.length, 2);
+  assert.deepEqual(store.get(active)!.vials, live.read().vials);
+  assert.equal((await act(d, { action: "undo", jarId: active })).status, 200);
+  assert.equal(live.read().vials[0].doses.length, 1);
+  assert.equal((await act(d, { action: "neutral", jarId: active })).status, 200);
+  assert.deepEqual(live.read().vials, []);
+  assert.deepEqual({ value: live.read().sliders.brat.value, cap: live.read().sliders.brat.cap }, { value: brat0.value, cap: brat0.cap });
+  assert.deepEqual(snap(), before);
+});
+
+test("live potion write failing on the active jar rolls everything back: bottle kept, jar unchanged, 500", async () => {
+  const { d, store, live, active } = mk();
+  const id = await bottle(d);
+  const jar = store.get(active);
+  live.setPotions = () => { throw new Error("disk on fire"); };
+  const r = await act(d, { action: "drop", id, jarId: active });
+  assert.equal(r.status, 500);
+  assert.deepEqual((await act(d, { action: "list" })).b.bottles.map((x) => x.id), [id]);
+  assert.deepEqual(store.get(active), jar);
 });

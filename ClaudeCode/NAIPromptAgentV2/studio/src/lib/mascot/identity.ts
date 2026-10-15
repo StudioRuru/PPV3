@@ -64,6 +64,12 @@ export class DbIdentity implements LiveIdentity {
     this.store.setMemories(memories);
   }
 
+  /** Potion change on the active slime: only sliders + vials, memories untouched (write() would rewrite them). */
+  setPotions(sliders: Sliders, vials: AppliedVial[]): void {
+    const next = this.patch({ sliders, vials });
+    if (JSON.stringify(next.vials) !== JSON.stringify(vials.map(validateAppliedVial))) throw new Error("Invalid live identity");
+  }
+
   /** Owner ignored her / disliked a reply: nudge live sliders within caps. No-op when Empty. */
   drift(event: "idle" | "dislike"): void {
     const s = this.settings();

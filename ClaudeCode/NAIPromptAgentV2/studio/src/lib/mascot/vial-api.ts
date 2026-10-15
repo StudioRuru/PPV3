@@ -1,15 +1,16 @@
 // Vials API logic with injected deps (db wiring lives in app/api/mascot/vials/route.ts) so it can be unit-tested.
 import type Database from "better-sqlite3";
 import type { Expression } from "./core";
-import type { SlimeDoc } from "./slime";
-import type { LiveIdentity, SlimeStore } from "./slime-store";
+import type { SlimeDoc, Sliders } from "./slime";
+import type { LiveState, SlimeStore } from "./slime-store";
 import { applyVial, neutralize, NEUTRAL_VIAL, parseVialBlock, poisonLevel, undoLast, UNDO_VIAL, validateVial, type AppliedVial } from "./vial";
 import type { VialStore } from "./vial-store";
 
 export type VialDeps = {
   db: Database.Database;
   store: SlimeStore;
-  live: LiveIdentity;
+  /** Live identity: read, and a narrow potion write (sliders + vials only, so memories are never rewritten). */
+  live: { read(): LiveState; setPotions(sliders: Sliders, vials: AppliedVial[]): void };
   vials: VialStore;
   /** A `vial_drop` reaction from the active slime; `data` says what was poured or drained. */
   quip: (data: Record<string, unknown>) => Promise<{ expression: Expression; text: string }>;
@@ -50,7 +51,7 @@ function change(d: VialDeps, jarId: number, f: (doc: SlimeDoc) => SlimeDoc): { d
     const state = d.store.activeId() === jarId ? d.live.read() : null;
     const next = f(state ? { ...jar, ...state } : jar);
     const doc = d.store.save(jarId, { sliders: next.sliders, vials: next.vials });
-    if (state) d.live.write({ ...state, sliders: next.sliders, vials: next.vials }); // live write last
+    if (state) d.live.setPotions(next.sliders, next.vials as AppliedVial[]); // live write last
     return { doc, active: !!state };
   })();
 }
@@ -91,7 +92,7 @@ async function run(b: Record<string, unknown>, d: VialDeps): Promise<Record<stri
       let v = null as ReturnType<VialStore["take"]>;
       const r = change(d, jarId, (doc) => {
         v = d.vials.take(id);
-        if (!v) throw new Fail(404, "That bottle is gone");
+        if (!v) throw new Fail(404, "That bottle is gone.");
         const a = applyVial(doc, v);
         if ("error" in a) throw new Fail(400, a.error);
         return a.doc;
