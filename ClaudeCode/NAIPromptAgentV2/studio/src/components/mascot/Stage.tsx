@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Expression } from "@/lib/mascot/core";
 import { POSE_SPEC, stageSprite, type Pose } from "@/lib/mascot/poses";
 import {
-  blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, onScreen, rectsIntersect, settleSpot, spotBox, TAP_MAX_MOVE,
+  blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, TAP_MAX_MOVE,
   type PointerSample, type Rect, type Spot, type StageEvent,
 } from "@/lib/mascot/stage";
 
@@ -33,7 +33,8 @@ type Press = { samples: PointerSample[]; left: number; top: number; long: boolea
 export function Stage(p: Props) {
   const { sprites, outfit, mischief, hidden, typing } = p;
   const have = useMemo(() => new Set(Object.keys(sprites)), [sprites]);
-  const [view, setView] = useState(() => ({ vw: window.innerWidth, vh: window.innerHeight }));
+  // stableH sizes her: the tallest innerHeight seen at this width, so keyboards/toolbars don't make her grow and shrink (reset on rotate).
+  const [view, setView] = useState(() => ({ vw: window.innerWidth, vh: window.innerHeight, stableH: window.innerHeight }));
   const [spot, setSpot] = useState<Spot | null>(null);
   const [drag, setDrag] = useState<{ left: number; top: number } | null>(null);
   const [gone, setGone] = useState<{ left: number; top: number } | null>(null); // swiped off, sliding out
@@ -47,7 +48,7 @@ export function Stage(p: Props) {
   const sway = useRef<HTMLDivElement>(null);
   const exit = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const { vw, vh } = view, baseH = vh * SIZE_VH[p.size];
+  const { vw, vh } = view, baseH = view.stableH * SIZE_VH[p.size];
   const dims = (pose: Pose) => { const sp = POSE_SPEC[pose], h = baseH * (sp.height / 1216); return { w: (h * sp.width) / sp.height, h }; };
   const fits = (pose: Pose) => stageSprite(have, pose, outfit, "smug") !== null;
   /** Measured only when choosing a spot: composers, the island and a focused field are off limits; [data-mascot-target] cards are fair game. */
@@ -66,10 +67,22 @@ export function Stage(p: Props) {
   // Latest closures for long-lived listeners.
   const act = useRef({ move, spot, collect, mischief, hidden, typing, baseH });
   act.current = { move, spot, collect, mischief, hidden, typing, baseH };
+  /** Resize: stay put unless she drifted off-screen (nudge back) or now covers an avoid rect (re-pick). */
+  const refit = () => {
+    const a = act.current, s = a.spot;
+    if (!s || a.hidden) return;
+    const c = a.collect(), t = refitSpot(s, a.baseH, c.vw, c.vh, c.avoid);
+    if (!t) a.move(a.typing ? "typing" : undefined);
+    else if (t !== s) { setMotion(SETTLE); setSpot(t); }
+  };
 
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
-    const onResize = () => { setView({ vw: window.innerWidth, vh: window.innerHeight }); clearTimeout(t); t = setTimeout(() => !act.current.hidden && act.current.move(act.current.typing ? "typing" : undefined), 250); };
+    const onResize = () => {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      setView((v) => ({ vw, vh, stableH: vw === v.vw ? Math.max(v.stableH, vh) : vh }));
+      clearTimeout(t); t = setTimeout(refit, 250);
+    };
     const onStage = (e: Event) => { if (!act.current.hidden) act.current.move((e as CustomEvent<StageEvent>).detail); };
     const onBus = (e: Event) => {
       const a = act.current, k = (e as CustomEvent<{ kind: string }>).detail?.kind;
@@ -209,7 +222,7 @@ export function Stage(p: Props) {
   const overlay = (
     <div className="pointer-events-auto absolute flex justify-center" aria-live="polite"
       style={{ left: Math.min(vw - ow - 8, Math.max(8, spot.x - ow / 2)), top: above ? homeT : homeT + h * 0.3, width: ow, transform: above ? "translateY(calc(-100% - 4px))" : undefined }}>
-      {!drag && p.overlay}
+      {!drag && !typing && p.overlay}
     </div>
   );
   const flip = spot.flip ? "scaleX(-1)" : undefined;

@@ -4,7 +4,7 @@ import { POSES } from "./poses";
 import { EXPRESSIONS } from "./core";
 import {
   FLICK_SPEED, TAP_MAX_MOVE, LONGPRESS_MS, POKE_WINDOW_MS, blinkSchedule, chooseSpot, classifyBodyGesture, idleMood,
-  nextMoveDelay, onScreen, rectsIntersect, settleSpot, spotBox, type Rect,
+  nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, type Rect,
 } from "./stage";
 
 /** Deterministic, well-mixed mulberry32 in [0,1). */
@@ -185,4 +185,14 @@ test("settleSpot lands near the drop, on-screen, clear of avoid; picks a fitting
     for (const a of avoid) assert.equal(rectsIntersect(b, a), false, JSON.stringify(d));
     assert.ok(b.y >= -0.5 && b.y + b.h <= VH + 0.5 && (t.pose === "peek" || (b.x >= -0.5 && b.x + b.w <= VW + 0.5)), JSON.stringify(d));
   }
+});
+
+test("refitSpot: resize keeps her spot, nudges her back on-screen, null only when she'd cover an avoid rect", () => {
+  const s = { pose: "stand" as const, x: 200, y: 600, flip: false, scale: 1 };
+  assert.equal(refitSpot(s, baseH, VW, VH, avoid), s, "still fine: same object, no move");
+  assert.deepEqual(refitSpot({ ...s, y: 700 }, baseH, VW, 650, []), { ...s, y: 650 }, "toolbar shrank the viewport: feet nudged up");
+  assert.deepEqual(refitSpot({ ...s, x: 380 }, baseH, VW, VH, []), { ...s, x: VW - 130 }, "narrower: nudged in");
+  const peek = { pose: "peek" as const, x: 30, y: 700, flip: false, scale: 1 };
+  assert.equal(refitSpot(peek, baseH, VW, VH, []), peek, "peek keeps its off-edge x");
+  assert.equal(refitSpot({ ...s, y: 800 }, baseH, VW, VH, avoid), null, "over the composer: re-pick");
 });

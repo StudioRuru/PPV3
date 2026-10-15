@@ -165,3 +165,11 @@ export function settleSpot(drop: { x: number; y: number }, ctx: Omit<SpotCtx, "m
   }
   return chooseSpot({ ...ctx, mischief: 0, from: drop });
 }
+
+/** After a resize: the same spot (same object) if still fine, nudged back on-screen if it drifted off, null = she'd cover an avoid rect, re-pick. */
+export function refitSpot(s: Spot, baseH: number, vw: number, vh: number, avoid: Rect[]): Spot | null {
+  const sp = POSE_SPEC[s.pose], h = baseH * s.scale * (sp.height / STAND_H), w = (h * sp.width) / sp.height;
+  const x = s.pose === "peek" ? s.x : clamp(s.x, w / 2, vw - w / 2), y = clamp(s.y, Math.min(h, vh), vh);
+  const t = x === s.x && y === s.y ? s : { ...s, x, y };
+  return avoid.some((a) => rectsIntersect(spotBox(t, baseH, vw, vh), a)) ? null : t;
+}

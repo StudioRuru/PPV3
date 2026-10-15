@@ -145,7 +145,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
 
   // Text field focused = typing: she moves out of the way and stays quiet.
   useEffect(() => {
-    const check = () => setTimeout(() => setTyping(isTyping()), 0);
+    const check = () => setTimeout(() => { const t = isTyping(); setTyping(t); if (t) { setSay(null); setMenu(false); } }, 0); // a bubble/menu must never sit over the field
     document.addEventListener("focusin", check);
     document.addEventListener("focusout", check);
     return () => { document.removeEventListener("focusin", check); document.removeEventListener("focusout", check); };
