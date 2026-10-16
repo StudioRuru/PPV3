@@ -142,3 +142,28 @@ test("historyForEdit: truncates at the user message, swaps the text, rejects bla
   assert.equal(historyForEdit(ms, 2, "  "), null);
   assert.equal(historyForEdit(ms, 9, "x"), null);
 });
+
+import { clipBatch, dragMask, missingClipKinds, resizeMask, spriteKeys } from "./ui";
+test("missingClipKinds: kinds absent from the listing, spec order", () => {
+  assert.deepEqual(missingClipKinds({}, "day/smug"), ["blink", "talk", "laugh", "pout", "wink", "wave", "jump"]);
+  assert.deepEqual(missingClipKinds({ "day/smug": { blink: 1, talk: 2, jump: 4 } }, "day/smug"), ["laugh", "pout", "wink", "wave"]);
+});
+test("spriteKeys/clipBatch: busts, poses, portraits; blink and talk first; only saved sprites and missing kinds", () => {
+  const sprites = { "day/smug": 1, "day/full": 1, "pose/sit/day/smug": 1, "talk/day/talk_open": 1, "night/smug": 1 };
+  assert.deepEqual(spriteKeys(sprites, "day"), ["day/full", "day/smug", "pose/sit/day/smug", "talk/day/talk_open"]);
+  assert.deepEqual(spriteKeys(sprites, "day", true), ["talk/day/talk_open"]);
+  const b = clipBatch(sprites, { "day/full": { blink: 1 } }, "day");
+  assert.deepEqual(b.slice(0, 3), [{ baseKey: "day/full", kind: "talk" }, { baseKey: "day/full", kind: "laugh" }, { baseKey: "day/full", kind: "pout" }]);
+  assert.equal(b.length, 6 + 7 * 3);
+  assert.deepEqual(b.map((c) => c.baseKey).filter((k, i, a) => a.indexOf(k) === i), ["day/full", "day/smug", "pose/sit/day/smug", "talk/day/talk_open"]);
+  assert.deepEqual(clipBatch(sprites, {}, "day", true).map((c) => c.kind).slice(0, 2), ["blink", "talk"]);
+});
+test("dragMask/resizeMask: clamped inside the sprite, min size 0.02", () => {
+  const m = { x: 0.4, y: 0.4, w: 0.2, h: 0.1 };
+  assert.deepEqual(dragMask(m, 0.1, -0.1), { x: 0.5, y: 0.3, w: 0.2, h: 0.1 });
+  assert.deepEqual(dragMask(m, 5, 5), { x: 0.8, y: 0.9, w: 0.2, h: 0.1 });
+  assert.deepEqual(dragMask(m, -5, -5), { x: 0, y: 0, w: 0.2, h: 0.1 });
+  assert.deepEqual(resizeMask(m, 0.1, 0.1), { x: 0.4, y: 0.4, w: 0.3, h: 0.2 });
+  assert.deepEqual(resizeMask(m, -5, -5), { x: 0.4, y: 0.4, w: 0.02, h: 0.02 });
+  assert.deepEqual(resizeMask(m, 5, 5), { x: 0.4, y: 0.4, w: 0.6, h: 0.6 });
+});
