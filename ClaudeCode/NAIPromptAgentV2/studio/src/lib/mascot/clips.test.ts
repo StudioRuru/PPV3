@@ -41,7 +41,7 @@ test("baseKey whitelist and path-safe encoding", () => {
 test("default masks per key type", () => {
   assert.deepEqual(defaultMasks("day/smug").eyes, { x: 0.38, y: 0.29, w: 0.26, h: 0.1 });
   assert.deepEqual(defaultMasks("talk/day/smug").eyes, { x: 0.38, y: 0.29, w: 0.26, h: 0.1 });
-  assert.deepEqual(defaultMasks("talk/day/listen").mouth, { x: 0.4, y: 0.44, w: 0.2, h: 0.08 });
+  assert.deepEqual(defaultMasks("talk/day/listen").mouth, { x: 0.41, y: 0.34, w: 0.2, h: 0.1 });
   assert.deepEqual(defaultMasks("pose/stand/day/smug").eyes, { x: 0.42, y: 0.1, w: 0.16, h: 0.04 });
   assert.deepEqual(defaultMasks("pose/back/day").mouth, { x: 0.45, y: 0.14, w: 0.1, h: 0.03 });
   assert.deepEqual(defaultMasks("day/full").mouth, { x: 0.45, y: 0.14, w: 0.1, h: 0.03 });

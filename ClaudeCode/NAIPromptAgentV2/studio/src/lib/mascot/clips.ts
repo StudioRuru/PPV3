@@ -53,7 +53,7 @@ export function defaultMasks(baseKey: string): Record<MaskName, Mask> {
   const full = baseKey.startsWith("pose/") || baseKey.endsWith("/full");
   return full
     ? { eyes: { x: 0.42, y: 0.1, w: 0.16, h: 0.04 }, mouth: { x: 0.45, y: 0.14, w: 0.1, h: 0.03 } }
-    : { eyes: { x: 0.38, y: 0.29, w: 0.26, h: 0.1 }, mouth: { x: 0.4, y: 0.44, w: 0.2, h: 0.08 } };
+    : { eyes: { x: 0.38, y: 0.29, w: 0.26, h: 0.1 }, mouth: { x: 0.41, y: 0.34, w: 0.2, h: 0.1 } };
 }
 const unit = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 const MIN_MASK = 0.02, r6 = (n: number) => Math.round(n * 1e6) / 1e6, f6 = (n: number) => Math.floor(n * 1e6 + 1e-6) / 1e6;
