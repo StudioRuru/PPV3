@@ -175,7 +175,7 @@ test("Precise Reference adds the five director_reference fields only when given;
 test("infill body: inpainting model, image + mask, original kept outside the mask; img2img unchanged", async () => {
   const { buildNaiBody, DEFAULT_PARAMS, inpaintModel } = await import("./nai-body");
   const c = { base: "1girl", uc: "", chars: [] };
-  const { body } = buildNaiBody(c, { ...DEFAULT_PARAMS, seed: 7 }, undefined, undefined, { image: "QUJD", mask: "TUFTSw==" });
+  const { body } = buildNaiBody(c, { ...DEFAULT_PARAMS, seed: 7 }, undefined, undefined, { image: "QUJD", mask: "TUFTSw==", strength: 0.85 });
   assert.equal(body.action, "infill");
   assert.equal(body.model, "nai-diffusion-5-full-inpainting");
   const p = body.parameters as Record<string, unknown>;
@@ -183,6 +183,14 @@ test("infill body: inpainting model, image + mask, original kept outside the mas
   assert.equal(p.mask, "TUFTSw==");
   assert.equal(p.add_original_image, true);
   assert.equal(p.extra_noise_seed, 7);
+  assert.equal("strength" in p, false); // a top-level strength draws a hard-edged band (verified live)
+  assert.equal(p.noise, 0);
+  assert.equal(p.inpaintImg2ImgStrength, 0.85);
+  assert.deepEqual(p.img2img, { strength: 0.85, color_correct: true });
+  const full = buildNaiBody(c, { ...DEFAULT_PARAMS, seed: 7 }, undefined, undefined, { image: "QUJD", mask: "TUFTSw==", strength: 1 }).body.parameters as Record<string, unknown>;
+  assert.equal(full.inpaintImg2ImgStrength, 1);
+  assert.equal("img2img" in full, false);
+  assert.equal("strength" in full, false);
   assert.equal(inpaintModel("nai-diffusion-5-full-medium"), "nai-diffusion-5-full-inpainting");
   assert.equal(inpaintModel("nai-diffusion-5-curated"), "nai-diffusion-5-curated-inpainting");
   const i2i = buildNaiBody(c, { ...DEFAULT_PARAMS, seed: 7 }, { image: "QUJD", strength: 0.4, noise: 0 }).body;

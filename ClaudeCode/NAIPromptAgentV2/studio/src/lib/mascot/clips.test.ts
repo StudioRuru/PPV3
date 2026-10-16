@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_PARAMS } from "../nai-body";
-import { CLIP_KINDS, CLIP_SPEC, ClipPlayer, clampMask, clipPath, clipRequests, decodeBaseKey, defaultMasks, encodeBaseKey, isBaseKey, manifestPath, validateManifest, type Manifest } from "./clips";
+import { CLIP_KINDS, CLIP_SPEC, ClipPlayer, clampMask, clipKindsFor, clipPath, clipRequests, infillBase, decodeBaseKey, defaultMasks, encodeBaseKey, isBaseKey, manifestPath, validateManifest, type Manifest } from "./clips";
 
 test("manifest validation", () => {
   const ok = { masks: { eyes: { x: 2, y: 0.5, w: 0.9, h: 0.9 } }, clips: { blink: { frames: 1, fps: 8, loop: false }, talk: { frames: 2, fps: 8, loop: true } } };
@@ -39,7 +39,8 @@ test("baseKey whitelist and path-safe encoding", () => {
 });
 
 test("default masks per key type", () => {
-  assert.deepEqual(defaultMasks("day/smug").eyes, { x: 0.32, y: 0.3, w: 0.36, h: 0.1 });
+  assert.deepEqual(defaultMasks("day/smug").eyes, { x: 0.38, y: 0.29, w: 0.26, h: 0.1 });
+  assert.deepEqual(defaultMasks("talk/day/smug").eyes, { x: 0.38, y: 0.29, w: 0.26, h: 0.1 });
   assert.deepEqual(defaultMasks("talk/day/listen").mouth, { x: 0.4, y: 0.44, w: 0.2, h: 0.08 });
   assert.deepEqual(defaultMasks("pose/stand/day/smug").eyes, { x: 0.42, y: 0.1, w: 0.16, h: 0.04 });
   assert.deepEqual(defaultMasks("pose/back/day").mouth, { x: 0.45, y: 0.14, w: 0.1, h: 0.03 });
@@ -62,15 +63,48 @@ test("clipRequests: strength, tags, seed, infill per kind", () => {
     for (const [i, q] of r.entries()) {
       assert.equal(q.params.seed, 77);
       assert.equal(q.compiled.uc, "bad");
-      assert.ok(q.compiled.base.startsWith("1girl, miyabi, ") && q.compiled.base.endsWith(s.tags[i]));
-      if (s.method === "img2img") assert.deepEqual([q.img2img, q.infill], [{ strength: s.strength }, undefined]);
-      else assert.deepEqual([q.img2img, q.infill, q.mask], [undefined, true, s.mask]);
+      if (s.method === "img2img") {
+        assert.ok(q.compiled.base.startsWith("1girl, miyabi, ") && q.compiled.base.endsWith(s.tags[i]));
+        assert.deepEqual([q.img2img, q.infill], [{ strength: s.strength }, undefined]);
+      } else {
+        assert.equal(q.compiled.base, `${s.tags[i]}, 1girl, miyabi`); // frame tag first
+        assert.deepEqual([q.img2img, q.infill, q.mask], [undefined, { strength: 0.85 }, s.mask]);
+      }
     }
   }
   assert.deepEqual(CLIP_KINDS.map((k) => CLIP_SPEC[k].frames), [1, 2, 3, 3, 3, 2, 4]);
-  assert.deepEqual(CLIP_KINDS.map((k) => CLIP_SPEC[k].strength), [undefined, undefined, 0.45, 0.4, 0.4, 0.5, 0.55]);
-  assert.deepEqual(clipRequests(base, "talk", 1).map((q) => q.compiled.base.split(", ").slice(-2).join(", ")), ["miyabi, parted lips", "miyabi, open mouth"]);
+  assert.deepEqual(CLIP_KINDS.map((k) => CLIP_SPEC[k].strength), [0.85, 0.85, 0.45, 0.4, 0.4, 0.5, 0.55]);
+  assert.deepEqual(CLIP_SPEC.blink.tags, ["{{closed eyes}}, eyes closed"]);
+  assert.deepEqual(clipRequests(base, "talk", 1).map((q) => q.compiled.base.split(", ")[0]), ["{{parted lips}}", "{{open mouth}}"]);
   assert.equal(base.params.seed, 1); // input untouched
+});
+
+test("infillBase / clipRequests: the expression's own tags and the repainted feature's tags are dropped", () => {
+  const look = "1girl, miyabi, red eyes, {smirk}, smug, half-closed eyes, fang, looking at viewer, red eyeliner, eyeshadow, open mouth, portrait";
+  const expr = "smug, smirk, half-closed eyes, fang";
+  assert.equal(infillBase(look, "blink", expr), "1girl, miyabi, open mouth, portrait");
+  assert.equal(infillBase(look, "talk", expr), "1girl, miyabi, red eyes, looking at viewer, red eyeliner, eyeshadow, portrait");
+  assert.equal(infillBase("1girl, :p, tongue out, fangs, closed mouth, parted lips", "talk", ""), "1girl");
+  const [b] = clipRequests({ ...base, compiled: { ...base.compiled, base: look } }, "blink", 3, expr);
+  assert.equal(b.compiled.base, "{{closed eyes}}, eyes closed, 1girl, miyabi, open mouth, portrait");
+  assert.deepEqual([b.infill, b.mask, b.img2img], [{ strength: 0.85 }, "eyes", undefined]);
+  const [l] = clipRequests({ ...base, compiled: { ...base.compiled, base: look } }, "laugh", 3, expr); // img2img keeps the full prompt
+  assert.equal(l.compiled.base, `${look}, smile`);
+});
+
+test("clipKindsFor: only kinds that can play on that sprite", () => {
+  const all = [...CLIP_KINDS], noTalk = all.filter((k) => k !== "talk");
+  assert.deepEqual(clipKindsFor("pose/back/day"), []);
+  for (const f of ["think1", "think2", "talk_open", "talk_closed", "listen"]) assert.deepEqual(clipKindsFor(`talk/day/${f}`), [], f);
+  assert.deepEqual(clipKindsFor("talk/day/smug"), all);
+  assert.deepEqual(clipKindsFor("day/smug"), all);
+  assert.deepEqual(clipKindsFor("day/full"), noTalk);
+  assert.deepEqual(clipKindsFor("pose/sit/day/smug"), noTalk);
+  for (const p of ["lie", "legs"]) {
+    assert.deepEqual(clipKindsFor(`pose/${p}/day/smug`), noTalk.filter((k) => k !== "blink"), p);
+    assert.deepEqual(clipKindsFor(`pose/${p}/day/smug`, true), noTalk, p);
+  }
+  assert.deepEqual(clipKindsFor("../x"), []);
 });
 
 const clips: Manifest["clips"] = {

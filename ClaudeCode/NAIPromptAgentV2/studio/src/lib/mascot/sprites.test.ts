@@ -144,30 +144,40 @@ test("spriteDirFor: look.spriteDir under data/mascot (\"\" = root); traversal re
 // --- clip pipeline (Plan 22 Task 2) ---
 import sharp from "sharp";
 import { CLIP_SPEC, clipPath, manifestPath } from "./clips";
-import { clipCandidatePath, generateClip, keyRequest, maskPng, pickClip, readManifest, saveClipMasks } from "./sprites";
+import { clipAllowed, clipCandidatePath, generateClip, keyRequest, maskPng, pickClip, readManifest, saveClipMasks, snapBox } from "./sprites";
+import { TALK_FRAME_TAGS } from "./talk";
 
 const solid = (w: number, h: number, alpha = 1) => sharp({ create: { width: w, height: h, channels: 4, background: { r: 200, g: 100, b: 50, alpha } } }).png().toBuffer();
 
-test("maskPng: base size, white box on black at the normalised position", async () => {
-  const png = await maskPng(100, 200, { x: 0.2, y: 0.5, w: 0.3, h: 0.1 });
+test("maskPng: base size, 1-channel, white box on black snapped outward to 8 px", async () => {
+  const png = await maskPng(100, 200, { x: 0.2, y: 0.5, w: 0.3, h: 0.1 }); // 20..50 × 100..120 → 16..56 × 96..120
+  const meta = await sharp(png).metadata();
+  assert.equal(meta.channels, 1);
   const { data, info } = await sharp(png).greyscale().raw().toBuffer({ resolveWithObject: true });
-  assert.deepEqual([info.width, info.height], [100, 200]);
-  const at = (x: number, y: number) => data[(y * info.width + x) * info.channels];
+  assert.deepEqual([info.width, info.height, info.channels], [100, 200, 1]);
+  const at = (x: number, y: number) => data[y * info.width + x];
   assert.equal(at(25, 105), 255); // inside
-  assert.equal(at(20, 100), 255); // top-left corner
-  assert.equal(at(49, 119), 255); // bottom-right corner
-  assert.equal(at(19, 105), 0);
-  assert.equal(at(50, 105), 0);
-  assert.equal(at(25, 99), 0);
+  assert.equal(at(16, 96), 255); // snapped top-left
+  assert.equal(at(55, 119), 255); // snapped bottom-right
+  assert.equal(at(15, 105), 0);
+  assert.equal(at(56, 105), 0);
+  assert.equal(at(25, 95), 0);
   assert.equal(at(25, 120), 0);
+  assert.deepEqual(snapBox(100, 200, { x: 0.99, y: 0, w: 0.02, h: 0.02 }), { left: 92, top: 0, width: 8, height: 8 }); // min 8 px, inside the image
 });
 
-test("keyRequest rebuilds the base sprite's request from its key", () => {
+test("keyRequest rebuilds the base sprite's request from its key, with the expression tags it used", () => {
   assert.equal(keyRequest("day/smug", S)!.params.width, 1024);
   assert.equal(keyRequest("day/full", S)!.params.height, 1216);
   assert.ok(keyRequest("talk/day/smug", S)!.compiled.base.length);
   assert.ok(keyRequest("pose/back/day", S));
   assert.equal(keyRequest("../x", S), null);
+  assert.equal(keyRequest("day/pout", S)!.exprTags, S.exprTags.pout);
+  assert.equal(keyRequest("day/full", S)!.exprTags, "");
+  assert.equal(keyRequest("pose/sit/day/pout", S)!.exprTags, S.exprTags.pout);
+  assert.equal(keyRequest("pose/back/day", S)!.exprTags, "");
+  assert.equal(keyRequest("talk/day/pout", S)!.exprTags, S.exprTags.pout);
+  assert.equal(keyRequest("talk/day/think1", S)!.exprTags, TALK_FRAME_TAGS.think1);
 });
 
 async function seedBust(d: string, orig = true) {
@@ -179,14 +189,15 @@ async function seedBust(d: string, orig = true) {
 test("clip generate → candidates → pick → aligned frames + manifest; infill sends a mask, img2img a strength", async () => {
   const d = tmp();
   await seedBust(d);
-  const calls: { p: any; i2i?: any; inf?: any }[] = [];
-  const gen = async (_c: any, p: any, i2i?: any, inf?: any) => { calls.push({ p, i2i, inf }); return solid(1024, 1024); };
+  const calls: { c: any; p: any; i2i?: any; inf?: any }[] = [];
+  const gen = async (c: any, p: any, i2i?: any, inf?: any) => { calls.push({ c, p, i2i, inf }); return solid(1024, 1024); };
   // nudged mouth mask is used
   saveClipMasks(d, "day/smug", { mouth: { x: 0.5, y: 0.5, w: 0.1, h: 0.1 }, nose: 1 });
   const r = await generateClip(d, "day/smug", "talk", S, 2, gen);
   assert.equal(r.count, 4);
   assert.equal(calls.length, 4);
-  assert.ok(calls.every((c) => c.inf && !c.i2i && c.p.width === 1024));
+  assert.ok(calls.every((c) => c.inf?.strength === 0.85 && !c.i2i && c.p.width === 1024));
+  assert.ok(calls[0].c.base.startsWith("{{parted lips}}, ") && !calls[0].c.base.includes(S.exprTags.smug)); // frame tag first, expression stripped
   assert.equal(calls[0].p.seed, calls[1].p.seed); // same seed within a clip
   const mask = await sharp(Buffer.from(calls[0].inf.mask, "base64")).greyscale().raw().toBuffer({ resolveWithObject: true });
   assert.equal(mask.data[(550 * 1024 + 550) * mask.info.channels], 255);
@@ -197,9 +208,8 @@ test("clip generate → candidates → pick → aligned frames + manifest; infil
   await generateClip(d, "day/smug", "laugh", S, 1, gen);
   assert.ok(calls.every((c) => c.i2i?.strength === CLIP_SPEC.laugh.strength && c.i2i.noise === 0 && !c.inf));
 
-  // pick: cut via tagger, written onto the base canvas; manifest records the clip; masks kept
-  const cut = await solid(1024, 1024, 0.7);
-  const ok = await pickClip(d, "day/smug", "talk", 1, async () => new Response(new Uint8Array(cut)));
+  // pick: inpaint frames skip the tagger, written onto the base canvas; manifest records the clip; masks kept
+  const ok = await pickClip(d, "day/smug", "talk", 1, async () => { throw new Error("tagger must not be called"); });
   assert.deepEqual(ok, { ok: true });
   for (const n of [0, 1]) {
     const m = await sharp(clipPath(d, "day/smug", "talk", n)!).metadata();
@@ -213,17 +223,56 @@ test("clip generate → candidates → pick → aligned frames + manifest; infil
   assert.equal(typeof l.clipMeta["day/smug"].v, "number");
 });
 
-test("clip pick: a mis-sized cutout is scaled onto the base canvas; cutout down writes nothing", async () => {
+test("clip pick (img2img): a mis-sized cutout is scaled onto the base canvas; cutout down writes nothing", async () => {
   const d = tmp();
   await seedBust(d, false); // no .orig: the cut sprite on white is the source
-  await generateClip(d, "day/smug", "blink", S, 1, async () => solid(1024, 1024));
-  const down = await pickClip(d, "day/smug", "blink", 0, async () => { throw new Error("ECONNREFUSED"); });
+  await generateClip(d, "day/smug", "pout", S, 1, async () => solid(1024, 1024));
+  const down = await pickClip(d, "day/smug", "pout", 0, async () => { throw new Error("ECONNREFUSED"); });
   assert.ok("error" in down);
-  assert.equal(fs.existsSync(clipPath(d, "day/smug", "blink", 0)!), false);
+  assert.equal(fs.existsSync(clipPath(d, "day/smug", "pout", 0)!), false);
   assert.equal(fs.existsSync(manifestPath(d, "day/smug")!), false);
   const small = await solid(512, 512);
-  assert.deepEqual(await pickClip(d, "day/smug", "blink", 0, async () => new Response(new Uint8Array(small))), { ok: true });
-  assert.equal((await sharp(clipPath(d, "day/smug", "blink", 0)!).metadata()).width, 1024);
+  assert.deepEqual(await pickClip(d, "day/smug", "pout", 0, async () => new Response(new Uint8Array(small))), { ok: true });
+  assert.equal((await sharp(clipPath(d, "day/smug", "pout", 0)!).metadata()).width, 1024);
+});
+
+test("clip pick (inpaint): only the 8-px-snapped mask box changes, with the base sprite's alpha there", async () => {
+  const d = tmp();
+  fs.mkdirSync(path.join(d, "day"), { recursive: true });
+  // base: left half opaque red, right half half-transparent green
+  const raw = Buffer.alloc(1024 * 1024 * 4);
+  for (let i = 0; i < 1024 * 1024; i++) raw.set(i % 1024 < 512 ? [255, 0, 0, 255] : [0, 255, 0, 100], i * 4);
+  fs.writeFileSync(path.join(d, "day", "smug.png"), await sharp(raw, { raw: { width: 1024, height: 1024, channels: 4 } }).png().toBuffer());
+  const blue = await sharp({ create: { width: 1024, height: 1024, channels: 3, background: { r: 0, g: 0, b: 255 } } }).png().toBuffer();
+  await generateClip(d, "day/smug", "blink", S, 1, async () => blue);
+  assert.deepEqual(await pickClip(d, "day/smug", "blink", 0, async () => { throw new Error("no tagger"); }), { ok: true });
+  const get = async (f: string) => sharp(f).ensureAlpha().raw().toBuffer();
+  const base = await get(path.join(d, "day", "smug.png")), out = await get(clipPath(d, "day/smug", "blink", 0)!);
+  const box = snapBox(1024, 1024, { x: 0.38, y: 0.29, w: 0.26, h: 0.1 }); // default bust eyes
+  const inside = (x: number, y: number) => x >= box.left && x < box.left + box.width && y >= box.top && y < box.top + box.height;
+  let diffOutside = 0;
+  for (let y = 0; y < 1024; y++) for (let x = 0; x < 1024; x++) {
+    const i = (y * 1024 + x) * 4;
+    if (!inside(x, y)) { if (base.compare(out, i, i + 4, i, i + 4) !== 0) diffOutside++; continue; }
+    assert.deepEqual([...out.subarray(i, i + 4)], [0, 0, 255, base[i + 3]], `${x},${y}`);
+  }
+  assert.equal(diffOutside, 0);
+  assert.deepEqual(readManifest(d, "day/smug").clips.blink, { frames: 1, fps: CLIP_SPEC.blink.fps, loop: false });
+});
+
+test("clip generate refuses kinds that can't play on that sprite", async () => {
+  const d = tmp();
+  fs.mkdirSync(path.join(d, "pose", "back"), { recursive: true });
+  fs.writeFileSync(path.join(d, "pose", "back", "day.png"), await solid(832, 1216));
+  await seedBust(d);
+  let calls = 0;
+  await assert.rejects(generateClip(d, "pose/back/day", "laugh", S, 1, async () => { calls++; return solid(832, 1216); }), /can't play/);
+  assert.equal(calls, 0);
+  assert.equal(clipAllowed(d, "day/smug", "talk"), true);
+  assert.equal(clipAllowed(d, "day/full", "talk"), false);
+  assert.equal(clipAllowed(d, "pose/lie/day/smug", "blink"), false);
+  saveClipMasks(d, "pose/lie/day/smug", { eyes: { x: 0.4, y: 0.4, w: 0.1, h: 0.05 } });
+  assert.equal(clipAllowed(d, "pose/lie/day/smug", "blink"), true);
 });
 
 test("clip generate: stop on first error / abort, nothing replaced; missing base or bad input rejected", async () => {

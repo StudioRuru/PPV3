@@ -120,8 +120,8 @@ export function canResend(p: NaiParams): boolean {
 /** Image-to-image: base64 PNG of the source plus how far to move from it. */
 export type Img2Img = { image: string; strength: number; noise: number };
 
-/** Inpainting: base64 PNGs of the source and its mask (white = repaint), both at the request size. */
-export type Infill = { image: string; mask: string };
+/** Inpainting: base64 PNGs of the source and its mask (white = repaint), both at the request size, and how far to move inside the mask. */
+export type Infill = { image: string; mask: string; strength: number };
 
 /** NovelAI's inpainting variant of a model (medium effort shares the full model's). Unverified live: the controller confirms with one call. */
 export const inpaintModel = (model: string): string => `${model.replace(/-medium$/, "")}-inpainting`;
@@ -162,8 +162,11 @@ export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2
       v4_prompt: caption(c.base, (ch) => ch.prompt, true),
       v4_negative_prompt: caption(c.uc, (ch) => ch.uc, false),
       ...(img2img && { image: img2img.image, strength: img2img.strength, noise: img2img.noise, color_correct: true }),
-      // Full repaint inside the mask; add_original_image pastes the source back outside it so frames register.
-      ...(infill && { image: infill.image, mask: infill.mask, strength: 1, noise: 0, inpaintImg2ImgStrength: 1, add_original_image: true }),
+      // Verified live: no top-level strength (it draws a hard-edged band); below 1 the web client also nests img2img. add_original_image pastes the source back outside the mask.
+      ...(infill && {
+        image: infill.image, mask: infill.mask, noise: 0, add_original_image: true, inpaintImg2ImgStrength: infill.strength,
+        ...(infill.strength < 1 && { img2img: { strength: infill.strength, color_correct: true } }),
+      }),
       ...(ref && {
         director_reference_images: [ref.image],
         director_reference_descriptions: [{ caption: { base_caption: "character", char_captions: [] }, legacy_uc: false }],

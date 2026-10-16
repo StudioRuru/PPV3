@@ -17,6 +17,7 @@ const SIZE_VH = { s: 0.35, m: 0.45, l: 0.55 }; // standing height
 const MOVE = "transform 900ms cubic-bezier(.34,1.25,.64,1), opacity 300ms";
 const SETTLE = "transform 420ms cubic-bezier(.34,1.4,.64,1)";
 const BOUNCE = "transform 700ms cubic-bezier(.34,1.9,.64,1)"; // overshoot = bounce off the edge
+const BLINK_MS = 180; // sleepy-sprite stand-in blink hold (matches the blink clip's ~180 ms)
 const HOP = "opacity 300ms"; // moves hop via WAAPI keyframes (hopPath); the CSS transition only fades
 const HOP_MS = 300; // per hop
 const KICK = { poke: 2.5, pat: 1, drop: 3, land: 2 }; // squash impulses
@@ -175,7 +176,7 @@ export function Stage(p: Props) {
   const sleepyBlink = !clips.blink && !!sleepy && sleepy.endsWith("/sleepy") && sleepy !== key; // no blink clip: flash the sleepy sprite
   const canBlink = !hidden && !p.empty && spot?.pose !== "back" && (!!clips.blink || sleepyBlink);
   act.current.react = (ev, m = expr) => { const k = reactionFor(ev, m, Math.random); if (clips[k] && !reduced()) clip.play(k, key, clips); };
-  act.current.blink = () => { if (clips.blink) clip.play("blink", key, clips); else { setBlink(true); clearTimeout(blinkOff.current); blinkOff.current = setTimeout(() => setBlink(false), 140); } };
+  act.current.blink = () => { if (clips.blink) clip.play("blink", key, clips); else { setBlink(true); clearTimeout(blinkOff.current); blinkOff.current = setTimeout(() => setBlink(false), BLINK_MS); } };
   useEffect(() => {
     if (!canBlink) return;
     let t: ReturnType<typeof setTimeout>;
@@ -191,10 +192,10 @@ export function Stage(p: Props) {
   useLayoutEffect(() => {
     const from = prevHome.current;
     prevHome.current = home;
+    hop.current?.cancel(); hop.current = null; // any spot change ends a running hop (a stale one would land her at the old spot)
     if (!home || !from || motion !== HOP || !box.current || (from.x === home.x && from.y === home.y)) return;
     const path = hopPath(from, home);
     if (path.length < 2) return;
-    hop.current?.cancel();
     hop.current = box.current.animate(path.map((k) => ({
       offset: k.t, easing: k.squash < 0 ? "ease-in" : "ease-out", // rise slows into the apex, fall speeds into the landing
       transform: `translate(${k.x}px, ${k.y}px) rotate(${k.tilt}rad) scale(${1 + k.squash * WARP.squashShift}, ${1 - k.squash})`,
@@ -297,7 +298,7 @@ export function Stage(p: Props) {
             <div ref={inner} className={`relative h-full w-full origin-bottom transition-[filter,opacity] duration-500 ${drag ? "mascot-flail" : ""} ${p.empty ? "opacity-70" : ""}`}>
               {/* contact shadow: a static gradient, no filter (a filter on the repainting canvas would cost every frame) */}
               <div aria-hidden="true" className="absolute -bottom-[1.5%] left-1/2 h-[4%] w-[55%] -translate-x-1/2" style={{ background: "radial-gradient(closest-side, rgb(0 0 0 / 0.22), transparent)" }} />
-              <SpriteCanvas ref={canvas} src={frame} pose={spot.pose} empty={p.empty} bleed className="h-full w-full" style={{ transform: flip }} />
+              <SpriteCanvas ref={canvas} src={frame} cut={playing?.kind === "blink" || (blink && sleepyBlink)} pose={spot.pose} empty={p.empty} bleed className="h-full w-full" style={{ transform: flip }} />
               {p.hushed && <span aria-hidden="true" className="text-muted absolute top-[6%] right-[22%] font-mono text-xs">zzz</span>}
             </div>
           </div>

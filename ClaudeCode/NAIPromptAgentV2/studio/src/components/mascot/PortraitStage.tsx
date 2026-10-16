@@ -91,7 +91,7 @@ export function PortraitStage({ profile, outfit, phase, expression, empty, class
   return (
     <div style={style} className={`flex items-end justify-center transition-[filter,opacity,height] duration-300 ${empty ? `opacity-70 ${shown ? "" : "grayscale"}` : ""} ${className}`}>
       {shown
-        ? <SpriteCanvas src={shown} empty={empty} alt={`${name}${empty ? " (empty)" : ""}`} className={`h-full w-full ${bob && !empty ? "mascot-bob" : ""}`} />
+        ? <SpriteCanvas src={shown} cut={playing?.kind === "blink"} empty={empty} alt={`${name}${empty ? " (empty)" : ""}`} className={`h-full w-full ${bob && !empty ? "mascot-bob" : ""}`} />
         : <span role="img" aria-label={name} className="bg-accent-soft text-accent-ink border-border mascot-bob flex aspect-[3/4] h-4/5 items-center justify-center rounded-t-full border text-4xl font-semibold">{name[0]}</span>}
     </div>
   );

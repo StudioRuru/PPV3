@@ -3,7 +3,7 @@ import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "./core";
 import { POSES, poseKey, type Pose } from "./poses";
 import { TALK_FRAMES, talkKey, type TalkFrame } from "./talk";
 import { SLIDERS } from "./slime";
-import { CLIP_KINDS, clampMask, type ClipKind, type Mask } from "./clips";
+import { clampMask, clipKindsFor, type ClipKind, type Mask } from "./clips";
 import { parseVialBlock, type Vial } from "./vial";
 export type Corner = "br" | "bl" | "tr" | "tl";
 
@@ -53,9 +53,9 @@ export const missingPoseCells = (sprites: Record<string, number>, f: { pose?: Po
 export const missingTalkCells = (sprites: Record<string, number>, outfit: string): TalkFrame[] =>
   TALK_FRAMES.filter((f) => !(talkKey(outfit, f) in sprites));
 
-/** Clip kinds a base sprite has no picked clip for, in CLIP_KINDS order (blink, talk first). */
-export const missingClipKinds = (clips: Record<string, Partial<Record<ClipKind, number>>>, baseKey: string): ClipKind[] =>
-  CLIP_KINDS.filter((k) => !clips[baseKey]?.[k]);
+/** Playable clip kinds (clipKindsFor) a base sprite has no picked clip for, in CLIP_KINDS order (blink, talk first); masked = eye masks saved. */
+export const missingClipKinds = (clips: Record<string, Partial<Record<ClipKind, number>>>, baseKey: string, masked = false): ClipKind[] =>
+  clipKindsFor(baseKey, masked).filter((k) => !clips[baseKey]?.[k]);
 
 /** Saved sprite keys of one outfit that clips can hang off: busts (full first), poses, then portraits; portraitsOnly = Aru. */
 export function spriteKeys(sprites: Record<string, number>, outfit: Outfit, portraitsOnly = false): string[] {
@@ -63,8 +63,8 @@ export function spriteKeys(sprites: Record<string, number>, outfit: Outfit, port
   return keys.filter((k) => k in sprites);
 }
 /** Missing (sprite, kind) pairs for an outfit, sprite order then CLIP_KINDS order. */
-export const clipBatch = (sprites: Record<string, number>, clips: Record<string, Partial<Record<ClipKind, number>>>, outfit: Outfit, portraitsOnly = false) =>
-  spriteKeys(sprites, outfit, portraitsOnly).flatMap((baseKey) => missingClipKinds(clips, baseKey).map((kind) => ({ baseKey, kind })));
+export const clipBatch = (sprites: Record<string, number>, clips: Record<string, Partial<Record<ClipKind, number>>>, outfit: Outfit, portraitsOnly = false, meta: Record<string, { masks?: { eyes?: Mask } }> = {}) =>
+  spriteKeys(sprites, outfit, portraitsOnly).flatMap((baseKey) => missingClipKinds(clips, baseKey, !!meta[baseKey]?.masks?.eyes).map((kind) => ({ baseKey, kind })));
 
 /** Mask box moved by (dx, dy) in sprite units, kept inside the sprite. */
 export const dragMask = (m: Mask, dx: number, dy: number): Mask =>

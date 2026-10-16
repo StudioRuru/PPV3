@@ -6,7 +6,7 @@ import sharp from "sharp";
 import { DATA_DIR, TAGGER_URL } from "../env";
 import { canResend, DEFAULT_PARAMS, type Img2Img, type Infill, type NaiParams } from "../nai-body";
 import type { Compiled } from "../prompt";
-import { CLIP_KINDS, CLIP_SPEC, clipPath, clipRequests, decodeBaseKey, defaultMasks, encodeBaseKey, isBaseKey, isClipKind, manifestPath, clampMask, validateManifest, type ClipKind, type Manifest, type Mask } from "./clips";
+import { CLIP_KINDS, CLIP_SPEC, clipKindsFor, clipPath, clipRequests, decodeBaseKey, defaultMasks, encodeBaseKey, isBaseKey, isClipKind, manifestPath, clampMask, validateManifest, type ClipKind, type Manifest, type Mask } from "./clips";
 import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "./core";
 import { POSE_SPEC, POSES, poseKey, type Pose } from "./poses";
 import { isSafeSpriteDir, type MascotSettings } from "./settings";
@@ -206,22 +206,35 @@ export function baseSpritePath(dir: string, baseKey: string): string | null {
   return p[0] === "pose" ? posePath(dir, p[1], p[2], p[3] ?? null) : p[0] === "talk" ? talkPath(dir, p[1], p[2]) : spritePath(dir, p[0], p[1]);
 }
 
-/** The request a sprite was drawn from, rebuilt from its key and the current look (the original isn't stored). */
-export function keyRequest(baseKey: string, s: Look, seed?: number): { compiled: Compiled; params: NaiParams } | null {
+/** The request a sprite was drawn from, rebuilt from its key and the current look (the original isn't stored), plus the expression tags it used (stripped from inpaint prompts). */
+export function keyRequest(baseKey: string, s: Look, seed?: number): { compiled: Compiled; params: NaiParams; exprTags: string } | null {
   if (!isBaseKey(baseKey)) return null;
   const p = baseKey.split("/") as [string, string, string, string?];
-  if (p[0] === "pose") return poseRequest(p[2] as Outfit, p[1] as Pose, (p[3] ?? null) as Expression | null, s, seed);
-  if (p[0] === "talk") return talkRequest(p[1] as Outfit, p[2] as TalkFrame, s, seed);
-  return p[1] === "full" ? spriteRequest(p[0] as Outfit, "full", "smug", s, seed) : spriteRequest(p[0] as Outfit, "bust", p[1] as Expression, s, seed);
+  if (p[0] === "pose") {
+    const expr = (p[3] ?? null) as Expression | null;
+    return { ...poseRequest(p[2] as Outfit, p[1] as Pose, expr, s, seed), exprTags: POSE_SPEC[p[1] as Pose].faced && expr ? s.exprTags[expr] : "" };
+  }
+  if (p[0] === "talk") { const f = p[2] as TalkFrame; return { ...talkRequest(p[1] as Outfit, f, s, seed), exprTags: isTalkExpr(f) ? s.exprTags[f] : TALK_FRAME_TAGS[f] }; }
+  return p[1] === "full" ? { ...spriteRequest(p[0] as Outfit, "full", "smug", s, seed), exprTags: "" }
+    : { ...spriteRequest(p[0] as Outfit, "bust", p[1] as Expression, s, seed), exprTags: s.exprTags[p[1] as Expression] };
 }
 
-/** Inpaint mask at w×h: white box (normalised, clamped) on black. */
+/** A mask box in w×h pixels, snapped outward to the 8 px latent grid, at least 8 px, inside the image. */
+export function snapBox(w: number, h: number, m: Mask): { left: number; top: number; width: number; height: number } {
+  const b = clampMask(m), axis = (o: number, s: number, n: number) => {
+    let lo = Math.floor((o * n) / 8) * 8, hi = Math.min(n, Math.ceil(((o + s) * n) / 8) * 8);
+    if (hi - lo < 8) { hi = Math.min(n, lo + 8); lo = Math.max(0, hi - 8); }
+    return [lo, hi - lo];
+  };
+  const [left, width] = axis(b.x, b.w, w), [top, height] = axis(b.y, b.h, h);
+  return { left, top, width, height };
+}
+
+/** Inpaint mask at w×h: 1-channel grayscale PNG, white snapped box (snapBox) on black. */
 export async function maskPng(w: number, h: number, m: Mask): Promise<Buffer> {
-  const b = clampMask(m);
-  const left = Math.round(b.x * w), top = Math.round(b.y * h);
-  const bw = Math.max(1, Math.min(w - left, Math.round(b.w * w))), bh = Math.max(1, Math.min(h - top, Math.round(b.h * h)));
-  const box = await sharp({ create: { width: bw, height: bh, channels: 3, background: "#ffffff" } }).png().toBuffer();
-  return sharp({ create: { width: w, height: h, channels: 3, background: "#000000" } }).composite([{ input: box, left, top }]).png().toBuffer();
+  const r = snapBox(w, h, m), px = Buffer.alloc(w * h);
+  for (let y = r.top; y < r.top + r.height; y++) px.fill(255, y * w + r.left, y * w + r.left + r.width);
+  return sharp(px, { raw: { width: w, height: h, channels: 1 } }).toColourspace("b-w").png().toBuffer();
 }
 
 /** The base sprite's manifest (clean), or an empty one. */
@@ -263,10 +276,15 @@ export type ClipGen = (c: Compiled, p: NaiParams, img2img?: Img2Img, infill?: In
 
 const WHITE = "#ffffff", CLEAR = { r: 0, g: 0, b: 0, alpha: 0 };
 
+/** Can this clip kind play on this sprite (clipKindsFor; saved eye masks unlock blink on lie/legs)? */
+export const clipAllowed = (dir: string, baseKey: string, kind: unknown): boolean =>
+  isClipKind(kind) && clipKindsFor(baseKey, !!readManifest(dir, baseKey).masks?.eyes).includes(kind);
+
 /** n runs of one clip (each run = every frame, one seed), sequential; Stop/first error throws and nothing is replaced. Returns images drawn. */
 export async function generateClip(dir: string, baseKey: string, kind: ClipKind, s: Look, n: number, gen: ClipGen, signal?: AbortSignal): Promise<{ count: number }> {
   const src = baseSpritePath(dir, baseKey), base = keyRequest(baseKey, s);
   if (!isClipKind(kind)) throw new Error("Unknown clip kind.");
+  if (!clipAllowed(dir, baseKey, kind)) throw new Error("That clip can't play on this sprite.");
   if (!src || !base || !fs.existsSync(src)) throw new Error("That sprite doesn't exist — pick one first.");
   if (!canResend(base.params)) throw new Error("That size is too large to send back to NovelAI.");
   const { width, height } = base.params, orig = src.replace(/\.png$/, ".orig.png");
@@ -278,9 +296,9 @@ export async function generateClip(dir: string, baseKey: string, kind: ClipKind,
   for (let i = 0; i < Math.min(MAX_CANDIDATES, Math.max(1, n)); i++) {
     const seed = newSeed(), frames: Buffer[] = [];
     seeds.push(seed);
-    for (const r of clipRequests(base, kind, seed)) {
+    for (const r of clipRequests(base, kind, seed, base.exprTags)) {
       if (signal?.aborted) throw new Error("Stopped.");
-      frames.push(await gen(r.compiled, r.params, r.img2img && { image, strength: r.img2img.strength, noise: 0 }, r.infill && { image, mask: maskB64! }));
+      frames.push(await gen(r.compiled, r.params, r.img2img && { image, strength: r.img2img.strength, noise: 0 }, r.infill && { image, mask: maskB64!, strength: r.infill.strength }));
     }
     runs.push(frames);
   }
@@ -291,7 +309,7 @@ export async function generateClip(dir: string, baseKey: string, kind: ClipKind,
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, png);
   }));
-  fs.writeFileSync(path.join(d, "meta.json"), JSON.stringify({ seeds }));
+  fs.writeFileSync(path.join(d, "meta.json"), JSON.stringify({ seeds, ...(CLIP_SPEC[kind].mask && { mask: masks[CLIP_SPEC[kind].mask!] }) })); // the box these were drawn with: pick patches exactly it
   return { count: runs.length * CLIP_SPEC[kind].frames };
 }
 
@@ -306,15 +324,35 @@ async function alignTo(cut: Buffer, w: number, h: number): Promise<Buffer> {
   return sharp({ create: { width: w, height: h, channels: 4, background: CLEAR } }).composite([{ input, left: 0, top: 0 }]).png().toBuffer();
 }
 
-/** Pick candidate run i: cut out every frame (all or nothing), align to the base sprite, write frames + manifest entry. */
+/** The mask box a candidate batch was drawn with (meta.json), or null. */
+function drawnMask(dir: string, baseKey: string, kind: string, i: number): Mask | null {
+  const c = clipCandidatePath(dir, baseKey, kind, i, 0);
+  try { const m = c && JSON.parse(fs.readFileSync(path.join(path.dirname(path.dirname(c)), "meta.json"), "utf8")).mask; return m ? clampMask(m) : null; } catch { return null; }
+}
+
+/** Inpaint frame: the base sprite with only the snapped mask box replaced by the candidate's pixels (base alpha kept) — exact registration, no cutout. */
+async function patchBase(base: { data: Buffer; width: number; height: number }, cand: Buffer, m: Mask): Promise<Buffer> {
+  const { data: c } = await sharp(cand).resize(base.width, base.height, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const out = Buffer.from(base.data), r = snapBox(base.width, base.height, m);
+  for (let y = r.top; y < r.top + r.height; y++) for (let x = r.left; x < r.left + r.width; x++) {
+    const o = (y * base.width + x) * 4;
+    c.copy(out, o, o, o + 3); // RGB from the candidate, alpha stays the base's
+  }
+  return sharp(out, { raw: { width: base.width, height: base.height, channels: 4 } }).png().toBuffer();
+}
+
+/** Pick candidate run i (all or nothing), write frames + manifest entry. Inpaint kinds patch the mask box into the base sprite; img2img kinds are cut out and aligned to it. */
 export async function pickClip(dir: string, baseKey: string, kind: string, i: number, fetchFn: typeof fetch = fetch): Promise<{ ok: true } | { error: string }> {
   const src = baseSpritePath(dir, baseKey);
   if (!src || !isClipKind(kind) || !fs.existsSync(src)) return { error: "Unknown sprite or clip." };
   const spec = CLIP_SPEC[kind], { width = 0, height = 0 } = await sharp(src).metadata();
+  const base = spec.mask && { data: await sharp(src).ensureAlpha().raw().toBuffer(), width, height };
+  const mask = spec.mask && (drawnMask(dir, baseKey, kind, i) ?? { ...defaultMasks(baseKey), ...readManifest(dir, baseKey).masks }[spec.mask]);
   const frames: Buffer[] = [];
   for (let n = 0; n < spec.frames; n++) {
     const c = clipCandidatePath(dir, baseKey, kind, i, n);
     if (!c || !fs.existsSync(c)) return { error: "That candidate is gone — generate again." };
+    if (base && mask) { frames.push(await patchBase(base, fs.readFileSync(c), mask)); continue; }
     const cut = await cutout(fs.readFileSync(c), fetchFn);
     if (!cut) return { error: "Background removal unavailable — nothing changed; try again when the tagger is warm." };
     frames.push(await alignTo(cut, width, height));

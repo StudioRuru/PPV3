@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
 import { getAruSettings, getMascotSettings, profileSpriteDir, saveAruSettings } from "@/lib/mascot/settings-db";
 import { isProfile, profileLook, type Profile } from "@/lib/mascot/profiles";
-import { clipCount, generateClip, keyRequest, listSprites, MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, pickClip, saveCandidates, saveClipMasks, sheetPath, poseRequest, spriteRequest, talkRequest, target } from "@/lib/mascot/sprites";
+import { clipAllowed, clipCount, generateClip, keyRequest, listSprites, MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, pickClip, saveCandidates, saveClipMasks, sheetPath, poseRequest, spriteRequest, talkRequest, target } from "@/lib/mascot/sprites";
 import { CLIP_KINDS, isClipKind, type ClipKind } from "@/lib/mascot/clips";
 import type { Outfit } from "@/lib/mascot/core";
 import { anlas, generateImage, measured, NovelAIError } from "@/lib/novelai";
@@ -89,8 +89,9 @@ async function clipAction(req: NextRequest, b: { action?: unknown; n?: unknown; 
   const n = Number.isInteger(b.n) ? Math.min(MAX_CANDIDATES, Math.max(1, b.n as number)) : 1;
 
   if (b.action === "clip-estimate") {
-    const kinds = b.kinds === undefined ? [...CLIP_KINDS] : Array.isArray(b.kinds) && b.kinds.length && b.kinds.every(isClipKind) ? (b.kinds as ClipKind[]) : null;
-    if (!kinds) return bad("Unknown clip kind.");
+    const playable = CLIP_KINDS.filter((k) => clipAllowed(dir, baseKey, k));
+    const kinds = b.kinds === undefined ? playable : Array.isArray(b.kinds) && b.kinds.length && b.kinds.every((k) => playable.includes(k)) ? (b.kinds as ClipKind[]) : null;
+    if (!kinds) return bad("That clip can't play on this sprite.");
     return NextResponse.json({ anlas: await balance(), perImage: perImage(keyRequest(baseKey, look)!.params), count: clipCount(kinds, n), n });
   }
   if (b.action === "clip-masks") return NextResponse.json({ manifest: saveClipMasks(dir, baseKey, b.masks) });
@@ -98,6 +99,7 @@ async function clipAction(req: NextRequest, b: { action?: unknown; n?: unknown; 
   const kind = b.kind;
   if (b.action === "clip-generate") {
     if (b.confirm !== true) return bad("Confirm the spend first.");
+    if (!clipAllowed(dir, baseKey, kind)) return bad("That clip can't play on this sprite.");
     try {
       const before = await balance();
       const { result, cost } = await measured(NOVELAI_TOKEN, () =>

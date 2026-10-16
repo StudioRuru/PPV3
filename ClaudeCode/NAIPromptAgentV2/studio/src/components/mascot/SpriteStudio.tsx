@@ -5,7 +5,7 @@ import { DEFAULT_MASCOT_SETTINGS } from "@/lib/mascot/settings";
 import { POSES, POSE_SPEC, poseKey, type Pose } from "@/lib/mascot/poses";
 import { ARU_DEFAULT_TAGS, type AruSettings, type Profile } from "@/lib/mascot/profiles";
 import { TALK_FRAMES, talkKey, type TalkFrame } from "@/lib/mascot/talk";
-import { CLIP_KINDS, CLIP_SPEC, clipPath, defaultMasks, type ClipKind, type Mask, type MaskName } from "@/lib/mascot/clips";
+import { CLIP_SPEC, clipKindsFor, clipPath, defaultMasks, type ClipKind, type Mask, type MaskName } from "@/lib/mascot/clips";
 import { clipBatch, dragMask, missingClipKinds, resizeMask, spriteKeys, missingCells, missingPoseCells, missingTalkCells, poseCells as allPoseCells } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 import { Sheet } from "../Sheet";
@@ -59,7 +59,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
   const refresh = () => requestJson<{ sprites: Record<string, number>; sheets: Record<Outfit, boolean> } & Partial<Listing>>(`/api/mascot/sprites${isAru ? "?profile=aru" : ""}`).then((r) => {
     if (!r.ok) return;
     setSprites(r.data.sprites); setSheets(r.data.sheets); setListing({ clips: r.data.clips ?? {}, clipMeta: r.data.clipMeta ?? {} });
-    if (!isAru) window.dispatchEvent(new CustomEvent("mascot:sprites", { detail: r.data.sprites })); // the roaming mascot is Miyabi's
+    window.dispatchEvent(new CustomEvent("mascot:sprites", { detail: r.data.sprites })); // listeners reload their own profile's listing (Miyabi's mascot, either portrait)
   });
   useEffect(() => { if (open) refresh(); }, [open, profile]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -171,7 +171,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
         </div>
 
         {mode === "clips" ? (
-          <ClipsPanel profile={profile} outfit={outfit} sprites={sprites} listing={listing} refresh={refresh} busy={busy} setBusy={setBusy} stop={stop} />
+          <ClipsPanel key={profile + outfit} profile={profile} outfit={outfit} sprites={sprites} listing={listing} refresh={refresh} busy={busy} setBusy={setBusy} stop={stop} />
         ) : <>
         {mode === "talk" ? (
           <section className="grid grid-cols-3 gap-2">{TALK_FRAMES.map((f) => cellBtn(talkCell(f), "aspect-square"))}</section>
@@ -375,6 +375,7 @@ function ClipsPanel({ profile, outfit, sprites, listing, refresh, busy, setBusy,
     return c === undefined ? `${p}?v=${listing.clipMeta[k]?.v ?? 0}${q}` : `${p}?c=${c}&b=${batch}${q}`;
   });
   const have = (k: string, kd: ClipKind) => !!listing.clips[k]?.[kd];
+  const playable = (k: string) => clipKindsFor(k, !!listing.clipMeta[k]?.masks?.eyes);
   const pickBase = (k: string | null) => { setKey(k); setConfirm(null); setCand(null); setError(null); setNote(null); };
 
   /** One estimate call per base sprite (canvas size differs), then wait for the confirm tap. */
@@ -419,8 +420,8 @@ function ClipsPanel({ profile, outfit, sprites, listing, refresh, busy, setBusy,
     setCand(null); setNote("Saved."); await refresh();
   }
 
-  const mine = cur ? missingClipKinds(listing.clips, cur).map((k) => ({ baseKey: cur, kind: k })) : [];
-  const all = clipBatch(sprites, listing.clips, outfit, aru);
+  const mine = cur ? missingClipKinds(listing.clips, cur, !!listing.clipMeta[cur]?.masks?.eyes).map((k) => ({ baseKey: cur, kind: k })) : [];
+  const all = clipBatch(sprites, listing.clips, outfit, aru, listing.clipMeta);
   const lock = !!busy || !!confirm;
   return (
     <section className="space-y-4">
@@ -431,11 +432,11 @@ function ClipsPanel({ profile, outfit, sprites, listing, refresh, busy, setBusy,
             <p className="text-faint mb-1 text-xs">{title}</p>
             <div className="grid grid-cols-4 gap-2">
               {ks.map((k) => (
-                <button key={k} type="button" disabled={!!busy} onClick={() => pickBase(cur === k ? null : k)} aria-pressed={cur === k} aria-label={`${baseLabel(k)}, ${Object.keys(listing.clips[k] ?? {}).length} of ${CLIP_KINDS.length} clips`}
+                <button key={k} type="button" disabled={!!busy} onClick={() => pickBase(cur === k ? null : k)} aria-pressed={cur === k} aria-label={`${baseLabel(k)}, ${Object.keys(listing.clips[k] ?? {}).length} of ${playable(k).length} clips`}
                   className={`border-border bg-bg relative aspect-square overflow-hidden rounded-lg border ${cur === k ? "ring-accent ring-2" : ""}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/mascot/sprites/${k}?v=${sprites[k]}${q}`} alt="" className="absolute inset-0 size-full object-contain" />
-                  <span className="bg-surface/80 absolute inset-x-0 bottom-0 text-center text-[10px]">{Object.keys(listing.clips[k] ?? {}).length}/{CLIP_KINDS.length}</span>
+                  <span className="bg-surface/80 absolute inset-x-0 bottom-0 text-center text-[10px]">{Object.keys(listing.clips[k] ?? {}).length}/{playable(k).length}</span>
                 </button>
               ))}
             </div>
@@ -452,8 +453,9 @@ function ClipsPanel({ profile, outfit, sprites, listing, refresh, busy, setBusy,
           <h3 className={h3}>2 · Clips for {baseLabel(cur)}</h3>
           <button type="button" disabled={lock || !mine.length} onClick={() => ask(mine, 1, false)} className={`${btn} w-full`}>Make missing clips for this sprite ({mine.length})</button>
           {have(cur, kind) && <div className="bg-bg border-border mx-auto flex h-48 w-fit items-end justify-center rounded-lg border px-2"><FrameLoop key={`${cur}${kind}${listing.clipMeta[cur]?.v}`} urls={frameUrls(cur, kind)} kind={kind} className="h-full max-w-full object-contain" /></div>}
+          {!playable(cur).length && <p className="text-faint text-xs">No clips play on this sprite (back view and think/listen/talk frames stay still).</p>}
           <ul className="space-y-1">
-            {CLIP_KINDS.map((kd) => (
+            {playable(cur).map((kd) => (
               <li key={kd} className={`border-border flex items-center gap-2 rounded-md border p-1.5 ${kd === kind ? "ring-accent ring-1" : ""}`}>
                 <button type="button" onClick={() => setKind(kd)} aria-pressed={kd === kind} className="flex min-h-11 flex-1 items-center gap-2 text-left text-sm capitalize">
                   <span className="w-12 shrink-0">{kd}</span>
@@ -547,15 +549,17 @@ function MaskEditor({ baseKey, src, saved, busy, refresh, profile }: { baseKey: 
       <h3 className={h3}>3 · Eye and mouth masks</h3>
       <p className="text-faint text-xs">Drag a box onto the eyes or mouth; the corner dot resizes. Masks only affect blink and talk (inpainted). Redo those clips after saving.</p>
       <div ref={box} onPointerMove={move} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
-        className="bg-bg border-border relative mx-auto w-fit max-w-full touch-none select-none overflow-hidden rounded-lg border">
+        className="bg-bg border-border relative mx-auto w-fit max-w-full touch-none select-none rounded-lg border">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" draggable={false} className="block max-h-[60dvh] max-w-full" />
+        <img src={src} alt="" draggable={false} className="block max-h-[60dvh] max-w-full rounded-lg" />
         {(["eyes", "mouth"] as const).map((n) => (
           <div key={n} role="group" tabIndex={0} aria-label={`${n} box: arrows move, shift and arrows resize`} onPointerDown={down(n, false)} onKeyDown={key(n, false)}
             style={{ left: `${m[n].x * 100}%`, top: `${m[n].y * 100}%`, width: `${m[n].w * 100}%`, height: `${m[n].h * 100}%` }}
             className={`absolute cursor-move border-2 ${MASK_STYLE[n]}`}>
             <button type="button" aria-label={`Resize ${n} box`} onPointerDown={down(n, true)} onKeyDown={key(n, true)}
-              className="absolute -right-3 -bottom-3 size-6 cursor-nwse-resize rounded-full border-2 border-white bg-black/60" />
+              className="absolute -right-[22px] -bottom-[22px] z-10 flex size-11 cursor-nwse-resize items-center justify-center">
+              <span aria-hidden="true" className="size-6 rounded-full border-2 border-white bg-black/60" />
+            </button>
           </div>
         ))}
       </div>

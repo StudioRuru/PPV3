@@ -17,10 +17,12 @@ type Props = {
   empty?: boolean;
   /** The canvas overhangs the box (10% each side, 12% above) so warped edges aren't clipped: for a box the sprite fills exactly. */
   bleed?: boolean;
+  /** This frame is a blink: swap into and out of it without the crossfade. */
+  cut?: boolean;
   alt?: string; className?: string; style?: CSSProperties; ref?: Ref<SpriteHandle>;
 };
 
-const FADE_MS = 100, COLS = 16, ROWS = 24, LRU = 6, DPR_MAX = 2, PAD = { x: 0.1, top: 0.12 };
+const FADE_MS = 100, COLS = 16, ROWS = 24, LRU = 8, DPR_MAX = 2, PAD = { x: 0.1, top: 0.12 };
 const REST: Spring = { x: 0, v: 0 };
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -56,7 +58,7 @@ type Tex = { t: WebGLTexture; img: HTMLImageElement; w: number; h: number; tw: n
 /** Live sprite: WebGL warp (idle sway/breathe, squash, drag lag) with crossfaded frame swaps; one rAF while on screen.
  *  Falls back to a plain <img> on reduced motion or any WebGL failure; a lost context shows the <img> and comes back on a fresh canvas once visible (≤ 3 losses a minute).
  *  The <img> also stands in until the first frame draws. Textures are downscaled to the backing size on upload. */
-export function SpriteCanvas({ src, pose = "stand", empty = false, bleed = false, alt = "", className = "", style, ref }: Props) {
+export function SpriteCanvas({ src, pose = "stand", empty = false, bleed = false, cut = false, alt = "", className = "", style, ref }: Props) {
   const [failed, setFailed] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [lost, setLost] = useState(false);
@@ -65,8 +67,8 @@ export function SpriteCanvas({ src, pose = "stand", empty = false, bleed = false
   const canvas = useRef<HTMLCanvasElement>(null);
   const losses = useRef<number[]>([]);
   const g = useRef<{ show(url: string): void; kick(i: number): void; drag(vx: number): void } | null>(null);
-  const live = useRef({ pose, empty, bleed });
-  live.current = { pose, empty, bleed };
+  const live = useRef({ pose, empty, bleed, cut });
+  live.current = { pose, empty, bleed, cut };
   const srcRef = useRef(src);
   srcRef.current = src;
   const gl = !failed && !reduced && !lost;
@@ -94,7 +96,7 @@ export function SpriteCanvas({ src, pose = "stand", empty = false, bleed = false
     const el = canvas.current;
     if (!gl || !el) return;
     let dead = false, raf = 0, last = 0, t = 0, seen = true, first = true, w = 1, h = 1;
-    let cur: Tex | null = null, prev: Tex | null = null, fadeAt = 0, want = "", squash = REST, lag = REST;
+    let cur: Tex | null = null, prev: Tex | null = null, fadeAt = 0, want = "", squash = REST, lag = REST, curCut = false;
     const cache = new Map<string, Tex>(), loading = new Set<string>(), rect = [0, 0, 1, 1];
     const lose = () => { if (dead) return; stop(); losses.current.push(performance.now()); setLost(true); };
     const c = el.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false });
@@ -162,8 +164,9 @@ export function SpriteCanvas({ src, pose = "stand", empty = false, bleed = false
     const swap = (tx: Tex) => {
       if (tx === cur) return;
       sharpen(tx);
-      const fade = cur && Math.abs(cur.w / cur.h - tx.w / tx.h) < 0.01; // different shape (pose change): hard cut, a fade would smear
-      prev = fade ? cur : tx; cur = tx; fadeAt = performance.now();
+      // different shape (pose change): hard cut, a fade would smear; blinks cut into and out of the closed frame (a fade reads as a slow squint)
+      const hard = live.current.cut || curCut, fade = !hard && cur && Math.abs(cur.w / cur.h - tx.w / tx.h) < 0.01;
+      prev = fade ? cur : tx; cur = tx; fadeAt = performance.now(); curCut = live.current.cut;
       fit(); go();
     };
     const evict = () => {
@@ -242,6 +245,9 @@ export function SpriteCanvas({ src, pose = "stand", empty = false, bleed = false
       io.disconnect(); ro.disconnect();
       el.removeEventListener("webglcontextlost", onLost); document.removeEventListener("visibilitychange", onVis);
       if (!x.isContextLost()) release();
+      // Free the GPU context on a real unmount (Safari caps live contexts). StrictMode's dev re-run reuses this same, still-attached
+      // element, so only lose it once React has detached it (a microtask later); a gen bump or real unmount always detaches it.
+      queueMicrotask(() => { if (!el.isConnected) x.getExtension("WEBGL_lose_context")?.loseContext(); });
     };
   }, [gl, gen]);
 
@@ -253,7 +259,7 @@ export function SpriteCanvas({ src, pose = "stand", empty = false, bleed = false
     <div role="img" aria-label={alt || undefined} aria-hidden={alt ? undefined : true} className={`relative ${className}`} style={style}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {(!gl || !drawn) && <img src={src} alt="" draggable={false} className={`${fill} ${empty ? "grayscale" : ""}`} />}
-      {gl && <canvas key={gen} ref={canvas} className="absolute" style={bleed ? { left: `${-PAD.x * 100}%`, top: `${-PAD.top * 100}%`, width: `${(1 + 2 * PAD.x) * 100}%`, height: `${(1 + PAD.top) * 100}%` } : { inset: 0, width: "100%", height: "100%" }} />}
+      {gl && <canvas key={gen} ref={canvas} className="pointer-events-none absolute" style={bleed ? { left: `${-PAD.x * 100}%`, top: `${-PAD.top * 100}%`, width: `${(1 + 2 * PAD.x) * 100}%`, height: `${(1 + PAD.top) * 100}%` } : { inset: 0, width: "100%", height: "100%" }} />}
     </div>
   );
 }

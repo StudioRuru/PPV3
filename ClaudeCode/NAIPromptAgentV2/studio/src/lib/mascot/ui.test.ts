@@ -144,18 +144,22 @@ test("historyForEdit: truncates at the user message, swaps the text, rejects bla
 });
 
 import { clipBatch, dragMask, missingClipKinds, resizeMask, spriteKeys } from "./ui";
-test("missingClipKinds: kinds absent from the listing, spec order", () => {
+test("missingClipKinds: playable kinds absent from the listing, spec order", () => {
   assert.deepEqual(missingClipKinds({}, "day/smug"), ["blink", "talk", "laugh", "pout", "wink", "wave", "jump"]);
   assert.deepEqual(missingClipKinds({ "day/smug": { blink: 1, talk: 2, jump: 4 } }, "day/smug"), ["laugh", "pout", "wink", "wave"]);
+  assert.deepEqual(missingClipKinds({}, "pose/back/day"), []);
+  assert.deepEqual(missingClipKinds({}, "pose/lie/day/smug"), ["laugh", "pout", "wink", "wave", "jump"]);
+  assert.deepEqual(missingClipKinds({}, "pose/lie/day/smug", true), ["blink", "laugh", "pout", "wink", "wave", "jump"]);
 });
-test("spriteKeys/clipBatch: busts, poses, portraits; blink and talk first; only saved sprites and missing kinds", () => {
-  const sprites = { "day/smug": 1, "day/full": 1, "pose/sit/day/smug": 1, "talk/day/talk_open": 1, "night/smug": 1 };
-  assert.deepEqual(spriteKeys(sprites, "day"), ["day/full", "day/smug", "pose/sit/day/smug", "talk/day/talk_open"]);
-  assert.deepEqual(spriteKeys(sprites, "day", true), ["talk/day/talk_open"]);
+test("spriteKeys/clipBatch: busts, poses, portraits; blink and talk first; only saved sprites and missing playable kinds", () => {
+  const sprites = { "day/smug": 1, "day/full": 1, "pose/sit/day/smug": 1, "pose/legs/day/smug": 1, "talk/day/talk_open": 1, "talk/day/smug": 1, "night/smug": 1 };
+  assert.deepEqual(spriteKeys(sprites, "day"), ["day/full", "day/smug", "pose/sit/day/smug", "pose/legs/day/smug", "talk/day/smug", "talk/day/talk_open"]);
+  assert.deepEqual(spriteKeys(sprites, "day", true), ["talk/day/smug", "talk/day/talk_open"]);
   const b = clipBatch(sprites, { "day/full": { blink: 1 } }, "day");
-  assert.deepEqual(b.slice(0, 3), [{ baseKey: "day/full", kind: "talk" }, { baseKey: "day/full", kind: "laugh" }, { baseKey: "day/full", kind: "pout" }]);
-  assert.equal(b.length, 6 + 7 * 3);
-  assert.deepEqual(b.map((c) => c.baseKey).filter((k, i, a) => a.indexOf(k) === i), ["day/full", "day/smug", "pose/sit/day/smug", "talk/day/talk_open"]);
+  assert.deepEqual(b.slice(0, 3), [{ baseKey: "day/full", kind: "laugh" }, { baseKey: "day/full", kind: "pout" }, { baseKey: "day/full", kind: "wink" }]);
+  assert.equal(b.length, 5 + 7 + 6 + 5 + 7); // full (no talk, blink done), bust, sit (no talk), legs (no talk/blink), talk/smug; talk_open none
+  assert.equal(b.some((c) => c.baseKey === "talk/day/talk_open" || (c.baseKey.startsWith("pose/") && c.kind === "talk")), false);
+  assert.equal(clipBatch(sprites, {}, "day", false, { "pose/legs/day/smug": { masks: { eyes: { x: 0, y: 0, w: 0.1, h: 0.1 } } } }).length, 6 + 7 + 6 + 6 + 7);
   assert.deepEqual(clipBatch(sprites, {}, "day", true).map((c) => c.kind).slice(0, 2), ["blink", "talk"]);
 });
 test("dragMask/resizeMask: clamped inside the sprite, min size 0.02", () => {

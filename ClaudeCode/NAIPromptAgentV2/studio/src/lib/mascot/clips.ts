@@ -10,10 +10,11 @@ export type ClipKind = (typeof CLIP_KINDS)[number];
 export type MaskName = "eyes" | "mouth";
 export type Mask = { x: number; y: number; w: number; h: number };
 
-/** Per kind: frame count, playback fps/loop, generation method (+ img2img strength or the infill mask) and optional playback sequence of frame indices (default 0..frames-1), per-frame tags (appended to the base prompt). */
+/** Per kind: frame count, playback fps/loop, generation method (+ strength; infill also its mask) and optional playback sequence of frame indices (default 0..frames-1), per-frame tags (appended to the base prompt). */
 export const CLIP_SPEC: Record<ClipKind, { frames: number; fps: number; loop: boolean; method: "infill" | "img2img"; mask?: MaskName; strength?: number; sequence?: readonly number[]; tags: readonly string[] }> = {
-  blink: { frames: 1, fps: 8, loop: false, method: "infill", mask: "eyes", tags: ["closed eyes"] },
-  talk: { frames: 2, fps: 8, loop: true, method: "infill", mask: "mouth", tags: ["parted lips", "open mouth"] },
+  // Infill: strength 0.85 + frame tags weighted and prefixed (verified live; 1.0 left the eyes open). blink fps 5.5 ≈ a 180 ms hold.
+  blink: { frames: 1, fps: 5.5, loop: false, method: "infill", mask: "eyes", strength: 0.85, tags: ["{{closed eyes}}, eyes closed"] },
+  talk: { frames: 2, fps: 8, loop: true, method: "infill", mask: "mouth", strength: 0.85, tags: ["{{parted lips}}", "{{open mouth}}"] },
   laugh: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.45, tags: ["smile", "laughing, open mouth", "laughing, closed eyes, open mouth"] },
   pout: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.4, tags: ["slight pout", "pout", "pout, puffed cheeks"] },
   wink: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.4, tags: ["smile", "one eye closed, smile", "one eye closed, smile, :p"] },
@@ -52,7 +53,7 @@ export function defaultMasks(baseKey: string): Record<MaskName, Mask> {
   const full = baseKey.startsWith("pose/") || baseKey.endsWith("/full");
   return full
     ? { eyes: { x: 0.42, y: 0.1, w: 0.16, h: 0.04 }, mouth: { x: 0.45, y: 0.14, w: 0.1, h: 0.03 } }
-    : { eyes: { x: 0.32, y: 0.3, w: 0.36, h: 0.1 }, mouth: { x: 0.4, y: 0.44, w: 0.2, h: 0.08 } };
+    : { eyes: { x: 0.38, y: 0.29, w: 0.26, h: 0.1 }, mouth: { x: 0.4, y: 0.44, w: 0.2, h: 0.08 } };
 }
 const unit = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 const MIN_MASK = 0.02, r6 = (n: number) => Math.round(n * 1e6) / 1e6, f6 = (n: number) => Math.floor(n * 1e6 + 1e-6) / 1e6;
@@ -87,16 +88,38 @@ export function validateManifest(raw: unknown): Manifest | null {
 }
 
 // --- generation requests (descriptors only; Task 2 builds the NovelAI body) ---
-export type ClipRequest = { compiled: Compiled; params: NaiParams; img2img?: { strength: number }; infill?: true; mask?: MaskName };
+export type ClipRequest = { compiled: Compiled; params: NaiParams; img2img?: { strength: number }; infill?: { strength: number }; mask?: MaskName };
 
-/** One request per frame: the base prompt + that frame's tags, same seed across the clip, UC unchanged. */
-export function clipRequests(base: { compiled: Compiled; params: NaiParams }, kind: ClipKind, seed: number): ClipRequest[] {
+const bare = (t: string) => t.replace(/[{}[\]]/g, "").trim().toLowerCase();
+const DROP = {
+  blink: (t: string) => t === "looking at viewer" || /\b\w+ eyes\b/.test(t) || /\beye(liner|shadow)\b/.test(t),
+  talk: (t: string) => /^(smirk|fangs?|open mouth|closed mouth|parted lips|:p|tongue out)$/.test(t),
+};
+/** The base prompt for an inpaint frame: without the expression's own tags or anything that fights the repainted eyes/mouth. */
+export function infillBase(base: string, kind: "blink" | "talk", exprTags: string): string {
+  const expr = new Set(exprTags.split(",").map(bare).filter(Boolean));
+  return base.split(",").map((t) => t.trim()).filter((t) => t && !expr.has(bare(t)) && !DROP[kind](bare(t))).join(", ");
+}
+
+/** One request per frame, same seed across the clip, UC unchanged. img2img: base prompt + frame tags; infill: frame tags first + the stripped base (infillBase). */
+export function clipRequests(base: { compiled: Compiled; params: NaiParams }, kind: ClipKind, seed: number, exprTags = ""): ClipRequest[] {
   const s = CLIP_SPEC[kind];
   return s.tags.map((tag) => ({
-    compiled: { ...base.compiled, base: [base.compiled.base.trim(), tag].filter(Boolean).join(", ") },
+    compiled: { ...base.compiled, base: (s.method === "infill" ? [tag, infillBase(base.compiled.base, kind as "blink" | "talk", exprTags)] : [base.compiled.base.trim(), tag]).filter(Boolean).join(", ") },
     params: { ...base.params, seed },
-    ...(s.method === "infill" ? { infill: true as const, mask: s.mask } : { img2img: { strength: s.strength! } }),
+    ...(s.method === "infill" ? { infill: { strength: s.strength! }, mask: s.mask } : { img2img: { strength: s.strength! } }),
   }));
+}
+
+const STILL_TALK = new Set(["think1", "think2", "talk_open", "talk_closed", "listen"]);
+/** Kinds that can play on this sprite: back view none, non-expression talk frames none (never the still), full-body no talk (talk runs on portraits), lie/legs blink only once eye masks are saved. */
+export function clipKindsFor(baseKey: string, hasSavedMasks = false): ClipKind[] {
+  if (!isBaseKey(baseKey)) return [];
+  const p = baseKey.split("/");
+  if ((p[0] === "pose" && p[1] === "back") || (p[0] === "talk" && STILL_TALK.has(p[2]))) return [];
+  if (p[0] !== "pose" && p[1] !== "full") return [...CLIP_KINDS];
+  const noBlink = (p[1] === "lie" || p[1] === "legs") && !hasSavedMasks;
+  return CLIP_KINDS.filter((k) => k !== "talk" && !(noBlink && k === "blink"));
 }
 
 // --- playback: pure state machine, priorities talk > reaction > blink > idle ---

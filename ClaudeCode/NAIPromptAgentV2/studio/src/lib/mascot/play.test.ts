@@ -5,7 +5,7 @@ import { canRestore, clipsFor, clipUrl, clipUrls, reactionFor, texSize } from ".
 const L = { clips: { "day/smug": { talk: 2, blink: 1, wave: 2, laugh: 9 } as never, "pose/stand/day/smug": { jump: 4 } }, clipMeta: { "day/smug": { v: 7 }, "pose/stand/day/smug": { v: 3 } } };
 
 test("clipsFor: listing frames with spec fps/loop, bad counts and kinds dropped", () => {
-  assert.deepEqual(clipsFor(L, "day/smug"), { talk: { frames: 2, fps: 8, loop: true }, blink: { frames: 1, fps: 8, loop: false }, wave: { frames: 2, fps: 6, loop: false } });
+  assert.deepEqual(clipsFor(L, "day/smug"), { talk: { frames: 2, fps: 8, loop: true }, blink: { frames: 1, fps: 5.5, loop: false }, wave: { frames: 2, fps: 6, loop: false } });
   assert.deepEqual(clipsFor({ clips: { "day/smug": { nope: 1, pout: 0 } as never }, clipMeta: {} }, "day/smug"), {});
   assert.deepEqual(clipsFor(L, "day/pout"), {});
   assert.deepEqual(clipsFor(null, null), {});
