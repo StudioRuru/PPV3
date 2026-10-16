@@ -271,7 +271,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
               if (m.role === "user") return (
                 <div key={m.cid} className="animate-rise bg-surface-2 ml-8 rounded-lg p-2.5 text-sm">
                   <p className="whitespace-pre-wrap">{m.content}</p>
-                  {!streaming && <button type="button" onClick={() => setEditing({ i, text: m.content })} className="text-faint min-h-11 text-xs">Edit</button>}
+                  {!streaming && <button type="button" onClick={() => setEditing({ i, text: m.content })} aria-label={`Edit message ${i + 1}`} className="text-faint min-h-11 text-xs">Edit</button>}
                 </div>
               );
               const done = !streaming || i < msgs.length - 1;
@@ -290,7 +290,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
                     </VialCard>
                   )}
                   {i === msgs.length - 1 && !streaming && m.content && i > 0 && (
-                    <button type="button" onClick={regenerate} className="text-faint min-h-11 text-xs">Regenerate</button>
+                    <button type="button" onClick={regenerate} aria-label="Regenerate Aru's reply" className="text-faint min-h-11 text-xs">Regenerate</button>
                   )}
                 </div>
               );

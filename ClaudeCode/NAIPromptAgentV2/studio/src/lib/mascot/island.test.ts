@@ -112,7 +112,9 @@ test("touchRect: island devices get a 180×44 strip just below the cutout (iOS e
 
 test("touchRect: calibration moves and widens the strip", () => {
   const cal = { x: 5, y: -3, w: 10, h: 7 }, a = anchorBox(cal, true, 59);
-  assert.deepEqual(touchRect("minimal", 59, cal, a, drawerSize("minimal", a, 393)), { x: 5, top: 58, w: 190, h: 44 });
+  assert.deepEqual(touchRect("minimal", 59, cal, a, drawerSize("minimal", a, 393)), { x: 5, top: 61, w: 190, h: 44 }, "negative y never enters the inset");
+  const down = { x: 0, y: 6, w: 0, h: 0 }, b = anchorBox(down, true, 59);
+  assert.equal(touchRect("minimal", 59, down, b, drawerSize("minimal", b, 393)).top, 67);
 });
 
 test("touchRect: non-island unchanged (hotRect from y = 0); expanded never overlaps the panel controls", () => {

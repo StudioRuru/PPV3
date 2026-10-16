@@ -249,9 +249,9 @@ export default function Studio() {
 
   return (
     <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]" : tab === "chat" || tab === "rp" ? "pb-0" : "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]"}`}
-      // --pt: below the top pill on screens without a Dynamic Island (inset ≤ 50px → +2.5rem); island screens keep 1rem (the island lives in the inset).
+      // --pt: below the top pill on screens without a Dynamic Island (inset ≤ 50px → +2.5rem); island screens 3rem, clearing the island touch strip (inset + 2 .. inset + 46).
       // Chat/RP: no bottom padding — their sticky composers pad the safe area themselves and size to 100dvh − var(--pt) − inset-top.
-      style={{ touchAction: "pan-y", "--pt": "calc(1rem + clamp(0px, (50.01px - env(safe-area-inset-top)) * 9999, 2.5rem))", paddingTop: "var(--pt)" } as React.CSSProperties}
+      style={{ touchAction: "pan-y", "--pt": "calc(3rem + clamp(0px, (50.01px - env(safe-area-inset-top)) * 9999, 0.5rem))", paddingTop: "var(--pt)" } as React.CSSProperties}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}
       // Swipe left/right on free page areas to change tab; never from controls, the Tagger, the canvas or sheets.
