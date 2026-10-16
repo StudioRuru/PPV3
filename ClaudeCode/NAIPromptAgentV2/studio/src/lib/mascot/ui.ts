@@ -1,6 +1,7 @@
 // Pure helpers for the floating mascot.
 import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "./core";
 import { POSES, poseKey, type Pose } from "./poses";
+import { TALK_FRAMES, talkKey, type TalkFrame } from "./talk";
 import { SLIDERS } from "./slime";
 import { parseVialBlock, type Vial } from "./vial";
 export type Corner = "br" | "bl" | "tr" | "tl";
@@ -46,6 +47,10 @@ export function poseCells(f: { pose?: Pose; outfit?: Outfit }): PoseCell[] {
 /** Pose sprites not saved yet, for a pose (all outfits), an outfit (all poses), or both. */
 export const missingPoseCells = (sprites: Record<string, number>, f: { pose?: Pose; outfit?: Outfit }): PoseCell[] =>
   poseCells(f).filter((c) => !(poseKey(c.pose, c.outfit, c.expr) in sprites));
+
+/** Talk portrait frames of one outfit with no saved sprite yet, in frame order. */
+export const missingTalkCells = (sprites: Record<string, number>, outfit: string): TalkFrame[] =>
+  TALK_FRAMES.filter((f) => !(talkKey(outfit, f) in sprites));
 
 /** Request sequencing: `start()` numbers a request; `done(n)` says whether its response is still the latest to apply. */
 export function requestSeq() {

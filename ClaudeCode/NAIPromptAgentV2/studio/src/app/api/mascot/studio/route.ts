@@ -2,8 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
-import { activeSpriteDir, getMascotSettings } from "@/lib/mascot/settings-db";
-import { MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, poseRequest, spriteRequest, target } from "@/lib/mascot/sprites";
+import { getAruSettings, getMascotSettings, profileSpriteDir, saveAruSettings } from "@/lib/mascot/settings-db";
+import { isProfile, profileLook, type Profile } from "@/lib/mascot/profiles";
+import { MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, poseRequest, spriteRequest, talkRequest, target } from "@/lib/mascot/sprites";
 import type { Outfit } from "@/lib/mascot/core";
 import { anlas, generateImage, measured, NovelAIError } from "@/lib/novelai";
 
@@ -14,25 +15,35 @@ const MAX_SHEET = 20 * 1024 * 1024;
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 const balance = () => anlas(NOVELAI_TOKEN, 5000).catch(() => null);
 
-/** Mascot studio: sheet upload (multipart), estimate, generate (confirm: true), pick. */
+/** Aru's editable tags. */
+export async function GET() {
+  return NextResponse.json({ aru: getAruSettings() });
+}
+
+/** Mascot studio: sheet upload (multipart), estimate, generate (confirm: true), pick; body.profile "aru" draws portraits in her folder; action "aru-tags" saves her tags. */
 export async function POST(req: NextRequest) {
-  const dir = activeSpriteDir(); // the active look's folder, fixed for this request
   if (req.headers.get("content-type")?.startsWith("multipart/form-data")) {
     const fd = await req.formData().catch(() => null);
     const outfit = fd?.get("outfit");
     const file = fd?.get("file");
     if (fd?.get("action") !== "sheet" || !OUTFITS.includes(outfit as Outfit)) return bad("Expected action=sheet and an outfit.");
     if (!(file instanceof Blob) || !file.size || file.size > MAX_SHEET || !file.type.startsWith("image/")) return bad("Upload an image up to 20 MB.");
-    const out = sheetPath(dir, outfit as Outfit);
+    const out = sheetPath(profileSpriteDir(null), outfit as Outfit); // Miyabi only
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, Buffer.from(await file.arrayBuffer()));
     return NextResponse.json({ ok: true });
   }
 
-  const b = ((await req.json().catch(() => null)) ?? {}) as { action?: unknown; n?: unknown; i?: unknown; confirm?: unknown };
+  const b = ((await req.json().catch(() => null)) ?? {}) as { action?: unknown; n?: unknown; i?: unknown; confirm?: unknown; profile?: unknown; patch?: unknown };
+  if (b.action === "aru-tags") return NextResponse.json({ aru: saveAruSettings(b.patch) });
+  if (b.profile !== undefined && !isProfile(b.profile)) return bad("Unknown profile.");
+  const profile: Profile = b.profile ?? "miyabi";
   const t = target(b);
   if (!t) return bad("Unknown outfit or expression.");
-  const request = (seed?: number) => (t.pose ? poseRequest(t.outfit, t.pose, t.pose === "back" ? null : t.expr, getMascotSettings(), seed) : spriteRequest(t.outfit, t.kind, t.expr, getMascotSettings(), seed));
+  if (profile === "aru" && (!t.talk || t.outfit !== "day")) return bad("Aru only has day portraits.");
+  const dir = profileSpriteDir(profile); // the profile's folder, fixed for this request
+  const look = () => profileLook(profile, getMascotSettings(), getAruSettings());
+  const request = (seed?: number) => (t.talk ? talkRequest(t.outfit, t.talk, look(), seed) : t.pose ? poseRequest(t.outfit, t.pose, t.pose === "back" ? null : t.expr, look(), seed) : spriteRequest(t.outfit, t.kind, t.expr, look(), seed));
   const n = Number.isInteger(b.n) ? Math.min(MAX_CANDIDATES, Math.max(1, b.n as number)) : 3;
 
   if (b.action === "estimate") {
@@ -53,7 +64,7 @@ export async function POST(req: NextRequest) {
         }
         return out;
       });
-      saveCandidates(dir, t.outfit, t.name, pngs, seeds, t.pose); // only after the whole batch, so a failure replaces nothing
+      saveCandidates(dir, t.outfit, t.name, pngs, seeds, t.pose, t.talk); // only after the whole batch, so a failure replaces nothing
       return NextResponse.json({ count: pngs.length, before, after: await balance(), cost });
     } catch (err) {
       const status = err instanceof NovelAIError ? err.status : 500;
@@ -61,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
   }
   if (b.action === "pick") {
-    const r = await pick(dir, t.outfit, t.name, Number(b.i), undefined, t.pose);
+    const r = await pick(dir, t.outfit, t.name, Number(b.i), undefined, t.pose, t.talk);
     return "error" in r ? bad(r.error, 404) : NextResponse.json(r);
   }
   return bad("Unknown action.");

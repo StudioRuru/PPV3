@@ -8,6 +8,10 @@ import type { Compiled } from "../prompt";
 import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "./core";
 import { POSE_SPEC, POSES, poseKey, type Pose } from "./poses";
 import { isSafeSpriteDir, type MascotSettings } from "./settings";
+import { TALK, TALK_FRAMES, TALK_FRAME_TAGS, TALK_UC, talkKey, type TalkFrame } from "./talk";
+
+/** The tag fields a sprite request draws from (MascotSettings and ProfileLook both fit). */
+type Look = Pick<MascotSettings, "charTags" | "constantTags" | "layerTags" | "exprTags">;
 
 export const MASCOT_DIR = path.join(DATA_DIR, "mascot");
 
@@ -28,7 +32,7 @@ const FULL = "full body, standing, hand on hip, looking at viewer, simple backgr
 export const newSeed = (): number => randomInt(1, 2 ** 32);
 
 /** Tags-only V5 request (no reference image: Precise Reference doesn't work on V5). */
-export function spriteRequest(outfit: Outfit, kind: ArtKind, expr: Expression, s: MascotSettings, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
+export function spriteRequest(outfit: Outfit, kind: ArtKind, expr: Expression, s: Look, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
   const parts = [s.charTags, s.constantTags, s.layerTags[outfit], ...(kind === "bust" ? [s.exprTags[expr], BUST] : [FULL])];
   const [width, height] = kind === "bust" ? [1024, 1024] : [832, 1216];
   return {
@@ -38,7 +42,7 @@ export function spriteRequest(outfit: Outfit, kind: ArtKind, expr: Expression, s
 }
 
 /** Tags-only request for a pose sprite; faced poses add the expression tags, back view none. No bust UC (full body). */
-export function poseRequest(outfit: Outfit, pose: Pose, expr: Expression | null, s: MascotSettings, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
+export function poseRequest(outfit: Outfit, pose: Pose, expr: Expression | null, s: Look, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
   const { tags, width, height, faced } = POSE_SPEC[pose];
   const parts = [s.charTags, s.constantTags, s.layerTags[outfit], ...(faced && expr ? [s.exprTags[expr]] : []), tags];
   return {
@@ -47,17 +51,30 @@ export function poseRequest(outfit: Outfit, pose: Pose, expr: Expression | null,
   };
 }
 
+/** Tags-only request for a waist-up talk portrait: expression frames add the expression tags, think/talk/listen frames their own small set. */
+export function talkRequest(outfit: Outfit, frame: TalkFrame, s: Look, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
+  const tags = isTalkExpr(frame) ? s.exprTags[frame] : TALK_FRAME_TAGS[frame];
+  const parts = [s.charTags, s.constantTags, s.layerTags[outfit], tags, TALK];
+  return {
+    compiled: { base: parts.map((p) => p.trim()).filter(Boolean).join(", "), uc: TALK_UC, chars: [], rating: "nsfw" },
+    params: { ...DEFAULT_PARAMS, width: 1024, height: 1024, steps: 28, seed },
+  };
+}
+const isTalkExpr = (f: TalkFrame): f is Expression => EXPRESSIONS.includes(f as Expression);
+
 /** Anlas per image on Opus: free up to 1 Mpx at ≤28 steps; otherwise unknown until measured. */
 export const perImage = (p: NaiParams): number | null => (p.width * p.height <= 1048576 && p.steps <= 28 ? 0 : null);
 
 const isOutfit = (o: unknown): o is Outfit => OUTFITS.includes(o as Outfit);
 const isName = (n: unknown): n is Expression | "full" => n === "full" || EXPRESSIONS.includes(n as Expression);
 
+const isTalk = (f: unknown): f is TalkFrame => TALK_FRAMES.includes(f as TalkFrame);
 const isPose = (p: unknown): p is Pose => POSES.includes(p as Pose);
 
-/** Untrusted {outfit, kind, expr, pose?} → a valid target (full ignores expr; back ignores expr; pose set = pose sprite), or null. */
-export function target(b: unknown): { outfit: Outfit; kind: ArtKind; expr: Expression; name: Expression | "full"; pose?: Pose } | null {
-  const { outfit, kind = "bust", expr, pose } = (b ?? {}) as Record<string, unknown>;
+/** Untrusted {outfit, kind, expr, pose?, talk?} → a valid target (full ignores expr; back ignores expr; pose set = pose sprite), or null. */
+export function target(b: unknown): { outfit: Outfit; kind: ArtKind; expr: Expression; name: Expression | "full" | TalkFrame; pose?: Pose; talk?: TalkFrame } | null {
+  const { outfit, kind = "bust", expr, pose, talk } = (b ?? {}) as Record<string, unknown>;
+  if (talk !== undefined) return isOutfit(outfit) && isTalk(talk) ? { outfit, kind: "bust", expr: isTalkExpr(talk) ? talk : "smug", name: talk, talk } : null;
   if (pose !== undefined) {
     if (!isOutfit(outfit) || !isPose(pose)) return null;
     if (pose === "back") return { outfit, kind: "bust", expr: "smug", name: "smug", pose };
@@ -86,6 +103,14 @@ export function poseCandidatePath(dir: string, pose: string, outfit: string, exp
     ? path.join(dir, "candidates", "pose", pose, outfit, pose === "back" ? "back" : expr!, `${i}.png`) : null;
 }
 
+/** `<dir>/talk/<outfit>/<frame>.png`; whitelisted names only. */
+export const talkPath = (dir: string, outfit: string, name: string): string | null =>
+  isOutfit(outfit) && isTalk(name) ? path.join(dir, "talk", outfit, `${name}.png`) : null;
+
+/** Candidate i for a talk portrait: `<dir>/candidates/talk/<outfit>/<frame>/<i>.png`. */
+export const talkCandidatePath = (dir: string, outfit: string, name: string, i: number): string | null =>
+  isOutfit(outfit) && isTalk(name) && Number.isInteger(i) && i >= 0 && i < MAX_CANDIDATES ? path.join(dir, "candidates", "talk", outfit, name, `${i}.png`) : null;
+
 export const candidatePath = (dir: string, outfit: string, name: string, i: number): string | null =>
   isOutfit(outfit) && isName(name) && Number.isInteger(i) && i >= 0 && i < MAX_CANDIDATES ? path.join(dir, "candidates", outfit, name, `${i}.png`) : null;
 
@@ -104,13 +129,17 @@ export function listSprites(dir: string): { sprites: Record<string, number>; she
     const st = fs.statSync(posePath(dir, p, o, e)!, { throwIfNoEntry: false });
     if (st?.isFile()) sprites[poseKey(p, o, e)] = Math.floor(st.mtimeMs);
   }
+  for (const o of OUTFITS) for (const f of TALK_FRAMES) {
+    const st = fs.statSync(talkPath(dir, o, f)!, { throwIfNoEntry: false });
+    if (st?.isFile()) sprites[talkKey(o, f)] = Math.floor(st.mtimeMs);
+  }
   const sheets = Object.fromEntries(OUTFITS.map((o) => [o, fs.existsSync(sheetPath(dir, o))])) as Record<Outfit, boolean>;
   return { sprites, sheets };
 }
 
 /** Replace the candidate batch for one sprite (stale files removed); seeds, if given, go in meta.json. */
-export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "full", pngs: Buffer[], seeds?: number[], pose?: Pose): void {
-  const d = path.dirname((pose ? poseCandidatePath(dir, pose, outfit, name === "full" ? null : name, 0) : candidatePath(dir, outfit, name, 0))!);
+export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "full" | TalkFrame, pngs: Buffer[], seeds?: number[], pose?: Pose, talk?: TalkFrame): void {
+  const d = path.dirname((talk ? talkCandidatePath(dir, outfit, talk, 0) : pose ? poseCandidatePath(dir, pose, outfit, name === "full" ? null : name, 0) : candidatePath(dir, outfit, name as Expression, 0))!);
   fs.rmSync(d, { recursive: true, force: true });
   fs.mkdirSync(d, { recursive: true });
   pngs.slice(0, MAX_CANDIDATES).forEach((png, i) => fs.writeFileSync(path.join(d, `${i}.png`), png));
@@ -120,9 +149,9 @@ export function saveCandidates(dir: string, outfit: Outfit, name: Expression | "
 const isPng = (b: Buffer) => b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
 
 /** Cut out the candidate's background via the tagger and save it as the sprite (+ .orig.png). Cutout down → original + note. */
-export async function pick(dir: string, outfit: string, name: string, i: number, fetchFn: typeof fetch = fetch, pose?: string): Promise<{ ok: true; note?: string } | { error: string }> {
-  const src = pose ? poseCandidatePath(dir, pose, outfit, name, i) : candidatePath(dir, outfit, name, i);
-  const out = pose ? posePath(dir, pose, outfit, name) : spritePath(dir, outfit, name);
+export async function pick(dir: string, outfit: string, name: string, i: number, fetchFn: typeof fetch = fetch, pose?: string, talk?: string): Promise<{ ok: true; note?: string } | { error: string }> {
+  const src = talk ? talkCandidatePath(dir, outfit, talk, i) : pose ? poseCandidatePath(dir, pose, outfit, name, i) : candidatePath(dir, outfit, name, i);
+  const out = talk ? talkPath(dir, outfit, talk) : pose ? posePath(dir, pose, outfit, name) : spritePath(dir, outfit, name);
   if (!src || !out || !fs.existsSync(src)) return { error: "That candidate is gone — generate again." };
   const orig = fs.readFileSync(src);
   let cut: Buffer | null = null;

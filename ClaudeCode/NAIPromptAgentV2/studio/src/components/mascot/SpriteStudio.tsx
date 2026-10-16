@@ -3,39 +3,44 @@ import { useEffect, useRef, useState } from "react";
 import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "@/lib/mascot/core";
 import { DEFAULT_MASCOT_SETTINGS } from "@/lib/mascot/settings";
 import { POSES, POSE_SPEC, poseKey, type Pose } from "@/lib/mascot/poses";
-import { missingCells, missingPoseCells, poseCells as allPoseCells } from "@/lib/mascot/ui";
+import { ARU_DEFAULT_TAGS, type AruSettings, type Profile } from "@/lib/mascot/profiles";
+import { TALK_FRAMES, talkKey, type TalkFrame } from "@/lib/mascot/talk";
+import { missingCells, missingPoseCells, missingTalkCells, poseCells as allPoseCells } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 import { Sheet } from "../Sheet";
 import { AutoTextarea } from "../TagInput";
 import type { WireSettings } from "./MascotSettings";
 
-type Kind = "bust" | "full" | "pose";
-type Cell = { kind: Kind; expr: Expression; pose?: Pose; outfit?: Outfit }; // pose cells carry their own outfit (batches span outfits)
+type Kind = "bust" | "full" | "pose" | "talk";
+type Cell = { kind: Kind; expr: Expression; pose?: Pose; outfit?: Outfit; frame?: TalkFrame }; // pose cells carry their own outfit (batches span outfits)
 type Estimate = { anlas: number | null; perImage: number | null; n: number };
 type Spent = { before: number | null; after: number | null; cost: number | null };
 type Confirm = { outfit: Outfit; cells: Cell[]; n: number; total: number | null; anlas: number | null };
 
 const name = (c: Cell) => (c.kind === "full" ? "full" : c.expr);
 const isBack = (c: Cell) => c.pose === "back";
-const label = (c: Cell) => (c.kind === "full" ? "Full sprite" : c.kind === "pose" ? (isBack(c) ? "Back" : c.expr) : c.expr);
+const label = (c: Cell) => (c.kind === "full" ? "Full sprite" : c.kind === "talk" ? c.frame!.replace("_", " ") : c.kind === "pose" ? (isBack(c) ? "Back" : c.expr) : c.expr);
 /** Listing/serve key of a cell's sprite. */
-const keyOf = (o: Outfit, c: Cell) => (c.kind === "pose" ? poseKey(c.pose!, c.outfit ?? o, isBack(c) ? null : c.expr) : `${o}/${name(c)}`);
+const keyOf = (o: Outfit, c: Cell) => (c.kind === "talk" ? talkKey(c.outfit ?? o, c.frame!) : c.kind === "pose" ? poseKey(c.pose!, c.outfit ?? o, isBack(c) ? null : c.expr) : `${o}/${name(c)}`);
 /** Extra API fields addressing a cell's sprite. */
-const target = (o: Outfit, c: Cell) => (c.kind === "pose" ? { outfit: c.outfit ?? o, pose: c.pose, expr: c.expr } : { outfit: o, kind: c.kind, expr: c.expr });
+const target = (o: Outfit, c: Cell) => (c.kind === "talk" ? { outfit: o, talk: c.frame } : c.kind === "pose" ? { outfit: c.outfit ?? o, pose: c.pose, expr: c.expr } : { outfit: o, kind: c.kind, expr: c.expr });
 const poseCells = (pose: Pose, outfit: Outfit): Cell[] => allPoseCells({ pose, outfit }).map((p) => ({ kind: "pose", ...p }));
 const cellName = (c: Cell) => (c.kind === "pose" ? `${c.pose} · ${c.outfit} · ${label(c)}` : label(c));
 const studio = <T,>(body: object) => requestJson<T>("/api/mascot/studio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const talkCell = (frame: TalkFrame): Cell => ({ kind: "talk", expr: "smug", frame });
 const h3 = "text-muted mb-2 text-xs font-medium tracking-wide uppercase";
 const btn = "border-border rounded-md border px-3 py-2.5 text-sm disabled:opacity-50";
 
-/** Mascot studio: per outfit, tag editors + generate candidates → pick → saved sprite. Every spend needs a confirm tap. */
+/** Mascot studio: pick a character (Miyabi: busts, poses, portraits; Aru: day portraits), tag editors + generate candidates → pick → saved sprite. Every spend needs a confirm tap. */
 export function SpriteStudio({ open, onClose, settings, onSave }: {
   open: boolean; onClose: () => void; settings: WireSettings; onSave: (patch: Partial<WireSettings>) => Promise<string | null>;
 }) {
+  const [profile, setProfile] = useState<Profile>("miyabi");
+  const [aru, setAru] = useState<AruSettings>(ARU_DEFAULT_TAGS);
   const [outfit, setOutfit] = useState<Outfit>("day");
   const [sprites, setSprites] = useState<Record<string, number>>({});
   const [sheets, setSheets] = useState<Record<Outfit, boolean>>({ day: false, night: false, lewd: false });
-  const [mode, setMode] = useState<"bust" | "pose">("bust");
+  const [mode, setMode] = useState<"bust" | "pose" | "talk">("bust");
   const [pose, setPose] = useState<Pose>("stand");
   const [sel, setSel] = useState<Cell | null>(null);
   const [n, setN] = useState(3);
@@ -48,12 +53,17 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
   const [gone, setGone] = useState<Set<string>>(new Set()); // candidate urls that 404'd
   const stop = useRef(false);
 
-  const refresh = () => requestJson<{ sprites: Record<string, number>; sheets: Record<Outfit, boolean> }>("/api/mascot/sprites").then((r) => {
+  const isAru = profile === "aru", q = isAru ? "&profile=aru" : "";
+  const refresh = () => requestJson<{ sprites: Record<string, number>; sheets: Record<Outfit, boolean> }>(`/api/mascot/sprites${isAru ? "?profile=aru" : ""}`).then((r) => {
     if (!r.ok) return;
     setSprites(r.data.sprites); setSheets(r.data.sheets);
-    window.dispatchEvent(new CustomEvent("mascot:sprites", { detail: r.data.sprites }));
+    if (!isAru) window.dispatchEvent(new CustomEvent("mascot:sprites", { detail: r.data.sprites })); // the roaming mascot is Miyabi's
   });
-  useEffect(() => { if (open) refresh(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) refresh(); }, [open, profile]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (open && isAru) requestJson<{ aru: AruSettings }>("/api/mascot/studio").then((r) => { if (r.ok) setAru(r.data.aru); });
+  }, [open, isAru]);
+  const pickProfile = (p: Profile) => { setProfile(p); setSprites({}); setOutfit("day"); setMode(p === "aru" ? "talk" : "bust"); choose(null); };
   const close = () => { stop.current = true; setConfirm(null); onClose(); }; // closing ends a run: no spending out of sight
   const choose = (c: Cell | null) => { setSel(c); setConfirm(null); setError(null); setNote(null); };
   const pickOutfit = (o: Outfit) => { setOutfit(o); choose(null); };
@@ -66,7 +76,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
     const group = (c: Cell) => `${c.kind}/${c.pose ?? ""}`; // canvas size differs per art kind / pose
     for (const g of new Set(cells.map(group))) {
       const first = cells.find((c) => group(c) === g)!;
-      const r = await studio<Estimate>({ action: "estimate", ...target(outfit, first), n });
+      const r = await studio<Estimate>({ action: "estimate", profile, ...target(outfit, first), n });
       if (!r.ok) { setBusy(null); setError(r.error); return; }
       anlas = r.data.anlas;
       const count = cells.filter((c) => group(c) === g).length;
@@ -83,7 +93,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
     for (const [i, cell] of c.cells.entries()) {
       if (stop.current) break;
       setBusy(c.cells.length > 1 ? `Generating ${cellName(cell)} (${i + 1}/${c.cells.length})…` : "Generating…");
-      const r = await studio<Spent>({ action: "generate", ...target(c.outfit, cell), n: c.n, confirm: true });
+      const r = await studio<Spent>({ action: "generate", profile, ...target(c.outfit, cell), n: c.n, confirm: true });
       if (!r.ok) { setError(`${cellName(cell)}: ${r.error}`); break; }
       before ??= r.data.before; after = r.data.after;
       cost = cost === null || r.data.cost === null ? null : cost + r.data.cost;
@@ -96,7 +106,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
 
   async function pick(cell: Cell, i: number) {
     setBusy("Saving (removing background)…"); setError(null); setNote(null);
-    const r = await studio<{ ok: true; note?: string }>({ action: "pick", ...target(outfit, cell), i });
+    const r = await studio<{ ok: true; note?: string }>({ action: "pick", profile, ...target(outfit, cell), i });
     setBusy(null);
     if (!r.ok) { setError(r.error); return; }
     setNote(r.data.note ?? "Saved.");
@@ -110,11 +120,12 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
     if (r.ok) refresh(); else setError(r.error);
   }
 
-  const src = (c: Cell) => { const k = keyOf(outfit, c); return k in sprites ? `/api/mascot/sprites/${k}?v=${sprites[k]}` : null; };
+  const src = (c: Cell) => { const k = keyOf(outfit, c); return k in sprites ? `/api/mascot/sprites/${k}?v=${sprites[k]}${q}` : null; };
   const missing = missingCells(sprites, outfit);
   const toCells = (m: ReturnType<typeof missingPoseCells>): Cell[] => m.map((c) => ({ kind: "pose", ...c }));
   const missPose = toCells(missingPoseCells(sprites, { pose })), missOutfit = toCells(missingPoseCells(sprites, { outfit }));
-  const candidates = sel ? [0, 1, 2, 3].map((i) => `/api/mascot/sprites/${keyOf(outfit, sel)}?c=${i}&b=${batch}`) : [];
+  const missTalk = missingTalkCells(sprites, outfit).map(talkCell);
+  const candidates = sel ? [0, 1, 2, 3].map((i) => `/api/mascot/sprites/${keyOf(outfit, sel)}?c=${i}&b=${batch}${q}`) : [];
 
   const cellBtn = (c: Cell, cls: string) => {
     const s = src(c), on = !!sel && keyOf(outfit, sel) === keyOf(outfit, c);
@@ -136,21 +147,30 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
         <button type="button" onClick={close} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
       </header>
       <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
-        <div role="tablist" aria-label="Outfit" className="border-border grid grid-cols-3 overflow-hidden rounded-md border">
+        <div role="tablist" aria-label="Character" className="border-border grid grid-cols-2 overflow-hidden rounded-md border">
+          {(["miyabi", "aru"] as const).map((p) => (
+            <button key={p} type="button" role="tab" aria-selected={profile === p} disabled={!!busy} onClick={() => pickProfile(p)}
+              className={`h-11 text-sm font-medium capitalize ${profile === p ? "bg-accent text-accent-fg" : "text-muted"}`}>{p}</button>
+          ))}
+        </div>
+
+        {!isAru && <div role="tablist" aria-label="Outfit" className="border-border grid grid-cols-3 overflow-hidden rounded-md border">
           {OUTFITS.map((o) => (
             <button key={o} type="button" role="tab" aria-selected={outfit === o} disabled={!!busy} onClick={() => pickOutfit(o)}
               className={`h-11 text-sm font-medium capitalize ${outfit === o ? "bg-accent text-accent-fg" : "text-muted"}`}>{o}</button>
           ))}
-        </div>
+        </div>}
 
-        <div role="tablist" aria-label="Sprite kind" className="border-border grid grid-cols-2 overflow-hidden rounded-md border">
-          {(["bust", "pose"] as const).map((m) => (
+        {!isAru && <div role="tablist" aria-label="Sprite kind" className="border-border grid grid-cols-3 overflow-hidden rounded-md border">
+          {(["bust", "pose", "talk"] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} disabled={!!busy} onClick={() => { setMode(m); choose(null); }}
-              className={`h-11 text-sm font-medium ${mode === m ? "bg-accent text-accent-fg" : "text-muted"}`}>{m === "bust" ? "Busts" : "Poses"}</button>
+              className={`h-11 text-sm font-medium ${mode === m ? "bg-accent text-accent-fg" : "text-muted"}`}>{m === "bust" ? "Busts" : m === "pose" ? "Poses" : "Portraits"}</button>
           ))}
-        </div>
+        </div>}
 
-        {mode === "bust" ? (
+        {mode === "talk" ? (
+          <section className="grid grid-cols-3 gap-2">{TALK_FRAMES.map((f) => cellBtn(talkCell(f), "aspect-square"))}</section>
+        ) : mode === "bust" ? (
           <section className="grid grid-cols-[1fr_2fr] gap-2">
             {cellBtn({ kind: "full", expr: "smug" }, "min-h-48")}
             <div className="grid grid-cols-3 gap-2">{EXPRESSIONS.map((expr) => cellBtn({ kind: "bust", expr }, "aspect-square"))}</div>
@@ -183,7 +203,11 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
               Generate {n} — <span className="capitalize">{cellName(sel)}</span>
             </button>
           ) : <p className="text-faint text-xs">Tap a cell to generate or pick its sprite.</p>}
-          {mode === "bust" ? (
+          {mode === "talk" ? (
+            <button type="button" disabled={!!busy || !!confirm || !missTalk.length} onClick={() => ask(missTalk)} className={`${btn} w-full`}>
+              Generate missing portraits{isAru ? "" : " for this outfit"} ({missTalk.length})
+            </button>
+          ) : mode === "bust" ? (
             <button type="button" disabled={!!busy || !!confirm || !missing.length} onClick={() => ask(missing)} className={`${btn} w-full`}>
               Generate missing for this outfit ({missing.length})
             </button>
@@ -228,25 +252,28 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
           )}
         </section>
 
-        <TagEditors outfit={outfit} settings={settings} onSave={onSave} />
+        {isAru
+          ? <AruTagEditors aru={aru} onSave={async (patch) => { const r = await studio<{ aru: AruSettings }>({ action: "aru-tags", patch }); if (r.ok) setAru(r.data.aru); return r.ok ? null : r.error; }} />
+          : <TagEditors outfit={outfit} settings={settings} onSave={onSave} />}
 
-        <section>
+        {!isAru && <section>
           <h3 className={h3}>Character sheet</h3>
           <label className={`${btn} block cursor-pointer text-center`}>
             {sheets[outfit] ? "Replace" : "Upload"} the {outfit} sheet
             <input type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(f); }} />
           </label>
           <p className="text-faint mt-1 text-xs">Kept for later: V5 sprites are tag-only until Precise Reference works again.</p>
-        </section>
+        </section>}
       </div>
     </Sheet>
   );
 }
 
-type Field = { key: string; label: string; value: string; def: string; patch: (v: string) => Partial<WireSettings> };
+type Field = { key: string; label: string; value: string; def: string; patch: (v: string) => object };
+type Save = (patch: object) => Promise<string | null>;
 
 /** Collapsible tag editors: character, constant, this outfit's layer, per expression. Each saves its own patch. */
-function TagEditors({ outfit, settings: s, onSave }: { outfit: Outfit; settings: WireSettings; onSave: (patch: Partial<WireSettings>) => Promise<string | null> }) {
+function TagEditors({ outfit, settings: s, onSave }: { outfit: Outfit; settings: WireSettings; onSave: Save }) {
   const D = DEFAULT_MASCOT_SETTINGS;
   const fields: Field[] = [
     { key: "char", label: "Character", value: s.charTags, def: D.charTags, patch: (v) => ({ charTags: v }) },
@@ -262,7 +289,7 @@ function TagEditors({ outfit, settings: s, onSave }: { outfit: Outfit; settings:
   );
 }
 
-function TagField({ field: f, onSave }: { field: Field; onSave: (patch: Partial<WireSettings>) => Promise<string | null> }) {
+function TagField({ field: f, onSave }: { field: Field; onSave: Save }) {
   const [draft, setDraft] = useState(f.value);
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => { if (!failed) setDraft(f.value); }, [f.value]); // eslint-disable-line react-hooks/exhaustive-deps -- a failed save keeps the draft
@@ -280,5 +307,22 @@ function TagField({ field: f, onSave }: { field: Field; onSave: (patch: Partial<
         </div>
       </div>
     </details>
+  );
+}
+
+/** Aru's tag editors (saved to her own setting): character, constant, day outfit, per expression. */
+function AruTagEditors({ aru: a, onSave }: { aru: AruSettings; onSave: Save }) {
+  const D = ARU_DEFAULT_TAGS;
+  const fields: Field[] = [
+    { key: "char", label: "Character", value: a.charTags, def: D.charTags, patch: (v) => ({ charTags: v }) },
+    { key: "constant", label: "Constant pieces", value: a.constantTags, def: D.constantTags, patch: (v) => ({ constantTags: v }) },
+    { key: "layer-day", label: "day outfit", value: a.layerTags.day, def: D.layerTags.day, patch: (v) => ({ layerTags: { day: v } }) },
+    ...EXPRESSIONS.map((e) => ({ key: `expr-${e}`, label: `Expression: ${e}`, value: a.exprTags[e], def: D.exprTags[e], patch: (v: string) => ({ exprTags: { [e]: v } }) })),
+  ];
+  return (
+    <section>
+      <h3 className={h3}>Aru&apos;s tags</h3>
+      <div className="space-y-1">{fields.map((f) => <TagField key={f.key} field={f} onSave={onSave} />)}</div>
+    </section>
   );
 }
