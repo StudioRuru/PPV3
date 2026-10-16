@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clipsFor, clipUrl, clipUrls, reactionFor } from "./play";
+import { canRestore, clipsFor, clipUrl, clipUrls, reactionFor, texSize } from "./play";
 
 const L = { clips: { "day/smug": { talk: 2, blink: 1, wave: 2, laugh: 9 } as never, "pose/stand/day/smug": { jump: 4 } }, clipMeta: { "day/smug": { v: 7 }, "pose/stand/day/smug": { v: 3 } } };
 
@@ -35,4 +35,19 @@ test("reactionFor: the playback table", () => {
     assert.equal(reactionFor(e, "smug", () => 0.1), "jump");
     assert.equal(reactionFor(e, "smug", () => 0.9), "wave");
   }
+});
+
+test("fix1 texSize: contain-fit into the backing box, never upscaled, integer ≥ 1", () => {
+  assert.deepEqual(texSize(832, 1216, 400, 600), { w: 400, h: 585 });
+  assert.deepEqual(texSize(832, 1216, 2000, 2000), { w: 832, h: 1216 });
+  assert.deepEqual(texSize(1216, 832, 300, 900), { w: 300, h: 205 });
+  assert.deepEqual(texSize(832, 1216, 0, 0), { w: 832, h: 1216 }); // not laid out yet: full size
+  assert.deepEqual(texSize(10, 10000, 50, 50), { w: 1, h: 50 });
+});
+
+test("fix1 canRestore: at most 3 context losses per minute", () => {
+  assert.equal(canRestore([], 0), true);
+  assert.equal(canRestore([1000, 2000], 3000), true);
+  assert.equal(canRestore([1000, 2000, 3000], 4000), false);
+  assert.equal(canRestore([1000, 2000, 3000], 3000 + 60_000), true); // old losses age out
 });

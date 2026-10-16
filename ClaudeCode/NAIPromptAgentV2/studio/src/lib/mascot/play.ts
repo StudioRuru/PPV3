@@ -33,3 +33,12 @@ export function reactionFor(ev: ReactEvent, mood: Expression, rand: () => number
   if (ev === "flick" || ev === "drop") return "pout";
   return rand() < 0.5 ? "jump" : "wave";
 }
+
+/** Texture size for an iw×ih image shown in a bw×bh backing box: contain-fit, never upscaled, integer ≥ 1; an unmeasured box (0) keeps full size. */
+export function texSize(iw: number, ih: number, bw: number, bh: number): { w: number; h: number } {
+  const s = bw > 0 && bh > 0 ? Math.min(1, bw / iw, bh / ih) : 1;
+  return { w: Math.max(1, Math.round(iw * s)), h: Math.max(1, Math.round(ih * s)) };
+}
+
+/** WebGL context recovery: allowed while fewer than 3 losses happened in the last minute (losses = timestamps, ms). */
+export const canRestore = (losses: readonly number[], now: number): boolean => losses.filter((t) => now - t < 60_000).length < 3;

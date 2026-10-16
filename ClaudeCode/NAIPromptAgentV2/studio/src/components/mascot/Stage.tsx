@@ -59,6 +59,7 @@ export function Stage(p: Props) {
   const canvas = useRef<SpriteHandle>(null);
   const hop = useRef<Animation | null>(null);
   const prevHome = useRef<{ x: number; y: number } | null>(null);
+  const blinkOff = useRef<ReturnType<typeof setTimeout>>(undefined);
   const exit = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { vw, vh } = view, baseH = view.stableH * SIZE_VH[p.size];
@@ -136,6 +137,7 @@ export function Stage(p: Props) {
   // On stage at mount and on summon; hiding drops any gesture in progress.
   useEffect(() => {
     if (!hidden) { act.current.move(); return; }
+    prevHome.current = null; // a summon appears at her new spot instead of hopping in from the old one
     clearTimeout(press.current?.timer); press.current = null; setDrag(null);
   }, [hidden]);
   // Mischief dialled to 0: park at an edge now.
@@ -173,13 +175,13 @@ export function Stage(p: Props) {
   const sleepyBlink = !clips.blink && !!sleepy && sleepy.endsWith("/sleepy") && sleepy !== key; // no blink clip: flash the sleepy sprite
   const canBlink = !hidden && !p.empty && spot?.pose !== "back" && (!!clips.blink || sleepyBlink);
   act.current.react = (ev, m = expr) => { const k = reactionFor(ev, m, Math.random); if (clips[k] && !reduced()) clip.play(k, key, clips); };
-  act.current.blink = () => { if (clips.blink) clip.play("blink", key, clips); else { setBlink(true); setTimeout(() => setBlink(false), 140); } };
+  act.current.blink = () => { if (clips.blink) clip.play("blink", key, clips); else { setBlink(true); clearTimeout(blinkOff.current); blinkOff.current = setTimeout(() => setBlink(false), 140); } };
   useEffect(() => {
     if (!canBlink) return;
     let t: ReturnType<typeof setTimeout>;
     const loop = () => { t = setTimeout(() => { act.current.blink(); loop(); }, blinkSchedule(Math.random)); };
     loop();
-    return () => { clearTimeout(t); setBlink(false); };
+    return () => { clearTimeout(t); clearTimeout(blinkOff.current); setBlink(false); };
   }, [canBlink]);
   // This sprite's clip frames (and the blink stand-in) into the HTTP cache, so swaps don't wait on the network.
   useEffect(() => { for (const u of [...clipUrls(p.clips, key), ...(sleepyBlink ? [`/api/mascot/sprites/${sleepy}?v=${sprites[sleepy!]}`] : [])]) new Image().src = u; }, [p.clips, key, sleepyBlink]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -292,8 +294,10 @@ export function Stage(p: Props) {
           className={`absolute top-0 left-0 cursor-grab ${typing ? "pointer-events-none opacity-50" : "pointer-events-auto"}`}
           style={{ width: w, height: h, transform: `translate(${left}px, ${top}px)`, transformOrigin: "50% 100%", transition: drag ? "none" : motion, opacity: gone ? 0 : undefined, touchAction: "none", WebkitTouchCallout: "none" }}>
           <div ref={sway} className="mascot-bob h-full w-full origin-bottom" style={{ transition: "rotate 300ms var(--ease-out)" }}>
-            <div ref={inner} className={`relative h-full w-full origin-bottom transition-[filter,opacity] duration-500 ${drag ? "mascot-flail" : ""} ${p.empty ? "opacity-70 grayscale" : ""}`}>
-              <SpriteCanvas ref={canvas} src={frame} pose={spot.pose} empty={p.empty} bleed className="h-full w-full drop-shadow-lg" style={{ transform: flip }} />
+            <div ref={inner} className={`relative h-full w-full origin-bottom transition-[filter,opacity] duration-500 ${drag ? "mascot-flail" : ""} ${p.empty ? "opacity-70" : ""}`}>
+              {/* contact shadow: a static gradient, no filter (a filter on the repainting canvas would cost every frame) */}
+              <div aria-hidden="true" className="absolute -bottom-[1.5%] left-1/2 h-[4%] w-[55%] -translate-x-1/2" style={{ background: "radial-gradient(closest-side, rgb(0 0 0 / 0.22), transparent)" }} />
+              <SpriteCanvas ref={canvas} src={frame} pose={spot.pose} empty={p.empty} bleed className="h-full w-full" style={{ transform: flip }} />
               {p.hushed && <span aria-hidden="true" className="text-muted absolute top-[6%] right-[22%] font-mono text-xs">zzz</span>}
             </div>
           </div>

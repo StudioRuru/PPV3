@@ -29,6 +29,7 @@ test("squash scales about the feet", () => {
   const s = calm({ squash: { x: 0.1, v: 0 } });
   assert.equal(vertexOffset(0.5, 1, s, "stand")[1], 0);
   assert.ok(vertexOffset(0.5, 0.5, s, "stand")[1] > 0); // squash = shorter: the top comes down (y down)
+  assert.ok(vertexOffset(1, 0.5, s, "stand")[0] > 0); // ...and wider
 });
 
 test("lie and sit use x-bands at reduced amplitude", () => {
