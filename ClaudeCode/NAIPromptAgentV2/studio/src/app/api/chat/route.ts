@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       try {
         await (model ? heavyGate.run(answer) : answer());
       } catch (e) {
-        const msg = e instanceof Offline ? (model ? "Ollama is offline — start it on the Mac." : "Brain offline — turn the co-pilot on.") : (e as Error).message;
+        const msg = e instanceof Offline ? (model ? "Ollama is offline — start it on the Mac." : "Brain offline — switch the co-pilot on (power switch in the Chat tab header).") : (e as Error).message;
         put(`\n\n⚠️ ${msg}`);
       }
       try { ctl.close(); } catch { /* client already gone */ }

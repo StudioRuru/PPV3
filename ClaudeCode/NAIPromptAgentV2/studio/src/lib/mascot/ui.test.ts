@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXPRESSIONS } from "./core";
-import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, deltaChips, diffTags, groupBottles, missingCells, missingPoseCells, nearestCorner, poisonTone, requestSeq, sliderToCooldown, stripVialBlock, vialOutcome, bottledKey } from "./ui";
+import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, deltaChips, diffTags, groupBottles, missingCells, missingPoseCells, nearestCorner, poisonTone, requestSeq, sliderToCooldown, stripVialBlock, vialOutcome, bottledKey, singleFlight } from "./ui";
 
 test("diffTags: added and removed, order kept, dupes ignored", () => {
   assert.deepEqual(diffTags(["a", "b", "c"], ["b", "d", "c", "d"]), { added: ["d"], removed: ["a"] });
@@ -112,4 +112,16 @@ test("missingPoseCells: a pose = outfits x expressions (back: one per outfit); a
   assert.deepEqual(missingPoseCells({ ...Object.fromEntries(EXPRESSIONS.flatMap((e) => ["day", "night", "lewd"].map((o) => [`pose/sit/${o}/${e}`, 1]))) }, { pose: "sit" }), []);
   assert.deepEqual(missingPoseCells(none, { pose: "lie", outfit: "night" }).map((c) => c.expr), [...EXPRESSIONS]);
   assert.deepEqual(missingPoseCells(none, { outfit: "lewd" }).slice(0, 2).map((c) => `${c.pose}/${c.expr}`), ["stand/smug", "stand/laughing"]);
+});
+
+test("singleFlight: overlapping calls share one run; a later call runs again", async () => {
+  let runs = 0;
+  const f = singleFlight(async () => { runs++; await new Promise((r) => setTimeout(r, 5)); return runs; });
+  const [a, b] = await Promise.all([f(), f()]);
+  assert.equal(runs, 1);
+  assert.equal(a, b);
+  assert.equal(await f(), 2);
+  const bad = singleFlight(async () => { throw new Error("x"); });
+  await assert.rejects(bad());
+  await assert.rejects(bad()); // a failure doesn't wedge it
 });

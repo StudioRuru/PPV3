@@ -2,11 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMsg } from "@/lib/copilot-prompt";
 import type { Expression } from "@/lib/mascot/core";
-import { bottledKey, groupBottles, stripVialBlock, vialOutcome, type Bottle as BottleRow } from "@/lib/mascot/ui";
+import { listenPhase, nextPhase, type TalkPhase } from "@/lib/mascot/talk";
+import { bottledKey, groupBottles, singleFlight, stripVialBlock, vialOutcome, type Bottle as BottleRow } from "@/lib/mascot/ui";
 import type { AppliedVial, Vial } from "@/lib/mascot/vial";
 import { requestJson } from "@/lib/net";
 import { Md } from "../ChatScreen";
 import { Sheet } from "../Sheet";
+import { PortraitStage } from "./PortraitStage";
 import { Bottle, VialCard } from "./VialCard";
 
 export type JarPotions = { id: number; name: string; color: string; active: boolean; vials: AppliedVial[]; doses: number; poison: 0 | 1 | 2 };
@@ -34,6 +36,14 @@ function saveBottled(b: Record<string, true>) {
 }
 const pouring = (active: boolean) => (active ? "Pouring… Miyabi is reacting" : "Pouring…");
 
+/** Thread opens are single-flight: opening the shop twice quickly shares one create instead of making two aru threads. */
+const createAru = singleFlight(async () => { const r = await requestJson<{ id: number }>("/api/chat/threads", json({ persona: "aru" })); return r.ok ? r.data.id : null; });
+const openAru = singleFlight(async () => {
+  const r = await requestJson<{ threads: Thread[] }>("/api/chat/threads");
+  if (!r.ok) return null;
+  return r.data.threads.find((t) => t.persona === "aru")?.id ?? createAru();
+});
+
 /** Aru's shop: chat with her (persona `aru`), bottle her brews, the bottle shelf, the recipe book. */
 export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("shop");
@@ -49,7 +59,9 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
   const markBottled = (key: string) => setBottled((b) => { const next = { ...b, [key]: true as const }; saveBottled(next); return next; });
   const inFlight = useRef(false); // double taps land in the same tick, before `busy` renders
 
-  // chat (MiyabiSheet's thread pattern)
+  // chat (her thread, her face: the portrait follows the stream)
+  const [phase, setPhase] = useState<TalkPhase>("idle");
+  const [focused, setFocused] = useState(false);
   const [thread, setThread] = useState<Thread | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -67,19 +79,17 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
     if (h.ok && tidRef.current === id) setMsgs(h.data.messages.map(withId));
   }
   async function newTalk() {
-    const r = await requestJson<{ id: number }>("/api/chat/threads", json({ persona: "aru" }));
-    if (r.ok) await load(r.data.id);
+    const id = await createAru();
+    if (id) { setPhase((p) => nextPhase(p, "reset")); await load(id); }
   }
   useEffect(() => {
     if (!open) return;
     loadList(); setError(null); setPick(null); setForget(null);
-    requestJson<{ threads: Thread[] }>("/api/chat/threads").then((r) => {
-      if (!r.ok) return;
-      const last = r.data.threads.find((t) => t.persona === "aru");
-      if (last) load(last.id); else newTalk();
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- load/newTalk/loadList only touch state setters
+    openAru().then((id) => { if (id) load(id); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load/loadList only touch state setters
   }, [open]);
+  useEffect(() => { if (!open) { setPhase((p) => nextPhase(p, "reset")); setFocused(false); } }, [open]);
+  const setFocus = (f: boolean) => { setFocused(f); setPhase((p) => listenPhase(p, f)); };
   useEffect(() => { if (open && tab === "shop") end.current?.scrollIntoView({ block: "end" }); }, [msgs, open, tab]);
 
   async function send() {
@@ -90,13 +100,15 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
     const history = [...msgs.filter((m) => !m.error), withId({ role: "user", content: text })];
     const reply = withId({ role: "assistant", content: "" });
     setInput(""); show([...history, reply]); setThinking("Aru is stirring…"); setStreaming(true);
+    const face = (ev: Parameters<typeof nextPhase>[1]) => { if (tidRef.current === id) setPhase((p) => nextPhase(p, ev)); };
+    face("send");
     let out = "";
     try {
       const res = await fetch("/api/chat", json({ thread: id, version: thread.updated_at, messages: history.map(({ role, content }) => ({ role, content })), mode: "chat", persona: "aru" }));
       if (res.status === 409) {
         await load(id);
         if (tidRef.current === id) setMsgs((ms) => [...ms, withId({ role: "assistant", content: "⚠️ This talk changed on another device — reloaded. Send again.", error: true })]);
-        setThinking(null); setStreaming(false); return;
+        face("error"); setThinking(null); setStreaming(false); return;
       }
       if (!res.ok || !res.body) {
         const body = await res.text();
@@ -111,10 +123,11 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
         const { done, value } = await reader.read();
         if (done) break;
         out += dec.decode(value, { stream: true });
-        setThinking(null); show([...history, { ...reply, content: out }]);
+        setThinking(null); face("firstToken"); show([...history, { ...reply, content: out }]);
       }
-      if (/\n\n⚠️ [^\n]*$/.test(out)) show([...history, { ...reply, content: out, error: true }]);
+      if (/\n\n⚠️ [^\n]*$/.test(out)) { show([...history, { ...reply, content: out, error: true }]); face("error"); } else face("end");
     } catch (e) {
+      face("error");
       show([...history, { ...reply, content: `${out}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
     }
     setThinking(null); setStreaming(false);
@@ -205,20 +218,17 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
   return (
     <Sheet open={open} onClose={onClose} label="Aru's Apothecary" closeLabel="Close Aru's Apothecary"
       className="h-[94dvh] rounded-t-2xl border-t lg:h-auto lg:max-w-xl lg:rounded-none lg:border-l">
-      <header className="flex items-center gap-2 px-3 pb-2">
-        <span aria-hidden="true" className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg font-semibold text-white">
-          A
-          <svg viewBox="0 0 12 12" className="absolute -right-0.5 -bottom-0.5 size-4 rounded-full bg-amber-400 p-0.5 text-amber-900">
-            <path d="M6 1.5a3 3 0 0 0-3 3v2.2L2 8.5h8L9 6.7V4.5a3 3 0 0 0-3-3zM5 9.5a1 1 0 0 0 2 0z" fill="currentColor" />
-          </svg>
-        </span>
+      {/* Face to face: Aru on the top quarter of the sheet (a strip while typing); tabs, chat and vials scroll below. */}
+      <PortraitStage profile="aru" outfit="day" phase={phase} expression="smug" empty={false} className="shrink-0 px-3"
+        style={{ height: focused ? "90px" : "23dvh" }} />
+      <header className="flex items-center gap-2 px-3 pb-1">
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold">Aru&apos;s Apothecary</h2>
         {tab === "shop" && <button type="button" disabled={streaming} onClick={newTalk} className="border-border text-accent min-h-11 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">New talk</button>}
         <button type="button" onClick={onClose} aria-label="Close" className="border-border size-11 shrink-0 rounded-full border">×</button>
       </header>
       <div role="tablist" aria-label="Apothecary" className="border-border grid shrink-0 grid-cols-3 border-b px-3">
         {(["shop", "shelf", "recipes"] as const).map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => { setTab(t); setPick(null); setForget(null); }}
+          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => { setTab(t); setFocus(false); setPick(null); setForget(null); }}
             className={`min-h-11 border-b-2 text-sm font-medium ${tab === t ? "border-accent text-fg" : "text-muted border-transparent"}`}>
             {t === "shop" ? "Shop" : t === "shelf" ? `Shelf${list?.bottles.length ? ` (${list.bottles.length})` : ""}` : "Recipes"}
           </button>
@@ -332,7 +342,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
       {/* Hidden when closed or off the Shop tab: a visible [data-composer] moves the floating mascot up. */}
       <form data-composer className={`border-border gap-2 border-t p-3 ${open && tab === "shop" ? "flex" : "hidden"}`} style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
         onSubmit={(e) => { e.preventDefault(); send(); }}>
-        <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder="Ask Aru for a potion…" aria-label="Message Aru"
+        <textarea value={input} onChange={(e) => setInput(e.target.value)} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} rows={1} placeholder="Ask Aru for a potion…" aria-label="Message Aru"
           className="bg-bg border-border min-w-0 flex-1 resize-none rounded-md border px-2 py-2.5 text-base" />
         <button type="submit" disabled={streaming || !thread || !input.trim()} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
       </form>

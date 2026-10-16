@@ -103,3 +103,9 @@ export function bottledKey(threadId: number, vial: Vial): string {
   for (const ch of JSON.stringify(vial)) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
   return `${threadId}:${h.toString(36)}`;
 }
+
+/** Overlapping calls share one in-flight run (double-opened sheet → one thread create); settles, then the next call runs fresh. */
+export function singleFlight<T>(fn: () => Promise<T>): () => Promise<T> {
+  let p: Promise<T> | null = null;
+  return () => (p ??= fn().finally(() => { p = null; }));
+}
