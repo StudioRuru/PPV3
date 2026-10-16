@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { anchorBox, CAL_ZERO, classifyIslandGesture, CORNER, DRAG, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, hotRect, LONG_MS, nextState, springEasing, swipeTab, TAP_SLOP,
+import { anchorBox, CAL_ZERO, classifyIslandGesture, CORNER, DRAG, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, LONG_MS, nextState, springEasing, swipeTab, TAP_SLOP, touchRect,
   type Calibration, type IslandEvent, type IslandState, type Size } from "@/lib/mascot/island";
 import { requestSeq } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
@@ -178,7 +178,7 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
   const open = state === "expanded" || peek;
   const compact = state === "compact" && !dragging;
   const centre = (x = a.x) => `translateX(calc(-50% + ${x}px))`;
-  const hot = hotRect(state, island, a, rest);
+  const hot = touchRect(state, view.top, cal, a, rest); // island phones: a strip below the cutout (iOS never sends touches on the island itself)
 
   return (
     <nav ref={root} aria-label="Navigation" data-noswipe className="pointer-events-none fixed inset-x-0 top-0 z-[36] h-0 select-none"
@@ -226,12 +226,13 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
 
       {/* Hot zone: the toggle (data-island: Miyabi's avoid list needs a non-empty rect; the nav is h-0). Taps arrive as clicks; drags/swipes/long-press are read from the pointer events above. */}
       <button ref={toggle} type="button" data-island aria-label={`Navigation, current: ${label}`} aria-expanded={state === "expanded"} onClick={() => go("tap")}
-        className="pointer-events-auto absolute left-1/2 text-white outline-offset-2" style={{ top: 0, width: hot.w, height: hot.h, transform: centre(), touchAction: "none", WebkitTouchCallout: "none" } as React.CSSProperties}>
+        className="pointer-events-auto absolute left-1/2 text-white outline-offset-2" style={{ top: hot.top, width: hot.w, height: hot.h, transform: centre(hot.x), touchAction: "none", WebkitTouchCallout: "none" } as React.CSSProperties}>
         {!island && state === "minimal" && (
-          <span className="pointer-events-none absolute inset-x-0 text-[11px] font-medium text-white/80" style={{ top: a.top, lineHeight: `${a.h}px` }}>{label}</span>
+          <span className="pointer-events-none absolute inset-x-0 text-[11px] font-medium text-white/80" style={{ top: a.top - hot.top, lineHeight: `${a.h}px` }}>{label}</span>
         )}
+        {island && state === "minimal" && <span className="pointer-events-none absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-white/25" />}
         {compact && <span className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-2"
-          style={{ top: a.top + a.h, height: rest.h - a.h, width: rest.w, paddingInline: 14 }}>
+          style={{ top: a.top + a.h - hot.top, height: rest.h - a.h, width: rest.w, paddingInline: 14 }}>
           <Icon d={TABS.find((t) => t.id === tab)?.d ?? ""} className="size-4 shrink-0" />
           <span className="flex-1 truncate text-left text-xs font-medium">{label}</span>
           {/* eslint-disable-next-line @next/next/no-img-element */}

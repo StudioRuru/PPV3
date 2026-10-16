@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ANCHOR, anchorBox, hotRect, HOT, CAL_ZERO, classifyIslandGesture, contentVisible, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, mergeCalibration, nextState, springEasing, swipeTab } from "./island";
+import { ANCHOR, anchorBox, hotRect, HOT, CAL_ZERO, classifyIslandGesture, contentVisible, dragAmount, dragSize, drawerSize, EXPANDED, hasIsland, mergeCalibration, nextState, springEasing, swipeTab, STRIP, touchRect } from "./island";
 
 test("nextState: tap minimal→expanded, compact→expanded, expanded→compact; expand/collapse/peek/timeout", () => {
   assert.equal(nextState("minimal", "tap"), "expanded");
@@ -99,4 +99,30 @@ test("hotRect: 180×65 over the island; covers the compact strip; never overlaps
   const pill = anchorBox(CAL_ZERO, false, 0);
   assert.equal(hotRect("minimal", false, pill, pill).h, pill.top + pill.h + 6);
   assert.ok(hotRect("expanded", false, pill, drawerSize("expanded", pill, 393)).h <= pill.top + pill.h);
+});
+
+test("touchRect: island devices get a 180×44 strip just below the cutout (iOS eats touches on the island/status bar)", () => {
+  const a = anchorBox(CAL_ZERO, true, 59);
+  assert.deepEqual(touchRect("minimal", 59, CAL_ZERO, a, drawerSize("minimal", a, 393)), { x: 0, top: 61, w: 180, h: 44 });
+  assert.equal(STRIP.h, 44);
+  const c = drawerSize("compact", a, 393), tc = touchRect("compact", 59, CAL_ZERO, a, c);
+  assert.equal(tc.top, 61);
+  assert.ok(tc.top + tc.h >= a.top + c.h && tc.w >= c.w, "covers the compact strip's touchable part");
+});
+
+test("touchRect: calibration moves and widens the strip", () => {
+  const cal = { x: 5, y: -3, w: 10, h: 7 }, a = anchorBox(cal, true, 59);
+  assert.deepEqual(touchRect("minimal", 59, cal, a, drawerSize("minimal", a, 393)), { x: 5, top: 58, w: 190, h: 44 });
+});
+
+test("touchRect: non-island unchanged (hotRect from y = 0); expanded never overlaps the panel controls", () => {
+  const pill = anchorBox(CAL_ZERO, false, 20);
+  for (const s of ["minimal", "compact", "expanded"] as const) {
+    const rest = drawerSize(s, pill, 393);
+    assert.deepEqual(touchRect(s, 20, CAL_ZERO, pill, rest), { x: 0, top: 0, ...hotRect(s, false, pill, rest) });
+  }
+  for (const cal of [CAL_ZERO, { x: 40, y: 40, w: 60, h: 60 }, { x: -40, y: -40, w: -40, h: -40 }]) {
+    const a = anchorBox(cal, true, 59), t = touchRect("expanded", 59, cal, a, drawerSize("expanded", a, 393));
+    assert.ok(t.top + t.h <= a.top + a.h, "expanded content starts at a.top + a.h + 4");
+  }
 });

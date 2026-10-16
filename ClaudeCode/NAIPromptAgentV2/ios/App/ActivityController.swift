@@ -11,11 +11,12 @@ import UIKit
     private var imageVersion = 0
     private var last: Task<Void, Never>?   // ActivityKit calls run one at a time, in order
 
-    /// Island Hide/Summon flip the card at once (MascotIntents); mirror it here so a later reconcile doesn't flip it back before the page reports.
+    /// Island Hide/Summon flip the card at once (MascotIntents); mirror it here, then queue a reconcile so one already
+    /// in flight with the old `hidden` (landing after the intent's update) is followed by the latest state, not left on screen.
     private init() {
         NotificationCenter.default.addObserver(forName: IntentQueue.note, object: nil, queue: .main) { [weak self] n in
             guard let m = n.userInfo?["mascot"] as? String else { return }
-            MainActor.assumeIsolated { self?.state?.hidden = m == "hide" }
+            MainActor.assumeIsolated { self?.state?.hidden = m == "hide"; self?.sync() }
         }
     }
 

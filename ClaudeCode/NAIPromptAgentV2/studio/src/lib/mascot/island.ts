@@ -81,6 +81,17 @@ export function hotRect(s: IslandState, island: boolean, a: { top: number; h: nu
   return { w: HOT.w, h: island ? Math.max(HOT.h, a.top + a.h) : a.top + a.h + 6 };
 }
 
+/** Touch strip on island phones: iOS never delivers touches on the real island or the status bar around it, so the hit area sits this far below the top inset. */
+export const STRIP = { w: HOT.w, h: 44, gap: 2 };
+
+/** Where the toggle actually sits (x = centre shift, top in px). Island: a 180×44 strip just below the cutout (calibration x/y/w move it),
+ *  grown to cover the compact strip; expanded keeps hotRect's band so it never covers the panel controls. No island: hotRect from y = 0. */
+export function touchRect(s: IslandState, topInset: number, cal: Calibration, a: { x: number; top: number; h: number }, rest: Size) {
+  if (!hasIsland(topInset) || s === "expanded") return { x: a.x, top: 0, ...hotRect(s, hasIsland(topInset), a, rest) };
+  const top = topInset + STRIP.gap + cal.y, w = STRIP.w + cal.w;
+  return s === "compact" ? { x: cal.x, top, w: Math.max(w, rest.w), h: Math.max(STRIP.h, a.top + rest.h - top) } : { x: cal.x, top, w, h: STRIP.h };
+}
+
 export const contentVisible = (s: IslandState, drag: number) => s === "expanded" || drag > DRAG.content;
 
 /** Untrusted calibration patch onto cur: each field kept only if a finite number within CAL_BOUNDS. */
