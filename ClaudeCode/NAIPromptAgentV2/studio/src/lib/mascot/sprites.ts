@@ -6,7 +6,7 @@ import sharp from "sharp";
 import { DATA_DIR, TAGGER_URL } from "../env";
 import { canResend, DEFAULT_PARAMS, type Img2Img, type Infill, type NaiParams } from "../nai-body";
 import type { Compiled } from "../prompt";
-import { CLIP_SPEC, clipPath, clipRequests, decodeBaseKey, defaultMasks, encodeBaseKey, isBaseKey, isClipKind, manifestPath, clampMask, validateManifest, type ClipKind, type Manifest, type Mask } from "./clips";
+import { CLIP_KINDS, CLIP_SPEC, clipPath, clipRequests, decodeBaseKey, defaultMasks, encodeBaseKey, isBaseKey, isClipKind, manifestPath, clampMask, validateManifest, type ClipKind, type Manifest, type Mask } from "./clips";
 import { EXPRESSIONS, OUTFITS, type Expression, type Outfit } from "./core";
 import { POSE_SPEC, POSES, poseKey, type Pose } from "./poses";
 import { isSafeSpriteDir, type MascotSettings } from "./settings";
@@ -193,6 +193,7 @@ export async function pick(dir: string, outfit: string, name: string, i: number,
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out.replace(/\.png$/, ".orig.png"), orig);
   fs.writeFileSync(out, cut ?? orig);
+  clearClips(dir, talk ? talkKey(outfit, talk) : pose ? poseKey(pose as Pose, outfit, pose === "back" ? null : name) : `${outfit}/${name}`);
   return cut ? { ok: true } : { ok: true, note: "Background removal unavailable — saved the original with its background." };
 }
 
@@ -239,6 +240,15 @@ export function saveClipMasks(dir: string, baseKey: string, masks: unknown): Man
   for (const n of ["eyes", "mouth"] as const) if (r[n] !== undefined) (m.masks ??= {})[n] = clampMask(r[n]);
   writeManifest(dir, baseKey, m);
   return m;
+}
+
+/** A new drawing invalidates its clips: drop frames, clip candidates and manifest clips (nudged masks kept). */
+export function clearClips(dir: string, baseKey: string): void {
+  const e = encodeBaseKey(baseKey);
+  if (!e) return;
+  for (const k of CLIP_KINDS) fs.rmSync(path.join(dir, "clips", e, k), { recursive: true, force: true });
+  fs.rmSync(path.join(dir, "candidates", "clips", e), { recursive: true, force: true });
+  if (fs.existsSync(manifestPath(dir, baseKey)!)) writeManifest(dir, baseKey, { ...readManifest(dir, baseKey), clips: {} });
 }
 
 /** Candidate run i, frame n: `<dir>/candidates/clips/<baseKey~>/<kind>/<i>/<n>.png`. */

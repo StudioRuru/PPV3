@@ -244,3 +244,19 @@ test("clip generate: stop on first error / abort, nothing replaced; missing base
   assert.equal(clipCandidatePath(d, "day/smug", "pout", 4, 0), null);
   assert.ok("error" in await pickClip(d, "day/smug", "wink", 0, async () => new Response("")));
 });
+
+test("re-picking a base sprite clears its stale clips and clip candidates; nudged masks kept", async () => {
+  const d = tmp();
+  await seedBust(d);
+  saveClipMasks(d, "day/smug", { eyes: { x: 0.3, y: 0.3, w: 0.2, h: 0.1 } });
+  await generateClip(d, "day/smug", "blink", S, 1, async () => solid(1024, 1024));
+  await pickClip(d, "day/smug", "blink", 0, async () => new Response(new Uint8Array(await solid(1024, 1024))));
+  await generateClip(d, "day/smug", "blink", S, 1, async () => solid(1024, 1024));
+  assert.deepEqual((listSprites(d) as any).clips["day/smug"], { blink: 1 });
+  saveCandidates(d, "day", "smug", [await solid(1024, 1024)]);
+  assert.deepEqual(await pick(d, "day", "smug", 0, async () => new Response(new Uint8Array(await solid(1024, 1024)))), { ok: true });
+  assert.equal(fs.existsSync(clipPath(d, "day/smug", "blink", 0)!), false);
+  assert.equal(fs.existsSync(clipCandidatePath(d, "day/smug", "blink", 0, 0)!), false);
+  assert.deepEqual((listSprites(d) as any).clips["day/smug"], {});
+  assert.deepEqual(readManifest(d, "day/smug"), { clips: {}, masks: { eyes: { x: 0.3, y: 0.3, w: 0.2, h: 0.1 } } });
+});
