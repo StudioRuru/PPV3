@@ -10,7 +10,7 @@ export const WARP = {
   xBandPoses: ["lie", "sit"] as readonly Pose[], xBandAmp: 0.6, // lie/sit: bands run along x (head on the right), reduced amplitude
   xHead: 0.7, xChest: { from: 0.45, to: 0.7 },
   spring: { k: 120, c: 10, maxDt: 1 / 30, sub: 4 }, // damping ratio ~0.46
-  squashShift: 0.5, // sideways bulge per unit squash (volume keeping)
+  squashMax: 0.4, squashShift: 0.5, // sideways bulge per unit squash (volume keeping)
 } as const;
 
 export type Spring = { x: number; v: number };
@@ -38,27 +38,29 @@ export function bandFor(pose: Pose, c: number): Band {
   return { band: "none", weight: 0 };
 }
 
+const fin = (n: number) => (Number.isFinite(n) ? n : 0);
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
 /** Displacement [dx, dy] of the vertex at (u, v) in normalised units: band sway/breathe/drag plus whole-body squash about the feet. */
-export function vertexOffset(u: number, v: number, s: WarpState, pose: Pose): [number, number] {
+export function vertexOffset(u0: number, v0: number, s: WarpState, pose: Pose): [number, number] {
+  const u = fin(u0), v = fin(v0), sway = clamp(fin(s.sway), -1, 1), breathe = clamp(fin(s.breathe), -1, 1);
   const xb = usesXBands(pose), { band, weight } = bandFor(pose, xb ? u : v), amp = xb ? WARP.xBandAmp : 1;
   let dx = 0, dy = 0;
   if (band === "head") {
-    const lag = clamp(s.drag.vx, -WARP.dragMax, WARP.dragMax) * WARP.dragGain;
-    dx = (s.sway * WARP.swayAmp - lag) * weight * amp; // top band shears opposite to drag
-  } else if (band === "chest") dy = -s.breathe * WARP.breatheAmp * weight * amp;
-  const q = s.squash.x; // + = squash (shorter, wider), - = stretch
+    const lag = clamp(fin(s.drag.vx), -WARP.dragMax, WARP.dragMax) * WARP.dragGain;
+    dx = (sway * WARP.swayAmp - lag) * weight * amp; // top band shears opposite to drag
+  } else if (band === "chest") dy = -breathe * WARP.breatheAmp * weight * amp;
+  const q = clamp(fin(s.squash.x), -WARP.squashMax, WARP.squashMax); // + = squash (shorter, wider), - = stretch
   dy -= (1 - v) * q; dx += (u - 0.5) * q * WARP.squashShift;
   return [dx, dy];
 }
 
 /** Add an impulse (velocity) to a spring. */
-export const kick = (sp: Spring, impulse: number): Spring => ({ x: sp.x, v: sp.v + impulse });
+export const kick = (sp: Spring, impulse: number): Spring => ({ x: sp.x, v: sp.v + fin(impulse) });
 
 /** Damped spring toward 0, semi-implicit Euler in sub-steps; dt is clamped so a stalled frame can't explode it. */
 export function stepSpring(sp: Spring, dt: number): Spring {
-  const { k, c, maxDt, sub } = WARP.spring, h = clamp(dt, 0, maxDt) / sub;
+  const { k, c, maxDt, sub } = WARP.spring, h = clamp(fin(dt), 0, maxDt) / sub;
   let { x, v } = sp;
   for (let i = 0; i < sub; i++) { v += (-k * x - c * v) * h; x += v * h; }
   return { x, v };
@@ -69,6 +71,7 @@ const HOP_PX = 120, HOP_SQUASH = 0.15, HOP_STRETCH = -0.08, HOP_TILT = 0.08;
 
 /** 2–4 hops from→to (count by distance, default hypot); keyframes at take-off/apex/landing, endpoints exact, y up = negative. */
 export function hopPath(from: { x: number; y: number }, to: { x: number; y: number }, dist = Math.hypot(to.x - from.x, to.y - from.y)): Hop[] {
+  if (!Number.isFinite(dist)) return [{ t: 0, ...from, squash: 0, tilt: 0 }, { t: 1, ...to, squash: 0, tilt: 0 }];
   const n = clamp(Math.round(dist / HOP_PX), 2, 4), lerp = (a: number, b: number, f: number) => a + (b - a) * f;
   const lift = clamp((dist / n) * 0.4, 8, 48), lean = Math.sign(to.x - from.x) * HOP_TILT;
   const out: Hop[] = [{ t: 0, x: from.x, y: from.y, squash: HOP_SQUASH, tilt: 0 }];

@@ -7,7 +7,7 @@ test("manifest validation", () => {
   const ok = { masks: { eyes: { x: 2, y: 0.5, w: 0.9, h: 0.9 } }, clips: { blink: { frames: 1, fps: 8, loop: false }, talk: { frames: 2, fps: 8, loop: true } } };
   const m = validateManifest(ok)!;
   assert.deepEqual(Object.keys(m.clips), ["blink", "talk"]);
-  assert.deepEqual(m.masks!.eyes, { x: 1, y: 0.5, w: 0, h: 0.5 });
+  assert.deepEqual(m.masks!.eyes, { x: 0.98, y: 0.5, w: 0.02, h: 0.5 });
   assert.equal(validateManifest({ clips: { dance: { frames: 1, fps: 8, loop: false } } }), null);
   assert.equal(validateManifest({ clips: { blink: { frames: 2, fps: 8, loop: false } } }), null); // frames > spec
   assert.equal(validateManifest({ clips: { blink: { frames: 0, fps: 8, loop: false } } }), null);
@@ -47,11 +47,11 @@ test("default masks per key type", () => {
 });
 
 test("clampMask", () => {
-  assert.deepEqual(clampMask({ x: -1, y: 2, w: 5, h: 5 }), { x: 0, y: 1, w: 1, h: 0 });
+  assert.deepEqual(clampMask({ x: -1, y: 2, w: 5, h: 5 }), { x: 0, y: 0.98, w: 1, h: 0.02 });
   const c = clampMask({ x: 0.9, y: 0.9, w: 0.5, h: 0.5 });
   assert.ok(c.x + c.w <= 1 + 1e-9 && c.y + c.h <= 1 + 1e-9 && c.w > 0.09);
-  assert.deepEqual(clampMask({ x: NaN, y: "a", w: Infinity }), { x: 0, y: 0, w: 0, h: 0 });
-  assert.deepEqual(clampMask(null), { x: 0, y: 0, w: 0, h: 0 });
+  assert.deepEqual(clampMask({ x: NaN, y: "a", w: Infinity }), { x: 0, y: 0, w: 0.02, h: 0.02 });
+  assert.deepEqual(clampMask(null), { x: 0, y: 0, w: 0.02, h: 0.02 });
 });
 
 const base = { compiled: { base: "1girl, miyabi ", uc: "bad", chars: [], rating: "nsfw" as const }, params: { ...DEFAULT_PARAMS, seed: 1 } };
@@ -67,7 +67,7 @@ test("clipRequests: strength, tags, seed, infill per kind", () => {
       else assert.deepEqual([q.img2img, q.infill, q.mask], [undefined, true, s.mask]);
     }
   }
-  assert.deepEqual(CLIP_KINDS.map((k) => CLIP_SPEC[k].frames), [1, 2, 3, 3, 3, 4, 4]);
+  assert.deepEqual(CLIP_KINDS.map((k) => CLIP_SPEC[k].frames), [1, 2, 3, 3, 3, 2, 4]);
   assert.deepEqual(CLIP_KINDS.map((k) => CLIP_SPEC[k].strength), [undefined, undefined, 0.45, 0.4, 0.4, 0.5, 0.55]);
   assert.deepEqual(clipRequests(base, "talk", 1).map((q) => q.compiled.base.split(", ").slice(-2).join(", ")), ["miyabi, parted lips", "miyabi, open mouth"]);
   assert.equal(base.params.seed, 1); // input untouched
@@ -75,7 +75,7 @@ test("clipRequests: strength, tags, seed, infill per kind", () => {
 
 const clips: Manifest["clips"] = {
   blink: { frames: 1, fps: 10, loop: false }, talk: { frames: 2, fps: 8, loop: true },
-  laugh: { frames: 3, fps: 10, loop: false }, wave: { frames: 4, fps: 10, loop: false },
+  laugh: { frames: 3, fps: 10, loop: false }, wave: { frames: 2, fps: 10, loop: false },
 };
 test("ClipPlayer: priorities", () => {
   let s = ClipPlayer.init(clips);
@@ -120,4 +120,30 @@ test("ClipPlayer: missing clip and empty slime show the still", () => {
   const e = ClipPlayer.play(ClipPlayer.init(clips, true), "talk", 0);
   assert.deepEqual(ClipPlayer.tick(e, 0), { kind: null, frame: null });
   assert.deepEqual(ClipPlayer.tick(ClipPlayer.play(ClipPlayer.init(), "blink", 0), 0), { kind: null, frame: null });
+});
+
+test("fix1: every frame of a clip is a distinct request", () => {
+  for (const kind of CLIP_KINDS) {
+    const r = clipRequests(base, kind, 5).map((q) => JSON.stringify(q));
+    assert.equal(new Set(r).size, r.length, kind);
+  }
+  assert.deepEqual(CLIP_SPEC.laugh.tags, ["smile", "laughing, open mouth", "laughing, closed eyes, open mouth"]);
+  assert.deepEqual(CLIP_SPEC.pout.tags, ["slight pout", "pout", "pout, puffed cheeks"]);
+  assert.deepEqual(CLIP_SPEC.wink.tags, ["smile", "one eye closed, smile", "one eye closed, smile, :p"]);
+});
+
+test("fix1: wave has 2 unique frames played as 0,1,0,1", () => {
+  assert.equal(CLIP_SPEC.wave.frames, 2);
+  assert.deepEqual(CLIP_SPEC.wave.sequence, [0, 1, 0, 1]);
+  assert.equal(clipPath("/d", "day/smug", "wave", 2), null);
+  const s = ClipPlayer.play(ClipPlayer.init({ wave: { frames: 2, fps: 10, loop: false } }), "wave", 0);
+  assert.deepEqual([0, 100, 200, 300].map((t) => ClipPlayer.tick(s, t).frame), [0, 1, 0, 1]);
+  assert.deepEqual(ClipPlayer.tick(s, 400), { kind: null, frame: null });
+});
+
+test("fix1: clampMask minimum size", () => {
+  assert.deepEqual(clampMask({ x: 0.5, y: 0.5, w: 0, h: -3 }), { x: 0.5, y: 0.5, w: 0.02, h: 0.02 });
+  const c = clampMask({ x: 1, y: 1, w: 0.5, h: 0.5 });
+  assert.ok(c.w >= 0.02 && c.h >= 0.02 && c.x + c.w <= 1 + 1e-9 && c.y + c.h <= 1 + 1e-9);
+  assert.deepEqual(clampMask(null), { x: 0, y: 0, w: 0.02, h: 0.02 });
 });

@@ -10,14 +10,14 @@ export type ClipKind = (typeof CLIP_KINDS)[number];
 export type MaskName = "eyes" | "mouth";
 export type Mask = { x: number; y: number; w: number; h: number };
 
-/** Per kind: frame count, playback fps/loop, generation method (+ img2img strength or the infill mask) and per-frame tags (appended to the base prompt). */
-export const CLIP_SPEC: Record<ClipKind, { frames: number; fps: number; loop: boolean; method: "infill" | "img2img"; mask?: MaskName; strength?: number; tags: readonly string[] }> = {
+/** Per kind: frame count, playback fps/loop, generation method (+ img2img strength or the infill mask) and optional playback sequence of frame indices (default 0..frames-1), per-frame tags (appended to the base prompt). */
+export const CLIP_SPEC: Record<ClipKind, { frames: number; fps: number; loop: boolean; method: "infill" | "img2img"; mask?: MaskName; strength?: number; sequence?: readonly number[]; tags: readonly string[] }> = {
   blink: { frames: 1, fps: 8, loop: false, method: "infill", mask: "eyes", tags: ["closed eyes"] },
   talk: { frames: 2, fps: 8, loop: true, method: "infill", mask: "mouth", tags: ["parted lips", "open mouth"] },
-  laugh: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.45, tags: Array(3).fill("laughing, closed eyes, open mouth") },
-  pout: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.4, tags: Array(3).fill("pout, puffed cheeks") },
-  wink: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.4, tags: Array(3).fill("one eye closed, smile") },
-  wave: { frames: 4, fps: 6, loop: false, method: "img2img", strength: 0.5, tags: ["waving, hand up", "waving, hand to side", "waving, hand up", "waving, hand to side"] },
+  laugh: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.45, tags: ["smile", "laughing, open mouth", "laughing, closed eyes, open mouth"] },
+  pout: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.4, tags: ["slight pout", "pout", "pout, puffed cheeks"] },
+  wink: { frames: 3, fps: 8, loop: false, method: "img2img", strength: 0.4, tags: ["smile", "one eye closed, smile", "one eye closed, smile, :p"] },
+  wave: { frames: 2, fps: 6, loop: false, method: "img2img", strength: 0.5, sequence: [0, 1, 0, 1], tags: ["waving, hand up", "waving, hand to side"] },
   jump: { frames: 4, fps: 6, loop: false, method: "img2img", strength: 0.55, tags: ["jumping, arms up", "midair", "landing, knees bent", "standing"] },
 };
 export const isClipKind = (k: unknown): k is ClipKind => CLIP_KINDS.includes(k as ClipKind);
@@ -55,10 +55,11 @@ export function defaultMasks(baseKey: string): Record<MaskName, Mask> {
     : { eyes: { x: 0.32, y: 0.3, w: 0.36, h: 0.1 }, mouth: { x: 0.4, y: 0.44, w: 0.2, h: 0.08 } };
 }
 const unit = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
-/** Untrusted box → 0..1 values that stay inside the sprite (x+w, y+h ≤ 1). */
+const MIN_MASK = 0.02, r6 = (n: number) => Math.round(n * 1e6) / 1e6;
+/** Untrusted box → 0..1 values inside the sprite (x+w, y+h ≤ 1), at least 0.02 wide/high. */
 export function clampMask(m: unknown): Mask {
-  const r = (m ?? {}) as Record<string, unknown>, x = unit(r.x), y = unit(r.y);
-  return { x, y, w: Math.min(unit(r.w), 1 - x), h: Math.min(unit(r.h), 1 - y) };
+  const r = (m ?? {}) as Record<string, unknown>, x = Math.min(unit(r.x), 1 - MIN_MASK), y = Math.min(unit(r.y), 1 - MIN_MASK);
+  return { x, y, w: r6(Math.max(MIN_MASK, Math.min(unit(r.w), 1 - x))), h: r6(Math.max(MIN_MASK, Math.min(unit(r.h), 1 - y))) };
 }
 
 // --- manifest ---
@@ -103,6 +104,7 @@ export type PlayerState = { clips: Manifest["clips"]; empty: boolean; cur: { kin
 const prio = (k: ClipKind) => (k === "talk" ? 3 : k === "blink" ? 1 : 2);
 
 export const ClipPlayer = {
+  // clips must be validateManifest output (trusted shape).
   /** clips = the base sprite's manifest clips (none → stills only); empty = empty slime (never plays). */
   init: (clips: Manifest["clips"] = {}, empty = false): PlayerState => ({ clips, empty, cur: null }),
 
@@ -122,8 +124,10 @@ export const ClipPlayer = {
   tick(st: PlayerState, now: number): { kind: ClipKind | null; frame: number | null } {
     const c = st.cur, info = c && st.clips[c.kind];
     if (st.empty || !c || !info) return { kind: null, frame: null };
+    const seq = CLIP_SPEC[c.kind].sequence, len = seq && info.frames === CLIP_SPEC[c.kind].frames ? seq.length : info.frames;
     const i = Math.floor(Math.max(0, now - c.start) * info.fps / 1000);
-    if (info.loop) return { kind: c.kind, frame: i % info.frames };
-    return i < info.frames ? { kind: c.kind, frame: i } : { kind: null, frame: null };
+    if (!info.loop && i >= len) return { kind: null, frame: null };
+    const j = i % len;
+    return { kind: c.kind, frame: seq && len === seq.length ? seq[j] : j };
   },
 };

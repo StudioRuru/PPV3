@@ -58,3 +58,19 @@ test("hop counts by distance, endpoints exact, squash at take-off and landing", 
   assert.ok(p.every((q, i) => i === 0 || q.t > p[i - 1].t));
   assert.equal(hopPath(a, { x: -400, y: 20 })[1].tilt < 0, true);
 });
+
+test("fix1: squash and drag stay bounded", () => {
+  const [dx, dy] = vertexOffset(0, 0, calm({ squash: { x: 50, v: 0 }, drag: { vx: 1e9, vy: 0 } }), "stand");
+  assert.ok(Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5);
+  assert.ok(Math.abs(vertexOffset(0, 0, calm({ squash: { x: -50, v: 0 } }), "stand")[1]) < 0.5);
+});
+
+test("fix1: NaN-safe", () => {
+  assert.deepEqual(stepSpring({ x: 1, v: 0 }, NaN), { x: 1, v: 0 });
+  assert.deepEqual(kick({ x: 1, v: 2 }, NaN), { x: 1, v: 2 });
+  assert.deepEqual(kick({ x: 1, v: 2 }, Infinity), { x: 1, v: 2 });
+  const o = vertexOffset(NaN, NaN, calm({ sway: NaN, breathe: NaN, squash: { x: NaN, v: 0 }, drag: { vx: NaN, vy: 0 } }), "stand");
+  assert.ok(o.every(Number.isFinite));
+  const p = hopPath({ x: 0, y: 0 }, { x: 50, y: 5 }, NaN);
+  assert.deepEqual(p.map((q) => [q.t, q.x, q.y]), [[0, 0, 0], [1, 50, 5]]);
+});
