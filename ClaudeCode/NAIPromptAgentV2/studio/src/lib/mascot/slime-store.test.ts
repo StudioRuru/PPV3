@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
-import { blankSlime } from "./slime";
+import { blankSlime, mixSliders } from "./slime";
 import { SlimeStore, migrateSlimes, type LiveIdentity, type LiveState } from "./slime-store";
 
 const liveOf = (voice: string, fact: string): LiveState => {
@@ -162,4 +162,49 @@ test("generation bumps on insert/remove/extract so detached work can detect a sw
   const g2 = s.generation;
   s.insert(id);
   assert.ok(s.generation > g2);
+});
+
+/** Raw pre-plan-20 jar: 5 sliders + mods, no tease/flirt, inserted straight into the table. */
+const oldJar = (db: Database.Database, mods: object) => {
+  const d = JSON.parse(JSON.stringify(blankSlime())) as Record<string, any>;
+  delete d.sliders.tease; delete d.sliders.flirt; d.name = "Old"; d.mods = mods;
+  return Number(db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES (?, 1, 1)").run(JSON.stringify(d)).lastInsertRowid);
+};
+
+test("plan 20: old jars migrate on read (get/list), from the jar's own mods", () => {
+  const { s, db } = mk();
+  const id = oldJar(db, { tease: true, flirt: false });
+  for (const d of [s.get(id)!, s.list().find((r) => r.id === id)!.doc]) {
+    assert.deepEqual([d.sliders.tease, d.sliders.flirt], [{ value: 6, cap: 10 }, { value: 0, cap: 10 }]);
+    assert.equal("mods" in d, false);
+  }
+});
+
+test("plan 20: insert(old jar) takes tease/flirt from the jar, not the previous slime; snapshot keeps them", () => {
+  const { s, db, live } = mk();
+  live.state!.sliders.tease = { value: 9, cap: 10 }; live.state!.sliders.flirt = { value: 9, cap: 10 };
+  const first = s.ensureFirstRun()!;
+  const id = oldJar(db, { tease: true, flirt: false });
+  s.insert(id);
+  assert.deepEqual([live.state!.sliders.tease, live.state!.sliders.flirt], [{ value: 6, cap: 10 }, { value: 0, cap: 10 }]);
+  s.insert(first); // snapshots the old jar from live
+  assert.deepEqual([s.get(id)!.sliders.tease, s.get(id)!.sliders.flirt], [{ value: 6, cap: 10 }, { value: 0, cap: 10 }]);
+});
+
+test("plan 20: mix old x new and new x old keeps tease/flirt", () => {
+  const { s, db } = mk();
+  const o = s.get(oldJar(db, { tease: true, flirt: true }))!;
+  const n = { ...blankSlime(), name: "New" }; n.sliders.tease = { value: 2, cap: 10 };
+  for (const [a, b] of [[o, n], [n, o]]) {
+    const m = mixSliders(a.sliders, b.sliders, 50);
+    assert.ok(m.tease && m.flirt);
+  }
+  assert.equal(mixSliders(o.sliders, n.sliders, 50).tease.value, 4);
+});
+
+test("plan 20: an unparseable stored jar is skipped by list and null from get (never throws)", () => {
+  const { s, db } = mk();
+  const bad = Number(db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES ('{\"nope\":1}', 1, 1)").run().lastInsertRowid);
+  assert.equal(s.get(bad), null);
+  assert.equal(s.list().some((r) => r.id === bad), false);
 });

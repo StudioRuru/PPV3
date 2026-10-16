@@ -20,6 +20,7 @@ const valid = (raw: unknown): SlimeDoc => {
   if (!d) throw new Error("Invalid slime doc");
   return d;
 };
+const parse = (json: string): SlimeDoc | null => { try { return validateSlime(JSON.parse(json)); } catch { return null; } };
 const pickLive = ({ voice, selfName, sliders, heatDrift, look, memories, vials }: SlimeDoc): LiveState =>
   ({ voice, selfName, sliders: resetLive(sliders), heatDrift, look, memories, vials });
 
@@ -28,13 +29,14 @@ export class SlimeStore {
   generation = 0;
   constructor(private db: Database.Database, private live: LiveIdentity, private now: () => number = Date.now) {}
 
+  /** Stored jars are validated (and migrated from old `mods`) on read; an unparseable/invalid jar is skipped (list) or null (get), never thrown. */
   list(): SlimeRow[] {
     return (this.db.prepare("SELECT id, doc FROM mascot_slimes ORDER BY id").all() as { id: number; doc: string }[])
-      .map((r) => ({ id: r.id, doc: JSON.parse(r.doc) }));
+      .flatMap((r) => { const doc = parse(r.doc); return doc ? [{ id: r.id, doc }] : []; });
   }
   get(id: number): SlimeDoc | null {
     const r = this.db.prepare("SELECT doc FROM mascot_slimes WHERE id = ?").get(id) as { doc: string } | undefined;
-    return r ? JSON.parse(r.doc) : null;
+    return r ? parse(r.doc) : null;
   }
   /** Active jar id, or null when Empty. A pointer to a missing jar is cleared (and the live identity goes Empty). */
   activeId(): number | null {
