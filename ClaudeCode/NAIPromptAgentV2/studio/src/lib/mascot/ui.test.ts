@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EXPRESSIONS } from "./core";
-import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, deltaChips, diffTags, groupBottles, missingCells, missingPoseCells, nearestCorner, poisonTone, requestSeq, sliderToCooldown, stripVialBlock, vialOutcome, bottledKey, singleFlight } from "./ui";
+import { composerBottom, cooldownLabel, cooldownToSlider, COOLDOWN_STEPS, deltaChips, diffTags, groupBottles, missingCells, missingPoseCells, nearestCorner, poisonTone, requestSeq, sliderToCooldown, stripVialBlock, vialOutcome, bottledKey, singleFlight, historyForRegenerate, historyForEdit } from "./ui";
 
 test("diffTags: added and removed, order kept, dupes ignored", () => {
   assert.deepEqual(diffTags(["a", "b", "c"], ["b", "d", "c", "d"]), { added: ["d"], removed: ["a"] });
@@ -124,4 +124,21 @@ test("singleFlight: overlapping calls share one run; a later call runs again", a
   const bad = singleFlight(async () => { throw new Error("x"); });
   await assert.rejects(bad());
   await assert.rejects(bad()); // a failure doesn't wedge it
+});
+
+test("historyForRegenerate: drops the trailing reply and error bubbles; needs a user message left", () => {
+  const u = (content: string) => ({ role: "user" as const, content }), a = (content: string, error?: boolean) => ({ role: "assistant" as const, content, error });
+  assert.deepEqual(historyForRegenerate([u("hi"), a("x"), u("more"), a("y")]), [u("hi"), a("x"), u("more")]);
+  assert.deepEqual(historyForRegenerate([u("hi"), a("⚠️ no", true)]), [u("hi")]);
+  assert.equal(historyForRegenerate([]), null);
+  assert.equal(historyForRegenerate([u("hi")]), null);
+});
+test("historyForEdit: truncates at the user message, swaps the text, rejects blank or non-user", () => {
+  const u = (content: string) => ({ role: "user" as const, content }), a = (content: string) => ({ role: "assistant" as const, content });
+  const ms = [u("one"), a("A"), u("two"), a("B")];
+  assert.deepEqual(historyForEdit(ms, 2, " fixed "), [u("one"), a("A"), u("fixed")]);
+  assert.deepEqual(historyForEdit(ms, 0, "x"), [u("x")]);
+  assert.equal(historyForEdit(ms, 1, "x"), null);
+  assert.equal(historyForEdit(ms, 2, "  "), null);
+  assert.equal(historyForEdit(ms, 9, "x"), null);
 });

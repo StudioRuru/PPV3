@@ -109,3 +109,17 @@ export function singleFlight<T>(fn: () => Promise<T>): () => Promise<T> {
   let p: Promise<T> | null = null;
   return () => (p ??= fn().finally(() => { p = null; }));
 }
+
+type Turn = { role: "user" | "assistant"; content: string; error?: boolean };
+/** Shop retry: the history without Aru's last reply (and any error bubbles) so the same question is asked again; null if no user message is left. */
+export function historyForRegenerate<T extends Turn>(msgs: T[]): T[] | null {
+  if (msgs.at(-1)?.role !== "assistant") return null;
+  const h = msgs.slice(0, -1).filter((m) => !m.error);
+  return h.at(-1)?.role === "user" ? h : null;
+}
+/** Shop edit: history cut at user message `i`, which takes the trimmed new text; null for a blank text or a non-user target. */
+export function historyForEdit<T extends Turn>(msgs: T[], i: number, text: string): T[] | null {
+  const m = msgs[i];
+  if (m?.role !== "user" || !text.trim()) return null;
+  return [...msgs.slice(0, i).filter((x) => !x.error), { ...m, content: text.trim() }];
+}

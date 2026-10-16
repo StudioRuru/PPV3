@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatMsg } from "@/lib/copilot-prompt";
 import type { Expression } from "@/lib/mascot/core";
 import { listenPhase, nextPhase, type TalkPhase } from "@/lib/mascot/talk";
-import { bottledKey, groupBottles, singleFlight, stripVialBlock, vialOutcome, type Bottle as BottleRow } from "@/lib/mascot/ui";
+import { bottledKey, groupBottles, historyForEdit, historyForRegenerate, singleFlight, stripVialBlock, vialOutcome, type Bottle as BottleRow } from "@/lib/mascot/ui";
 import type { AppliedVial, Vial } from "@/lib/mascot/vial";
 import { requestJson } from "@/lib/net";
 import { Md } from "../ChatScreen";
 import { Sheet } from "../Sheet";
+import { AutoTextarea } from "../TagInput";
 import { PortraitStage } from "./PortraitStage";
 import { Bottle, VialCard } from "./VialCard";
 
@@ -65,6 +66,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
   const [thread, setThread] = useState<Thread | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
+  const [editing, setEditing] = useState<{ i: number; text: string } | null>(null);
   const [thinking, setThinking] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const tidRef = useRef<number | null>(null);
@@ -72,7 +74,7 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
 
   const loadList = () => requestJson<VialListing>(VIALS_API).then((r) => { if (r.ok) setList(r.data); else setError(r.error); });
   async function load(id: number) {
-    tidRef.current = id;
+    tidRef.current = id; setEditing(null);
     const r = await requestJson<{ threads: Thread[] }>("/api/chat/threads");
     if (r.ok && tidRef.current === id) setThread(r.data.threads.find((t) => t.id === id) ?? null);
     const h = await requestJson<{ messages: ChatMsg[] }>(`/api/chat/history?thread=${id}`);
@@ -95,11 +97,24 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
   async function send() {
     const text = input.trim();
     if (!text || streaming || !thread) return;
+    setInput("");
+    await run([...msgs.filter((m) => !m.error), withId({ role: "user", content: text })]);
+  }
+  /** Retry: Aru's last reply (and its vial card) is dropped and the same history asked again. */
+  function regenerate() { const h = historyForRegenerate(msgs); if (h && !streaming) run(h); }
+  function saveEdit() {
+    if (!editing || streaming) return;
+    const h = historyForEdit(msgs, editing.i, editing.text);
+    if (h) { setEditing(null); run(h); }
+  }
+
+  /** Ask Aru with this history (the server replaces the stored thread with it, so edits and retries stay in step). */
+  async function run(history: Msg[]) {
+    if (!thread || streaming) return;
     let id = thread.id;
     const show = (ms: Msg[]) => { if (tidRef.current === id) setMsgs(ms); };
-    const history = [...msgs.filter((m) => !m.error), withId({ role: "user", content: text })];
     const reply = withId({ role: "assistant", content: "" });
-    setInput(""); show([...history, reply]); setThinking("Aru is stirring…"); setStreaming(true);
+    show([...history, reply]); setThinking("Aru is stirring…"); setStreaming(true);
     const face = (ev: Parameters<typeof nextPhase>[1]) => { if (tidRef.current === id) setPhase((p) => nextPhase(p, ev)); };
     face("send");
     let out = "";
@@ -244,7 +259,21 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
           <>
             {msgs.length === 0 && <p className="text-muted text-center text-sm">Ask Aru for a potion — she&apos;ll brew one for Miyabi.</p>}
             {msgs.map((m, i) => {
-              if (m.role === "user") return <p key={m.cid} className="animate-rise bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap">{m.content}</p>;
+              if (m.role === "user" && editing?.i === i) return (
+                <div key={m.cid} className="space-y-1.5">
+                  <AutoTextarea value={editing.text} onChange={(text) => setEditing({ i, text })} />
+                  <div className="flex gap-2 text-sm">
+                    <button type="button" disabled={streaming || !editing.text.trim()} onClick={saveEdit} className="bg-accent text-accent-fg min-h-11 rounded-md px-3 font-semibold disabled:opacity-40">Resend</button>
+                    <button type="button" onClick={() => setEditing(null)} className="min-h-11 px-3">Cancel</button>
+                  </div>
+                </div>
+              );
+              if (m.role === "user") return (
+                <div key={m.cid} className="animate-rise bg-surface-2 ml-8 rounded-lg p-2.5 text-sm">
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                  {!streaming && <button type="button" onClick={() => setEditing({ i, text: m.content })} className="text-faint min-h-11 text-xs">Edit</button>}
+                </div>
+              );
               const done = !streaming || i < msgs.length - 1;
               const o = m.error ? null : vialOutcome(m.content, done);
               const v = o?.kind === "vial" ? o.vial : null;
@@ -259,6 +288,9 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
                         onClick={() => act({ action: "bottle", vial: v }, "Bottling…", () => markBottled(key))}
                         className={`${primary} mt-1 w-full`}>{bottled[key] ? "Bottled ✓" : "Bottle it"}</button>
                     </VialCard>
+                  )}
+                  {i === msgs.length - 1 && !streaming && m.content && i > 0 && (
+                    <button type="button" onClick={regenerate} className="text-faint min-h-11 text-xs">Regenerate</button>
                   )}
                 </div>
               );
