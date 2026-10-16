@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { emitMascot } from "@/lib/mascot/bus";
-import { cannedLine, outfitFor, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
+import { cannedLine, outfitFromSettings, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
 import { stageSprite } from "@/lib/mascot/poses";
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
@@ -20,9 +20,10 @@ const SULK: Say[] = [{ expression: "pout", text: "Fine! I'll go sulk somewhere e
 const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** Miyabi: quips about `mascot` bus events on every tab. Full-body on the Stage when the outfit has pose sprites, else the corner bust.
+ *  away: she's sitting in the Chat tab's portrait — the roaming Stage/bust hides and quips wait.
  *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden, show} and `mascot:mood` {src} out (on change and on mount). */
-export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab, onSettings }: {
-  rating: string; prompt: string; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
+export function Mascot({ rating, prompt, away = false, onTap = () => emitMascot("tap"), onTab, onSettings }: {
+  rating: string; prompt: string; away?: boolean; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [sprites, setSprites] = useState<Record<string, number>>({});
@@ -66,7 +67,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
   // Latest values for the window listener without re-subscribing every render.
   const handle = useRef<(e: MascotEvent) => void>(() => {});
   handle.current = async (e) => {
-    if (!settings?.show || hiddenUntil > Date.now()) return;
+    if (!settings?.show || away || hiddenUntil > Date.now()) return;
     const L = live.current;
     if (!shouldSpeak(e, { now: Date.now(), hushUntil, typing: isTyping(), lastSpokeAt: L.lastSpokeAt, cooldownMs: settings.cooldownMs ?? Infinity, inFlight: L.inFlight })) return;
     L.inFlight = true;
@@ -82,7 +83,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
   // "mascot:say" = show this line now (shelf insert/remove): skips the speak gate, but never while typing.
   const sayNow = useRef<(s: Say) => void>(() => {});
   sayNow.current = (s) => {
-    if (!settings?.show || !s?.text || isTyping() || hiddenUntil > Date.now()) return;
+    if (!settings?.show || away || !s?.text || isTyping() || hiddenUntil > Date.now()) return;
     live.current.lastSpokeAt = Date.now();
     setMenu(false);
     setSay({ expression: s.expression, text: s.text });
@@ -175,7 +176,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     return () => clearTimeout(t);
   }, [hidden, settings?.show]);
 
-  const outfit: Outfit = settings ? outfitFor({ hour: new Date().getHours(), nightFrom: settings.nightFrom, nightTo: settings.nightTo, pin: settings.pin, nsfw: rating === "nsfw", flirt: settings.sliders.flirt.live ?? settings.sliders.flirt.value, flirtyTalk: false }) : "day";
+  const outfit: Outfit = settings ? outfitFromSettings(settings, rating === "nsfw") : "day";
   const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));
   // Tell the island which bust to show (null = hidden / no sprite), deferred like mascot:hidden.
   const mood = settings?.show && !hidden && sprite ? `/api/mascot/sprites/${sprite}?v=${sprites[sprite]}` : null;
@@ -235,16 +236,16 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     ];
     return (
       <Stage sprites={sprites} outfit={outfit} expression={say?.expression ?? (hushed ? "sleepy" : null)} size={settings.size ?? "m"} mischief={settings.mischief ?? 5}
-        empty={empty} hushed={hushed} typing={typing} hidden={hidden} layout={bottomAt} menuOpen={menu && !hidden}
+        empty={empty} hushed={hushed} typing={typing} hidden={hidden || away} layout={bottomAt} menuOpen={menu && !hidden && !away}
         label={`Miyabi${empty ? " (empty)" : ""}${hushed ? " (hushed)" : ""} — tap for the menu, drag to move, flick to throw`}
         onMenu={() => { setMenu(true); setSay(null); }} onCloseMenu={close}
         onPoke={() => { if (!hushed && Math.random() < 0.4) sayNow.current(cannedLine("tap")); }}
         onSwipeOff={() => { setMenu(false); const s = SULK[Math.floor(Math.random() * SULK.length)]; if (!isTyping()) { live.current.lastSpokeAt = Date.now(); setSay(s); } setHiddenUntil(Date.now() + HIDE_MS); }}
-        overlay={menu && !hidden ? <TabCarousel items={bubbles} onClose={close} />
+        overlay={away ? null : menu && !hidden ? <TabCarousel items={bubbles} onClose={close} />
           : say && <button type="button" onClick={() => setSay(null)} className="bg-surface border-border animate-rise block w-max max-w-full rounded-2xl border px-3 py-2 text-left text-sm shadow-lg">{say.text}</button>} />
     );
   }
-  if (hidden) return null;
+  if (hidden || away) return null;
 
   // While typing in a bottom corner she slides up to the top one, out of the keyboard/composer's way.
   const lift = typing && bottom ? `translateY(calc(${TOP} + ${bottomAt} + 100% - 100dvh))` : "";

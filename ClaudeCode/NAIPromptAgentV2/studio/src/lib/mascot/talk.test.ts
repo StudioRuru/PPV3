@@ -6,7 +6,7 @@ import path from "node:path";
 import { EXPRESSIONS } from "./core";
 import { DEFAULT_MASCOT_SETTINGS as S } from "./settings";
 import { listSprites, perImage, pick, saveCandidates, talkCandidatePath, talkPath, talkRequest, target } from "./sprites";
-import { pickTalkFrame, TALK, TALK_FRAMES, talkKey } from "./talk";
+import { listenPhase, pickTalkFrame, portraitPick, TALK, TALK_FRAMES, talkKey } from "./talk";
 import { missingTalkCells } from "./ui";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1]);
@@ -139,4 +139,26 @@ test("visibleWhileStreaming only hides expression-name prefixes", async () => {
   assert.equal(v("see [no"), "see [no");
   assert.equal(v("hi [sl"), "hi ");
   assert.equal(v("hi [smu]"), "hi [smu]");
+});
+
+test("listenPhase: focus listens only when nothing is in flight; blur drops listen", () => {
+  assert.equal(listenPhase("idle", true), "listen");
+  assert.equal(listenPhase("done", true), "listen");
+  assert.equal(listenPhase("think", true), "think");
+  assert.equal(listenPhase("talk", true), "talk");
+  assert.equal(listenPhase("empty", true), "empty");
+  assert.equal(listenPhase("listen", false), "idle");
+  assert.equal(listenPhase("done", false), "done");
+  assert.equal(listenPhase("think", false), "think");
+});
+
+test("portraitPick: talk chain, then bust, then placeholder; bob when a motion frame is missing", () => {
+  const have = new Set(["talk/day/smug", "talk/night/think1", "night/pout", "day/smug"]);
+  assert.deepEqual(portraitPick(have, "night", "think1"), { key: "talk/night/think1", bob: false });
+  assert.deepEqual(portraitPick(have, "night", "think2"), { key: "talk/day/smug", bob: true });
+  assert.deepEqual(portraitPick(have, "night", "pout"), { key: "talk/day/smug", bob: false });
+  const busts = new Set(["night/pout", "day/smug"]);
+  assert.deepEqual(portraitPick(busts, "night", "pout"), { key: "night/pout", bob: false });
+  assert.deepEqual(portraitPick(busts, "night", "talk_open"), { key: "day/smug", bob: true });
+  assert.deepEqual(portraitPick(new Set(), "day", "listen"), { key: null, bob: true });
 });

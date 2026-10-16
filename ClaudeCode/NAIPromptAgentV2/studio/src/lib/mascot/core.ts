@@ -73,6 +73,11 @@ export function outfitFor(o: { hour: number; nightFrom: number; nightTo: number;
   return (f < t ? h >= f && h < t : h >= f || h < t) ? "night" : "day";
 }
 
+/** The roaming Mascot's outfit from her settings (the Chat portrait uses the same rule). */
+export function outfitFromSettings(s: { nightFrom: number; nightTo: number; pin: Outfit | null; sliders: { flirt: { value: number; live?: number } } }, nsfw: boolean, hour = new Date().getHours()): Outfit {
+  return outfitFor({ hour, nightFrom: s.nightFrom, nightTo: s.nightTo, pin: s.pin, nsfw, flirt: s.sliders.flirt.live ?? s.sliders.flirt.value });
+}
+
 export function pickSprite(have: Set<string>, outfit: Outfit, expression: Expression): string | null {
   return [`${outfit}/${expression}`, `day/${expression}`, `${outfit}/smug`, "day/smug"].find((id) => have.has(id)) ?? null;
 }

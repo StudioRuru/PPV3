@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EXPRESSIONS, cannedLine, outfitFor, parseQuip, pickSprite, readMs, shouldSpeak, type MascotEvent } from "./core";
+import { EXPRESSIONS, cannedLine, outfitFor, outfitFromSettings, parseQuip, pickSprite, readMs, shouldSpeak, type MascotEvent } from "./core";
 
 const S = { now: 100_000, hushUntil: 0, typing: false, lastSpokeAt: 0, cooldownMs: 60_000, inFlight: false };
 const ev = (kind: MascotEvent["kind"], at = 100_000, data?: Record<string, unknown>): MascotEvent => ({ kind, at, data });
@@ -169,4 +169,13 @@ test("outfitFor: flirt slider threshold is 5", () => {
   const o = { hour: 12, nightFrom: 23, nightTo: 7, pin: null, nsfw: true };
   assert.equal(outfitFor({ ...o, flirt: 4 }), "day");
   assert.equal(outfitFor({ ...o, flirt: 5 }), "lewd");
+});
+
+test("outfitFromSettings: live flirt wins, pin, night hours", () => {
+  const s = { nightFrom: 22, nightTo: 6, pin: null, sliders: { flirt: { value: 0 } } };
+  assert.equal(outfitFromSettings(s, false, 12), "day");
+  assert.equal(outfitFromSettings(s, false, 23), "night");
+  assert.equal(outfitFromSettings({ ...s, sliders: { flirt: { value: 0, live: 5 } } }, true, 12), "lewd");
+  assert.equal(outfitFromSettings({ ...s, sliders: { flirt: { value: 9, live: 2 } } }, true, 12), "day");
+  assert.equal(outfitFromSettings({ ...s, pin: "night" }, true, 12), "night");
 });

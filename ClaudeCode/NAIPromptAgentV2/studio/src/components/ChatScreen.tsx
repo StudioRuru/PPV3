@@ -3,11 +3,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMsg, Mode } from "@/lib/copilot-prompt";
 import { inline, mdBlocks } from "@/lib/md";
 import { emitMascot } from "@/lib/mascot/bus";
+import { outfitFromSettings, type Expression } from "@/lib/mascot/core";
+import { listenPhase, nextPhase, splitExpressionTag, visibleWhileStreaming, type TalkEvent, type TalkPhase } from "@/lib/mascot/talk";
 import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
-import { PERSONAS, type PersonaId } from "@/lib/persona";
+import type { PersonaId } from "@/lib/persona";
 import type { PromptState } from "@/lib/prompt";
 import { chatTabThreads, defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
+import { PortraitStage } from "./mascot/PortraitStage";
+import { SlidersPanel } from "./mascot/SlidersPanel";
 import { PatchCard } from "./PatchCard";
 import { Sheet } from "./Sheet";
 import { AutoTextarea } from "./TagInput";
@@ -19,7 +23,8 @@ type Thread = { id: number; title: string; persona: PersonaId; updated_at: numbe
 type Msg = ChatMsg & { image?: string | null; cid: string; error?: boolean };
 const withId = (m: ChatMsg & { image?: string | null; cid?: string; error?: boolean }): Msg => ({ ...m, cid: m.cid ?? crypto.randomUUID() });
 const wire = (ms: Msg[]) => ms.filter((m) => !m.error).map(({ role, content, image }) => ({ role, content, image: image ?? null }));
-type Taste = { profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[]; drift: Record<PersonaId, number> };
+type Taste = { profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[] };
+type LookSettings = Parameters<typeof outfitFromSettings>[0];
 export type ChatSeed = { text: string; image?: File; tags?: string } | null;
 type Kind = "arc" | "outfit" | "theme" | "cluster";
 type ClosetItem = { kind: Kind; dir: string; slug: string; name: string };
@@ -58,9 +63,17 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const [editing, setEditing] = useState<{ i: number; text: string } | null>(null);
   const [feedback, setFeedback] = useState<{ cid: string; kind: "like" | "dislike"; note: string } | null>(null);
   const [rated, setRated] = useState<Record<string, "like" | "dislike">>({});
-  const [drift, setDriftLocal] = useState<number | null>(null); // slider value while dragging; committed on release
   const [confirmReset, setConfirmReset] = useState(false);
-  const [persona, setPersonaOpen] = useState(false);
+  const [tasteOpen, setTasteOpen] = useState(false);
+  const [mood, setMood] = useState(false); // sliders popover
+  const moodBtn = useRef<HTMLButtonElement>(null), moodBox = useRef<HTMLDivElement>(null);
+  // Face to face: her portrait's phase/expression, the outfit rule's inputs, and whether a slime is in.
+  const [phase, setPhase] = useState<TalkPhase>("idle");
+  const [expression, setExpression] = useState<Expression>("smug");
+  const [look, setLook] = useState<LookSettings | null>(null);
+  const [empty, setEmpty] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [streamCid, setStreamCid] = useState<string | null>(null); // the reply still streaming (send stays off until it ends)
   const [taste, setTaste] = useState<Taste | null>(null);
   const [pinText, setPinText] = useState("");
   const [closet, setCloset] = useState<ClosetItem[]>([]);
@@ -92,6 +105,26 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     setRated({}); setEditing(null); setFeedback(null);
   }, [tid]);
   useEffect(() => { if (active) end.current?.scrollIntoView({ block: "end" }); }, [msgs, active]);
+  useEffect(() => { if (!active) { setPhase((p) => nextPhase(p, "reset")); setMood(false); } }, [active]);
+  useEffect(() => {
+    const load = () => {
+      requestJson<{ settings: LookSettings }>("/api/mascot/state").then((r) => r.ok && setLook(r.data.settings));
+      requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
+    };
+    const onSettings = (e: Event) => setLook((e as CustomEvent<LookSettings>).detail);
+    load();
+    window.addEventListener("mascot:identity", load);
+    window.addEventListener("mascot:settings", onSettings);
+    return () => { window.removeEventListener("mascot:identity", load); window.removeEventListener("mascot:settings", onSettings); };
+  }, []);
+  useEffect(() => {
+    if (!mood) return;
+    moodBox.current?.focus();
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMood(false); };
+    window.addEventListener("keydown", esc);
+    const btn = moodBtn.current;
+    return () => { window.removeEventListener("keydown", esc); btn?.focus(); };
+  }, [mood]);
   useEffect(() => {
     if (!toggling) return;
     const t = setInterval(() => tick((n) => n + 1), 1000);
@@ -107,14 +140,16 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     setStatus({ ...(s ?? { on: false, brain: false, caption: false, tipo: false }), error: r.ok ? undefined : r.error });
   }
 
+  /** The user picks another thread: her face resets. */
+  function switchTo(id: number | null) { setTid(id); setPhase((p) => nextPhase(p, "reset")); setExpression("smug"); }
   async function newThread() {
     const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: newThreadPersona() }) });
-    if (r.ok) { setThreads(r.data.threads); setTid(r.data.id); }
+    if (r.ok) { setThreads(r.data.threads); switchTo(r.data.id); }
   }
   async function deleteThread(id: number) {
     const r = await requestJson<{ threads: Thread[] }>(`/api/chat/threads?id=${id}`, { method: "DELETE" });
     setConfirmDel(null);
-    if (r.ok) { setThreads(r.data.threads); setTid(defaultThreadId(r.data.threads)); }
+    if (r.ok) { setThreads(r.data.threads); switchTo(defaultThreadId(r.data.threads)); }
   }
   async function patchThread(patch: Partial<Pick<Thread, "title">>) {
     if (!thread) return;
@@ -135,16 +170,17 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     const version = threads.find((t) => t.id === id)?.updated_at;
     // Only paint into the view if the user is still looking at this thread.
     const show = (ms: Msg[]) => { if (tidRef.current === id) setMsgs(ms); };
+    const face = (ev: TalkEvent) => { if (tidRef.current === id) setPhase((p) => nextPhase(p, ev)); };
     const reply = withId({ role: "assistant", content: "" });
     show([...history, reply]);
-    setBusy("Thinking…");
+    setBusy("Thinking…"); setStreamCid(reply.cid); face("send");
     let text = "";
     try {
       const res = await fetch("/api/chat", { method: "POST", ...json({ thread: id, version, messages: wire(history), state, mode: m }) });
       if (res.status === 409) {
         const h = await requestJson<{ messages: Msg[] }>(`/api/chat/history?thread=${id}`);
         if (h.ok) show([...h.data.messages.map(withId), withId({ role: "assistant", content: "⚠️ This chat changed on another device — reloaded. Send again.", error: true })]);
-        setBusy(null); loadThreads(id); return;
+        setBusy(null); setStreamCid(null); face("error"); loadThreads(id); return;
       }
       if (!res.ok || !res.body) {
         const body = await res.text();
@@ -153,27 +189,32 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         throw new Error(res.status === 401 ? "Session expired — reload the page and sign in again." : msg || `Server error ${res.status}.`);
       }
       const realId = Number(res.headers.get("X-Thread"));
-      if (realId && realId !== id) { id = realId; tidRef.current = realId; setTid(realId); }
+      if (realId && realId !== id) { if (tidRef.current === id) { tidRef.current = realId; setTid(realId); } id = realId; }
+      if (res.headers.get("X-Paused") === "1") setBusy("Pausing captioner + TIPO for the heavy model…");
       const reader = res.body.getReader(); const dec = new TextDecoder();
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        if (!text) face("firstToken");
         text += dec.decode(value, { stream: true });
         setBusy(null);
         show([...history, { ...reply, content: text }]);
       }
-      // A failure reported inside the stream: keep it on screen, but it's not part of the conversation.
-      if (/\n\n⚠️ [^\n]*$/.test(text)) show([...history, { ...reply, content: text, error: true }]);
+      // Her [expression] tag comes off before the text is kept. A failure reported inside the stream stays on screen, but isn't part of the conversation.
+      const out = splitExpressionTag(text), failed = /\n\n⚠️ [^\n]*$/.test(out.text);
+      show([...history, { ...reply, content: out.text, error: failed }]);
+      if (failed) face("error"); else { if (tidRef.current === id) setExpression(out.expression); face("end"); }
     } catch (e) {
-      show([...history, { ...reply, content: `${text}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
+      show([...history, { ...reply, content: `${splitExpressionTag(text).text}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
+      face("error");
     }
-    setBusy(null); setMode("chat"); setPreset(null);
+    setBusy(null); setStreamCid(null); setMode("chat"); setPreset(null);
     loadThreads(id); // version, title and order update after a reply
   }
 
   async function send() {
     const text = input.trim();
-    if ((!text && !file) || busy) return;
+    if ((!text && !file) || busy || streamCid) return;
     // Captured now: the attach below can take a minute, and the user may look at another thread meanwhile.
     const id = tid, base = msgsRef.current;
     let content = text, image: string | null = null;
@@ -238,38 +279,58 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const offline = status && !status.brain;
   const thumbOn = toggling ? toggling.verb !== "Stopping" : !!status?.on;
   const dots: [string, boolean, boolean?][] = status ? [["brain", status.on, status.brain], ["eyes", status.caption], ["tipo", status.tipo]] : [];
-  const pName = PERSONAS.find((p) => p.id === (thread?.persona ?? "miyabi"))!.name;
+  const outfit = look ? outfitFromSettings(look, state.rating === "nsfw") : "day";
   const presetKind = PRESET_KIND[mode];
   const lastAssistant = msgs.map((m) => m.role).lastIndexOf("assistant");
 
   return (
     <section aria-label="Chat" className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
-      <header className="flex items-center gap-2">
-        <h1 className="text-[15px] font-semibold tracking-wide">Chat</h1>
-        <span className="text-muted flex min-w-0 flex-1 gap-2 overflow-hidden font-mono text-[11px]">
-          {status ? dots.map(([name, up, half], i) => (
-            <span key={name} className="flex items-center gap-1 whitespace-nowrap">
-              <i key={`${up}${half}`} aria-hidden="true" style={toggling ? { animationDelay: `${i * 180}ms` } : undefined}
-                className={`size-1.5 rounded-full ${up ? "bg-ok" : half ? "bg-warn" : "bg-border"} ${toggling ? "dot-breathe" : "dot-settle"}`} />
-              {name}<span className="sr-only">{up ? " up" : half ? " idle" : " down"}</span>
-            </span>
-          )) : "…"}
-        </span>
-        <button type="button" role="switch" aria-checked={!!status?.on} disabled={!!toggling || (!!offline && !status?.power)} onClick={toggle}
-          className={`flex h-10 shrink-0 items-center gap-2 rounded-full border pr-3 pl-1.5 text-sm font-semibold tabular-nums disabled:opacity-60 ${status?.on && !toggling ? "border-accent/60" : "border-border"}`}>
-          <span aria-hidden="true" className={`relative h-7 w-12 rounded-full transition-colors duration-300 ${thumbOn ? "bg-accent" : "bg-surface-2"}`}>
-            <span className={`bg-fg absolute top-1 left-1 size-5 rounded-full shadow transition-[translate] duration-300 ${thumbOn ? "translate-x-5" : ""} ${toggling ? "dot-breathe" : ""}`} />
+      {/* Face to face: her portrait pinned on top (~40% of the usable height, ~25% while typing), the header under it; the chat scrolls beneath.
+          Pulled up over the top padding so scrolled messages never show above her. */}
+      <div className="bg-bg sticky top-0 z-10 -mx-4 px-4 pb-1"
+        style={{ marginTop: "calc(-1 * (var(--pt) + env(safe-area-inset-top)))", paddingTop: "calc(var(--pt) + env(safe-area-inset-top))" }}>
+        <PortraitStage profile="miyabi" outfit={outfit} phase={phase} expression={expression} empty={empty}
+          style={{ height: `calc((100dvh - var(--pt) - env(safe-area-inset-top)) * ${focused ? 0.25 : 0.4})` }} />
+        <header className="relative flex items-center gap-2">
+          <h1 className="text-[15px] font-semibold tracking-wide">Miyabi</h1>
+          <span className="text-muted flex min-w-0 flex-1 gap-2 overflow-hidden font-mono text-[11px]">
+            {status ? dots.map(([name, up, half], i) => (
+              <span key={name} className="flex items-center gap-1 whitespace-nowrap">
+                <i key={`${up}${half}`} aria-hidden="true" style={toggling ? { animationDelay: `${i * 180}ms` } : undefined}
+                  className={`size-1.5 rounded-full ${up ? "bg-ok" : half ? "bg-warn" : "bg-border"} ${toggling ? "dot-breathe" : "dot-settle"}`} />
+                {name}<span className="sr-only">{up ? " up" : half ? " idle" : " down"}</span>
+              </span>
+            )) : "…"}
           </span>
-          {toggling ? `${Math.round((Date.now() - toggling.since) / 1000)}s` : status?.on ? "On" : "Off"}
-        </button>
-      </header>
+          <button type="button" role="switch" aria-checked={!!status?.on} disabled={!!toggling || (!!offline && !status?.power)} onClick={toggle}
+            className={`flex h-10 shrink-0 items-center gap-2 rounded-full border pr-3 pl-1.5 text-sm font-semibold tabular-nums disabled:opacity-60 ${status?.on && !toggling ? "border-accent/60" : "border-border"}`}>
+            <span aria-hidden="true" className={`relative h-7 w-12 rounded-full transition-colors duration-300 ${thumbOn ? "bg-accent" : "bg-surface-2"}`}>
+              <span className={`bg-fg absolute top-1 left-1 size-5 rounded-full shadow transition-[translate] duration-300 ${thumbOn ? "translate-x-5" : ""} ${toggling ? "dot-breathe" : ""}`} />
+            </span>
+            {toggling ? `${Math.round((Date.now() - toggling.since) / 1000)}s` : status?.on ? "On" : "Off"}
+          </button>
+          <button ref={moodBtn} type="button" aria-expanded={mood} aria-haspopup="dialog" onClick={() => setMood(!mood)}
+            className={`border-border relative z-30 h-10 shrink-0 rounded-full border px-3 text-xs font-semibold ${mood ? "bg-accent text-accent-fg" : "text-muted"}`}>Mood</button>
+          <button type="button" onClick={() => { setTasteOpen(true); loadTaste(); }}
+            className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Taste</button>
+          {mood && (
+            <>
+              <button type="button" aria-label="Close mood" className="fixed inset-0 z-10 cursor-default" onClick={() => setMood(false)} />
+              <div ref={moodBox} tabIndex={-1} role="dialog" aria-label="Personality sliders"
+                className="bg-surface border-border absolute inset-x-0 top-full z-20 mt-1 max-h-[60dvh] overflow-y-auto overscroll-contain rounded-xl border p-3 shadow-lg outline-none">
+                <SlidersPanel />
+              </div>
+            </>
+          )}
+        </header>
+      </div>
       {(offline || status?.error) && <p role="alert" className="text-danger text-sm">{status?.error ?? (status?.power ? "Servers are off — flip the switch to start them." : "Brain offline — run `npm run up` on the Mac.")}</p>}
 
       {/* Threads */}
       <div data-noswipe className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1">
         {chatTabThreads(threads).map((t) => (
           <span key={t.id} className={`flex h-9 shrink-0 items-center rounded-full border text-xs ${t.id === tid ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
-            <button type="button" disabled={!!busy} onClick={() => setTid(t.id)} className="max-w-[10rem] truncate pr-1 pl-3 disabled:opacity-60">{t.title}</button>
+            <button type="button" disabled={!!busy} onClick={() => switchTo(t.id)} className="max-w-[10rem] truncate pr-1 pl-3 disabled:opacity-60">{t.title}</button>
             <button type="button" disabled={!!busy} aria-label={`Delete chat ${t.title}`} onClick={() => setConfirmDel(t.id)} className="grid size-8 place-items-center opacity-70 disabled:opacity-30">×</button>
           </span>
         ))}
@@ -283,19 +344,11 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         </div>
       )}
 
-      {/* Persona */}
-      <button type="button" onClick={() => { setPersonaOpen(true); loadTaste(); }} disabled={!thread}
-        className="border-border bg-surface flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-xs disabled:opacity-50">
-        <span aria-hidden="true" className="bg-accent size-2 rounded-full" />
-        <span className="font-semibold">{pName}</span>
-        <span className="text-faint font-mono">· {taste?.drift[thread?.persona ?? "miyabi"] ?? "…"}</span>
-      </button>
-
       {/* Messages */}
       <div className="flex-1 space-y-3">
-        {msgs.length === 0 && <p className="text-muted text-sm">Ask for a character, a scene, a theme or the next arc step — or attach an image and ask about a detail. Suggested changes arrive as cards you can pick from and apply.</p>}
+        {msgs.length === 0 && <p className="text-muted text-sm">Talk to her properly — or ask for a character, a scene, a theme or the next arc step — or attach an image and ask about a detail. Suggested changes arrive as cards you can pick from and apply.</p>}
         {msgs.map((m, i) => {
-          const p = m.role === "assistant" ? parseReply(m.content) : null;
+          const p = m.role === "assistant" ? parseReply(m.cid === streamCid ? visibleWhileStreaming(m.content) : m.content) : null;
           const said = m.content.includes(EYES) ? m.content.slice(0, m.content.indexOf(EYES)) : m.content;
           const eyes = m.content.includes(EYES) ? m.content.slice(m.content.indexOf(EYES) + EYES.length) : "";
           if (editing?.i === i) return (
@@ -313,14 +366,14 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
               {m.image && <img src={`/api/chat/image/${m.image}`} alt="Attached" className="max-h-48 rounded-md" />}
               <p className="whitespace-pre-wrap">{said}</p>
               {eyes && <details className="text-muted text-xs"><summary className="cursor-pointer">eyes report</summary><p className="mt-1 whitespace-pre-wrap">{eyes}</p></details>}
-              {!busy && <button type="button" onClick={() => setEditing({ i, text: said })} className="text-faint text-xs">Edit</button>}
+              {!busy && !streamCid && <button type="button" onClick={() => setEditing({ i, text: said })} className="text-faint text-xs">Edit</button>}
             </div>
           ) : (
             <div key={m.cid} className={`animate-rise space-y-1.5 text-sm leading-relaxed ${m.error ? "text-danger" : ""}`}>
               <Md text={p!.prose} />
               {p!.error && <p className="text-danger mt-1 text-xs">{p!.error}</p>}
               {p!.ops.length > 0 && <PatchCard ops={p!.ops} onApply={applyOps} />}
-              {!busy && m.content && !m.error && (
+              {!busy && !streamCid && m.content && !m.error && (
                 <div className="text-faint flex items-center gap-3 text-xs">
                   <button type="button" aria-label="Like reply" aria-pressed={rated[m.cid] === "like"} disabled={!!rated[m.cid]} onClick={() => rate(m.cid, "like")} className={rated[m.cid] === "like" ? "text-ok" : ""}>👍</button>
                   <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.cid] === "dislike"} disabled={!!rated[m.cid]} onClick={() => rate(m.cid, "dislike")} className={rated[m.cid] === "dislike" ? "text-danger" : ""}>👎</button>
@@ -388,32 +441,25 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
           <label className="border-border text-muted grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border">
             <span aria-hidden="true">📎</span><input type="file" accept="image/*" aria-label="Attach an image" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setFile(f); }} />
           </label>
-          <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1}
+          <textarea value={input} rows={1}
+            onChange={(e) => { setInput(e.target.value); setPhase((p) => listenPhase(p, true)); }}
+            onFocus={() => { setFocused(true); setPhase((p) => listenPhase(p, true)); }}
+            onBlur={() => { setFocused(false); setPhase((p) => listenPhase(p, false)); }}
             placeholder={!status?.on ? "Turn the co-pilot on to chat" : file ? "What should it look at? (e.g. how is the armor broken)" : "Describe what you want…"}
             disabled={!status?.on} className="bg-bg border-border min-w-0 flex-1 resize-none rounded-md border px-2 py-2.5 text-base" />
-          <button type="submit" disabled={!status?.on || !!busy || (!input.trim() && !file)} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
+          <button type="submit" disabled={!status?.on || !!busy || !!streamCid || (!input.trim() && !file)} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
         </form>
       </div>
 
-      {/* Persona sheet */}
-      <Sheet open={persona} onClose={() => setPersonaOpen(false)} label="Personality" closeLabel="Close personality"
+      {/* Taste sheet: pinned rules + what she has learned */}
+      <Sheet open={tasteOpen} onClose={() => setTasteOpen(false)} label="Taste" closeLabel="Close taste"
         className="max-h-[88dvh] rounded-t-2xl border-t lg:max-h-none lg:max-w-md lg:rounded-none lg:border-l">
         <header className="flex items-center gap-2 p-3">
-          <h2 className="flex-1 text-base font-semibold">Personality</h2>
-          <button type="button" onClick={() => setPersonaOpen(false)} aria-label="Close" className="border-border h-11 w-11 rounded-full border">×</button>
+          <h2 className="flex-1 text-base font-semibold">Taste</h2>
+          <button type="button" onClick={() => setTasteOpen(false)} aria-label="Close" className="border-border h-11 w-11 rounded-full border">×</button>
         </header>
-        {thread && (
+        {tasteOpen && (
           <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-6" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
-            <section>
-              <h3 className="text-muted mb-1 text-xs font-medium tracking-wide uppercase">Boldness (learned)</h3>
-              {/* Local while dragging; saved once on release (no request per pixel). */}
-              <input type="range" min={0} max={100} value={drift ?? taste?.drift[thread.persona] ?? 0} aria-label="Boldness"
-                onChange={(e) => setDriftLocal(Number(e.target.value))}
-                onPointerUp={() => { if (drift !== null) { tasteAction({ drift: { persona: thread.persona, value: drift } }); setDriftLocal(null); } }}
-                onKeyUp={() => { if (drift !== null) { tasteAction({ drift: { persona: thread.persona, value: drift } }); setDriftLocal(null); } }}
-                className="accent-accent h-9 w-full" />
-              <p className="text-faint text-xs">Rises as you like and apply its ideas, drops on 👎. {drift ?? taste?.drift[thread.persona] ?? 0}/100.</p>
-            </section>
             <section className="space-y-2">
               <h3 className="text-muted text-xs font-medium tracking-wide uppercase">Always follow</h3>
               {taste?.pinned.map((p) => (

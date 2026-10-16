@@ -18,9 +18,7 @@ import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
 import { costLabel, developed, HistoryStrip, mb, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
 import { Mascot } from "@/components/mascot/Mascot";
-import { MiyabiSheet } from "@/components/mascot/MiyabiSheet";
 import { emitMascot } from "@/lib/mascot/bus";
-import type { Outfit } from "@/lib/mascot/core";
 import { diffTags } from "@/lib/mascot/ui";
 import { ParamsBar } from "@/components/ParamsBar";
 import { AutoTextarea } from "@/components/TagInput";
@@ -43,7 +41,6 @@ export default function Studio() {
   const [params, setParams] = useState<NaiParams>(DEFAULT_PARAMS);
   const [history, setHistory] = useState<Generation[]>([]);
   const [current, setCurrent] = useState<Generation | null>(null);
-  const [talk, setTalk] = useState<{ open: boolean; outfit: Outfit }>({ open: false, outfit: "day" }); // Miyabi sheet; outfit kept while it slides out
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Saving before the draft has loaded would overwrite it with the empty initial state.
@@ -337,8 +334,7 @@ export default function Studio() {
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <LiquidIsland tab={tab} onTab={setTab} onSettings={() => setSettings(true)} />
-      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} onTap={(outfit) => setTalk({ open: true, outfit })} onTab={setTab} onSettings={() => setSettings(true)} />
-      <MiyabiSheet open={talk.open} onClose={() => setTalk((t) => ({ ...t, open: false }))} outfit={talk.outfit} state={state} onApply={(ops) => setState((s) => applyOps(s, ops))} />
+      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat"} onTap={() => setTab("chat")} onTab={setTab} onSettings={() => setSettings(true)} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
