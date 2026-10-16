@@ -65,8 +65,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const [rated, setRated] = useState<Record<string, "like" | "dislike">>({});
   const [confirmReset, setConfirmReset] = useState(false);
   const [tasteOpen, setTasteOpen] = useState(false);
-  const [mood, setMood] = useState(false); // sliders popover
-  const moodBtn = useRef<HTMLButtonElement>(null), moodBox = useRef<HTMLDivElement>(null);
+  const [mood, setMood] = useState(false); // sliders sheet
   // Face to face: her portrait's phase/expression, the outfit rule's inputs, and whether a slime is in.
   const [phase, setPhase] = useState<TalkPhase>("idle");
   const [expression, setExpression] = useState<Expression>("smug");
@@ -105,7 +104,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     setRated({}); setEditing(null); setFeedback(null);
   }, [tid]);
   useEffect(() => { if (active) end.current?.scrollIntoView({ block: "end" }); }, [msgs, active]);
-  useEffect(() => { if (!active) { setPhase((p) => nextPhase(p, "reset")); setMood(false); } }, [active]);
+  useEffect(() => { if (!active) { setPhase((p) => nextPhase(p, "reset")); setMood(false); setFocused(false); } }, [active]); // Safari may not blur on tab hide
   useEffect(() => {
     const load = () => {
       requestJson<{ settings: LookSettings }>("/api/mascot/state").then((r) => r.ok && setLook(r.data.settings));
@@ -117,14 +116,6 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     window.addEventListener("mascot:settings", onSettings);
     return () => { window.removeEventListener("mascot:identity", load); window.removeEventListener("mascot:settings", onSettings); };
   }, []);
-  useEffect(() => {
-    if (!mood) return;
-    moodBox.current?.focus();
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMood(false); };
-    window.addEventListener("keydown", esc);
-    const btn = moodBtn.current;
-    return () => { window.removeEventListener("keydown", esc); btn?.focus(); };
-  }, [mood]);
   useEffect(() => {
     if (!toggling) return;
     const t = setInterval(() => tick((n) => n + 1), 1000);
@@ -159,12 +150,16 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   async function loadTaste() { const r = await requestJson<Taste>("/api/taste"); if (r.ok) setTaste(r.data); }
   async function tasteAction(body: object) { const r = await requestJson<Taste>("/api/taste", { method: "POST", ...json(body) }); if (r.ok) setTaste(r.data); }
 
-  /** Send `history` (ending with the user's message) to thread `id` and stream the reply into place. */
-  async function run(history: Msg[], m: Mode = mode, captured: number | null = tid) {
+  /** Send `history` (ending with the user's message) to thread `id` and stream the reply into place. false = not sent (no thread could be made). */
+  async function run(history: Msg[], m: Mode = mode, captured: number | null = tid): Promise<boolean> {
     let id = captured;
     if (id === null) {
       const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: "miyabi" }) });
-      if (!r.ok) return;
+      if (!r.ok) {
+        if (tidRef.current === null) setMsgs([...history.slice(0, -1), withId({ role: "assistant", content: `⚠️ Couldn't start a chat: ${r.error}`, error: true })]);
+        setPhase((p) => nextPhase(p, "error"));
+        return false;
+      }
       id = r.data.id; setThreads(r.data.threads); tidRef.current = id; setTid(id);
     }
     const version = threads.find((t) => t.id === id)?.updated_at;
@@ -180,7 +175,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       if (res.status === 409) {
         const h = await requestJson<{ messages: Msg[] }>(`/api/chat/history?thread=${id}`);
         if (h.ok) show([...h.data.messages.map(withId), withId({ role: "assistant", content: "⚠️ This chat changed on another device — reloaded. Send again.", error: true })]);
-        setBusy(null); setStreamCid(null); face("error"); loadThreads(id); return;
+        setBusy(null); setStreamCid(null); face("error"); loadThreads(id); return true;
       }
       if (!res.ok || !res.body) {
         const body = await res.text();
@@ -210,13 +205,14 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     }
     setBusy(null); setStreamCid(null); setMode("chat"); setPreset(null);
     loadThreads(id); // version, title and order update after a reply
+    return true;
   }
 
   async function send() {
     const text = input.trim();
     if ((!text && !file) || busy || streamCid) return;
     // Captured now: the attach below can take a minute, and the user may look at another thread meanwhile.
-    const id = tid, base = msgsRef.current;
+    const id = tid, base = msgsRef.current, attached = file;
     let content = text, image: string | null = null;
     if (preset) {
       const r = await requestJson<{ item: { fields: { path: (string | number)[]; label: string; value: string | string[] }[] } }>(`/api/closet/${preset.dir}/${preset.slug}`);
@@ -232,7 +228,8 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       content = `${content || "What's in this image? Turn it into tags."}${EYES}${r.data.tags ? `Tags seen: ${r.data.tags}\n` : ""}${r.data.caption ? `Detailed look${text ? ` (focus: ${text})` : ""}:\n${r.data.caption}` : ""}${r.data.notes.length ? `\n(${r.data.notes.join("; ")})` : ""}`;
     }
     setInput(""); setFile(null);
-    await run([...base, withId({ role: "user", content, image })], mode, id);
+    // No thread could be made: give the message back instead of losing it.
+    if (!(await run([...base, withId({ role: "user", content, image })], mode, id))) { setInput(text); setFile(attached); }
   }
 
   async function saveEdit() {
@@ -290,8 +287,8 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       <div className="bg-bg sticky top-0 z-10 -mx-4 px-4 pb-1"
         style={{ marginTop: "calc(-1 * (var(--pt) + env(safe-area-inset-top)))", paddingTop: "calc(var(--pt) + env(safe-area-inset-top))" }}>
         <PortraitStage profile="miyabi" outfit={outfit} phase={phase} expression={expression} empty={empty}
-          style={{ height: `calc((100dvh - var(--pt) - env(safe-area-inset-top)) * ${focused ? 0.25 : 0.4})` }} />
-        <header className="relative flex items-center gap-2">
+          style={{ height: focused ? "110px" : "calc((100dvh - var(--pt) - env(safe-area-inset-top)) * 0.4)" }} />
+        <header className="flex items-center gap-2">
           <h1 className="text-[15px] font-semibold tracking-wide">Miyabi</h1>
           <span className="text-muted flex min-w-0 flex-1 gap-2 overflow-hidden font-mono text-[11px]">
             {status ? dots.map(([name, up, half], i) => (
@@ -309,19 +306,10 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
             </span>
             {toggling ? `${Math.round((Date.now() - toggling.since) / 1000)}s` : status?.on ? "On" : "Off"}
           </button>
-          <button ref={moodBtn} type="button" aria-expanded={mood} aria-haspopup="dialog" onClick={() => setMood(!mood)}
-            className={`border-border relative z-30 h-10 shrink-0 rounded-full border px-3 text-xs font-semibold ${mood ? "bg-accent text-accent-fg" : "text-muted"}`}>Mood</button>
+          <button type="button" aria-haspopup="dialog" onClick={() => setMood(true)}
+            className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Mood</button>
           <button type="button" onClick={() => { setTasteOpen(true); loadTaste(); }}
             className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Taste</button>
-          {mood && (
-            <>
-              <button type="button" aria-label="Close mood" className="fixed inset-0 z-10 cursor-default" onClick={() => setMood(false)} />
-              <div ref={moodBox} tabIndex={-1} role="dialog" aria-label="Personality sliders"
-                className="bg-surface border-border absolute inset-x-0 top-full z-20 mt-1 max-h-[60dvh] overflow-y-auto overscroll-contain rounded-xl border p-3 shadow-lg outline-none">
-                <SlidersPanel />
-              </div>
-            </>
-          )}
         </header>
       </div>
       {(offline || status?.error) && <p role="alert" className="text-danger text-sm">{status?.error ?? (status?.power ? "Servers are off — flip the switch to start them." : "Brain offline — run `npm run up` on the Mac.")}</p>}
@@ -409,7 +397,8 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
 
       {/* Composer: sticks to the bottom, padded clear of the home indicator */}
       <div data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}>
-        <div data-noswipe className="flex gap-1.5 overflow-x-auto">
+        {/* Typing: the mode chips step aside so the keyboard leaves room for messages. */}
+        <div data-noswipe className={`gap-1.5 overflow-x-auto ${focused ? "hidden" : "flex"}`}>
           {MODES.map(([k, label]) => (
             <button key={k} type="button" aria-pressed={mode === k} onClick={() => { setMode(mode === k ? "chat" : k); setPreset(null); }}
               className={`h-8 shrink-0 rounded-full px-3 text-xs ${mode === k ? "bg-accent text-accent-fg" : "border-border border"}`}>{label}</button>
@@ -450,6 +439,20 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
           <button type="submit" disabled={!status?.on || !!busy || !!streamCid || (!input.trim() && !file)} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
         </form>
       </div>
+
+      {/* Mood sheet: her personality sliders */}
+      <Sheet open={mood} onClose={() => setMood(false)} label="Mood" closeLabel="Close mood"
+        className="max-h-[88dvh] rounded-t-2xl border-t lg:max-h-none lg:max-w-md lg:rounded-none lg:border-l">
+        <header className="flex items-center gap-2 p-3">
+          <h2 className="flex-1 text-base font-semibold">Mood</h2>
+          <button type="button" onClick={() => setMood(false)} aria-label="Close" className="border-border h-11 w-11 rounded-full border">×</button>
+        </header>
+        {mood && (
+          <div className="flex-1 overflow-y-auto overscroll-contain px-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
+            <SlidersPanel />
+          </div>
+        )}
+      </Sheet>
 
       {/* Taste sheet: pinned rules + what she has learned */}
       <Sheet open={tasteOpen} onClose={() => setTasteOpen(false)} label="Taste" closeLabel="Close taste"
