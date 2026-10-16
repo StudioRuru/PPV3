@@ -1,6 +1,6 @@
 import "server-only";
 import { unzipSync } from "fflate";
-import { buildNaiBody, costOf, type CharRef, type Img2Img, type NaiParams } from "./nai-body";
+import { buildNaiBody, costOf, type CharRef, type Img2Img, type Infill, type NaiParams } from "./nai-body";
 import { isPreSendError } from "./net";
 import type { Compiled } from "./prompt";
 
@@ -31,9 +31,9 @@ async function post(init: RequestInit, attempts = 3): Promise<Response> {
   }
 }
 
-export async function generateImage(c: Compiled, p: NaiParams, token: string, img2img?: Img2Img, ref?: CharRef) {
+export async function generateImage(c: Compiled, p: NaiParams, token: string, img2img?: Img2Img, ref?: CharRef, infill?: Infill) {
   if (!token) throw new NovelAIError("NOVELAI_TOKEN is not set on the server.", 500);
-  const { body, seed } = buildNaiBody(c, p, img2img, ref);
+  const { body, seed } = buildNaiBody(c, p, img2img, ref, infill);
   const res = await post({
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "User-Agent": UA, Accept: "*/*" },

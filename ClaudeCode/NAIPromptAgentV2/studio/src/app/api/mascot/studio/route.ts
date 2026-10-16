@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { NOVELAI_TOKEN } from "@/lib/env";
 import { getAruSettings, getMascotSettings, profileSpriteDir, saveAruSettings } from "@/lib/mascot/settings-db";
 import { isProfile, profileLook, type Profile } from "@/lib/mascot/profiles";
-import { MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, saveCandidates, sheetPath, poseRequest, spriteRequest, talkRequest, target } from "@/lib/mascot/sprites";
+import { clipCount, generateClip, keyRequest, listSprites, MAX_CANDIDATES, newSeed, OUTFITS, perImage, pick, pickClip, saveCandidates, saveClipMasks, sheetPath, poseRequest, spriteRequest, talkRequest, target } from "@/lib/mascot/sprites";
+import { CLIP_KINDS, isClipKind, type ClipKind } from "@/lib/mascot/clips";
 import type { Outfit } from "@/lib/mascot/core";
 import { anlas, generateImage, measured, NovelAIError } from "@/lib/novelai";
 
@@ -34,10 +35,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const b = ((await req.json().catch(() => null)) ?? {}) as { action?: unknown; n?: unknown; i?: unknown; confirm?: unknown; profile?: unknown; patch?: unknown };
+  const b = ((await req.json().catch(() => null)) ?? {}) as { action?: unknown; n?: unknown; i?: unknown; confirm?: unknown; profile?: unknown; patch?: unknown; baseKey?: unknown; kind?: unknown; kinds?: unknown; masks?: unknown };
   if (b.action === "aru-tags") return NextResponse.json({ aru: saveAruSettings(b.patch) });
   if (b.profile !== undefined && !isProfile(b.profile)) return bad("Unknown profile.");
   const profile: Profile = b.profile ?? "miyabi";
+  if (typeof b.action === "string" && b.action.startsWith("clip-")) return clipAction(req, b, profile);
   const t = target(b);
   if (!t) return bad("Unknown outfit or expression.");
   if (profile === "aru" && (!t.talk || t.outfit !== "day")) return bad("Aru only has day portraits.");
@@ -73,6 +75,41 @@ export async function POST(req: NextRequest) {
   }
   if (b.action === "pick") {
     const r = await pick(dir, t.outfit, t.name, Number(b.i), undefined, t.pose, t.talk);
+    return "error" in r ? bad(r.error, 404) : NextResponse.json(r);
+  }
+  return bad("Unknown action.");
+}
+
+/** Frame clips off an existing sprite: clip-estimate {baseKey, kinds?, n?}, clip-generate {baseKey, kind, n?, confirm: true}, clip-pick {baseKey, kind, i}, clip-masks {baseKey, masks}. */
+async function clipAction(req: NextRequest, b: { action?: unknown; n?: unknown; i?: unknown; confirm?: unknown; baseKey?: unknown; kind?: unknown; kinds?: unknown; masks?: unknown }, profile: Profile) {
+  const dir = profileSpriteDir(profile);
+  const baseKey = typeof b.baseKey === "string" && listSprites(dir).sprites[b.baseKey] ? b.baseKey : null; // existing sprites in this profile only
+  if (!baseKey) return bad("Unknown sprite.");
+  const look = profileLook(profile, getMascotSettings(), getAruSettings());
+  const n = Number.isInteger(b.n) ? Math.min(MAX_CANDIDATES, Math.max(1, b.n as number)) : 1;
+
+  if (b.action === "clip-estimate") {
+    const kinds = b.kinds === undefined ? [...CLIP_KINDS] : Array.isArray(b.kinds) && b.kinds.length && b.kinds.every(isClipKind) ? (b.kinds as ClipKind[]) : null;
+    if (!kinds) return bad("Unknown clip kind.");
+    return NextResponse.json({ anlas: await balance(), perImage: perImage(keyRequest(baseKey, look)!.params), count: clipCount(kinds, n), n });
+  }
+  if (b.action === "clip-masks") return NextResponse.json({ manifest: saveClipMasks(dir, baseKey, b.masks) });
+  if (!isClipKind(b.kind)) return bad("Unknown clip kind.");
+  const kind = b.kind;
+  if (b.action === "clip-generate") {
+    if (b.confirm !== true) return bad("Confirm the spend first.");
+    try {
+      const before = await balance();
+      const { result, cost } = await measured(NOVELAI_TOKEN, () =>
+        generateClip(dir, baseKey, kind, look, n, async (c, p, i2i, inf) => (await generateImage(c, p, NOVELAI_TOKEN, i2i, undefined, inf)).png, req.signal));
+      return NextResponse.json({ count: result.count, before, after: await balance(), cost });
+    } catch (err) {
+      const status = err instanceof NovelAIError ? err.status : 500;
+      return bad((err as Error).message, status >= 400 ? status : 502);
+    }
+  }
+  if (b.action === "clip-pick") {
+    const r = await pickClip(dir, baseKey, kind, Number(b.i));
     return "error" in r ? bad(r.error, 404) : NextResponse.json(r);
   }
   return bad("Unknown action.");

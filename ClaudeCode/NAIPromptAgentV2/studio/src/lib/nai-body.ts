@@ -120,12 +120,18 @@ export function canResend(p: NaiParams): boolean {
 /** Image-to-image: base64 PNG of the source plus how far to move from it. */
 export type Img2Img = { image: string; strength: number; noise: number };
 
+/** Inpainting: base64 PNGs of the source and its mask (white = repaint), both at the request size. */
+export type Infill = { image: string; mask: string };
+
+/** NovelAI's inpainting variant of a model (medium effort shares the full model's). Unverified live: the controller confirms with one call. */
+export const inpaintModel = (model: string): string => `${model.replace(/-medium$/, "")}-inpainting`;
+
 /** Precise Reference: base64 PNG (no data: prefix) of the character sheet, how strongly to follow it, and fidelity. */
 export type CharRef = { image: string; strength: number; fidelity: number };
 
 const CENTER = { x: 0.5, y: 0.5 };
 
-export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2Img, ref?: CharRef) {
+export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2Img, ref?: CharRef, infill?: Infill) {
   const { c, p } = compose(raw, rawParams);
   const seed = p.seed && p.seed > 0 ? p.seed : 1 + Math.floor(Math.random() * (2 ** 32 - 1));
   const useCoords = c.chars.some((ch) => ch.center);
@@ -141,8 +147,8 @@ export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2
   });
   const body = {
     input: c.base,
-    model: p.model,
-    action: img2img ? "img2img" : "generate",
+    model: infill ? inpaintModel(p.model) : p.model,
+    action: infill ? "infill" : img2img ? "img2img" : "generate",
     parameters: {
       params_version: 4,
       width: p.width, height: p.height, scale: p.scale, sampler: p.sampler, steps: p.steps,
@@ -156,6 +162,8 @@ export function buildNaiBody(raw: Compiled, rawParams: NaiParams, img2img?: Img2
       v4_prompt: caption(c.base, (ch) => ch.prompt, true),
       v4_negative_prompt: caption(c.uc, (ch) => ch.uc, false),
       ...(img2img && { image: img2img.image, strength: img2img.strength, noise: img2img.noise, color_correct: true }),
+      // Full repaint inside the mask; add_original_image pastes the source back outside it so frames register.
+      ...(infill && { image: infill.image, mask: infill.mask, strength: 1, noise: 0, inpaintImg2ImgStrength: 1, add_original_image: true }),
       ...(ref && {
         director_reference_images: [ref.image],
         director_reference_descriptions: [{ caption: { base_caption: "character", char_captions: [] }, legacy_uc: false }],

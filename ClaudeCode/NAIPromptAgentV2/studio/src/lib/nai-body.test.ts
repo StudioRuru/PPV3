@@ -171,3 +171,22 @@ test("Precise Reference adds the five director_reference fields only when given;
   const none = (buildNaiBody(compiled, { ...DEFAULT_PARAMS, seed: 1 }) as { body: any }).body.parameters;
   assert.equal(Object.keys(none).some((k) => k.startsWith("director_reference")), false);
 });
+
+test("infill body: inpainting model, image + mask, original kept outside the mask; img2img unchanged", async () => {
+  const { buildNaiBody, DEFAULT_PARAMS, inpaintModel } = await import("./nai-body");
+  const c = { base: "1girl", uc: "", chars: [] };
+  const { body } = buildNaiBody(c, { ...DEFAULT_PARAMS, seed: 7 }, undefined, undefined, { image: "QUJD", mask: "TUFTSw==" });
+  assert.equal(body.action, "infill");
+  assert.equal(body.model, "nai-diffusion-5-full-inpainting");
+  const p = body.parameters as Record<string, unknown>;
+  assert.equal(p.image, "QUJD");
+  assert.equal(p.mask, "TUFTSw==");
+  assert.equal(p.add_original_image, true);
+  assert.equal(p.extra_noise_seed, 7);
+  assert.equal(inpaintModel("nai-diffusion-5-full-medium"), "nai-diffusion-5-full-inpainting");
+  assert.equal(inpaintModel("nai-diffusion-5-curated"), "nai-diffusion-5-curated-inpainting");
+  const i2i = buildNaiBody(c, { ...DEFAULT_PARAMS, seed: 7 }, { image: "QUJD", strength: 0.4, noise: 0 }).body;
+  assert.equal(i2i.model, "nai-diffusion-5-full");
+  assert.equal("mask" in i2i.parameters, false);
+  assert.equal((i2i.parameters as Record<string, unknown>).add_original_image, false);
+});
