@@ -105,3 +105,9 @@ test("review: learnTags counts only what was added/kept in the prompt — not re
     { target: "uc", action: "add", line: "gore" }, { target: "char:0", action: "weight", line: "smile", weight: 1.2 },
   ]), ["rain", "night", "smile"]);
 });
+
+test("parseReply: a trailing expression tag after the ops block is left in prose (client strips it first)", () => {
+  const r = parseReply(reply('{"ops":[{"target":"base","action":"add","line":"night"}]}') + " [smug]");
+  assert.equal(r.ops.length, 1);
+  assert.equal(r.prose, "Here is a scene.\n\nEnjoy. [smug]");
+});

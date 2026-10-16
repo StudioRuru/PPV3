@@ -22,3 +22,38 @@ export const talkKey = (outfit: string, frame: string): string => `talk/${outfit
 export function pickTalkFrame(have: Set<string>, outfit: string, frame: string): string | null {
   return [talkKey(outfit, frame), talkKey(outfit, "smug"), talkKey("day", frame), talkKey("day", "smug")].find((k) => have.has(k)) ?? null;
 }
+
+export const TALK_TICK_MS = 280;
+export const THINK_TICK_MS = 700;
+
+/** listen = the user is typing (UI sets it directly); send → think; first streamed token → talk; end → done; error → idle. */
+export type TalkPhase = "idle" | "listen" | "think" | "talk" | "done" | "empty";
+export type TalkEvent = "send" | "firstToken" | "end" | "error" | "reset";
+
+export function nextPhase(phase: TalkPhase, ev: TalkEvent): TalkPhase {
+  if (phase === "empty") return "empty";
+  if (ev === "send") return "think";
+  if (ev === "firstToken") return phase === "think" ? "talk" : phase;
+  if (ev === "end") return "done";
+  return "idle"; // error, reset
+}
+
+export function talkFrame(phase: TalkPhase, tick: number, expression: Expression): TalkFrame {
+  const odd = tick % 2 === 1;
+  if (phase === "listen") return "listen";
+  if (phase === "think") return odd ? "think2" : "think1";
+  if (phase === "talk") return odd ? "talk_closed" : "talk_open";
+  return phase === "empty" ? "smug" : expression;
+}
+
+const TAG = /\s*\[([a-z]+)\]\s*$/i;
+
+/** Miyabi's reply ends with one `[expression]`: strip it and return it (unknown or missing → smug, text unchanged). */
+export function splitExpressionTag(text: string): { text: string; expression: Expression } {
+  const m = TAG.exec(text);
+  const w = m?.[1].toLowerCase() as Expression | undefined;
+  return m && w && EXPRESSIONS.includes(w) ? { text: text.slice(0, m.index), expression: w } : { text, expression: "smug" };
+}
+
+/** Streaming view: hide a trailing partial or complete `[word` / `[word]` so the tag never flashes. */
+export const visibleWhileStreaming = (text: string): string => text.replace(/\[[a-z]*\]?\s*$/i, "");

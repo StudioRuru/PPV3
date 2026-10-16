@@ -5,6 +5,7 @@ import { emitMascot } from "@/lib/mascot/bus";
 import { pickSprite, type Outfit } from "@/lib/mascot/core";
 import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
+import { visibleWhileStreaming } from "@/lib/mascot/talk";
 import type { PromptState } from "@/lib/prompt";
 import { Md } from "../ChatScreen";
 import { PatchCard } from "../PatchCard";
@@ -149,7 +150,7 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
         {msgs.length === 0 && <p className="text-muted text-center text-sm">Talk to her properly — or ask her to fix your prompt.</p>}
         {msgs.map((m) => {
           if (m.role === "user") return <p key={m.cid} className="animate-rise bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap">{m.content}</p>;
-          const p = parseReply(m.content);
+          const p = parseReply(visibleWhileStreaming(m.content));
           return (
             <div key={m.cid} className={`animate-rise space-y-1.5 text-sm leading-relaxed ${m.error ? "text-danger" : ""}`}>
               <Md text={p.prose} />

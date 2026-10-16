@@ -21,9 +21,12 @@ test("chatPersona: miyabi threads take persona + talk length from the active ide
   assert.match(m.block, /Kit is a smug show-off/);
   assert.match(m.block, /intensity 40\/100/);
   assert.deepEqual(m.options, { num_predict: 900 });
+  assert.match(m.block, /End every reply with exactly one expression tag/);
+  assert.match(m.block, /\[smug\]/);
   assert.equal(chatPersona("miyabi", 0, () => identityOf({ ...D, empty: true }, 0)).block, EMPTY_BLOCK);
   const w = chatPersona("aru", 20, kit);
   assert.match(w.block, /Aru/);
+  assert.doesNotMatch(w.block, /expression tag/);
   assert.equal(w.options, undefined);
   assert.equal(reads, 1, "identity only read for miyabi");
 });

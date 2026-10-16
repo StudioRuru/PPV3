@@ -78,3 +78,50 @@ test("missingTalkCells: frames of an outfit not saved yet, in order", () => {
   assert.ok(!missingTalkCells(have, "day").includes("smug") && missingTalkCells(have, "day").length === 13);
   assert.ok(missingTalkCells(have, "night").includes("smug") && !missingTalkCells(have, "night").includes("listen"));
 });
+
+test("nextPhase: send→think, firstToken→talk, end→done, error→idle, reset→idle; empty ignores events", async () => {
+  const { nextPhase } = await import("./talk");
+  assert.equal(nextPhase("idle", "send"), "think");
+  assert.equal(nextPhase("think", "firstToken"), "talk");
+  assert.equal(nextPhase("talk", "end"), "done");
+  assert.equal(nextPhase("think", "end"), "done");
+  assert.equal(nextPhase("think", "error"), "idle");
+  assert.equal(nextPhase("talk", "error"), "idle");
+  assert.equal(nextPhase("done", "reset"), "idle");
+  assert.equal(nextPhase("done", "send"), "think");
+  for (const e of ["send", "firstToken", "end", "error", "reset"] as const) assert.equal(nextPhase("empty", e), "empty");
+});
+
+test("talkFrame: listen, think/talk alternate per tick, done/idle show the expression, empty is smug", async () => {
+  const { talkFrame } = await import("./talk");
+  assert.equal(talkFrame("listen", 3, "wink"), "listen");
+  assert.deepEqual([0, 1, 2].map((t) => talkFrame("think", t, "wink")), ["think1", "think2", "think1"]);
+  assert.deepEqual([0, 1, 2].map((t) => talkFrame("talk", t, "wink")), ["talk_open", "talk_closed", "talk_open"]);
+  assert.equal(talkFrame("done", 5, "wink"), "wink");
+  assert.equal(talkFrame("idle", 5, "pout"), "pout");
+  assert.equal(talkFrame("empty", 5, "pout"), "smug");
+});
+
+test("splitExpressionTag: trailing valid tag stripped; invalid, mid-text, missing → smug, text unchanged", async () => {
+  const { splitExpressionTag } = await import("./talk");
+  assert.deepEqual(splitExpressionTag("Hi there. [Wink]"), { text: "Hi there.", expression: "wink" });
+  assert.deepEqual(splitExpressionTag("Hi [pout]  \n"), { text: "Hi", expression: "pout" });
+  assert.deepEqual(splitExpressionTag("Hi [grumpy]"), { text: "Hi [grumpy]", expression: "smug" });
+  assert.deepEqual(splitExpressionTag("[sleepy] then more"), { text: "[sleepy] then more", expression: "smug" });
+  assert.deepEqual(splitExpressionTag("plain"), { text: "plain", expression: "smug" });
+});
+
+test("visibleWhileStreaming hides a trailing partial/complete [word]", async () => {
+  const { visibleWhileStreaming: v } = await import("./talk");
+  assert.equal(v("hi [smu"), "hi ");
+  assert.equal(v("hi [smug]"), "hi ");
+  assert.equal(v("hi ["), "hi ");
+  assert.equal(v("hi [smug] there"), "hi [smug] there");
+  assert.equal(v("hi"), "hi");
+});
+
+test("tick constants", async () => {
+  const { TALK_TICK_MS, THINK_TICK_MS } = await import("./talk");
+  assert.equal(TALK_TICK_MS, 280);
+  assert.equal(THINK_TICK_MS, 700);
+});

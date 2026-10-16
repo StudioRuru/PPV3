@@ -1,3 +1,4 @@
+import { EXPRESSIONS } from "./mascot/core";
 import { DATA_RECEIVED } from "./mascot/slime";
 import type { ThreadStore } from "./threads";
 import { slimePersona, type Identity } from "./mascot/identity";
@@ -11,11 +12,13 @@ export function modelFor(persona: PersonaId, get: (key: string) => string | null
   return persona === "miyabi" ? tierModel("heavy", get, brain) : undefined;
 }
 
+const TAG_RULE = `End every reply with exactly one expression tag, after everything else (after any json block too), chosen from: ${EXPRESSIONS.map((e) => `[${e}]`).join(" ")}. Example: [smug]`;
+
 /** Persona block (+ Ollama options) for a thread: Miyabi speaks as the active slime, with num_predict from its length slider. */
 export function chatPersona(persona: PersonaId, drift: number, identity: () => Identity): { block: string; options?: Record<string, unknown> } {
   if (persona !== "miyabi") return { block: personaBlock(persona, drift) };
   const i = identity();
-  return { block: slimePersona(i, true), options: { num_predict: Math.max(i.lengthShape.talkPredict, 800) } }; // room for co-pilot patch cards
+  return { block: i.empty ? slimePersona(i, true) : `${slimePersona(i, true)}\n${TAG_RULE}`, options: { num_predict: Math.max(i.lengthShape.talkPredict, 800) } }; // room for co-pilot patch cards
 }
 
 /** Empty slime on a Miyabi thread: store the exchange with "Data received." and return it to stream; null = normal path. No model involved. */

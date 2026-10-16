@@ -9,6 +9,7 @@ import { getDrift, learnedBlock, learnedStoryBlock } from "@/lib/learning";
 import { listBlocks } from "@/lib/library";
 import { chatStream, heavyGate, Offline } from "@/lib/llm";
 import { activeIdentity } from "@/lib/mascot/quip";
+import { splitExpressionTag } from "@/lib/mascot/talk";
 import { VialStore } from "@/lib/mascot/vial-store";
 import { asPersona } from "@/lib/persona";
 import { emptyState } from "@/lib/prompt";
@@ -78,7 +79,9 @@ export async function POST(req: NextRequest) {
       const answer = async () => {
         for await (const t of chatStream(system, sent, { model, options: persona.options })) { reply += t; put(t); }
         // Only complete exchanges are stored; the client's list (with edits) is the thread's truth.
-        if (!store.replace(threadId, [...messages, { role: "assistant", content: reply }], expect)) {
+        // The expression tag streams to the client (which strips it); the stored text never has it.
+        const saved = thread.persona === "miyabi" ? splitExpressionTag(reply).text : reply;
+        if (!store.replace(threadId, [...messages, { role: "assistant", content: saved }], expect)) {
           put("\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.");
         }
       };
