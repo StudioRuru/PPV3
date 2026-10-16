@@ -40,11 +40,16 @@ enum IntentQueue {
         defaults?.set((defaults?.stringArray(forKey: key) ?? []) + [action], forKey: key)
     }
 
-    /// Read and clear in one step.
-    static func drain() -> [String] {
+    /// Everything waiting, oldest first; stays queued until `remove(first:)` after the page has it.
+    static func peek() -> [String] {
         lock.lock(); defer { lock.unlock() }
-        let all = defaults?.stringArray(forKey: key) ?? []
-        if !all.isEmpty { defaults?.removeObject(forKey: key) }
-        return all.filter(Mascot.validActions.contains)
+        return defaults?.stringArray(forKey: key) ?? []
+    }
+
+    /// Drop the delivered prefix (push only appends, so the first n are what `peek` returned).
+    static func remove(first n: Int) {
+        guard n > 0 else { return }
+        lock.lock(); defer { lock.unlock() }
+        defaults?.set(Array((defaults?.stringArray(forKey: key) ?? []).dropFirst(n)), forKey: key)
     }
 }

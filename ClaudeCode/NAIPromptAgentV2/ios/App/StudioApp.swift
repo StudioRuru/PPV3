@@ -62,7 +62,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     private var loadedServer = ""
     private var importing = false
     private var showingError = false
-    private var outbox: [[String: String]] = []   // intents for window.studioIntent, oldest first
+    private var outbox: [[String: String]] = []   // tab intents from URLs, oldest first (island taps wait in IntentQueue)
     private var delivering = false
 
     override init() {
@@ -257,27 +257,30 @@ extension WebHost {
         deliverIntents()
     }
 
-    /// Island taps (app-group queue) + URL intents → window.studioIntent, in order, as call arguments (never built JS).
-    /// Kept for the next didFinish/foreground if the page isn't up or has no studioIntent (logged out).
+    /// Island taps (app-group IntentQueue) then URL intents → window.studioIntent, in order, as call arguments (never built JS).
+    /// Taps leave the persisted queue only once the page has taken them, so a killed app or logged-out page keeps them
+    /// for the next didFinish/foreground. Each call is wrapped in try/catch: one throwing can't make earlier ones replay.
     func deliverIntents() {
-        outbox += IntentQueue.drain().map { ["mascot": $0] }
-        guard !outbox.isEmpty, !delivering, !webView.isLoading, !showingError else { return }
-        let batch = outbox
+        guard !delivering, !webView.isLoading, !showingError else { return }
+        let queued = IntentQueue.peek(), tabs = outbox
+        let batch = queued.filter(Mascot.validActions.contains).map { ["mascot": $0] } + tabs
+        if batch.isEmpty { IntentQueue.remove(first: queued.count); return }
         outbox = []
         delivering = true
         let js = """
         for (let i = 0; i < 50 && !window.studioIntent; i++) await new Promise(r => setTimeout(r, 100));
         if (!window.studioIntent) return false;
-        for (const x of l) window.studioIntent(x);
+        for (const x of l) { try { window.studioIntent(x); } catch (e) { console.error(e); } }
         return true;
         """
         webView.callAsyncJavaScript(js, arguments: ["l": batch], in: nil, in: .page) { [weak self] result in
             guard let self else { return }
             self.delivering = false
             if case .success(let ok) = result, ok as? Bool == true {
-                if !self.outbox.isEmpty { self.deliverIntents() }
+                IntentQueue.remove(first: queued.count)
+                if !self.outbox.isEmpty || !IntentQueue.peek().isEmpty { self.deliverIntents() }
             } else {
-                self.outbox = batch + self.outbox
+                self.outbox = tabs + self.outbox
             }
         }
     }

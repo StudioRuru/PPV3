@@ -9,6 +9,7 @@ import UIKit
     private var on = false
     private var bust: URL?
     private var imageVersion = 0
+    private var last: Task<Void, Never>?   // ActivityKit calls run one at a time, in order
 
     struct Update { let tab, tabLabel, expression: String; let hidden, on: Bool; let bust: URL? }
 
@@ -37,15 +38,26 @@ import UIKit
         sync()
     }
 
-    /// Request (foreground only), update, or end, to match the latest state.
+    /// Queue a reconcile behind the previous one. Each reads the latest state when it runs, so an `end`
+    /// followed by `on: true` re-requests (if active), and an older state can never land after a newer one.
     func sync() {
-        let running = Activity<MascotAttributes>.activities
+        let prev = last
+        last = Task { await prev?.value; await reconcile() }
+    }
+
+    /// Request (foreground only), update, or end, to match the latest state. Keeps at most one activity.
+    private func reconcile() async {
         guard let state else { return }   // no word from the page yet (cold launch): leave any running activity alone
-        guard on else { return running.forEach { a in Task { await a.end(nil, dismissalPolicy: .immediate) } } }
+        guard on else {
+            for a in Activity<MascotAttributes>.activities { await a.end(nil, dismissalPolicy: .immediate) }
+            return
+        }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let live = Activity<MascotAttributes>.activities.filter { $0.activityState == .active || $0.activityState == .stale }
+        for extra in live.dropFirst() { await extra.end(nil, dismissalPolicy: .immediate) }
         let content = ActivityContent(state: state, staleDate: nil)
-        if let a = running.first(where: { $0.activityState == .active || $0.activityState == .stale }) {
-            Task { await a.update(content) }
+        if let a = live.first {
+            await a.update(content)
         } else if UIApplication.shared.applicationState == .active {
             _ = try? Activity.request(attributes: MascotAttributes(), content: content, pushType: nil)
         }
