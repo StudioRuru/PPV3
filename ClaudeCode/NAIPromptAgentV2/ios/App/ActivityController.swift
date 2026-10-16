@@ -11,6 +11,14 @@ import UIKit
     private var imageVersion = 0
     private var last: Task<Void, Never>?   // ActivityKit calls run one at a time, in order
 
+    /// Island Hide/Summon flip the card at once (MascotIntents); mirror it here so a later reconcile doesn't flip it back before the page reports.
+    private init() {
+        NotificationCenter.default.addObserver(forName: IntentQueue.note, object: nil, queue: .main) { [weak self] n in
+            guard let m = n.userInfo?["mascot"] as? String else { return }
+            MainActor.assumeIsolated { self?.state?.hidden = m == "hide" }
+        }
+    }
+
     struct Update { let tab, tabLabel, expression: String; let hidden, on: Bool; let bust: URL? }
 
     /// Untrusted page input → Update, or nil to drop the message. `resolve` turns the bust path into a same-origin URL or nil.
@@ -53,6 +61,9 @@ import UIKit
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        for dead in Activity<MascotAttributes>.activities where dead.activityState == .ended || dead.activityState == .dismissed {
+            await dead.end(nil, dismissalPolicy: .immediate)   // an 8 h-expired card lingers on the Lock Screen until dismissed
+        }
         let live = Activity<MascotAttributes>.activities.filter { $0.activityState == .active || $0.activityState == .stale }
         for extra in live.dropFirst() { await extra.end(nil, dismissalPolicy: .immediate) }
         let content = ActivityContent(state: state, staleDate: nil)

@@ -33,6 +33,7 @@ export function makeThrottle(post: (s: ActivityState) => void, ms = 2000, now: (
     if (wait <= 0) flush();
     else if (!armed) { armed = true; later(flush, wait); }
   };
+  send.flush = flush; // send any pending change now (page going to background)
   send.cancel = () => { dead = true; pending = null; };
   return send;
 }

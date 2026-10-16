@@ -119,6 +119,9 @@ export default function Studio() {
     const gate = makeGate(send); // nothing is posted until Mascot settings have loaded (else the first post would be on:false)
     const push = () => gate.push(activityState({ tab: tabRef.current, ...live.current }));
     report.current = push;
+    const onHide = () => { if (document.visibilityState === "hidden") send.flush(); }; // a change inside the throttle window must not be lost to suspension
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", send.flush);
     const onMood = (e: Event) => {
       const d = (e as CustomEvent<{ src: string | null; expression?: string }>).detail;
       live.current.bust = d?.src ?? null;
@@ -141,6 +144,8 @@ export default function Studio() {
       else window.dispatchEvent(new CustomEvent(i.mascot === "hide" ? "mascot:hide" : "mascot:summon"));
     };
     return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", send.flush);
       window.removeEventListener("mascot:mood", onMood);
       window.removeEventListener("mascot:hidden", onHidden);
       delete (window as unknown as { studioIntent?: unknown }).studioIntent;

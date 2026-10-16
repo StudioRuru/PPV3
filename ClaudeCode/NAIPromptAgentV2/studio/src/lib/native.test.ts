@@ -65,3 +65,13 @@ test("throttle cancel drops the trailing send", () => {
   th.cancel(); t = 2000; timers.splice(0).forEach((f) => f());
   assert.deepEqual(sent, ["studio"]);
 });
+
+test("throttle flush sends the pending change now, once", () => {
+  let t = 0; const sent: string[] = []; const timers: (() => void)[] = [];
+  const th = makeThrottle((s) => sent.push(s.tab), 2000, () => t, (f) => { timers.push(f); });
+  th(activityState({ ...base, tab: "studio" })); th(activityState({ ...base, tab: "roll" }));
+  th.flush(); th.flush(); timers.splice(0).forEach((f) => f());
+  assert.deepEqual(sent, ["studio", "roll"]);
+  th.cancel(); th(activityState({ ...base, tab: "chat" })); th.flush();
+  assert.deepEqual(sent, ["studio", "roll"]);
+});

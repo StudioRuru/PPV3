@@ -20,7 +20,7 @@ struct MascotLiveActivity: Widget {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Miyabi").font(.headline).foregroundStyle(accent)
                     Text(s.tabLabel).font(.subheadline).foregroundStyle(.white)
-                    Text(s.expression).font(.caption).foregroundStyle(.white.opacity(0.6))
+                    Text(s.expression.capitalized).font(.caption).foregroundStyle(.white.opacity(0.6))
                 }
                 Spacer()
                 ToggleButton(hidden: s.hidden)
