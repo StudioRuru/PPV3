@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { resetLive, validateSlime, type SlimeDoc } from "./slime";
+import { blankSlime, resetLive, validateSlime, type SlimeDoc } from "./slime";
 
 export type LiveState = Pick<SlimeDoc, "voice" | "selfName" | "sliders" | "heatDrift" | "look" | "memories" | "vials">;
 /** Adapter over the live mascot identity; write(null) = Empty. */
@@ -83,24 +83,25 @@ export class SlimeStore {
     const id = this.activeId();
     if (id === null) throw new Error("Nothing to extract — insert a slime first");
     this.generation++;
-    return this.create({ ...this.get(id)!, ...this.live.read(), name, color });
+    return this.create({ ...(this.get(id) ?? blankSlime()), ...this.live.read(), name, color }); // unreadable active jar: start from blank
   }
 
   /** Copy live state back into the active jar (memories, drift…). */
   private snapshot(): SlimeDoc | null {
     const id = this.activeId();
-    return id === null ? null : this.save(id, this.live.read());
+    return id === null || !this.get(id) ? null : this.save(id, this.live.read()); // unreadable active row: skipped, left in the DB
   }
 
   /** Snapshot the active jar, then go Empty. Returns the removed jar, or null if already Empty. */
   remove(): SlimeDoc | null {
     this.generation++;
     return this.db.transaction(() => {
+      const was = this.activeId();
       const doc = this.snapshot();
-      if (!doc) return null;
+      if (was === null) return null;
       this.setActive(null);
       this.live.write(null);
-      return doc;
+      return doc; // null when the active jar was unreadable (nothing to snapshot)
     })();
   }
 

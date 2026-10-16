@@ -224,3 +224,18 @@ test("plan 20: active pointer on an existing-but-invalid row never resets the li
   assert.equal(s.activeId(), null);
   assert.deepEqual(live.writes, [null]);
 });
+
+test("plan 20: an unreadable active jar can be swapped out, removed, extracted from, then deleted", () => {
+  const mkBad = () => {
+    const m = mk();
+    const bad = Number(m.db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES ('not json', 1, 1)").run().lastInsertRowid);
+    m.db.prepare("INSERT OR REPLACE INTO mascot_meta (key, value) VALUES ('active_slime', ?)").run(String(bad));
+    return { ...m, bad };
+  };
+  { const { s, bad } = mkBad(); const other = s.create({ ...blankSlime(), name: "Other" });
+    s.insert(other); assert.equal(s.activeId(), other); s.delete(bad); }
+  { const { s, live, bad } = mkBad(); assert.equal(s.remove(), null);
+    assert.equal(s.activeId(), null); assert.deepEqual(live.writes, [null]); s.delete(bad); }
+  { const { s, bad } = mkBad(); const x = s.extract("Copy", "#112233");
+    assert.equal(s.get(x)!.name, "Copy"); assert.equal(s.activeId(), bad); }
+});
