@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { activityState, changed, makeThrottle, parseIntent, postActivity } from "./native";
+import { activityState, changed, makeGate, makeThrottle, parseIntent, postActivity } from "./native";
 
 const base = { tab: "chat" as const, expression: "smug" as const, hidden: false, bust: "/api/mascot/sprites/day/smug?v=1", on: true };
 
@@ -43,4 +43,25 @@ test("parseIntent", () => {
 
 test("postActivity no-op without webkit", () => {
   assert.doesNotThrow(() => postActivity(activityState(base)));
+});
+
+test("gate: nothing before known; first send after known has the real state", () => {
+  const sent: boolean[] = [];
+  const g = makeGate((s) => sent.push(s.on));
+  g.push(activityState({ ...base, on: false }));
+  g.push(activityState({ ...base, tab: "roll", on: false }));
+  assert.deepEqual(sent, []);
+  g.push(activityState({ ...base, on: true }));
+  g.ready();
+  assert.deepEqual(sent, [true]);
+  g.push(activityState({ ...base, on: false }));
+  assert.deepEqual(sent, [true, false]);
+});
+
+test("throttle cancel drops the trailing send", () => {
+  let t = 0; const sent: string[] = []; const timers: (() => void)[] = [];
+  const th = makeThrottle((s) => sent.push(s.tab), 2000, () => t, (f) => { timers.push(f); });
+  th(activityState({ ...base, tab: "studio" })); th(activityState({ ...base, tab: "roll" }));
+  th.cancel(); t = 2000; timers.splice(0).forEach((f) => f());
+  assert.deepEqual(sent, ["studio"]);
 });

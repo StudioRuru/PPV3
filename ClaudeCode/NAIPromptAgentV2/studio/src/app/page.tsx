@@ -11,7 +11,7 @@ import { SaveFlash } from "@/components/SaveFlash";
 import { LiquidIsland } from "@/components/LiquidIsland";
 import { TAB_IDS, type Tab } from "@/lib/tabs";
 import { EXPRESSIONS, type Expression } from "@/lib/mascot/core";
-import { activityState, makeThrottle, parseIntent, postActivity } from "@/lib/native";
+import { activityState, makeGate, makeThrottle, parseIntent, postActivity } from "@/lib/native";
 import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
 import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
@@ -116,7 +116,8 @@ export default function Studio() {
   tabRef.current = tab;
   useEffect(() => {
     const send = makeThrottle(postActivity);
-    const push = () => send(activityState({ tab: tabRef.current, ...live.current }));
+    const gate = makeGate(send); // nothing is posted until Mascot settings have loaded (else the first post would be on:false)
+    const push = () => gate.push(activityState({ tab: tabRef.current, ...live.current }));
     report.current = push;
     const onMood = (e: Event) => {
       const d = (e as CustomEvent<{ src: string | null; expression?: string }>).detail;
@@ -125,10 +126,11 @@ export default function Studio() {
       push();
     };
     const onHidden = (e: Event) => {
-      const d = (e as CustomEvent<{ hidden: boolean; show?: boolean; activity?: boolean }>).detail;
+      const d = (e as CustomEvent<{ hidden: boolean; show?: boolean; activity?: boolean; loaded?: boolean }>).detail;
       live.current.hidden = !!d?.hidden;
       live.current.on = d?.show !== false && d?.activity !== false;
       push();
+      if (d?.loaded) gate.ready();
     };
     window.addEventListener("mascot:mood", onMood);
     window.addEventListener("mascot:hidden", onHidden);
@@ -143,6 +145,7 @@ export default function Studio() {
       window.removeEventListener("mascot:hidden", onHidden);
       delete (window as unknown as { studioIntent?: unknown }).studioIntent;
       report.current = null;
+      send.cancel();
     };
   }, []);
   useEffect(() => { report.current?.(tab); }, [tab]);

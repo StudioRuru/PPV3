@@ -19,18 +19,30 @@ export const changed = (a: ActivityState | null, b: ActivityState) =>
 
 /** Change-only, at most one send per `ms`; a change inside the window is sent (latest wins) when it ends. */
 export function makeThrottle(post: (s: ActivityState) => void, ms = 2000, now: () => number = Date.now, later: (f: () => void, ms: number) => unknown = setTimeout) {
-  let sent: ActivityState | null = null, last = -Infinity, pending: ActivityState | null = null, armed = false;
+  let sent: ActivityState | null = null, last = -Infinity, pending: ActivityState | null = null, armed = false, dead = false;
   const flush = () => {
     armed = false;
     const p = pending; pending = null;
+    if (dead) return;
     if (p && changed(sent, p)) { sent = p; last = now(); post(p); }
   };
-  return (s: ActivityState) => {
+  const send = (s: ActivityState) => {
     pending = s;
-    if (!changed(sent, s)) return;
+    if (dead || !changed(sent, s)) return;
     const wait = last + ms - now();
     if (wait <= 0) flush();
     else if (!armed) { armed = true; later(flush, wait); }
+  };
+  send.cancel = () => { dead = true; pending = null; };
+  return send;
+}
+
+/** Holds the latest state until the page knows the real one (Mascot settings loaded); then forwards every push. */
+export function makeGate(send: (s: ActivityState) => void) {
+  let latest: ActivityState | null = null, known = false;
+  return {
+    push(s: ActivityState) { latest = s; if (known) send(s); },
+    ready() { known = true; if (latest) send(latest); },
   };
 }
 

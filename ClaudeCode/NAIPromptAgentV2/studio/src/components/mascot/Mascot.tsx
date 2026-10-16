@@ -22,7 +22,7 @@ const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot
 
 /** Miyabi: quips about `mascot` bus events on every tab. Full-body on the Stage when the outfit has pose sprites, else the corner bust.
  *  away: she's sitting in the Chat tab's portrait — the roaming Stage/bust hides and quips wait.
- *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden, show, activity} and `mascot:mood` {src, expression} out (on change and on mount). */
+ *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden, show, activity, loaded} and `mascot:mood` {src, expression} out (on change and on mount). */
 export function Mascot({ rating, prompt, away = false, spy = false, onTap = () => emitMascot("tap"), onTab, onSettings }: {
   rating: string; prompt: string; away?: boolean; spy?: boolean; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
 }) {
@@ -173,9 +173,9 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
   }, [hidden, hiddenUntil]);
   // Tell the island / Settings (deferred so listeners mounting in the same commit hear the first one).
   useEffect(() => {
-    const t = setTimeout(() => window.dispatchEvent(new CustomEvent("mascot:hidden", { detail: { hidden, show: !!settings?.show, activity: settings?.activity !== false } })), 0);
+    const t = setTimeout(() => window.dispatchEvent(new CustomEvent("mascot:hidden", { detail: { hidden, show: !!settings?.show, activity: settings?.activity !== false, loaded: !!settings } })), 0);
     return () => clearTimeout(t);
-  }, [hidden, settings?.show, settings?.activity]);
+  }, [hidden, settings?.show, settings?.activity, !!settings]);
 
   const outfit: Outfit = settings ? outfitFromSettings(settings, rating === "nsfw") : "day";
   const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));
