@@ -31,11 +31,22 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         w.backgroundColor = studioNavy
         w.makeKeyAndVisible()
         window = w
+        open(options.urlContexts)
     }
 
-    // naistudio://import from the share extension; didFinish also imports, so a cold launch is covered.
-    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) { WebHost.shared.importPending() }
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) { open(URLContexts) }
     func sceneDidBecomeActive(_ scene: UIScene) { WebHost.shared.becameActive() }
+
+    /// naistudio://tab/<tab> from the island → switch tab (queued until the page is up).
+    /// Anything else (naistudio://import from the share extension) imports; didFinish also imports, so a cold launch is covered.
+    private func open(_ contexts: Set<UIOpenURLContext>) {
+        for url in contexts.map(\.url) where url.scheme == "naistudio" {
+            if url.host == "tab" {
+                let p = url.pathComponents.filter { $0 != "/" }
+                if p.count == 1, Mascot.validTabs.contains(p[0]) { WebHost.shared.sendIntent(["tab": p[0]]) }
+            } else { WebHost.shared.importPending() }
+        }
+    }
 }
 
 final class StudioViewController: UIViewController {
@@ -51,6 +62,8 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     private var loadedServer = ""
     private var importing = false
     private var showingError = false
+    private var outbox: [[String: String]] = []   // intents for window.studioIntent, oldest first
+    private var delivering = false
 
     override init() {
         let config = WKWebViewConfiguration()
@@ -63,6 +76,9 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
         webView.backgroundColor = studioNavy
         webView.scrollView.backgroundColor = studioNavy
         webView.scrollView.contentInsetAdjustmentBehavior = .never   // the page handles safe areas itself
+        NotificationCenter.default.addObserver(forName: IntentQueue.note, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.deliverIntents() }
+        }
         load()
     }
 
@@ -77,7 +93,8 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
 
     /// Foreground: reload if the URL changed or the last load failed (Mac was asleep), else pick up a waiting share.
     func becameActive() {
-        if server != loadedServer || showingError { load() } else { importPending() }
+        if server != loadedServer || showingError { load() } else { importPending(); deliverIntents() }
+        ActivityController.shared.sync()
     }
 
     private var origin: URL? { URL(string: server) }
@@ -115,7 +132,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
         showError("Can't reach the Studio at \(server).")
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { importPending() }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { importPending(); deliverIntents() }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { load() }
 
@@ -166,6 +183,12 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
             webView.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
             return
         }
+        if let a = (message.body as? [String: Any])?["activity"] as? [String: Any] {
+            guard sameOrigin(message.frameInfo.request.url), let u = ActivityController.parse(a, resolve: { [webView] p in
+                URL(string: p, relativeTo: webView.url).map(\.absoluteURL).flatMap { self.sameOrigin($0) ? $0 : nil }
+            }) else { return }
+            return ActivityController.shared.apply(u)
+        }
         guard let body = message.body as? [String: Any], let path = body["save"] as? String,
               let url = URL(string: path, relativeTo: webView.url)?.absoluteURL, sameOrigin(url), sameOrigin(message.frameInfo.request.url) else { return }
         Task { await save(url) }
@@ -174,16 +197,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     /// Full PNG (with its NovelAI metadata) → Photos, add-only permission.
     @MainActor private func save(_ url: URL) async {
         do {
-            let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
-            var req = URLRequest(url: url)
-            let host = url.host ?? ""
-            let matching = cookies.filter { c in
-                let d = c.domain.trimmingCharacters(in: ["."])
-                return (host == d || host.hasSuffix("." + d)) && (!c.isSecure || url.scheme == "https")
-            }
-            HTTPCookie.requestHeaderFields(with: matching)
-                .forEach { req.setValue($1, forHTTPHeaderField: $0) }
-            let (data, res) = try await URLSession.shared.data(for: req)
+            let (data, res) = try await URLSession.shared.data(for: cookieRequest(url))
             guard (res as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
             guard await PHPhotoLibrary.requestAuthorization(for: .addOnly) == .authorized else { return toast("Allow Photos access in Settings → Studio.") }
             try await PHPhotoLibrary.shared().performChanges {
@@ -194,6 +208,20 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
         } catch {
             toast("Couldn't save: \(error.localizedDescription)")
         }
+    }
+
+    /// A request carrying the web view's login cookies for `url` — callers must have checked it's same-origin.
+    @MainActor func cookieRequest(_ url: URL) async -> URLRequest {
+        let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+        var req = URLRequest(url: url)
+        let host = url.host ?? ""
+        let matching = cookies.filter { c in
+            let d = c.domain.trimmingCharacters(in: ["."])
+            return (host == d || host.hasSuffix("." + d)) && (!c.isSecure || url.scheme == "https")
+        }
+        HTTPCookie.requestHeaderFields(with: matching)
+            .forEach { req.setValue($1, forHTTPHeaderField: $0) }
+        return req
     }
 
     private func toast(_ msg: String) {
@@ -218,6 +246,38 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
             self.importing = false
             if case .success(let ok) = result, ok as? Bool == true {
                 try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
+}
+
+extension WebHost {
+    func sendIntent(_ intent: [String: String]) {
+        outbox.append(intent)
+        deliverIntents()
+    }
+
+    /// Island taps (app-group queue) + URL intents → window.studioIntent, in order, as call arguments (never built JS).
+    /// Kept for the next didFinish/foreground if the page isn't up or has no studioIntent (logged out).
+    func deliverIntents() {
+        outbox += IntentQueue.drain().map { ["mascot": $0] }
+        guard !outbox.isEmpty, !delivering, !webView.isLoading, !showingError else { return }
+        let batch = outbox
+        outbox = []
+        delivering = true
+        let js = """
+        for (let i = 0; i < 50 && !window.studioIntent; i++) await new Promise(r => setTimeout(r, 100));
+        if (!window.studioIntent) return false;
+        for (const x of l) window.studioIntent(x);
+        return true;
+        """
+        webView.callAsyncJavaScript(js, arguments: ["l": batch], in: nil, in: .page) { [weak self] result in
+            guard let self else { return }
+            self.delivering = false
+            if case .success(let ok) = result, ok as? Bool == true {
+                if !self.outbox.isEmpty { self.deliverIntents() }
+            } else {
+                self.outbox = batch + self.outbox
             }
         }
     }

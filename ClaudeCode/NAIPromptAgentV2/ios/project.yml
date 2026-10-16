@@ -39,13 +39,14 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSPhotoLibraryAddUsageDescription: Save generations to your photo library.
+        NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLName: com.philly95.naistudio
             CFBundleURLSchemes: [naistudio]
   NAIStudioShare:
     type: app-extension
     platform: iOS
-    sources: [Share, Shared]
+    sources: [Share, Shared/Inbox.swift]   # not Shared/Activity: that's the app + widget only
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.philly95.naistudio.share
