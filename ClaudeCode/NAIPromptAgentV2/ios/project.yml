@@ -19,6 +19,7 @@ targets:
     sources: [App, Shared]
     dependencies:
       - target: NAIStudioShare
+      - target: NAIStudioWidgets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.philly95.naistudio
@@ -64,3 +65,20 @@ targets:
           NSExtensionAttributes:
             NSExtensionActivationRule:
               NSExtensionActivationSupportsImageWithMaxCount: 1
+  NAIStudioWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [Widgets, Shared/Activity]   # never Shared/Inbox.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.philly95.naistudio.widgets
+    entitlements:
+      path: Widgets/NAIStudioWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.philly95.naistudio]
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Miyabi
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
