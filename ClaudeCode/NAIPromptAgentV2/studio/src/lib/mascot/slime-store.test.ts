@@ -207,4 +207,20 @@ test("plan 20: an unparseable stored jar is skipped by list and null from get (n
   const bad = Number(db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES ('{\"nope\":1}', 1, 1)").run().lastInsertRowid);
   assert.equal(s.get(bad), null);
   assert.equal(s.list().some((r) => r.id === bad), false);
+  const txt = Number(db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES ('not json', 1, 1)").run().lastInsertRowid);
+  assert.equal(s.get(txt), null);
+  assert.equal(s.list().some((r) => r.id === txt), false);
+});
+
+test("plan 20: active pointer on an existing-but-invalid row never resets the live identity; a missing row still does", () => {
+  const { s, db, live } = mk();
+  const bad = Number(db.prepare("INSERT INTO mascot_slimes (doc, created_at, updated_at) VALUES ('not json', 1, 1)").run().lastInsertRowid);
+  db.prepare("INSERT OR REPLACE INTO mascot_meta (key, value) VALUES ('active_slime', ?)").run(String(bad));
+  const before = structuredClone(live.state);
+  assert.equal(s.activeId(), bad); // kept: nothing destructive
+  assert.equal(live.writes.length, 0);
+  assert.deepEqual(live.state, before);
+  db.prepare("DELETE FROM mascot_slimes WHERE id = ?").run(bad);
+  assert.equal(s.activeId(), null);
+  assert.deepEqual(live.writes, [null]);
 });

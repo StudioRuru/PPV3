@@ -38,12 +38,13 @@ export class SlimeStore {
     const r = this.db.prepare("SELECT doc FROM mascot_slimes WHERE id = ?").get(id) as { doc: string } | undefined;
     return r ? parse(r.doc) : null;
   }
-  /** Active jar id, or null when Empty. A pointer to a missing jar is cleared (and the live identity goes Empty). */
+  /** Active jar id, or null when Empty. A pointer to a deleted jar is cleared (and the live identity goes Empty). */
   activeId(): number | null {
     const r = this.db.prepare("SELECT value FROM mascot_meta WHERE key = ?").get(ACTIVE) as { value: string } | undefined;
     if (!r || r.value === "") return null;
     const id = Number(r.value);
-    if (this.get(id)) return id;
+    // Only a deleted row resets; an existing-but-unreadable jar keeps the pointer and the live identity untouched.
+    if (this.db.prepare("SELECT 1 FROM mascot_slimes WHERE id = ?").get(id)) return id;
     this.db.transaction(() => { this.setActive(null); this.live.write(null); })();
     return null;
   }
