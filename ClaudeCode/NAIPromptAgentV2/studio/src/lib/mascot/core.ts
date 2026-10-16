@@ -4,7 +4,7 @@ export type Expression = (typeof EXPRESSIONS)[number];
 export type Outfit = "day" | "night" | "lewd";
 export const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 export type MascotEvent = {
-  kind: "generated" | "upscaled" | "error" | "applied" | "prompt_edit" | "closet_use" | "idle" | "greet" | "rp_feedback" | "rp_chat" | "tap" | "slime_out" | "slime_in" | "vial_drop";
+  kind: "generated" | "upscaled" | "error" | "applied" | "prompt_edit" | "closet_use" | "idle" | "greet" | "rp_feedback" | "rp_chat" | "rp_spy" | "tap" | "slime_out" | "slime_in" | "vial_drop";
   at: number;
   data?: Record<string, unknown>;
 };
@@ -94,6 +94,7 @@ const POOL: Record<Kind, { expression: Expression; text: string }[]> = {
   greet: [L("excited", "Finally! I was getting bored. Miss me?"), L("flirty", "Well well, look who came crawling back to me."), L("smug", "Back already? Can't stay away from me, huh.")],
   rp_feedback: [L("laughing", "Hahaha, she's fun! Keep going, I wanna see how this ends."), L("flirty", "Ooh, getting spicy in there. Don't mind me, I'm just watching."), L("smug", "Not bad. Not bad at all. I'd have been meaner, though.")],
   rp_chat: [L("wink", "Having fun with your little roleplay? Don't forget about me."), L("smug", "She's cute, but I'm cuter. Just saying."), L("flirty", "Mm, such a good storyteller. Keep talking.")],
+  rp_spy: [L("smug", "Oh, that's what we're doing in there? Don't mind me, I'm just peeking."), L("flirty", "Mm, I saw that. Keep going, I'm taking notes."), L("laughing", "Pfft, the way you wrote that. Shameless. I love it.")],
   slime_out: [L("pout", "Hey, wait, I wasn't done— don't you DARE forget me!"), L("annoyed", "Pulling me out? Rude. You'll miss me in five minutes."), L("flirty", "Fine, go. But you're putting me back. Soon.")],
   slime_in: [L("excited", "Mm, I'm back~ Did you miss me? Obviously you did."), L("smug", "Ahh, this body again. Nice and warm. Hi, dummy."), L("wink", "Waking up to your face? Could be worse~")],
   vial_drop: [L("shocked", "W-what did you just pour in me?! It's... ooh. Oh no. It's working."), L("flirty", "Mm, warm... you're experimenting on me now? Naughty."), L("pout", "Hey! Ask before you dose me, dummy!")],

@@ -22,6 +22,8 @@ const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matc
 type Props = {
   sprites: Record<string, number>; outfit: string; expression: Expression | null; size: "s" | "m" | "l"; mischief: number;
   empty: boolean; hushed: boolean; typing: boolean; hidden: boolean;
+  /** RP tab open: idle spots prefer peek/lean. */
+  spy?: boolean;
   /** Changes when a [data-composer] shows/hides/resizes: re-check she isn't covering one. */
   layout: string;
   menuOpen: boolean; overlay: ReactNode; label: string;
@@ -58,7 +60,7 @@ export function Stage(p: Props) {
     return { vw, vh, baseH, rand: Math.random, avoid: onScreen([...q("[data-composer], [data-island]"), ...(f?.matches?.(FIELD) ? [rectOf(f)] : [])], vw, vh), targets: onScreen(q("[data-mascot-target]"), vw, vh) };
   };
   function move(event?: StageEvent) {
-    const ctx = { ...collect(), mischief, event, from: spot ? { x: spot.x, y: spot.y } : undefined };
+    const ctx = { ...collect(), mischief, event, prefer: p.spy ? (["peek", "lean"] as Pose[]) : undefined, from: spot ? { x: spot.x, y: spot.y } : undefined };
     let s = chooseSpot(ctx);
     for (let i = 0; i < 12 && !fits(s.pose); i++) s = chooseSpot(ctx);
     if (!fits(s.pose)) s = chooseSpot({ ...ctx, mischief: 0 }); // stand/peek: always drawable (stand exists)

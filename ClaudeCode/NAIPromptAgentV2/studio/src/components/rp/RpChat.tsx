@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { inline, mdBlocks } from "@/lib/md";
 import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
+import { spyData, spyDue } from "@/lib/mascot/spy";
 import { substituteMacros } from "@/lib/rp/prompt";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea } from "../TagInput";
@@ -17,6 +18,9 @@ function Prose({ text }: { text: string }) {
     <p key={i} className="whitespace-pre-wrap">{inline(b.text).map((r, j) => (r.b ? <strong key={j}>{r.t}</strong> : r.i ? <em key={j} className="text-muted">{r.t}</em> : r.t))}</p>
   ))}</>;
 }
+
+let lastSpyAt = 0; // module-level: survives remounts
+let mischief = 5; // mascot setting, kept fresh by the effect below
 
 /** One RP chat: streaming replies on the heavy model, swipes, edit, rewind, regenerate, feedback, memory. */
 export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
@@ -40,6 +44,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   }, [chatId]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { emitMascot("rp_chat", { character: character.name }); }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps -- once per opened chat
+  useEffect(() => {
+    const on = (e: Event) => { const m = (e as CustomEvent<{ mischief?: number }>).detail?.mischief; if (typeof m === "number") mischief = m; };
+    requestJson<{ settings: { mischief?: number } }>("/api/mascot/state").then((r) => { if (r.ok && typeof r.data.settings.mischief === "number") mischief = r.data.settings.mischief; });
+    window.addEventListener("mascot:settings", on);
+    return () => window.removeEventListener("mascot:settings", on);
+  }, []);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [v?.messages.length, stream?.text]);
 
   const persona = personas.find((p) => p.id === v?.chat.personaId) ?? personas[0];
@@ -81,7 +91,11 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       if (body.text) setInput((cur) => cur || body.text!);
     }
     setStream(null); setStatus(null);
-    await load();
+    const r = await requestJson<View>(`/api/rp/chats/${chatId}`);
+    if (r.ok) {
+      setV(r.data);
+      if (r.data.messages.at(-1)?.role === "assistant" && spyDue(Date.now(), lastSpyAt, mischief, Math.random)) { lastSpyAt = Date.now(); emitMascot("rp_spy", spyData(r.data.messages)); }
+    } else setError(r.error);
   }
 
   function submit() {

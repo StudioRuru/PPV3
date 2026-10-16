@@ -147,7 +147,7 @@ test("Empty: every other kind is exactly 'Data received.' (smug) with no model c
   let asked = 0;
   const { d, logged } = deps({ context: () => ({ identity: identityOf({ ...D, empty: true }, 0), taste: "", story: "" }), ask: async () => { asked++; throw new Error("model called"); } });
   const quip = makeQuip(d);
-  for (const kind of ["tap", "idle", "greet", "generated", "error", "rp_chat", "vial_drop"]) {
+  for (const kind of ["tap", "idle", "greet", "generated", "error", "rp_chat", "rp_spy", "vial_drop"]) {
     assert.deepEqual(await quip({ event: { kind } }), { expression: "smug", text: "Data received.", source: "canned" });
   }
   await tick();

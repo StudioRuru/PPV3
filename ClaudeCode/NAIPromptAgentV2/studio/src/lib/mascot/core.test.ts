@@ -92,7 +92,7 @@ test("pickSprite fallback chain", () => {
 });
 
 test("cannedLine: >=3 lines per kind, valid, deterministic via rand", () => {
-  const kinds: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap"];
+  const kinds: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "rp_spy", "tap"];
   for (const k of kinds) {
     const seen = new Set<string>();
     for (let i = 0; i < 20; i++) {

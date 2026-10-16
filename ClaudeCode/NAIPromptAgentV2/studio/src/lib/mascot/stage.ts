@@ -12,6 +12,8 @@ export type SpotCtx = {
   baseH?: number;
   /** Where she is now; typing picks the nearer edge. */
   from?: { x: number; y: number };
+  /** Idle/bored picks come only from these poses when any is possible (e.g. RP tab: peek/lean). */
+  prefer?: Pose[];
 };
 
 /** Fraction of a peek sprite's width hidden off the edge. */
@@ -73,7 +75,8 @@ export function chooseSpot(ctx: SpotCtx): Spot {
       const x = sd === "l" ? w / 2 + rand() * 16 : vw - w / 2 - rand() * 16;
       s = { pose: "back", x, y: lift(x, vh, w, baseH), flip: tx < x, scale: 1 };
     } else {
-      const pose = pickPose(m, targets.length > 0, event, rand);
+      const pref = !event || event === "idle" || event === "bored" ? (ctx.prefer ?? []).filter((p) => p !== "lean" || targets.length > 0) : [];
+      const pose = pref.length ? pref[Math.floor(rand() * pref.length)] : pickPose(m, targets.length > 0, event, rand);
       if (pose === "peek") s = peekAt(rand() < 0.5 ? "l" : "r", peekY(), baseH, vw);
       else {
         const sp = POSE_SPEC[pose];

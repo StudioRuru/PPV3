@@ -334,7 +334,7 @@ export default function Studio() {
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <LiquidIsland tab={tab} onTab={setTab} onSettings={() => setSettings(true)} />
-      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat"} onTap={() => setTab("chat")} onTab={setTab} onSettings={() => setSettings(true)} />
+      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat"} spy={tab === "rp"} onTap={() => setTab("chat")} onTab={setTab} onSettings={() => setSettings(true)} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}

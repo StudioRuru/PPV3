@@ -42,7 +42,7 @@ test("format: one line in character with the length sentence rule; recent lines 
   assert.doesNotMatch(user, /^Recent lines/m);
 });
 
-const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "tap", "slime_out", "slime_in", "vial_drop"];
+const KINDS: MascotEvent["kind"][] = ["generated", "upscaled", "error", "applied", "prompt_edit", "closet_use", "idle", "greet", "rp_feedback", "rp_chat", "rp_spy", "tap", "slime_out", "slime_in", "vial_drop"];
 
 test("every event kind gets a 'What to react to' hint", () => {
   for (const kind of KINDS) {

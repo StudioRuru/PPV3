@@ -22,8 +22,8 @@ const post = (body: unknown) => requestJson<{ settings: Settings }>("/api/mascot
 /** Miyabi: quips about `mascot` bus events on every tab. Full-body on the Stage when the outfit has pose sprites, else the corner bust.
  *  away: she's sitting in the Chat tab's portrait — the roaming Stage/bust hides and quips wait.
  *  Window events: `mascot:hide` {ms?} / `mascot:summon` in; `mascot:hidden` {hidden, show} and `mascot:mood` {src} out (on change and on mount). */
-export function Mascot({ rating, prompt, away = false, onTap = () => emitMascot("tap"), onTab, onSettings }: {
-  rating: string; prompt: string; away?: boolean; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
+export function Mascot({ rating, prompt, away = false, spy = false, onTap = () => emitMascot("tap"), onTab, onSettings }: {
+  rating: string; prompt: string; away?: boolean; spy?: boolean; onTap?: (outfit: Outfit) => void; onTab?: (t: Tab) => void; onSettings?: () => void;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [sprites, setSprites] = useState<Record<string, number>>({});
@@ -236,7 +236,7 @@ export function Mascot({ rating, prompt, away = false, onTap = () => emitMascot(
     ];
     return (
       <Stage sprites={sprites} outfit={outfit} expression={say?.expression ?? (hushed ? "sleepy" : null)} size={settings.size ?? "m"} mischief={settings.mischief ?? 5}
-        empty={empty} hushed={hushed} typing={typing} hidden={hidden || away} layout={bottomAt} menuOpen={menu && !hidden && !away}
+        empty={empty} hushed={hushed} typing={typing} hidden={hidden || away} spy={spy} layout={bottomAt} menuOpen={menu && !hidden && !away}
         label={`Miyabi${empty ? " (empty)" : ""}${hushed ? " (hushed)" : ""} — tap for the menu, drag to move, flick to throw`}
         onMenu={() => { setMenu(true); setSay(null); }} onCloseMenu={close}
         onPoke={() => { if (!hushed && Math.random() < 0.4) sayNow.current(cannedLine("tap")); }}
