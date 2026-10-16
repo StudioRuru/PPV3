@@ -1,23 +1,21 @@
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
 import { DEFAULT_MASCOT_SETTINGS, isSafeSpriteDir } from "./settings";
-import type { Modifiers } from "../persona";
 import { validateAppliedVial, type AppliedVial } from "./vial";
 import { BIMBO_TIERS, HYPNOSIS_TIERS } from "../rp/mods";
 
-export const SLIDERS = ["brat", "bimbo", "hypnosis", "heat", "length"] as const;
+export const SLIDERS = ["brat", "tease", "flirt", "bimbo", "hypnosis", "heat", "length"] as const;
 export type SliderId = (typeof SLIDERS)[number];
 export type Slider = { value: number; cap: number; live?: number };
 export type Sliders = Record<SliderId, Slider>;
 export type JournalEntry = { kind: string; summary: string; line: string; created_at: number };
 export type Memories = { facts: string[]; journal: JournalEntry[] };
 export type SlimeDoc = {
-  name: string; color: string; voice: string; selfName: string; sliders: Sliders; mods: Modifiers; heatDrift: boolean;
+  name: string; color: string; voice: string; selfName: string; sliders: Sliders; heatDrift: boolean;
   look: { charTags: string; constantTags: string; layerTags: Record<Outfit, string>; exprTags: Record<Expression, string>; spriteDir: string };
   memories: Memories; vials: AppliedVial[]; origin: string;
 };
 
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
-const MODS = ["bratty", "tease", "flirt"] as const;
 const MAX = { name: 40, voice: 1500, tags: 1500, fact: 160, facts: 12, journal: 50, vials: 8, text: 500, dir: 200 };
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -30,6 +28,20 @@ const BRAT_TIERS = [
   "{who} is a smug show-off: she mocks the owner's choices, gloats when right, and acts like she is always the smartest one here.",
   "{who} is a loud, domineering brat: she belittles and teases constantly, demands praise, and never admits a mistake.",
   "{who} is an insufferable, loud, mocking tyrant: she ridicules everything, bosses the owner around, gloats shamelessly, and her pride is unbearable.",
+];
+const TEASE_TIERS = [
+  "{who} teases the owner lightly: a playful poke at their choices now and then.",
+  "{who} teases the owner often: sly little digs about their taste and habits, grinning as she says them.",
+  "{who} is a relentless tease: she needles the owner at every turn, pretends to be unimpressed, and enjoys watching them squirm.",
+  "{who} teases without mercy: every reply carries a jab or a taunt, and she dangles things just out of the owner's reach.",
+  "{who} is a merciless, gloating teaser: she toys with the owner constantly, taunts and baits them, and takes obvious delight in their reactions.",
+];
+const FLIRT_TIERS = [
+  "{who} flirts a little: a wink in her words and a warm, playful compliment now and then.",
+  "{who} flirts openly: affectionate, teasing compliments and lingering attention on the owner.",
+  "{who} is a shameless flirt: she purrs, leans in, drops suggestive hints, and enjoys the owner's attention.",
+  "{who} flirts boldly and suggestively: sultry innuendo, pet names, and invitations in nearly every reply.",
+  "{who} is overtly seductive: every line drips with desire and come-hither teasing aimed at the owner.",
 ];
 const HEAT_TIERS = [
   "{who} feels warm and a little distracted: her mind wanders to the owner's body and she flushes at small things.",
@@ -59,6 +71,8 @@ export function sliderBlock(s: Sliders, who = "Miyabi", opts: { length?: boolean
     if (L >= 1) out.push(fill(tiers[pick(L)], L, who));
   };
   add("brat", BRAT_TIERS);
+  add("tease", TEASE_TIERS);
+  add("flirt", FLIRT_TIERS);
   add("bimbo", BIMBO_TIERS.map((t) => t.body), bimboTier);
   add("hypnosis", HYPNOSIS_TIERS.map((t) => t.body));
   add("heat", HEAT_TIERS);
@@ -82,13 +96,21 @@ export function setSlider(s: Sliders, id: SliderId, p: { value?: number; cap?: n
   const fixed = p.cap !== undefined && p.value === undefined ? { value: Math.min(value, cap), cap } : { value, cap: Math.max(cap, value) };
   return { ...s, [id]: fixed };
 }
+/** Old on/off attitude toggles → sliders: when tease/flirt are absent, on = 6, off/unset = 0 (cap 10). Other missing sliders become 0/10; brat is never touched. */
+export function migrateMods(sliders: Partial<Sliders>, mods?: { bratty?: boolean; tease?: boolean; flirt?: boolean }): Sliders {
+  const out = Object.fromEntries(SLIDERS.map((k) => [k, sliders[k] ?? { value: 0, cap: 10 }])) as Sliders;
+  for (const k of ["tease", "flirt"] as const) if (!sliders[k]) out[k] = { value: mods?.[k] === true ? 6 : 0, cap: 10 };
+  return out;
+}
 /* ---------- UI helpers ---------- */
 const BRAT_LABELS = ["mildly cheeky", "proper brat", "smug show-off", "loud, domineering brat", "mocking tyrant"];
+const TEASE_LABELS = ["light teasing", "sly digs", "relentless tease", "merciless", "gloating teaser"];
+const FLIRT_LABELS = ["a little flirty", "openly flirty", "shameless flirt", "bold, suggestive", "seductive"];
 const HEAT_LABELS = ["warm, distracted", "in heat", "in estrus", "heavy heat", "overwhelmed"];
 /** Short caption of a slider's tier at `level` (same tier maths as sliderBlock); "off" at 0. */
 export function sliderCaption(id: SliderId, level: number): string {
   if (level < 1) return "off";
-  return id === "brat" ? BRAT_LABELS[tier(level)] : id === "heat" ? HEAT_LABELS[tier(level)]
+  return id === "brat" ? BRAT_LABELS[tier(level)] : id === "tease" ? TEASE_LABELS[tier(level)] : id === "flirt" ? FLIRT_LABELS[tier(level)] : id === "heat" ? HEAT_LABELS[tier(level)]
     : id === "bimbo" ? BIMBO_TIERS[bimboTier(level)].label : id === "hypnosis" ? HYPNOSIS_TIERS[tier(level)].label
     : lengthShape(level).sentences;
 }
@@ -126,7 +148,7 @@ export const emptyLines = {
 export function blankSlime(): SlimeDoc {
   const d = DEFAULT_MASCOT_SETTINGS;
   return {
-    name: "Blank", color: "#9ca3af", voice: "", selfName: "", mods: {}, heatDrift: false,
+    name: "Blank", color: "#9ca3af", voice: "", selfName: "", heatDrift: false,
     sliders: Object.fromEntries(SLIDERS.map((k) => [k, { value: 0, cap: 10 }])) as Sliders,
     look: { charTags: d.charTags, constantTags: d.constantTags, layerTags: { ...d.layerTags }, exprTags: { ...d.exprTags }, spriteDir: "" },
     memories: { facts: [], journal: [] }, vials: [], origin: "blank",
@@ -141,14 +163,13 @@ export function validateSlime(raw: unknown): SlimeDoc | null {
   const name = str(raw.name, MAX.name).trim();
   if (!name || typeof raw.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.color)) return null;
   if (!isObj(raw.sliders)) return null;
-  const sliders = {} as Sliders;
+  const sliders: Partial<Sliders> = {};
   for (const k of SLIDERS) {
     const x = raw.sliders[k];
+    if (x === undefined && (k === "tease" || k === "flirt")) continue; // pre-plan-20 doc: migrated from mods below
     if (!isObj(x) || !int(x.value, 0, 10) || !int(x.cap, 0, 10) || x.cap < x.value) return null;
     sliders[k] = int(x.live, 0, x.cap) ? { value: x.value, cap: x.cap, live: x.live } : { value: x.value, cap: x.cap };
   }
-  const mods: Modifiers = {};
-  if (isObj(raw.mods)) for (const k of MODS) if (typeof raw.mods[k] === "boolean") mods[k] = raw.mods[k] as boolean;
   const lk = isObj(raw.look) ? raw.look : {};
   const lt = isObj(lk.layerTags) ? lk.layerTags : {}, et = isObj(lk.exprTags) ? lk.exprTags : {};
   const look = {
@@ -164,7 +185,7 @@ export function validateSlime(raw: unknown): SlimeDoc | null {
     kind: str(j.kind, 40), summary: str(j.summary, MAX.text), line: str(j.line, MAX.text), created_at: Number.isFinite(j.created_at) ? (j.created_at as number) : 0,
   }));
   return {
-    name, color: raw.color, voice: str(raw.voice, MAX.voice), selfName: str(raw.selfName, MAX.name), sliders, mods,
+    name, color: raw.color, voice: str(raw.voice, MAX.voice), selfName: str(raw.selfName, MAX.name), sliders: migrateMods(sliders, isObj(raw.mods) ? raw.mods : undefined),
     heatDrift: raw.heatDrift === true, look, memories: { facts, journal },
     vials: Array.isArray(raw.vials) ? raw.vials.map(validateAppliedVial).filter((x): x is AppliedVial => !!x).slice(0, MAX.vials) : [], origin: str(raw.origin, 80) || "blank",
   };

@@ -9,7 +9,7 @@ import { TABS, type Tab } from "@/lib/tabs";
 import { isTyping, Stage } from "./Stage";
 import { TabCarousel, type Bubble } from "./TabCarousel";
 
-type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; mods: { flirt: boolean }; corner: Corner; size: "s" | "m" | "l"; mischief?: number };
+type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; sliders: { flirt: { value: number; live?: number } }; corner: Corner; size: "s" | "m" | "l"; mischief?: number };
 type Say = { expression: Expression; text: string };
 
 const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500, HIDE_MS = 10 * 60_000;
@@ -46,7 +46,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     const onHide = (e: Event) => { const ms = (e as CustomEvent<{ ms?: number } | null>).detail?.ms; setHiddenUntil(Date.now() + (typeof ms === "number" && ms > 0 ? ms : HIDE_MS)); setMenu(false); setSay(null); };
     const onSummon = () => setHiddenUntil(0);
     const onIdentity = () => {
-      requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings)); // the new slime's mods (flirt → outfit)
+      requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings)); // the new slime's sliders (flirt → outfit)
       requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
       requestJson<{ sprites: Record<string, number> }>("/api/mascot/sprites").then((r) => r.ok && setSprites(r.data.sprites)); // an inserted jar may bring its own look
     };
@@ -175,7 +175,7 @@ export function Mascot({ rating, prompt, onTap = () => emitMascot("tap"), onTab,
     return () => clearTimeout(t);
   }, [hidden, settings?.show]);
 
-  const outfit: Outfit = settings ? outfitFor({ hour: new Date().getHours(), nightFrom: settings.nightFrom, nightTo: settings.nightTo, pin: settings.pin, nsfw: rating === "nsfw", flirt: settings.mods.flirt, flirtyTalk: false }) : "day";
+  const outfit: Outfit = settings ? outfitFor({ hour: new Date().getHours(), nightFrom: settings.nightFrom, nightTo: settings.nightTo, pin: settings.pin, nsfw: rating === "nsfw", flirt: settings.sliders.flirt.live ?? settings.sliders.flirt.value, flirtyTalk: false }) : "day";
   const sprite = pickSprite(new Set(Object.keys(sprites)), outfit, say?.expression ?? (hushed ? "sleepy" : "smug"));
   // Tell the island which bust to show (null = hidden / no sprite), deferred like mascot:hidden.
   const mood = settings?.show && !hidden && sprite ? `/api/mascot/sprites/${sprite}?v=${sprites[sprite]}` : null;

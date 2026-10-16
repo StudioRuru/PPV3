@@ -59,26 +59,26 @@ test("parseQuip: empty -> null, long cut at word", () => {
 });
 
 test("outfitFor: night window wraps midnight", () => {
-  const o = { nightFrom: 23, nightTo: 7, pin: null, nsfw: false, flirt: false };
+  const o = { nightFrom: 23, nightTo: 7, pin: null, nsfw: false, flirt: 0 };
   for (const h of [23, 0, 3, 6]) assert.equal(outfitFor({ ...o, hour: h }), "night");
   for (const h of [7, 12, 22]) assert.equal(outfitFor({ ...o, hour: h }), "day");
 });
 test("outfitFor: non-wrapping and empty window", () => {
-  const o = { pin: null, nsfw: false, flirt: false };
+  const o = { pin: null, nsfw: false, flirt: 0 };
   assert.equal(outfitFor({ ...o, hour: 2, nightFrom: 1, nightTo: 5 }), "night");
   assert.equal(outfitFor({ ...o, hour: 5, nightFrom: 1, nightTo: 5 }), "day");
   assert.equal(outfitFor({ ...o, hour: 3, nightFrom: 4, nightTo: 4 }), "day");
 });
 test("outfitFor: lewd needs nsfw and flirt; pin overrides", () => {
   const o = { hour: 12, nightFrom: 23, nightTo: 7, pin: null };
-  assert.equal(outfitFor({ ...o, nsfw: true, flirt: true }), "lewd");
-  assert.equal(outfitFor({ ...o, nsfw: true, flirt: false }), "day");
-  assert.equal(outfitFor({ ...o, nsfw: false, flirt: true }), "day");
-  assert.equal(outfitFor({ ...o, nsfw: true, flirt: true, pin: "day" }), "day");
-  assert.equal(outfitFor({ ...o, nsfw: false, flirt: false, pin: "lewd" }), "lewd");
+  assert.equal(outfitFor({ ...o, nsfw: true, flirt: 8 }), "lewd");
+  assert.equal(outfitFor({ ...o, nsfw: true, flirt: 0 }), "day");
+  assert.equal(outfitFor({ ...o, nsfw: false, flirt: 8 }), "day");
+  assert.equal(outfitFor({ ...o, nsfw: true, flirt: 8, pin: "day" }), "day");
+  assert.equal(outfitFor({ ...o, nsfw: false, flirt: 0, pin: "lewd" }), "lewd");
 });
 test("outfitFor: flirtyTalk counts as flirt", () => {
-  const o = { hour: 12, nightFrom: 23, nightTo: 7, pin: null, nsfw: true, flirt: false };
+  const o = { hour: 12, nightFrom: 23, nightTo: 7, pin: null, nsfw: true, flirt: 0 };
   assert.equal(outfitFor({ ...o, flirtyTalk: true }), "lewd");
   assert.equal(outfitFor({ ...o, flirtyTalk: false }), "day");
 });
@@ -164,4 +164,9 @@ test("final review: parseQuip strips the slime's name and bare/wrapped leading e
   assert.deepEqual(parseQuip("Excited to see you"), { expression: "smug", text: "Excited to see you" });
   assert.deepEqual(parseQuip("sleepy cats are cute"), { expression: "smug", text: "sleepy cats are cute" });
   assert.deepEqual(parseQuip("Miyabi: [pout] ugh"), { expression: "pout", text: "ugh" });
+});
+test("outfitFor: flirt slider threshold is 5", () => {
+  const o = { hour: 12, nightFrom: 23, nightTo: 7, pin: null, nsfw: true };
+  assert.equal(outfitFor({ ...o, flirt: 4 }), "day");
+  assert.equal(outfitFor({ ...o, flirt: 5 }), "lewd");
 });

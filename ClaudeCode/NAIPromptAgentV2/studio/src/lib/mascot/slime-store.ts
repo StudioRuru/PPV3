@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { resetLive, validateSlime, type SlimeDoc } from "./slime";
 
-export type LiveState = Pick<SlimeDoc, "voice" | "selfName" | "sliders" | "mods" | "heatDrift" | "look" | "memories" | "vials">;
+export type LiveState = Pick<SlimeDoc, "voice" | "selfName" | "sliders" | "heatDrift" | "look" | "memories" | "vials">;
 /** Adapter over the live mascot identity; write(null) = Empty. */
 export interface LiveIdentity { read(): LiveState; write(state: LiveState | null): void }
 export type SlimeRow = { id: number; doc: SlimeDoc };
@@ -20,8 +20,8 @@ const valid = (raw: unknown): SlimeDoc => {
   if (!d) throw new Error("Invalid slime doc");
   return d;
 };
-const pickLive = ({ voice, selfName, sliders, mods, heatDrift, look, memories, vials }: SlimeDoc): LiveState =>
-  ({ voice, selfName, sliders: resetLive(sliders), mods, heatDrift, look, memories, vials });
+const pickLive = ({ voice, selfName, sliders, heatDrift, look, memories, vials }: SlimeDoc): LiveState =>
+  ({ voice, selfName, sliders: resetLive(sliders), heatDrift, look, memories, vials });
 
 export class SlimeStore {
   /** Bumped by extract/remove/insert so detached work (facts refresh) can tell the identity moved on. */

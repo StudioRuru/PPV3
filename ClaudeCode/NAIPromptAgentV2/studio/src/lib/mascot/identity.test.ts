@@ -74,14 +74,13 @@ test("drift: brat +1 within cap on idle/dislike, heat only when allowed, never w
   assert.deepEqual(id.read().sliders, before);
 });
 
-test("identityOf: length shape from the effective length; Empty ignores sliders and mods", () => {
+test("identityOf: length shape from the effective length; Empty ignores sliders", () => {
   const live = identityOf({ ...D, sliders: { ...D.sliders, length: { value: 2, cap: 10, live: 8 } } }, 30);
   assert.equal(live.lengthShape.quipPredict, 220);
   assert.equal(live.drift, 30);
   const empty = identityOf({ ...D, empty: true }, 30);
   assert.equal(empty.empty, true);
   assert.equal(empty.lengthShape.quipPredict, 60);
-  assert.deepEqual(empty.mods, {});
 });
 
 test("slimePersona: voice, name and slider text; Empty = EMPTY_BLOCK only", () => {

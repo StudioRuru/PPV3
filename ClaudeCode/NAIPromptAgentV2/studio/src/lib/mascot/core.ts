@@ -65,9 +65,9 @@ export function parseQuip(raw: string, names: string[] = ["miyabi"]): { expressi
   return { expression: expression ?? "smug", text: t };
 }
 
-export function outfitFor(o: { hour: number; nightFrom: number; nightTo: number; pin: Outfit | null; nsfw: boolean; flirt: boolean; flirtyTalk?: boolean }): Outfit {
+export function outfitFor(o: { hour: number; nightFrom: number; nightTo: number; pin: Outfit | null; nsfw: boolean; flirt: number; flirtyTalk?: boolean }): Outfit {
   if (o.pin) return o.pin;
-  if (o.nsfw && (o.flirt || o.flirtyTalk)) return "lewd";
+  if (o.nsfw && (o.flirt >= 5 || o.flirtyTalk)) return "lewd";
   const { hour: h, nightFrom: f, nightTo: t } = o;
   if (f === t) return "day";
   return (f < t ? h >= f && h < t : h >= f || h < t) ? "night" : "day";

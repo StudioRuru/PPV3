@@ -11,7 +11,7 @@ import { vialAction, type VialDeps } from "./vial-api";
 
 const live0 = (): LiveState => {
   const b = blankSlime();
-  return { voice: "You are smug.", selfName: "Miyabi", mods: {}, heatDrift: false, look: b.look, sliders: { ...b.sliders, brat: { value: 6, cap: 8, live: 7 } }, memories: { facts: [], journal: [] }, vials: [] };
+  return { voice: "You are smug.", selfName: "Miyabi", heatDrift: false, look: b.look, sliders: { ...b.sliders, brat: { value: 6, cap: 8, live: 7 } }, memories: { facts: [], journal: [] }, vials: [] };
 };
 class FakeLive implements LiveIdentity {
   state: LiveState = live0();

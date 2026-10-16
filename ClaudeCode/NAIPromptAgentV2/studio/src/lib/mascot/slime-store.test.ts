@@ -7,7 +7,7 @@ import { SlimeStore, migrateSlimes, type LiveIdentity, type LiveState } from "./
 const liveOf = (voice: string, fact: string): LiveState => {
   const b = blankSlime();
   return {
-    voice, selfName: "Miyabi", mods: { bratty: true }, heatDrift: true, look: { ...b.look, charTags: `girl, ${voice}` },
+    voice, selfName: "Miyabi", heatDrift: true, look: { ...b.look, charTags: `girl, ${voice}` },
     sliders: { ...b.sliders, brat: { value: 3, cap: 8, live: 6 }, heat: { value: 1, cap: 5 } },
     memories: { facts: [fact], journal: [{ kind: "tap", summary: "s", line: "l", created_at: 5 }] },
     vials: [{ name: "Brew", color: "#123456", effect: "e", doses: [{ seq: 0, delta: {} }] }],
@@ -35,8 +35,8 @@ test("first run snapshots live into active jar 'Miyabi', losslessly and idempote
   assert.equal(doc.name, "Miyabi");
   assert.equal(doc.color, "#b7a4ff");
   assert.equal(doc.origin, "miyabi");
-  const { voice, selfName, sliders, mods, heatDrift, look, memories, vials } = doc;
-  assert.deepEqual({ voice, selfName, sliders, mods, heatDrift, look, memories, vials }, before);
+  const { voice, selfName, sliders, heatDrift, look, memories, vials } = doc;
+  assert.deepEqual({ voice, selfName, sliders, heatDrift, look, memories, vials }, before);
   assert.equal(live.writes.length, 0);
 });
 

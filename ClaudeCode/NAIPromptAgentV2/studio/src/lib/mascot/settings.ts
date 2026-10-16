@@ -1,11 +1,11 @@
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
-import { PERSONAS, type Modifiers } from "../persona";
-import type { Sliders } from "./slime"; // type only: slime.ts imports this module's defaults
+import { PERSONAS } from "../persona";
+import { migrateMods, type Sliders } from "./slime"; // type only: slime.ts imports this module's defaults
 import { CAL_ZERO, mergeCalibration, type Calibration } from "./island";
 import { validateAppliedVial, type AppliedVial } from "./vial"; // runtime cycle (vial → slime → settings) is safe: only used inside functions
 
 export type MascotSettings = {
-  show: boolean; cooldownMs: number; nightFrom: number; nightTo: number; pin: Outfit | null; mods: Modifiers;
+  show: boolean; cooldownMs: number; nightFrom: number; nightTo: number; pin: Outfit | null;
   charTags: string; constantTags: string; layerTags: Record<Outfit, string>; exprTags: Record<Expression, string>;
   corner: "br" | "bl" | "tr" | "tl"; size: "s" | "m" | "l";
   /** Live identity (the active slime): voice, name, sliders, sprite dir under data/mascot; empty = no slime inserted. */
@@ -23,16 +23,15 @@ export type MascotSettings = {
 export const MASCOT_SETTINGS_KEY = "mascot:settings";
 /** Relative, no "..", no leading "/", no backslash. */
 export const isSafeSpriteDir = (d: string) => !d.split("/").includes("..") && !d.startsWith("/") && !d.includes("\\");
-const SLIDER_IDS = ["brat", "bimbo", "hypnosis", "heat", "length"] as const;
+const SLIDER_IDS = ["brat", "tease", "flirt", "bimbo", "hypnosis", "heat", "length"] as const;
 
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 const CORNERS = ["br", "bl", "tr", "tl"];
 export const SIZES = ["s", "m", "l"] as const;
-const MODS = ["bratty", "tease", "flirt"] as const;
 const MAX_TAGS = 1500;
 
 export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
-  show: true, cooldownMs: 120000, nightFrom: 23, nightTo: 7, pin: null, mods: { bratty: true, tease: true, flirt: true }, corner: "br", size: "m",
+  show: true, cooldownMs: 120000, nightFrom: 23, nightTo: 7, pin: null, corner: "br", size: "m",
   charTags: "1girl, solo, hoshimi miyabi, fox girl, animal ears, fox ears, very long hair, black hair, gradient hair, purple hair tips, twintails, blunt bangs, sidelocks, red eyes, purple eyeshadow, eyeliner, fang, heart earrings, heart ear ornament, black choker, heart choker, ring, large breasts, wide hips, thick thighs, curvy",
   constantTags: "black elbow gloves, fingerless gloves, black thighhighs, shiny thighhighs, lace-trimmed thighhighs, heart thigh strap, platform heels",
   layerTags: {
@@ -52,7 +51,7 @@ export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
     sleepy: "sleepy, half-closed eyes, yawning, tears",
   },
   voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false, vials: [], mischief: 5, island: CAL_ZERO,
-  sliders: { brat: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } },
+  sliders: { brat: { value: 6, cap: 10 }, tease: { value: 6, cap: 10 }, flirt: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } },
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -71,7 +70,7 @@ export function clientSettingsPatch(patch: unknown): unknown {
 /** Apply valid fields of an untrusted patch onto cur; invalid fields are ignored. */
 export function mergeMascotSettings(cur: MascotSettings, patch: unknown): MascotSettings {
   if (!isObj(patch)) return cur;
-  const out: MascotSettings = { ...cur, mods: { ...cur.mods }, layerTags: { ...cur.layerTags }, exprTags: { ...cur.exprTags }, sliders: { ...cur.sliders } };
+  const out: MascotSettings = { ...cur, layerTags: { ...cur.layerTags }, exprTags: { ...cur.exprTags }, sliders: { ...cur.sliders } };
   if (typeof patch.show === "boolean") out.show = patch.show;
   if (patch.cooldownMs === null) out.cooldownMs = Infinity; // JSON has no Infinity: null = only when tapped
   else if (typeof patch.cooldownMs === "number" && patch.cooldownMs >= 30000 && patch.cooldownMs <= 600000) out.cooldownMs = patch.cooldownMs;
@@ -82,7 +81,6 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
   if (SIZES.includes(patch.size as MascotSettings["size"])) out.size = patch.size as MascotSettings["size"];
   if (tags(patch.charTags)) out.charTags = patch.charTags;
   if (tags(patch.constantTags)) out.constantTags = patch.constantTags;
-  if (isObj(patch.mods)) for (const k of MODS) if (typeof patch.mods[k] === "boolean") out.mods[k] = patch.mods[k];
   if (isObj(patch.layerTags)) for (const k of OUTFITS) if (tags(patch.layerTags[k])) out.layerTags[k] = patch.layerTags[k];
   if (isObj(patch.exprTags)) for (const k of EXPRESSIONS) if (tags(patch.exprTags[k])) out.exprTags[k] = patch.exprTags[k];
   if (typeof patch.voice === "string" && patch.voice.length <= 1500) out.voice = patch.voice;
@@ -109,8 +107,12 @@ export function parseMascotSettings(json: string | null): MascotSettings {
   try {
     const raw = JSON.parse(json);
     const out = mergeMascotSettings(DEFAULT_MASCOT_SETTINGS, raw);
-    // First run (no sliders saved yet): brat follows the old bratty toggle.
-    if (!isObj(raw) || !isObj(raw.sliders)) out.sliders.brat = { ...out.sliders.brat, value: out.mods.bratty ? 6 : 0 };
+    if (isObj(raw) && isObj(raw.mods)) { // pre-plan-20 toggles: lazily become sliders where none are saved; never written back
+      const have = isObj(raw.sliders) ? raw.sliders : {};
+      const m = migrateMods({}, raw.mods);
+      for (const k of ["tease", "flirt"] as const) if (!isObj(have[k])) out.sliders[k] = m[k];
+      if (!isObj(raw.sliders) && typeof raw.mods.bratty === "boolean") out.sliders.brat = { ...out.sliders.brat, value: raw.mods.bratty ? 6 : 0 };
+    }
     return out;
   } catch { return DEFAULT_MASCOT_SETTINGS; }
 }

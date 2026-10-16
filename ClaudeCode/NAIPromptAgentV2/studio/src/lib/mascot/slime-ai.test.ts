@@ -7,7 +7,7 @@ import { cleanVoice, distillCardPrompt, mergeVoicesPrompt, slimeAction, type Car
 
 const live0 = (): LiveState => {
   const b = blankSlime();
-  return { voice: "You are smug.", selfName: "Miyabi", mods: {}, heatDrift: false, look: { ...b.look, charTags: "fox girl" }, sliders: { ...b.sliders, brat: { value: 6, cap: 10, live: 8 } }, memories: { facts: ["likes cats"], journal: [] }, vials: [] };
+  return { voice: "You are smug.", selfName: "Miyabi", heatDrift: false, look: { ...b.look, charTags: "fox girl" }, sliders: { ...b.sliders, brat: { value: 6, cap: 10, live: 8 } }, memories: { facts: ["likes cats"], journal: [] }, vials: [] };
 };
 class FakeLive implements LiveIdentity {
   state: LiveState = live0();

@@ -7,7 +7,7 @@ import { identityOf } from "./identity";
 import { DEFAULT_MASCOT_SETTINGS as D } from "./settings";
 import { EMPTY_BLOCK } from "./slime";
 
-const ctx = { identity: identityOf({ ...D, mods: { bratty: true, flirt: true } }, 50), promptSummary: "1girl, fox ears", taste: "likes red", story: "", facts: ["f1"], recent: ["a", "b"] };
+const ctx = { identity: identityOf(D, 50), promptSummary: "1girl, fox ears", taste: "likes red", story: "", facts: ["f1"], recent: ["a", "b"] };
 
 test("miyabi persona block has voice and modifiers", () => {
   const b = personaBlock("miyabi", { tease: true }, 30);

@@ -10,7 +10,9 @@ test("defaults", () => {
   assert.equal(D.nightFrom, 23);
   assert.equal(D.nightTo, 7);
   assert.equal(D.pin, null);
-  assert.deepEqual(D.mods, { bratty: true, tease: true, flirt: true });
+  assert.equal(D.sliders.tease.value, 6);
+  assert.equal(D.sliders.flirt.value, 6);
+  assert.equal("mods" in D, false);
   assert.equal(D.corner, "br");
   assert.match(D.charTags, /^1girl, solo, hoshimi miyabi/);
   assert.match(D.constantTags, /platform heels$/);
@@ -20,12 +22,13 @@ test("defaults", () => {
 });
 
 test("partial merge keeps the rest", () => {
-  const m = mergeMascotSettings(D, { show: false, nightFrom: 21, layerTags: { day: "x" }, mods: { flirt: false } });
+  const m = mergeMascotSettings(D, { show: false, nightFrom: 21, layerTags: { day: "x" }, mods: { flirt: false } }); // old toggles in a patch are ignored
   assert.equal(m.show, false);
   assert.equal(m.nightFrom, 21);
   assert.equal(m.layerTags.day, "x");
   assert.equal(m.layerTags.night, D.layerTags.night);
-  assert.deepEqual(m.mods, { bratty: true, tease: true, flirt: false });
+  assert.equal("mods" in m, false);
+  assert.equal(m.sliders.flirt.value, 6);
   assert.equal(m.cooldownMs, 120000);
 });
 
@@ -54,7 +57,7 @@ test("size: default m; accepts s/m/l, rejects others", () => {
 test("identity defaults: miyabi voice, name, sliders, no heat drift, root sprite dir, not empty", () => {
   assert.match(D.voice, /Hoshimi Miyabi/);
   assert.equal(D.selfName, "Miyabi");
-  assert.deepEqual(D.sliders, { brat: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } });
+  assert.deepEqual(D.sliders, { brat: { value: 6, cap: 10 }, tease: { value: 6, cap: 10 }, flirt: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } });
   assert.equal(D.heatDrift, false);
   assert.equal(D.spriteDir, "");
   assert.equal(D.empty, false);
@@ -124,4 +127,12 @@ test("island calibration: default zeros, bounded offsets merged per field", () =
   assert.deepEqual(mergeMascotSettings(D, { island: { x: 99, w: "4" } }).island, D.island);
   assert.deepEqual(mergeMascotSettings(D, { island: "x" }).island, D.island);
   assert.deepEqual(parseMascotSettings(JSON.stringify({ island: { y: 4 } })).island, { x: 0, y: 4, w: 0, h: 0 });
+});
+
+test("plan 20: old toggles migrate to tease/flirt sliders lazily; saved sliders win", () => {
+  const old = parseMascotSettings(JSON.stringify({ mods: { bratty: true, tease: false, flirt: true }, sliders: { brat: { value: 3, cap: 10 }, bimbo: { value: 1, cap: 10 } } }));
+  assert.deepEqual([old.sliders.tease, old.sliders.flirt, old.sliders.brat.value], [{ value: 0, cap: 10 }, { value: 6, cap: 10 }, 3]);
+  const kept = parseMascotSettings(JSON.stringify({ mods: { tease: false, flirt: false }, sliders: { tease: { value: 2, cap: 10 }, flirt: { value: 9, cap: 10 } } }));
+  assert.deepEqual([kept.sliders.tease.value, kept.sliders.flirt.value], [2, 9]);
+  assert.equal("mods" in JSON.parse(JSON.stringify(old)), false);
 });

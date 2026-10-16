@@ -131,12 +131,6 @@ export function MascotSettings({ open }: { open: boolean }) {
           ))}
         </div>
       )}
-      {(["bratty", "tease", "flirt"] as const).map((k) => (
-        <label key={k} className={row}>
-          <span className="capitalize">{k}</span>
-          <input type="checkbox" role="switch" checked={s.mods[k]} onChange={(e) => save({ mods: { ...s.mods, [k]: e.target.checked } })} className="accent-accent size-5" />
-        </label>
-      ))}
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button type="button" onClick={() => window.dispatchEvent(new Event("mascot:hush"))} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Hush 30 min</button>
         <button type="button" onClick={() => { setStudioMounted(true); setStudio(true); }} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Sprite studio</button>

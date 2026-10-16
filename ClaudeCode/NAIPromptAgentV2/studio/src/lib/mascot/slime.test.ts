@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SLIDERS, validateSlime, sliderBlock, lengthShape, driftSlider, resetLive, setSlider, mixSliders, mixMemories, EMPTY_BLOCK, emptyLines, blankSlime, sliderCaption, dragSlider, driftNote, type Sliders } from "./slime";
+import { SLIDERS, validateSlime, sliderBlock, lengthShape, driftSlider, resetLive, setSlider, mixSliders, mixMemories, EMPTY_BLOCK, emptyLines, blankSlime, sliderCaption, dragSlider, driftNote, migrateMods, type Sliders } from "./slime";
 import { HYPNOSIS_TIERS, BIMBO_TIERS } from "../rp/mods";
 
 const sl = (o: Partial<Record<(typeof SLIDERS)[number], [number, number]>> = {}): Sliders =>
@@ -178,4 +178,29 @@ test("final review: sliderBlock length rule can be left out (deep talk)", () => 
   const s = { ...blankSlime().sliders, length: { value: 2, cap: 10 } };
   assert.match(sliderBlock(s), /Keep replies to one short burst/);
   assert.doesNotMatch(sliderBlock(s, "Miyabi", { length: false }), /Keep replies to/);
+});
+
+test("plan 20: tease/flirt tiers (5 each) and captions", () => {
+  assert.equal(SLIDERS.join(), "brat,tease,flirt,bimbo,hypnosis,heat,length");
+  for (const id of ["tease", "flirt"] as const) {
+    assert.equal(only(id, 0), "");
+    assert.equal(new Set([1, 3, 5, 7, 9].map((v) => only(id, v))).size, 5, id);
+    assert.equal(sliderCaption(id, 0), "off");
+    assert.notEqual(sliderCaption(id, 1), sliderCaption(id, 9));
+  }
+});
+test("plan 20: migrateMods on / off / absent; brat untouched", () => {
+  const m = migrateMods({ brat: { value: 3, cap: 7 } }, { bratty: false, tease: true, flirt: false });
+  assert.deepEqual([m.tease, m.flirt, m.brat], [{ value: 6, cap: 10 }, { value: 0, cap: 10 }, { value: 3, cap: 7 }]);
+  assert.deepEqual(migrateMods({}).tease, { value: 0, cap: 10 });
+  const kept = migrateMods({ tease: { value: 2, cap: 4 } }, { tease: true });
+  assert.deepEqual(kept.tease, { value: 2, cap: 4 });
+});
+test("plan 20: old slime doc with mods and 5 sliders loads migrated; mods not kept", () => {
+  const b = JSON.parse(JSON.stringify(blankSlime()));
+  delete b.sliders.tease; delete b.sliders.flirt; b.mods = { bratty: true, tease: true, flirt: false };
+  const d = validateSlime(b)!;
+  assert.deepEqual([d.sliders.tease, d.sliders.flirt], [{ value: 6, cap: 10 }, { value: 0, cap: 10 }]);
+  assert.equal("mods" in d, false);
+  assert.equal(validateSlime(JSON.parse(JSON.stringify(d)))!.sliders.tease.value, 6);
 });

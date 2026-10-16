@@ -5,12 +5,12 @@ import { requestSeq } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 
 type Listing = { empty: boolean; sliders: Sliders; heatDrift: boolean };
-const LABELS: Record<SliderId, string> = { brat: "Brat", bimbo: "Bimbofication", hypnosis: "Hypnosis", heat: "Heat", length: "Speech length" };
+const LABELS: Record<SliderId, string> = { brat: "Brat", tease: "Tease", flirt: "Flirt", bimbo: "Bimbofication", hypnosis: "Hypnosis", heat: "Heat", length: "Speech length" };
 const API = "/api/mascot/slimes";
 const post = (body: object) => requestJson<Listing>(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const step = "border-border size-11 shrink-0 rounded-md border text-base disabled:opacity-40";
 
-/** Miyabi's five personality sliders (value + cap) and the heat-drift toggle, for the active slime. Saves on release, one slider at a time. */
+/** Miyabi's personality sliders (value + cap) and the heat-drift toggle, for the active slime. Saves on release, one slider at a time. */
 export function SlidersPanel({ open = true }: { open?: boolean }) {
   const [data, setData] = useState<Listing | null>(null);
   const [drag, setDragState] = useState<{ id: SliderId; s: Slider } | null>(null);
