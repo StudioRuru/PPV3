@@ -51,7 +51,7 @@ const WARN = "\n\n⚠️";
 
 /** Miyabi's reply ends with one `[expression]`: strip all trailing ones (a trailing ⚠️ warning block is kept after the text) and return the last; none → smug, text unchanged. */
 export function splitExpressionTag(text: string): { text: string; expression: Expression } {
-  const w = text.indexOf(WARN);
+  const w = text.lastIndexOf(WARN); // the server's warning is always last; a model-written ⚠️ paragraph stays in the body
   const head = w < 0 ? text : text.slice(0, w), warn = w < 0 ? "" : text.slice(w);
   let body = head, expression: Expression | null = null;
   for (let m = TAG.exec(body); m && EXPRESSIONS.includes(m[1].toLowerCase() as Expression); m = TAG.exec(body)) {

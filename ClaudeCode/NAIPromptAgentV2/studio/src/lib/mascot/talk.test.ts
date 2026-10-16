@@ -162,3 +162,9 @@ test("portraitPick: talk chain, then bust, then placeholder; bob when a motion f
   assert.deepEqual(portraitPick(busts, "night", "talk_open"), { key: "day/smug", bob: true });
   assert.deepEqual(portraitPick(new Set(), "day", "listen"), { key: null, bob: true });
 });
+
+test("splitExpressionTag: a model-written ⚠️ paragraph mid-reply doesn't hide the tag; only the last (server) warning is kept apart", async () => {
+  const { splitExpressionTag } = await import("./talk");
+  const reply = "Careful.\n\n⚠️ that armor tag is dead.\n\nUse torn armor. [smug]\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.";
+  assert.deepEqual(splitExpressionTag(reply), { text: "Careful.\n\n⚠️ that armor tag is dead.\n\nUse torn armor.\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.", expression: "smug" });
+});

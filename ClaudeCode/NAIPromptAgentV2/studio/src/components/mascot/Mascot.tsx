@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { emitMascot } from "@/lib/mascot/bus";
 import { cannedLine, outfitFromSettings, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
 import { stageSprite } from "@/lib/mascot/poses";
+import { DATA_RECEIVED } from "@/lib/mascot/slime";
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 import { TABS, type Tab } from "@/lib/tabs";
@@ -239,8 +240,8 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
         empty={empty} hushed={hushed} typing={typing} hidden={hidden || away} spy={spy} layout={bottomAt} menuOpen={menu && !hidden && !away}
         label={`Miyabi${empty ? " (empty)" : ""}${hushed ? " (hushed)" : ""} — tap for the menu, drag to move, flick to throw`}
         onMenu={() => { setMenu(true); setSay(null); }} onCloseMenu={close}
-        onPoke={() => { if (!hushed && Math.random() < 0.4) sayNow.current(cannedLine("tap")); }}
-        onSwipeOff={() => { setMenu(false); const s = SULK[Math.floor(Math.random() * SULK.length)]; if (!isTyping()) { live.current.lastSpokeAt = Date.now(); setSay(s); } setHiddenUntil(Date.now() + HIDE_MS); }}
+        onPoke={() => { if (!hushed && Math.random() < 0.4) sayNow.current(empty ? { expression: "smug", text: DATA_RECEIVED } : cannedLine("tap")); }}
+        onSwipeOff={() => { setMenu(false); const s: Say = empty ? { expression: "smug", text: DATA_RECEIVED } : SULK[Math.floor(Math.random() * SULK.length)]; if (!isTyping()) { live.current.lastSpokeAt = Date.now(); setSay(s); } setHiddenUntil(Date.now() + HIDE_MS); }}
         overlay={away ? null : menu && !hidden ? <TabCarousel items={bubbles} onClose={close} />
           : say && <button type="button" onClick={() => setSay(null)} className="bg-surface border-border animate-rise block w-max max-w-full rounded-2xl border px-3 py-2 text-left text-sm shadow-lg">{say.text}</button>} />
     );

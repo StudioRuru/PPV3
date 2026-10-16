@@ -9,7 +9,7 @@ import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
 import type { PersonaId } from "@/lib/persona";
 import type { PromptState } from "@/lib/prompt";
-import { chatTabThreads, defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
+import { canCompose, chatTabThreads, defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
 import { PortraitStage } from "./mascot/PortraitStage";
 import { SlidersPanel } from "./mascot/SlidersPanel";
 import { PatchCard } from "./PatchCard";
@@ -17,7 +17,7 @@ import { Sheet } from "./Sheet";
 import { AutoTextarea } from "./TagInput";
 import { Trash } from "./icons";
 
-type Status = { on: boolean; brain: boolean; caption: boolean; tipo: boolean; power?: boolean; error?: string };
+type Status = { on: boolean; brain: boolean; caption: boolean; tipo: boolean; power?: boolean; heavy?: boolean; error?: string };
 type Thread = { id: number; title: string; persona: PersonaId; updated_at: number };
 /** cid: client-side id (stable keys for cards/ratings); error: shown locally, never sent or stored. */
 type Msg = ChatMsg & { image?: string | null; cid: string; error?: boolean };
@@ -204,7 +204,8 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       face("error");
     }
     setBusy(null); setStreamCid(null); setMode("chat"); setPreset(null);
-    loadThreads(id); // version, title and order update after a reply
+    loadThreads(tidRef.current === id ? id : undefined); // version, title and order update after a reply; don't yank the view back
+    requestJson<Status>("/api/copilot").then((r) => r.ok && setStatus(r.data)); // the heavy pause flips the switch
     return true;
   }
 
@@ -274,7 +275,9 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   }, [seed]);
 
   const offline = status && !status.brain;
-  const thumbOn = toggling ? toggling.verb !== "Stopping" : !!status?.on;
+  const canSend = canCompose(status, empty);
+  const heavy = !!status?.heavy && !status.on; // heavy pause: On would stack the brain on the heavy model
+  const thumbOn = toggling ? toggling.verb !== "Stopping" : !!status?.on || heavy;
   const dots: [string, boolean, boolean?][] = status ? [["brain", status.on, status.brain], ["eyes", status.caption], ["tipo", status.tipo]] : [];
   const outfit = look ? outfitFromSettings(look, state.rating === "nsfw") : "day";
   const presetKind = PRESET_KIND[mode];
@@ -299,12 +302,12 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
               </span>
             )) : "…"}
           </span>
-          <button type="button" role="switch" aria-checked={!!status?.on} disabled={!!toggling || (!!offline && !status?.power)} onClick={toggle}
+          <button type="button" role="switch" aria-checked={!!status?.on || heavy} disabled={!!toggling || heavy || (!!offline && !status?.power)} onClick={toggle}
             className={`flex h-10 shrink-0 items-center gap-2 rounded-full border pr-3 pl-1.5 text-sm font-semibold tabular-nums disabled:opacity-60 ${status?.on && !toggling ? "border-accent/60" : "border-border"}`}>
             <span aria-hidden="true" className={`relative h-7 w-12 rounded-full transition-colors duration-300 ${thumbOn ? "bg-accent" : "bg-surface-2"}`}>
               <span className={`bg-fg absolute top-1 left-1 size-5 rounded-full shadow transition-[translate] duration-300 ${thumbOn ? "translate-x-5" : ""} ${toggling ? "dot-breathe" : ""}`} />
             </span>
-            {toggling ? `${Math.round((Date.now() - toggling.since) / 1000)}s` : status?.on ? "On" : "Off"}
+            {toggling ? `${Math.round((Date.now() - toggling.since) / 1000)}s` : heavy ? "On (heavy)" : status?.on ? "On" : "Off"}
           </button>
           <button type="button" aria-haspopup="dialog" onClick={() => setMood(true)}
             className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Mood</button>
@@ -434,9 +437,9 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
             onChange={(e) => { setInput(e.target.value); setPhase((p) => listenPhase(p, true)); }}
             onFocus={() => { setFocused(true); setPhase((p) => listenPhase(p, true)); }}
             onBlur={() => { setFocused(false); setPhase((p) => listenPhase(p, false)); }}
-            placeholder={!status?.on ? "Turn the co-pilot on to chat" : file ? "What should it look at? (e.g. how is the armor broken)" : "Describe what you want…"}
-            disabled={!status?.on} className="bg-bg border-border min-w-0 flex-1 resize-none rounded-md border px-2 py-2.5 text-base" />
-          <button type="submit" disabled={!status?.on || !!busy || !!streamCid || (!input.trim() && !file)} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
+            placeholder={!canSend ? (status?.power ? "Servers are off — flip the switch to start them" : "Ollama is offline — run `npm run up` on the Mac") : file ? "What should it look at? (e.g. how is the armor broken)" : "Describe what you want…"}
+            disabled={!canSend} className="bg-bg border-border min-w-0 flex-1 resize-none rounded-md border px-2 py-2.5 text-base" />
+          <button type="submit" disabled={!canSend || !!busy || !!streamCid || (!input.trim() && !file)} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
         </form>
       </div>
 

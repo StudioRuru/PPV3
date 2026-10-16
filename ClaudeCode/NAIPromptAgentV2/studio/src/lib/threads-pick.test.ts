@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chatTabThreads, defaultThreadId, newThreadPersona } from "./threads-pick";
+import { canCompose, chatTabThreads, defaultThreadId, newThreadPersona } from "./threads-pick";
 
 const T = (id: number, persona: string) => ({ id, persona });
 
@@ -16,4 +16,12 @@ test("new chats are always Miyabi's", () => {
 
 test("chat-tab chips show Miyabi threads and hide Aru's", () => {
   assert.deepEqual(chatTabThreads([T(1, "aru"), T(2, "miyabi"), T(3, "miyabi")]).map((t) => t.id), [2, 3]);
+});
+
+test("composer: Miyabi needs Ollama reachable, not the brain loaded (heavy pause unloads it); an empty slime always sends", () => {
+  assert.equal(canCompose({ on: false, brain: true }, false), true); // brain unloaded after an APEX reply
+  assert.equal(canCompose({ on: false, brain: false }, false), false); // Ollama down
+  assert.equal(canCompose(null, false), false); // status not loaded yet
+  assert.equal(canCompose({ on: false, brain: false }, true), true); // "Data received." needs no model
+  assert.equal(canCompose(null, true), true);
 });

@@ -26,6 +26,8 @@ export const activeIdentity = () => liveIdentity.active(getDrift("miyabi"));
 export const quip = makeQuip({
   heavyInUse: () => heavyGate.state === "heavy" || heavyGate.busy,
   model: () => tierModel("quick", getSetting, BRAIN_MODEL),
+  gate: heavyGate,
+  heavyModel: () => tierModel("heavy", getSetting, BRAIN_MODEL),
   installed: installedModels,
   context: () => ({ identity: activeIdentity(), taste: learnedBlock(), story: learnedStoryBlock() }),
   drift: (e) => liveIdentity.drift(e),

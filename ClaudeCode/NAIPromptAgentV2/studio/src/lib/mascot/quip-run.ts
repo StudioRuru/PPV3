@@ -19,6 +19,9 @@ export type QuipDeps = {
   timeoutMs?: number;
   /** Identity marker (active slime + switch count): a facts refresh is dropped if it changed meanwhile. */
   generation?: () => unknown;
+  /** The heavy gate: rp_spy while it's paused ("heavy") and idle answers on `heavyModel` inside it. */
+  gate?: { readonly state: "light" | "heavy"; readonly busy: boolean; run<T>(fn: () => Promise<T>): Promise<T> };
+  heavyModel?: () => string;
 };
 export type QuipResult = { expression: Expression; text: string; source: "model" | "canned" };
 
@@ -44,8 +47,10 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
   }
 
   async function modelLine(e: MascotEvent, promptSummary: string): Promise<QuipResult | null> {
-    if (inFlight || refreshing || d.heavyInUse()) return null;
-    const model = d.model();
+    // rp_spy lands right after an RP reply, while the gate is still paused: the heavy model is the one loaded.
+    const heavy = e.kind === "rp_spy" && !!d.gate && !!d.heavyModel && d.gate.state === "heavy" && !d.gate.busy;
+    if (inFlight || refreshing || (!heavy && d.heavyInUse())) return null;
+    const model = heavy ? d.heavyModel!() : d.model();
     if (!(await d.installed()).includes(model)) return null;
     const c = d.context();
     const { system, user } = quipPrompt(e, {
@@ -53,7 +58,9 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
       ...c, promptSummary, facts: c.identity.empty ? [] : d.store.facts().map((f) => f.text), recent: c.identity.empty ? [] : d.store.recent(5).reverse().map((r) => r.line),
     });
     inFlight = true;
-    const run = d.ask(system, user, model, { num_ctx: CTX, num_predict: c.identity.lengthShape.quipPredict, temperature: 0.9 }).finally(() => { inFlight = false; });
+    // Heavy: no num_ctx, so the resident model isn't reloaded at another context size (explicit model ⇒ think:false).
+    const ask = () => d.ask(system, user, model, { ...(heavy ? {} : { num_ctx: CTX }), num_predict: c.identity.lengthShape.quipPredict, temperature: 0.9 });
+    const run = (heavy ? d.gate!.run(ask) : ask()).finally(() => { inFlight = false; });
     run.catch(() => {});
     let t: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), d.timeoutMs ?? 8000); });

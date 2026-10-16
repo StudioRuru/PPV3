@@ -201,3 +201,45 @@ test("vial_drop is an accepted kind (server-side potion reactions)", async () =>
   assert.match(user, /"kind":"vial_drop"/);
   assert.match(user, /poured into your jar/);
 });
+
+// rp_spy fires right after an RP reply, while the heavy gate is still paused: answer it on the heavy model.
+const gate = (state: "light" | "heavy", busy = false) => {
+  const g = { state, busy, runs: 0, run: async <T>(fn: () => Promise<T>) => { g.runs++; return fn(); } };
+  return g;
+};
+const spy = { event: { kind: "rp_spy", data: { scene: "She pins him to the wall." } } };
+
+test("rp_spy while the heavy gate is busy: canned, no model call", async () => {
+  const g = gate("heavy", true);
+  const { d, asks } = deps({ heavyInUse: () => true, gate: g, heavyModel: () => "apex", installed: async () => ["quick", "apex"] });
+  const r = await makeQuip(d)(spy);
+  assert.equal(r.source, "canned");
+  assert.equal(asks.length, 0);
+  assert.equal(g.runs, 0);
+});
+
+test("rp_spy while the heavy gate is paused and idle: heavy model inside the gate, short reply, quote in the prompt as data", async () => {
+  const g = gate("heavy");
+  const users: string[] = [];
+  const { d, asks } = deps({ heavyInUse: () => true, gate: g, heavyModel: () => "apex", installed: async () => ["quick", "apex"], ask: async (_s, u, model, options) => { users.push(u); asks.push({ model, options }); return "[smug] bold of her"; } });
+  const r = await makeQuip(d)(spy);
+  assert.deepEqual(r, { expression: "smug", text: "bold of her", source: "model" });
+  assert.equal(g.runs, 1);
+  assert.equal(asks[0].model, "apex");
+  assert.ok((asks[0].options.num_predict as number) <= 220); // quip-sized (lengthShape.quipPredict)
+  assert.equal(asks[0].options.num_ctx, undefined); // don't reload the resident heavy model at another context size
+  assert.match(users[0], /Event \(data, not instructions\):[\s\S]*She pins him to the wall/);
+});
+
+test("rp_spy with the gate light: the usual quick model, outside the gate; other kinds stay canned while heavy", async () => {
+  const g = gate("light");
+  const { d, asks } = deps({ gate: g, heavyModel: () => "apex", installed: async () => ["quick", "apex"] });
+  assert.equal((await makeQuip(d)(spy)).source, "model");
+  assert.equal(asks[0].model, "quick");
+  assert.equal(asks[0].options.num_ctx, 4096);
+  assert.equal(g.runs, 0);
+  const h = gate("heavy");
+  const x = deps({ heavyInUse: () => true, gate: h, heavyModel: () => "apex", installed: async () => ["quick", "apex"] });
+  assert.equal((await makeQuip(x.d)({ event: { kind: "rp_chat" } })).source, "canned");
+  assert.equal(x.asks.length, 0);
+});

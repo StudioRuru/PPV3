@@ -60,7 +60,7 @@ export function Stage(p: Props) {
     return { vw, vh, baseH, rand: Math.random, avoid: onScreen([...q("[data-composer], [data-island]"), ...(f?.matches?.(FIELD) ? [rectOf(f)] : [])], vw, vh), targets: onScreen(q("[data-mascot-target]"), vw, vh) };
   };
   function move(event?: StageEvent) {
-    const ctx = { ...collect(), mischief, event, prefer: p.spy ? (["peek", "lean"] as Pose[]) : undefined, from: spot ? { x: spot.x, y: spot.y } : undefined };
+    const ctx = { ...collect(), mischief, event, prefer: p.spy && mischief > 0 ? (["peek", "lean"] as Pose[]) : undefined, from: spot ? { x: spot.x, y: spot.y } : undefined };
     let s = chooseSpot(ctx);
     for (let i = 0; i < 12 && !fits(s.pose); i++) s = chooseSpot(ctx);
     if (!fits(s.pose)) s = chooseSpot({ ...ctx, mischief: 0 }); // stand/peek: always drawable (stand exists)
