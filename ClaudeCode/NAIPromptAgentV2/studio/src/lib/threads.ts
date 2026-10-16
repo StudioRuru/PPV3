@@ -1,8 +1,8 @@
 import type Database from "better-sqlite3";
-import type { Modifiers, PersonaId } from "./persona";
+import type { PersonaId } from "./persona";
 
 export type StoredMsg = { role: "user" | "assistant"; content: string; image?: string | null };
-export type Thread = { id: number; title: string; persona: PersonaId; mods: Modifiers; updated_at: number };
+export type Thread = { id: number; title: string; persona: PersonaId; updated_at: number };
 
 const has = (db: Database.Database, table: string, col: string) =>
   (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
@@ -10,7 +10,7 @@ const has = (db: Database.Database, table: string, col: string) =>
 /** Threads table + thread_id/image columns; existing single-history messages become the "General" thread. Idempotent. */
 export function migrateChat(db: Database.Database): void {
   db.exec(`CREATE TABLE IF NOT EXISTS chat_threads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, persona TEXT NOT NULL DEFAULT 'neutral',
+    id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, persona TEXT NOT NULL DEFAULT 'miyabi',
     mods TEXT NOT NULL DEFAULT '{}', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`);
   for (const [col, type] of [["thread_id", "INTEGER"], ["image", "TEXT"]] as const) {
     if (!has(db, "chat_messages", col)) {
@@ -20,9 +20,11 @@ export function migrateChat(db: Database.Database): void {
   const orphans = (db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE thread_id IS NULL").get() as { n: number }).n;
   if (orphans) {
     const now = Date.now();
-    const id = Number(db.prepare("INSERT INTO chat_threads (title, persona, created_at, updated_at) VALUES ('General', 'neutral', ?, ?)").run(now, now).lastInsertRowid);
+    const id = Number(db.prepare("INSERT INTO chat_threads (title, persona, created_at, updated_at) VALUES ('General', 'miyabi', ?, ?)").run(now, now).lastInsertRowid);
     db.prepare("UPDATE chat_messages SET thread_id = ? WHERE thread_id IS NULL").run(id);
   }
+  // Plan 20: Miyabi is the only co-pilot; old neutral/bratty/writer/tagnerd threads become hers (aru stays). Idempotent.
+  db.exec("UPDATE chat_threads SET persona = 'miyabi' WHERE persona NOT IN ('miyabi', 'aru')");
 }
 
 /** "Make a gothic maid arc with…" — first user words, cut at a word boundary. */
@@ -37,8 +39,7 @@ export class ThreadStore {
   constructor(private db: Database.Database) {}
 
   list(): Thread[] {
-    return (this.db.prepare("SELECT id, title, persona, mods, updated_at FROM chat_threads ORDER BY updated_at DESC").all() as (Omit<Thread, "mods"> & { mods: string })[])
-      .map((t) => ({ ...t, mods: JSON.parse(t.mods || "{}") }));
+    return this.db.prepare("SELECT id, title, persona, updated_at FROM chat_threads ORDER BY updated_at DESC").all() as Thread[];
   }
 
   create(title: string, persona: PersonaId): number {
@@ -46,10 +47,9 @@ export class ThreadStore {
     return Number(this.db.prepare("INSERT INTO chat_threads (title, persona, created_at, updated_at) VALUES (?, ?, ?, ?)").run(title, persona, now, now).lastInsertRowid);
   }
 
-  update(id: number, patch: { title?: string; persona?: PersonaId; mods?: Modifiers }): void {
+  update(id: number, patch: { title?: string; persona?: PersonaId }): void {
     if (patch.title !== undefined) this.db.prepare("UPDATE chat_threads SET title = ? WHERE id = ?").run(patch.title.slice(0, 80) || "Untitled", id);
     if (patch.persona !== undefined) this.db.prepare("UPDATE chat_threads SET persona = ? WHERE id = ?").run(patch.persona, id);
-    if (patch.mods !== undefined) this.db.prepare("UPDATE chat_threads SET mods = ? WHERE id = ?").run(JSON.stringify(patch.mods), id);
   }
 
   messages(id: number): StoredMsg[] {

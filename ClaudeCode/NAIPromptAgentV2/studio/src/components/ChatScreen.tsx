@@ -5,7 +5,7 @@ import { inline, mdBlocks } from "@/lib/md";
 import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
-import { PERSONAS, type Modifiers, type PersonaId } from "@/lib/persona";
+import { PERSONAS, type PersonaId } from "@/lib/persona";
 import type { PromptState } from "@/lib/prompt";
 import { chatTabThreads, defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
 import { PatchCard } from "./PatchCard";
@@ -14,7 +14,7 @@ import { AutoTextarea } from "./TagInput";
 import { Trash } from "./icons";
 
 type Status = { on: boolean; brain: boolean; caption: boolean; tipo: boolean; power?: boolean; error?: string };
-type Thread = { id: number; title: string; persona: PersonaId; mods: Modifiers; updated_at: number };
+type Thread = { id: number; title: string; persona: PersonaId; updated_at: number };
 /** cid: client-side id (stable keys for cards/ratings); error: shown locally, never sent or stored. */
 type Msg = ChatMsg & { image?: string | null; cid: string; error?: boolean };
 const withId = (m: ChatMsg & { image?: string | null; cid?: string; error?: boolean }): Msg => ({ ...m, cid: m.cid ?? crypto.randomUUID() });
@@ -108,7 +108,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   }
 
   async function newThread() {
-    const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: newThreadPersona(thread?.persona) }) });
+    const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: newThreadPersona() }) });
     if (r.ok) { setThreads(r.data.threads); setTid(r.data.id); }
   }
   async function deleteThread(id: number) {
@@ -116,7 +116,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     setConfirmDel(null);
     if (r.ok) { setThreads(r.data.threads); setTid(defaultThreadId(r.data.threads)); }
   }
-  async function patchThread(patch: Partial<Pick<Thread, "persona" | "mods" | "title">>) {
+  async function patchThread(patch: Partial<Pick<Thread, "title">>) {
     if (!thread) return;
     const r = await requestJson<{ threads: Thread[] }>("/api/chat/threads", { method: "PATCH", ...json({ id: thread.id, ...patch }) });
     if (r.ok) setThreads(r.data.threads);
@@ -128,7 +128,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   async function run(history: Msg[], m: Mode = mode, captured: number | null = tid) {
     let id = captured;
     if (id === null) {
-      const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: "neutral" }) });
+      const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: "miyabi" }) });
       if (!r.ok) return;
       id = r.data.id; setThreads(r.data.threads); tidRef.current = id; setTid(id);
     }
@@ -219,13 +219,13 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   async function sendFeedback(note: string) {
     if (!feedback) return;
     const p = parseReply(msgsRef.current.find((x) => x.cid === feedback.cid)?.content ?? "");
-    await requestJson("/api/taste", { method: "POST", ...json({ event: { kind: feedback.kind, tags: learnTags(p.ops), note, persona: thread?.persona ?? "neutral" } }) });
+    await requestJson("/api/taste", { method: "POST", ...json({ event: { kind: feedback.kind, tags: learnTags(p.ops), note, persona: thread?.persona ?? "miyabi" } }) });
     setFeedback(null); loadTaste();
   }
   async function applyOps(picked: Op[]) {
     onApply(picked);
     emitMascot("applied", { ops: picked.map((o) => `${o.action} ${o.target}: ${o.line}`) });
-    requestJson("/api/taste", { method: "POST", ...json({ event: { kind: "apply", tags: learnTags(picked), note: "", persona: thread?.persona ?? "neutral" } }) });
+    requestJson("/api/taste", { method: "POST", ...json({ event: { kind: "apply", tags: learnTags(picked), note: "", persona: thread?.persona ?? "miyabi" } }) });
   }
 
   // Seeds from the Tagger ("Make this a scene"): attach the image and ask for a scene.
@@ -238,8 +238,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const offline = status && !status.brain;
   const thumbOn = toggling ? toggling.verb !== "Stopping" : !!status?.on;
   const dots: [string, boolean, boolean?][] = status ? [["brain", status.on, status.brain], ["eyes", status.caption], ["tipo", status.tipo]] : [];
-  const pName = PERSONAS.find((p) => p.id === (thread?.persona ?? "neutral"))!.name;
-  const mods = thread ? (Object.entries(thread.mods) as [keyof Modifiers, boolean][]).filter(([, v]) => v).map(([k]) => k) : [];
+  const pName = PERSONAS.find((p) => p.id === (thread?.persona ?? "miyabi"))!.name;
   const presetKind = PRESET_KIND[mode];
   const lastAssistant = msgs.map((m) => m.role).lastIndexOf("assistant");
 
@@ -289,8 +288,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         className="border-border bg-surface flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-xs disabled:opacity-50">
         <span aria-hidden="true" className="bg-accent size-2 rounded-full" />
         <span className="font-semibold">{pName}</span>
-        {mods.length > 0 && <span className="text-muted">· {mods.join(" · ")}</span>}
-        <span className="text-faint font-mono">· {taste?.drift[thread?.persona ?? "neutral"] ?? "…"}</span>
+        <span className="text-faint font-mono">· {taste?.drift[thread?.persona ?? "miyabi"] ?? "…"}</span>
       </button>
 
       {/* Messages */}
@@ -406,23 +404,6 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         </header>
         {thread && (
           <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-6" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
-            <div role="radiogroup" aria-label="Personality" className="grid gap-2">
-              {PERSONAS.filter((p) => p.id !== "miyabi" && p.id !== "aru").map((p) => (
-                <button key={p.id} type="button" role="radio" aria-checked={thread.persona === p.id} onClick={() => patchThread({ persona: p.id })}
-                  className={`rounded-lg border p-3 text-left ${thread.persona === p.id ? "border-accent bg-accent-soft" : "border-border"}`}>
-                  <span className="block text-sm font-semibold">{p.name}</span><span className="text-muted text-xs">{p.blurb}</span>
-                </button>
-              ))}
-            </div>
-            <section>
-              <h3 className="text-muted mb-2 text-xs font-medium tracking-wide uppercase">Attitude</h3>
-              <div className="flex gap-2">
-                {(["bratty", "tease", "flirt"] as (keyof Modifiers)[]).map((k) => (
-                  <button key={k} type="button" aria-pressed={!!thread.mods[k]} onClick={() => patchThread({ mods: { ...thread.mods, [k]: !thread.mods[k] } })}
-                    className={`h-10 flex-1 rounded-full border text-sm capitalize ${thread.mods[k] ? "bg-accent text-accent-fg border-transparent font-semibold" : "border-border"}`}>{k}</button>
-                ))}
-              </div>
-            </section>
             <section>
               <h3 className="text-muted mb-1 text-xs font-medium tracking-wide uppercase">Boldness (learned)</h3>
               {/* Local while dragging; saved once on release (no request per pixel). */}

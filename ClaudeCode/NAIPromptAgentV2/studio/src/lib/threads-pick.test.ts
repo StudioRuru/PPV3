@@ -1,28 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultThreadId, newThreadPersona } from "./threads-pick";
+import { chatTabThreads, defaultThreadId, newThreadPersona } from "./threads-pick";
 
 const T = (id: number, persona: string) => ({ id, persona });
 
-test("default thread skips Miyabi threads; null when only Miyabi", () => {
-  assert.equal(defaultThreadId([T(1, "miyabi"), T(2, "neutral")]), 2);
-  assert.equal(defaultThreadId([T(1, "miyabi")]), null);
+test("default thread is the first Miyabi thread; Aru's never; null when none", () => {
+  assert.equal(defaultThreadId([T(1, "aru"), T(2, "miyabi")]), 2);
+  assert.equal(defaultThreadId([T(1, "aru")]), null);
   assert.equal(defaultThreadId([]), null);
 });
 
-test("new chat never inherits miyabi", () => {
-  assert.equal(newThreadPersona("miyabi"), "neutral");
-  assert.equal(newThreadPersona(undefined), "neutral");
-  assert.equal(newThreadPersona("tsundere"), "tsundere");
+test("new chats are always Miyabi's", () => {
+  assert.equal(newThreadPersona(), "miyabi");
 });
 
-test("aru threads are skipped and never inherited", () => {
-  assert.equal(defaultThreadId([T(1, "aru"), T(2, "neutral")]), 2);
-  assert.equal(defaultThreadId([T(1, "aru")]), null);
-  assert.equal(newThreadPersona("aru"), "neutral");
-});
-
-test("final review: chat-tab chips exclude Miyabi and Aru threads", async () => {
-  const { chatTabThreads } = await import("./threads-pick");
-  assert.deepEqual(chatTabThreads([T(1, "aru"), T(2, "neutral"), T(3, "miyabi"), T(4, "bratty")]).map((t) => t.id), [2, 4]);
+test("chat-tab chips show Miyabi threads and hide Aru's", () => {
+  assert.deepEqual(chatTabThreads([T(1, "aru"), T(2, "miyabi"), T(3, "miyabi")]).map((t) => t.id), [2, 3]);
 });

@@ -3,13 +3,12 @@ import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { DATA_DIR } from "@/lib/env";
-import { PERSONAS, type Modifiers, type PersonaId } from "@/lib/persona";
+import { asPersona } from "@/lib/persona";
 import { ThreadStore } from "@/lib/threads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const store = () => new ThreadStore(db);
-const isPersona = (p: unknown): p is PersonaId => PERSONAS.some((x) => x.id === p);
 
 let lastSweep = 0;
 /** At most hourly: delete chat images no message refers to that are over a day old (unsent attachments, edits). */
@@ -30,18 +29,17 @@ export function GET() {
 /** { persona? } → a new empty thread. */
 export async function POST(req: NextRequest) {
   const b = ((await req.json().catch(() => null)) ?? {}) as { persona?: unknown };
-  const id = store().create("New chat", isPersona(b.persona) ? b.persona : "neutral");
+  const id = store().create("New chat", asPersona(b.persona));
   return NextResponse.json({ id, threads: store().list() });
 }
 
-/** { id, title?, persona?, mods? } */
+/** { id, title?, persona? } */
 export async function PATCH(req: NextRequest) {
-  const b = ((await req.json().catch(() => null)) ?? {}) as { id?: number; title?: unknown; persona?: unknown; mods?: Modifiers };
+  const b = ((await req.json().catch(() => null)) ?? {}) as { id?: number; title?: unknown; persona?: unknown };
   if (typeof b.id !== "number") return NextResponse.json({ error: "id required" }, { status: 400 });
   store().update(b.id, {
     title: typeof b.title === "string" ? b.title : undefined,
-    persona: isPersona(b.persona) ? b.persona : undefined,
-    mods: b.mods && typeof b.mods === "object" ? { bratty: !!b.mods.bratty, tease: !!b.mods.tease, flirt: !!b.mods.flirt } : undefined,
+    persona: b.persona === undefined ? undefined : asPersona(b.persona),
   });
   return NextResponse.json({ threads: store().list() });
 }

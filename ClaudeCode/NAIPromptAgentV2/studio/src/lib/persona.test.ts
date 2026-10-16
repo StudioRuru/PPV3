@@ -1,20 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextDrift, PERSONAS, personaBlock } from "./persona";
+import { asPersona, nextDrift, PERSONAS, personaBlock } from "./persona";
 
-test("personas: neutral default plus the chosen ones and Miyabi", () => {
-  assert.deepEqual(PERSONAS.map((p) => p.id), ["neutral", "bratty", "writer", "tagnerd", "miyabi", "aru"]);
+test("personas: Miyabi is the only co-pilot, Aru keeps the shop", () => {
+  assert.deepEqual(PERSONAS.map((p) => p.id), ["miyabi", "aru"]);
 });
 
-test("personaBlock: voice + modifiers + drift level; neutral with nothing on adds nothing", () => {
-  assert.equal(personaBlock("neutral", {}, 0), "");
-  const b = personaBlock("bratty", { tease: true, flirt: true }, 80);
-  assert.match(b, /Bratty muse/);
-  assert.match(b, /tease/i);
-  assert.match(b, /flirt/i);
+test("personaBlock: voice + drift level; unknown persona adds nothing", () => {
+  const b = personaBlock("miyabi", 80);
+  assert.match(b, /Hoshimi Miyabi/);
   assert.match(b, /intensity 80\/100/);
   assert.ok(b.length < 1500, "bounded size");
-  assert.equal(personaBlock("nope" as never, {}, 0), "", "unknown persona → neutral");
+  assert.equal(personaBlock("nope" as never, 0), "");
+});
+
+test("asPersona: aru stays, everything else (old neutral/bratty/writer/tagnerd, junk) is miyabi", () => {
+  assert.equal(asPersona("aru"), "aru");
+  for (const p of ["miyabi", "neutral", "bratty", "writer", "tagnerd", "", 5, null, undefined]) assert.equal(asPersona(p), "miyabi");
 });
 
 test("nextDrift: likes/applies push bolder, dislikes pull back, always 0–100", () => {
@@ -33,7 +35,7 @@ test("miyabi voice: loud, bratty, name-calling, short and caps", () => {
 
 test("aru persona: brewing schema, sliders, range, reserved names, no age words", async () => {
   const { personaBlock } = await import("./persona");
-  const b = personaBlock("aru", {}, 0);
+  const b = personaBlock("aru", 0);
   assert.match(b, /```vial/);
   for (const s of ["brat", "bimbo", "hypnosis", "heat", "length"]) assert.ok(b.includes(s), s);
   assert.match(b, /-3|−3/);
@@ -46,7 +48,7 @@ test("aru persona: brewing schema, sliders, range, reserved names, no age words"
 
 test("aru's example vial block is itself valid; reply shape stated", async () => {
   const { parseVialBlock } = await import("./mascot/vial");
-  const b = personaBlock("aru", {}, 0);
+  const b = personaBlock("aru", 0);
   const v = parseVialBlock(b.match(/```vial[\s\S]*?```/)![0]);
   assert.ok(v && !("error" in v), JSON.stringify(v));
   assert.match(b, /2-5 sentences/);

@@ -24,7 +24,7 @@ export function identityOf(s: MascotSettings, drift: number): Identity {
 
 /** Miyabi's persona block: the slime's name + voice + slider directives + potion effects (quoted data), or EMPTY_BLOCK. deepTalk drops the quip length rule. */
 export const slimePersona = (i: Identity, deepTalk = false): string =>
-  i.empty ? EMPTY_BLOCK : [personaBlock("miyabi", {}, i.drift, { name: i.selfName, voice: i.voice }), sliderBlock(i.sliders, i.selfName, { length: !deepTalk }), vialsBlock(i.vials)].filter(Boolean).join("\n");
+  i.empty ? EMPTY_BLOCK : [personaBlock("miyabi", i.drift, { name: i.selfName, voice: i.voice }), sliderBlock(i.sliders, i.selfName, { length: !deepTalk }), vialsBlock(i.vials)].filter(Boolean).join("\n");
 
 export class DbIdentity implements LiveIdentity {
   constructor(private db: Database.Database, private store = new MascotStore(db)) {}

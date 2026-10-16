@@ -1,7 +1,7 @@
 import { slimePersona, type Identity } from "./mascot/identity";
 import { deltaChips } from "./mascot/ui";
 import type { Vial } from "./mascot/vial";
-import { personaBlock, type Modifiers, type PersonaId } from "./persona";
+import { personaBlock, type PersonaId } from "./persona";
 import { tierModel } from "./tiers";
 
 /** Chat model per thread persona: Miyabi's deep talk runs on the heavy tier; undefined = the everyday brain. */
@@ -10,8 +10,8 @@ export function modelFor(persona: PersonaId, get: (key: string) => string | null
 }
 
 /** Persona block (+ Ollama options) for a thread: Miyabi speaks as the active slime, with num_predict from its length slider. */
-export function chatPersona(persona: PersonaId, mods: Modifiers, drift: number, identity: () => Identity): { block: string; options?: Record<string, unknown> } {
-  if (persona !== "miyabi") return { block: personaBlock(persona, mods, drift) };
+export function chatPersona(persona: PersonaId, drift: number, identity: () => Identity): { block: string; options?: Record<string, unknown> } {
+  if (persona !== "miyabi") return { block: personaBlock(persona, drift) };
   const i = identity();
   return { block: slimePersona(i, true), options: { num_predict: Math.max(i.lengthShape.talkPredict, 800) } }; // room for co-pilot patch cards
 }

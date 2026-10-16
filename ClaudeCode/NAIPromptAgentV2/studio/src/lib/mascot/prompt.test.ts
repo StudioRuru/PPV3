@@ -9,11 +9,11 @@ import { EMPTY_BLOCK } from "./slime";
 
 const ctx = { identity: identityOf(D, 50), promptSummary: "1girl, fox ears", taste: "likes red", story: "", facts: ["f1"], recent: ["a", "b"] };
 
-test("miyabi persona block has voice and modifiers", () => {
-  const b = personaBlock("miyabi", { tease: true }, 30);
+test("miyabi persona block has voice and boldness", () => {
+  const b = personaBlock("miyabi", 30);
   assert.match(b, /Miyabi/);
   assert.match(b, /Section 6/);
-  assert.match(b, /Tease the user/);
+  assert.match(b, /intensity 30\/100/);
 });
 
 test("system lists every expression and the one-line format", () => {
