@@ -5,7 +5,7 @@ import { emitMascot } from "@/lib/mascot/bus";
 import { pickSprite, type Outfit } from "@/lib/mascot/core";
 import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
-import { visibleWhileStreaming } from "@/lib/mascot/talk";
+import { splitExpressionTag, visibleWhileStreaming } from "@/lib/mascot/talk";
 import type { PromptState } from "@/lib/prompt";
 import { Md } from "../ChatScreen";
 import { PatchCard } from "../PatchCard";
@@ -96,9 +96,10 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
         out += dec.decode(value, { stream: true });
         setBusy(null); show([...history, { ...reply, content: out }]);
       }
-      if (/\n\n⚠️ [^\n]*$/.test(out)) show([...history, { ...reply, content: out, error: true }]);
+      const clean = splitExpressionTag(out).text;
+      show([...history, { ...reply, content: clean, error: /\n\n⚠️ [^\n]*$/.test(clean) }]);
     } catch (e) {
-      show([...history, { ...reply, content: `${out}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
+      show([...history, { ...reply, content: `${splitExpressionTag(out).text}\n\n⚠️ ${(e as Error).message || "Network error — tap send to retry."}`, error: true }]);
     }
     setBusy(null); setStreaming(false);
     if (tidRef.current === id) load(id); // fresh version for the next send
@@ -150,7 +151,7 @@ export function MiyabiSheet({ open, onClose, outfit, state, onApply }: { open: b
         {msgs.length === 0 && <p className="text-muted text-center text-sm">Talk to her properly — or ask her to fix your prompt.</p>}
         {msgs.map((m) => {
           if (m.role === "user") return <p key={m.cid} className="animate-rise bg-surface-2 ml-8 rounded-lg p-2.5 text-sm whitespace-pre-wrap">{m.content}</p>;
-          const p = parseReply(visibleWhileStreaming(m.content));
+          const p = parseReply(streaming && m.cid === msgs[msgs.length - 1]?.cid ? visibleWhileStreaming(m.content) : m.content);
           return (
             <div key={m.cid} className={`animate-rise space-y-1.5 text-sm leading-relaxed ${m.error ? "text-danger" : ""}`}>
               <Md text={p.prose} />

@@ -47,13 +47,24 @@ export function talkFrame(phase: TalkPhase, tick: number, expression: Expression
 }
 
 const TAG = /\s*\[([a-z]+)\]\s*$/i;
+const WARN = "\n\n⚠️";
 
-/** Miyabi's reply ends with one `[expression]`: strip it and return it (unknown or missing → smug, text unchanged). */
+/** Miyabi's reply ends with one `[expression]`: strip all trailing ones (a trailing ⚠️ warning block is kept after the text) and return the last; none → smug, text unchanged. */
 export function splitExpressionTag(text: string): { text: string; expression: Expression } {
-  const m = TAG.exec(text);
-  const w = m?.[1].toLowerCase() as Expression | undefined;
-  return m && w && EXPRESSIONS.includes(w) ? { text: text.slice(0, m.index), expression: w } : { text, expression: "smug" };
+  const w = text.indexOf(WARN);
+  const head = w < 0 ? text : text.slice(0, w), warn = w < 0 ? "" : text.slice(w);
+  let body = head, expression: Expression | null = null;
+  for (let m = TAG.exec(body); m && EXPRESSIONS.includes(m[1].toLowerCase() as Expression); m = TAG.exec(body)) {
+    expression ??= m[1].toLowerCase() as Expression;
+    body = body.slice(0, m.index);
+  }
+  return expression ? { text: body + warn, expression } : { text, expression: "smug" };
 }
 
-/** Streaming view: hide a trailing partial or complete `[word` / `[word]` so the tag never flashes. */
-export const visibleWhileStreaming = (text: string): string => text.replace(/\[[a-z]*\]?\s*$/i, "");
+/** Streaming view: hide a trailing `[` + prefix of an expression name (or a complete `[expression]`) so the tag never flashes. */
+export function visibleWhileStreaming(text: string): string {
+  const m = /\[([a-z]*)(\]?)\s*$/i.exec(text);
+  if (!m) return text;
+  const w = m[1].toLowerCase();
+  return EXPRESSIONS.some((e) => (m[2] ? e === w : e.startsWith(w))) ? text.slice(0, m.index) : text;
+}

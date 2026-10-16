@@ -80,8 +80,9 @@ export async function POST(req: NextRequest) {
         for await (const t of chatStream(system, sent, { model, options: persona.options })) { reply += t; put(t); }
         // Only complete exchanges are stored; the client's list (with edits) is the thread's truth.
         // The expression tag streams to the client (which strips it); the stored text never has it.
-        const saved = thread.persona === "miyabi" ? splitExpressionTag(reply).text : reply;
-        if (!store.replace(threadId, [...messages, { role: "assistant", content: saved }], expect)) {
+        const strip = thread.persona === "miyabi";
+        const past = strip ? messages.map((m) => (m.role === "assistant" ? { ...m, content: splitExpressionTag(m.content).text } : m)) : messages;
+        if (!store.replace(threadId, [...past, { role: "assistant", content: strip ? splitExpressionTag(reply).text : reply }], expect)) {
           put("\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.");
         }
       };

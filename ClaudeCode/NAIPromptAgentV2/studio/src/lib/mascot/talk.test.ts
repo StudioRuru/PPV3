@@ -125,3 +125,18 @@ test("tick constants", async () => {
   assert.equal(TALK_TICK_MS, 280);
   assert.equal(THINK_TICK_MS, 700);
 });
+
+test("splitExpressionTag: warning suffix kept, tag before it stripped; multiple trailing tags; tag-only", async () => {
+  const { splitExpressionTag: sp } = await import("./talk");
+  assert.deepEqual(sp("Hi [pout]\n\n⚠️ Not saved"), { text: "Hi\n\n⚠️ Not saved", expression: "pout" });
+  assert.deepEqual(sp("Hi [wink] [smug]"), { text: "Hi", expression: "smug" });
+  assert.deepEqual(sp("[excited]"), { text: "", expression: "excited" });
+});
+
+test("visibleWhileStreaming only hides expression-name prefixes", async () => {
+  const { visibleWhileStreaming: v } = await import("./talk");
+  assert.equal(v("see [note]"), "see [note]");
+  assert.equal(v("see [no"), "see [no");
+  assert.equal(v("hi [sl"), "hi ");
+  assert.equal(v("hi [smu]"), "hi [smu]");
+});
