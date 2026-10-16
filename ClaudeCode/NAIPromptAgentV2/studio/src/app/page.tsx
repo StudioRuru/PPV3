@@ -10,6 +10,8 @@ import { RpScreen } from "@/components/rp/RpScreen";
 import { SaveFlash } from "@/components/SaveFlash";
 import { LiquidIsland } from "@/components/LiquidIsland";
 import { TAB_IDS, type Tab } from "@/lib/tabs";
+import { EXPRESSIONS, type Expression } from "@/lib/mascot/core";
+import { activityState, makeThrottle, parseIntent, postActivity } from "@/lib/native";
 import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
 import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
@@ -107,6 +109,43 @@ export default function Studio() {
     // Native "Saved to Photos" gets the floppy overlay; anything else is a status line.
     w.studioToast = (msg: string) => (msg.startsWith("Saved") ? setFlash(msg) : setNote(msg));
   }, []);
+  // Live Activity bridge: report tab + Miyabi's mood/visibility to the shell (throttled, change-only; inert outside it), accept intents back.
+  const live = useRef({ expression: "smug" as Expression, hidden: false, bust: null as string | null, on: false });
+  const report = useRef<((tab: Tab) => void) | null>(null);
+  const tabRef = useRef<Tab>("studio");
+  tabRef.current = tab;
+  useEffect(() => {
+    const send = makeThrottle(postActivity);
+    const push = () => send(activityState({ tab: tabRef.current, ...live.current }));
+    report.current = push;
+    const onMood = (e: Event) => {
+      const d = (e as CustomEvent<{ src: string | null; expression?: string }>).detail;
+      live.current.bust = d?.src ?? null;
+      if (EXPRESSIONS.includes(d?.expression as Expression)) live.current.expression = d.expression as Expression;
+      push();
+    };
+    const onHidden = (e: Event) => {
+      const d = (e as CustomEvent<{ hidden: boolean; show?: boolean; activity?: boolean }>).detail;
+      live.current.hidden = !!d?.hidden;
+      live.current.on = d?.show !== false && d?.activity !== false;
+      push();
+    };
+    window.addEventListener("mascot:mood", onMood);
+    window.addEventListener("mascot:hidden", onHidden);
+    (window as unknown as { studioIntent?: unknown }).studioIntent = (raw: unknown) => {
+      const i = parseIntent(raw);
+      if (!i) return;
+      if ("tab" in i) setTab(i.tab);
+      else window.dispatchEvent(new CustomEvent(i.mascot === "hide" ? "mascot:hide" : "mascot:summon"));
+    };
+    return () => {
+      window.removeEventListener("mascot:mood", onMood);
+      window.removeEventListener("mascot:hidden", onHidden);
+      delete (window as unknown as { studioIntent?: unknown }).studioIntent;
+      report.current = null;
+    };
+  }, []);
+  useEffect(() => { report.current?.(tab); }, [tab]);
   useEffect(() => {
     if (!note) return;
     const t = setTimeout(() => setNote(null), 3000);

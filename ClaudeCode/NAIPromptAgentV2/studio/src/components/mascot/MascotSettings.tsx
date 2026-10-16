@@ -131,6 +131,8 @@ export function MascotSettings({ open }: { open: boolean }) {
           ))}
         </div>
       )}
+      <label className={row}>Show Miyabi in the Dynamic Island when the app is in the background
+        <input type="checkbox" checked={s.activity} onChange={(e) => save({ activity: e.target.checked })} className="accent-accent size-5 shrink-0" /></label>
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button type="button" onClick={() => window.dispatchEvent(new Event("mascot:hush"))} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Hush 30 min</button>
         <button type="button" onClick={() => { setStudioMounted(true); setStudio(true); }} className="border-border min-h-11 rounded-md border px-3 py-2.5 text-sm">Sprite studio</button>

@@ -136,3 +136,10 @@ test("plan 20: old toggles migrate to tease/flirt sliders lazily; saved sliders 
   assert.deepEqual([kept.sliders.tease.value, kept.sliders.flirt.value], [2, 9]);
   assert.equal("mods" in JSON.parse(JSON.stringify(old)), false);
 });
+
+test("activity: default true, boolean only", () => {
+  assert.equal(D.activity, true);
+  assert.equal(mergeMascotSettings(D, { activity: false }).activity, false);
+  for (const v of ["no", 0, null]) assert.equal(mergeMascotSettings(D, { activity: v }).activity, true, String(v));
+  assert.equal(parseMascotSettings(JSON.stringify({ activity: false })).activity, false);
+});
