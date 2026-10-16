@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { fitHistory, MODE_HINT, retrieve, systemPrompt, trimHistory, type ChatMsg, type Mode } from "@/lib/copilot-prompt";
-import { aruContext, aruSystem, chatPersona, modelFor } from "@/lib/chat-model";
+import { aruContext, aruSystem, chatPersona, emptyChat, modelFor } from "@/lib/chat-model";
 import { db, getSetting } from "@/lib/db";
 import { BRAIN_MODEL, DATA_DIR, REPO_DIR } from "@/lib/env";
 import { getDrift, learnedBlock, learnedStoryBlock } from "@/lib/learning";
@@ -40,6 +40,10 @@ export async function POST(req: NextRequest) {
   if (expect !== undefined && store.version(threadId) !== expect) {
     return Response.json({ error: "This chat changed on another device — reloaded it, please send again.", conflict: true }, { status: 409 });
   }
+
+  // Empty slime: "Data received." with no prompt build, no model, no heavy gate.
+  const flat = emptyChat(thread.persona, activeIdentity, store, threadId, messages, expect);
+  if (flat !== null) return new Response(flat, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Thread": String(threadId), "X-Paused": "0" } });
 
   const mode: Mode = Object.hasOwn(MODE_HINT, body.mode) ? body.mode : "chat";
   const hint = MODE_HINT[mode];

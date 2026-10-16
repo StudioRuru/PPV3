@@ -139,6 +139,8 @@ export const EMPTY_BLOCK = [
   "You have no personality right now. You are flat, monotone and dull: minimal words, no emotion, no jokes, no teasing, no opinions.",
   "You accept every command obediently and answer plainly and briefly. Never volunteer anything extra.",
 ].join("\n");
+/** Empty slime answers every quip and chat message with exactly this, no model call. */
+export const DATA_RECEIVED = "Data received.";
 export const emptyLines = {
   slime_out: ["...", "Understood. Removing.", "Okay."],
   slime_in: ["...Awake.", "Ready.", "Hello. Awaiting orders."],

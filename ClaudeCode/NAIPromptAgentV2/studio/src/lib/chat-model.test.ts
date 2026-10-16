@@ -73,3 +73,22 @@ test("final review: aruContext lists each recipe's slider deltas so remakes copy
   const c = aruContext([{ name: "Bratty Blush", effect: "teasing", sliders: { brat: { value: 2 }, heat: { value: 1, cap: -1 } } }], []);
   assert.ok(c.includes(`"Bratty Blush: teasing" [brat +2, heat +1, heat cap −1]`), c);
 });
+
+test("emptyChat: empty Miyabi replies 'Data received.', stores both messages, never needs a model", async () => {
+  const { default: Database } = await import("better-sqlite3");
+  const { ThreadStore, migrateChat } = await import("./threads");
+  const db = new Database(":memory:");
+  db.exec("CREATE TABLE chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL)");
+  migrateChat(db);
+  const store = new ThreadStore(db);
+  const id = store.create("New chat", "miyabi");
+  const { emptyChat } = await import("./chat-model");
+  const { identityOf } = await import("./mascot/identity");
+  const { DEFAULT_MASCOT_SETTINGS: D } = await import("./mascot/settings");
+  const empty = () => identityOf({ ...D, empty: true }, 0);
+  assert.equal(emptyChat("miyabi", empty, store, id, [{ role: "user", content: "hello?" }]), "Data received.");
+  assert.deepEqual(store.messages(id).map((m) => [m.role, m.content]), [["user", "hello?"], ["assistant", "Data received."]]);
+  // Non-empty Miyabi and Aru keep the normal (model) path.
+  assert.equal(emptyChat("miyabi", () => identityOf(D, 0), store, id, []), null);
+  assert.equal(emptyChat("aru", empty, store, id, []), null);
+});

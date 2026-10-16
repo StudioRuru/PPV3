@@ -2,7 +2,7 @@
 import { cannedLine, parseQuip, type Expression, type MascotEvent } from "./core";
 import type { Identity } from "./identity";
 import { quipPrompt } from "./prompt";
-import { emptyLines } from "./slime";
+import { DATA_RECEIVED, emptyLines } from "./slime";
 import { factsPrompt, parseFacts, type MascotStore } from "./store";
 
 export type QuipDeps = {
@@ -67,7 +67,7 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     let empty = false;
     try { empty = d.context().identity.empty; } catch { /* settings unreadable: her usual lines */ }
     if (!empty) return cannedLine(kind);
-    const pool = kind === "slime_out" || kind === "slime_in" ? emptyLines[kind] : ["...", "Okay.", "Understood."];
+    const pool = kind === "slime_out" || kind === "slime_in" ? emptyLines[kind] : [DATA_RECEIVED];
     return { expression: "sleepy", text: pool[Math.floor(Math.random() * pool.length)] };
   }
 
@@ -78,6 +78,12 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     const data = b.event?.data && typeof b.event.data === "object" && !Array.isArray(b.event.data) ? (b.event.data as Record<string, unknown>) : undefined;
     const ps = typeof b.context?.promptSummary === "string" ? b.context.promptSummary : "";
     const mode = b.context?.nsfw === true ? "(NSFW mode)" : b.context?.nsfw === false ? "(SFW mode)" : "";
+    // Empty slime: fixed line, no model, no journal, no facts refresh (slime_out/slime_in keep their own lines below).
+    if (kind !== "slime_out" && kind !== "slime_in") {
+      let empty = false;
+      try { empty = d.context().identity.empty; } catch { /* settings unreadable: her usual path */ }
+      if (empty) return { expression: "smug", text: DATA_RECEIVED, source: "canned" };
+    }
     let out: QuipResult | null = null;
     try { out = await modelLine({ kind, at: Date.now(), data }, [mode, ps].filter(Boolean).join(" ")); } catch { /* canned below */ }
     out ??= { ...canned(kind), source: "canned" };

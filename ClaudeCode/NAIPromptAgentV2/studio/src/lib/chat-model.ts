@@ -1,3 +1,5 @@
+import { DATA_RECEIVED } from "./mascot/slime";
+import type { ThreadStore } from "./threads";
 import { slimePersona, type Identity } from "./mascot/identity";
 import { deltaChips } from "./mascot/ui";
 import type { Vial } from "./mascot/vial";
@@ -14,6 +16,13 @@ export function chatPersona(persona: PersonaId, drift: number, identity: () => I
   if (persona !== "miyabi") return { block: personaBlock(persona, drift) };
   const i = identity();
   return { block: slimePersona(i, true), options: { num_predict: Math.max(i.lengthShape.talkPredict, 800) } }; // room for co-pilot patch cards
+}
+
+/** Empty slime on a Miyabi thread: store the exchange with "Data received." and return it to stream; null = normal path. No model involved. */
+export function emptyChat(persona: PersonaId, identity: () => Identity, store: Pick<ThreadStore, "replace">, id: number, messages: { role: "user" | "assistant"; content: string; image?: string | null }[], expect?: number): string | null {
+  if (persona !== "miyabi" || !identity().empty) return null;
+  const saved = store.replace(id, [...messages, { role: "assistant", content: DATA_RECEIVED }], expect);
+  return saved ? DATA_RECEIVED : `${DATA_RECEIVED}\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.`;
 }
 
 type V = Pick<Vial, "name" | "effect" | "sliders">;

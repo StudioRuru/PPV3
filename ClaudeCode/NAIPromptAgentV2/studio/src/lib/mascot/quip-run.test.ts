@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { makeQuip, type QuipDeps } from "./quip-run";
 import { identityOf } from "./identity";
 import { DEFAULT_MASCOT_SETTINGS as D } from "./settings";
-import { emptyLines } from "./slime";
+import { DATA_RECEIVED, emptyLines } from "./slime";
 
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -140,17 +140,19 @@ test("slime_out / slime_in are accepted kinds; Empty canned lines are flat", asy
   const out = await quip({ event: { kind: "slime_in" } });
   assert.ok(emptyLines.slime_in.includes(out.text), out.text);
   assert.ok(emptyLines.slime_out.includes((await quip({ event: { kind: "slime_out" } })).text));
-  assert.ok(["...", "Okay.", "Understood."].includes((await quip({ event: { kind: "tap" } })).text));
+  assert.equal((await quip({ event: { kind: "tap" } })).text, DATA_RECEIVED);
 });
 
-test("Empty: the old slime's recent lines and facts stay out of the prompt", async () => {
-  const users: string[] = [];
-  const { d } = deps({ context: () => ({ identity: identityOf({ ...D, empty: true }, 0), taste: "", story: "" }), ask: async (_s, u) => { users.push(u); return "[sleepy] ok"; } });
-  d.store.recent = () => [{ id: 1, created_at: 1, kind: "tap", summary: "", line: "HMPH, dummy!" }];
-  d.store.facts = () => [{ id: 1, text: "owner loves foxes", created_at: 1 }];
-  await makeQuip(d)({ event: { kind: "tap" } });
-  assert.doesNotMatch(users[0], /recent lines|HMPH/);
-  assert.doesNotMatch(users[0], /Facts:|loves foxes/);
+test("Empty: every other kind is exactly 'Data received.' (smug) with no model call, even when idle", async () => {
+  let asked = 0;
+  const { d, logged } = deps({ context: () => ({ identity: identityOf({ ...D, empty: true }, 0), taste: "", story: "" }), ask: async () => { asked++; throw new Error("model called"); } });
+  const quip = makeQuip(d);
+  for (const kind of ["tap", "idle", "greet", "generated", "error", "rp_chat", "vial_drop"]) {
+    assert.deepEqual(await quip({ event: { kind } }), { expression: "smug", text: "Data received.", source: "canned" });
+  }
+  await tick();
+  assert.equal(asked, 0);
+  assert.deepEqual(logged, []);
 });
 
 test("facts refresh is dropped when the slime changed while it ran (no cross-jar facts)", async () => {
