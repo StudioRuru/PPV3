@@ -114,3 +114,13 @@ test("plan 20: vial with tease validates and applies; old 5-key vials still vali
   assert.equal(validateVial(v("Old", { brat: { value: 1 }, bimbo: { value: 1 }, hypnosis: { value: 1 }, heat: { value: 1 }, length: { value: 1 } })).ok, true);
   assert.deepEqual(ok(applyVial(blankSlime(), v("T", { tease: { value: 2 } }))).sliders.tease, { value: 2, cap: 10 });
 });
+
+const ARU = "\"I... I understand perfectly.\" *Aru fidgets.*\n\n```vial\n{\"name\": \"Masculine Devotion\", \"color\": \"#9400d3\", \"effect\": \"Instills an instinctual sense of subordination.\", \"sliders\": {\"hypnosis\": 3, \"bimbo\": 2}}\n```\n";
+test("bare-integer slider shorthand (Aru's real reply)", () => {
+  const r = parseVialBlock(ARU);
+  assert.ok(r && !("error" in r), JSON.stringify(r));
+  assert.deepEqual((r as Vial).sliders, { hypnosis: { value: 3 }, bimbo: { value: 2 } });
+  assert.deepEqual(validateVial({ ...v("M"), sliders: { hypnosis: 3, bimbo: { value: 2, cap: -1 } } }),
+    { ok: true, vial: v("M", { hypnosis: { value: 3 }, bimbo: { value: 2, cap: -1 } }) });
+  for (const bad of ["3", 9, -4, 1.5]) assert.equal(validateVial({ ...v("M"), sliders: { hypnosis: bad } }).ok, false, String(bad));
+});

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { pickPoseSprite, POSE_SPEC, POSES, poseKey, stageSprite } from "./poses";
 import { DEFAULT_MASCOT_SETTINGS as S } from "./settings";
-import { listSprites, pick, poseCandidatePath, posePath, poseRequest, saveCandidates, target } from "./sprites";
+import { listSprites, pick, poseCandidatePath, posePath, poseRequest, POSE_UC, saveCandidates, target } from "./sprites";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1]);
 
@@ -18,13 +18,20 @@ test("sizes per pose; every spec has a plain background", () => {
   assert.ok(POSE_SPEC.lie.tags.includes("lying on stomach") && POSE_SPEC.back.tags.includes("from behind"));
 });
 
-test("poseRequest composes char + constant + layer + expression (faced) + pose tags, no bust UC", () => {
+test("poseRequest puts framing tags first, then char + constant + layer + expression (faced); pose UC blocks multi-view", () => {
   const { compiled, params } = poseRequest("night", "lie", "pout", S, 7);
-  assert.equal(compiled.base, [S.charTags, S.constantTags, S.layerTags.night, S.exprTags.pout, POSE_SPEC.lie.tags].join(", "));
-  assert.equal(compiled.uc, "");
+  assert.equal(compiled.base, [POSE_SPEC.lie.tags, S.charTags, S.constantTags, S.layerTags.night, S.exprTags.pout].join(", "));
+  assert.equal(compiled.uc, POSE_UC);
   assert.deepEqual([params.width, params.height, params.steps, params.seed], [1216, 832, 28, 7]);
   const back = poseRequest("day", "back", "pout", S);
-  assert.equal(back.compiled.base, [S.charTags, S.constantTags, S.layerTags.day, POSE_SPEC.back.tags].join(", "));
+  assert.equal(back.compiled.base, [POSE_SPEC.back.tags, S.charTags, S.constantTags, S.layerTags.day].join(", "));
+});
+
+test("peek UC drops upper-body framing blockers but keeps the two-view ones", () => {
+  const uc = poseRequest("day", "peek", "pout", S).compiled.uc;
+  for (const t of ["multiple views", "reference sheet", "inset", "split screen"]) assert.ok(uc.includes(t));
+  for (const t of ["upper body", "close-up", "portrait", "cropped"]) assert.ok(!uc.includes(t), t);
+  assert.equal(poseRequest("day", "stand", "pout", S).compiled.uc, POSE_UC);
 });
 
 test("paths: back has no expression and its own file; traversal rejected", () => {

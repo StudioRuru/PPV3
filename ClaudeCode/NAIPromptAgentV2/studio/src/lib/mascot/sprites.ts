@@ -41,12 +41,16 @@ export function spriteRequest(outfit: Outfit, kind: ArtKind, expr: Expression, s
   };
 }
 
-/** Tags-only request for a pose sprite; faced poses add the expression tags, back view none. No bust UC (full body). */
+const TWO_VIEW = "multiple views, reference sheet, inset, split screen";
+export const POSE_UC = `${TWO_VIEW}, close-up, portrait, upper body, cropped`;
+const PEEK_UC = TWO_VIEW; // peek is upper-body by design
+
+/** Tags-only request for a pose sprite (framing tags first so they dominate); faced poses add the expression tags, back view none. No bust UC (full body). */
 export function poseRequest(outfit: Outfit, pose: Pose, expr: Expression | null, s: Look, seed = newSeed()): { compiled: Compiled; params: NaiParams } {
   const { tags, width, height, faced } = POSE_SPEC[pose];
-  const parts = [s.charTags, s.constantTags, s.layerTags[outfit], ...(faced && expr ? [s.exprTags[expr]] : []), tags];
+  const parts = [tags, s.charTags, s.constantTags, s.layerTags[outfit], ...(faced && expr ? [s.exprTags[expr]] : [])];
   return {
-    compiled: { base: parts.map((p) => p.trim()).filter(Boolean).join(", "), uc: "", chars: [], rating: "nsfw" },
+    compiled: { base: parts.map((p) => p.trim()).filter(Boolean).join(", "), uc: pose === "peek" ? PEEK_UC : POSE_UC, chars: [], rating: "nsfw" },
     params: { ...DEFAULT_PARAMS, width, height, steps: 28, seed },
   };
 }

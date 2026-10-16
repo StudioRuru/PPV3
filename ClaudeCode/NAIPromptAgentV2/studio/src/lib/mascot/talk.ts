@@ -5,7 +5,7 @@ export const TALK_FRAMES = [...EXPRESSIONS, "think1", "think2", "talk_open", "ta
 export type TalkFrame = (typeof TALK_FRAMES)[number];
 
 export const TALK = "upper body, cowboy shot, looking at viewer, simple background, white background";
-export const TALK_UC = "full body, legs, thighs, feet, shoes, wide shot";
+export const TALK_UC = "full body, legs, thighs, feet, shoes, wide shot, multiple views, reference sheet, inset, split screen";
 /** Non-expression frames get their own small tag set instead of the expression tags. */
 export const TALK_FRAME_TAGS: Record<Exclude<TalkFrame, Expression>, string> = {
   think1: "thinking, looking up, hand on own chin",

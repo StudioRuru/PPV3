@@ -6,7 +6,7 @@ import path from "node:path";
 import { EXPRESSIONS } from "./core";
 import { DEFAULT_MASCOT_SETTINGS as S } from "./settings";
 import { listSprites, perImage, pick, saveCandidates, talkCandidatePath, talkPath, talkRequest, target } from "./sprites";
-import { listenPhase, pickTalkFrame, portraitPick, TALK, TALK_FRAMES, talkKey } from "./talk";
+import { listenPhase, pickTalkFrame, portraitPick, TALK, TALK_FRAMES, TALK_UC, talkKey } from "./talk";
 import { missingTalkCells } from "./ui";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1]);
@@ -167,4 +167,8 @@ test("splitExpressionTag: a model-written ⚠️ paragraph mid-reply doesn't hid
   const { splitExpressionTag } = await import("./talk");
   const reply = "Careful.\n\n⚠️ that armor tag is dead.\n\nUse torn armor. [smug]\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.";
   assert.deepEqual(splitExpressionTag(reply), { text: "Careful.\n\n⚠️ that armor tag is dead.\n\nUse torn armor.\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.", expression: "smug" });
+});
+
+test("TALK_UC blocks two-view sheets", () => {
+  for (const t of ["multiple views", "reference sheet", "inset", "split screen"]) assert.ok(TALK_UC.includes(t));
 });

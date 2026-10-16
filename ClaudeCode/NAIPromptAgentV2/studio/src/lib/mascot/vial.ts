@@ -29,12 +29,13 @@ export function validateVial(raw: unknown): { ok: true; vial: Vial } | { ok: fal
     const out: NonNullable<Vial["sliders"]> = {};
     for (const [k, x] of Object.entries(raw.sliders)) {
       if (!(SLIDERS as readonly string[]).includes(k)) return no(`unknown slider "${k}"`);
-      if (!isObj(x)) return no(`slider ${k} must be an object`);
+      const o = Number.isInteger(x) ? { value: x } : x; // shorthand: bare integer = {value}
+      if (!isObj(o)) return no(`slider ${k} must be an object or integer`);
       const e: { value?: number; cap?: number } = {};
       for (const f of ["value", "cap"] as const) {
-        if (x[f] === undefined) continue;
-        if (!isInt(x[f], -MAX.delta, MAX.delta)) return no(`${k}.${f} must be an integer from -3 to 3`);
-        e[f] = x[f] as number;
+        if (o[f] === undefined) continue;
+        if (!isInt(o[f], -MAX.delta, MAX.delta)) return no(`${k}.${f} must be an integer from -3 to 3`);
+        e[f] = o[f] as number;
       }
       out[k as SliderId] = e;
     }
