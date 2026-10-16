@@ -1,11 +1,14 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { hopPath, WARP } from "@/lib/mascot/anim";
 import type { Expression } from "@/lib/mascot/core";
+import { clipsFor, clipUrl, clipUrls, reactionFor, type Clips, type ReactEvent } from "@/lib/mascot/play";
 import { POSE_SPEC, stageSprite, type Pose } from "@/lib/mascot/poses";
 import {
   blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, TAP_MAX_MOVE,
   type PointerSample, type Rect, type Spot, type StageEvent,
 } from "@/lib/mascot/stage";
+import { SpriteCanvas, useClip, type SpriteHandle } from "./SpriteCanvas";
 
 export const FIELD = "textarea, [contenteditable]:not([contenteditable=false]), input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file],[type=color])";
 export const isTyping = () => !!(document.activeElement as HTMLElement | null)?.matches?.(FIELD);
@@ -14,13 +17,17 @@ const SIZE_VH = { s: 0.35, m: 0.45, l: 0.55 }; // standing height
 const MOVE = "transform 900ms cubic-bezier(.34,1.25,.64,1), opacity 300ms";
 const SETTLE = "transform 420ms cubic-bezier(.34,1.4,.64,1)";
 const BOUNCE = "transform 700ms cubic-bezier(.34,1.9,.64,1)"; // overshoot = bounce off the edge
+const HOP = "opacity 300ms"; // moves hop via WAAPI keyframes (hopPath); the CSS transition only fades
+const HOP_MS = 300; // per hop
+const KICK = { poke: 2.5, pat: 1, drop: 3, land: 2 }; // squash impulses
+const DRAG_PX_MS = 1.5; // pointer speed that maxes the hair lag
 const EXIT_MS = 350;
 const rectOf = (el: Element): Rect => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
 const any = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 type Props = {
-  sprites: Record<string, number>; outfit: string; expression: Expression | null; size: "s" | "m" | "l"; mischief: number;
+  sprites: Record<string, number>; clips: Clips | null; outfit: string; expression: Expression | null; size: "s" | "m" | "l"; mischief: number;
   empty: boolean; hushed: boolean; typing: boolean; hidden: boolean;
   /** RP tab open: idle spots prefer peek/lean. */
   spy?: boolean;
@@ -48,6 +55,10 @@ export function Stage(p: Props) {
   const lastTap = useRef<number | null>(null);
   const inner = useRef<HTMLDivElement>(null);
   const sway = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const canvas = useRef<SpriteHandle>(null);
+  const hop = useRef<Animation | null>(null);
+  const prevHome = useRef<{ x: number; y: number } | null>(null);
   const exit = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { vw, vh } = view, baseH = view.stableH * SIZE_VH[p.size];
@@ -64,11 +75,11 @@ export function Stage(p: Props) {
     let s = chooseSpot(ctx);
     for (let i = 0; i < 12 && !fits(s.pose); i++) s = chooseSpot(ctx);
     if (!fits(s.pose)) s = chooseSpot({ ...ctx, mischief: 0 }); // stand/peek: always drawable (stand exists)
-    setMotion(MOVE); setGone(null); setSpot(s); setMood(idleMood(Math.random, event === "bored"));
+    setMotion(reduced() ? MOVE : HOP); setGone(null); setSpot(s); setMood(idleMood(Math.random, event === "bored"));
   }
   // Latest closures for long-lived listeners.
-  const act = useRef({ move, spot, collect, mischief, hidden, typing, baseH });
-  act.current = { move, spot, collect, mischief, hidden, typing, baseH };
+  const act = useRef({ move, spot, collect, mischief, hidden, typing, baseH, react: (_ev: ReactEvent, _mood?: Expression) => {}, blink: () => {} });
+  act.current = { ...act.current, move, spot, collect, mischief, hidden, typing, baseH };
   /** Resize: stay put unless she drifted off-screen (nudge back) or now covers an avoid rect (re-pick). */
   const refit = () => {
     const a = act.current, s = a.spot;
@@ -91,7 +102,9 @@ export function Stage(p: Props) {
       if (a.hidden) return;
       if (k === "idle" && a.mischief > 0 && !a.typing) a.move("bored"); // mischief 0 = parked
       else if ((k === "generated" || k === "upscaled" || k === "error") && a.spot?.pose === "back") { setMotion(MOVE); setSpot({ ...a.spot, pose: "stand" }); } // turn round to judge it
+      else if (k === "generated" || k === "upscaled") a.react(k);
     };
+    const onReact = (e: Event) => { const d = (e as CustomEvent<{ profile: string; event: ReactEvent }>).detail; if (d?.profile === "miyabi" && !act.current.hidden) act.current.react(d.event); };
     const release = () => { const pr = press.current; if (!pr) return; press.current = null; clearTimeout(pr.timer); setDrag(null); setMotion(MOVE); };
     // Scroll: a small sway, rAF-throttled, written straight to the style (no render).
     const last = new WeakMap<object, number>();
@@ -110,11 +123,12 @@ export function Stage(p: Props) {
     window.addEventListener("resize", onResize);
     window.addEventListener("mascot:stage", onStage);
     window.addEventListener("mascot", onBus);
+    window.addEventListener("mascot:react", onReact);
     window.addEventListener("blur", release);
     document.addEventListener("scroll", onScroll, { passive: true, capture: true });
     return () => {
       clearTimeout(t); clearTimeout(still); clearTimeout(exit.current); cancelAnimationFrame(raf); clearTimeout(press.current?.timer);
-      window.removeEventListener("resize", onResize); window.removeEventListener("mascot:stage", onStage); window.removeEventListener("mascot", onBus);
+      window.removeEventListener("resize", onResize); window.removeEventListener("mascot:stage", onStage); window.removeEventListener("mascot", onBus); window.removeEventListener("mascot:react", onReact);
       window.removeEventListener("blur", release); document.removeEventListener("scroll", onScroll, { capture: true });
     };
   }, []);
@@ -153,23 +167,50 @@ export function Stage(p: Props) {
 
   const expr: Expression = drag ? "shocked" : reaction?.e ?? p.expression ?? mood;
   const key = spot && stageSprite(have, spot.pose, outfit, expr);
+  const clip = useClip(p.empty);
+  const clips = useMemo(() => clipsFor(p.clips, key), [p.clips, key]);
   const sleepy = spot && !p.empty && spot.pose !== "back" ? stageSprite(have, spot.pose, outfit, "sleepy") : null;
-  const canBlink = !!sleepy && sleepy.endsWith("/sleepy") && sleepy !== key && !hidden;
+  const sleepyBlink = !clips.blink && !!sleepy && sleepy.endsWith("/sleepy") && sleepy !== key; // no blink clip: flash the sleepy sprite
+  const canBlink = !hidden && !p.empty && spot?.pose !== "back" && (!!clips.blink || sleepyBlink);
+  act.current.react = (ev, m = expr) => { const k = reactionFor(ev, m, Math.random); if (clips[k] && !reduced()) clip.play(k, key, clips); };
+  act.current.blink = () => { if (clips.blink) clip.play("blink", key, clips); else { setBlink(true); setTimeout(() => setBlink(false), 140); } };
   useEffect(() => {
     if (!canBlink) return;
     let t: ReturnType<typeof setTimeout>;
-    const loop = () => { t = setTimeout(() => { setBlink(true); t = setTimeout(() => { setBlink(false); loop(); }, 140); }, blinkSchedule(Math.random)); };
+    const loop = () => { t = setTimeout(() => { act.current.blink(); loop(); }, blinkSchedule(Math.random)); };
     loop();
     return () => { clearTimeout(t); setBlink(false); };
   }, [canBlink]);
+  // This sprite's clip frames (and the blink stand-in) into the HTTP cache, so swaps don't wait on the network.
+  useEffect(() => { for (const u of [...clipUrls(p.clips, key), ...(sleepyBlink ? [`/api/mascot/sprites/${sleepy}?v=${sprites[sleepy!]}`] : [])]) new Image().src = u; }, [p.clips, key, sleepyBlink]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!spot) return null;
+  // Moves hop: keyframed transforms along hopPath from the last home to the new one, squash on landing. Fewer than 2 points = snap.
+  const home = spot && (() => { const { w, h } = dims(spot.pose); return { x: spot.x - w / 2, y: spot.y - h }; })();
+  useLayoutEffect(() => {
+    const from = prevHome.current;
+    prevHome.current = home;
+    if (!home || !from || motion !== HOP || !box.current || (from.x === home.x && from.y === home.y)) return;
+    const path = hopPath(from, home);
+    if (path.length < 2) return;
+    hop.current?.cancel();
+    hop.current = box.current.animate(path.map((k) => ({
+      offset: k.t, easing: k.squash < 0 ? "ease-in" : "ease-out", // rise slows into the apex, fall speeds into the landing
+      transform: `translate(${k.x}px, ${k.y}px) rotate(${k.tilt}rad) scale(${1 + k.squash * WARP.squashShift}, ${1 - k.squash})`,
+    })), { duration: ((path.length - 1) / 2) * HOP_MS });
+    hop.current.onfinish = () => { hop.current = null; canvas.current?.kick(KICK.land); };
+  }, [home?.x, home?.y]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!spot || !home) return null;
   const { w, h } = dims(spot.pose);
-  const homeL = spot.x - w / 2, homeT = spot.y - h;
+  const homeL = home.x, homeT = home.y;
   const left = drag?.left ?? gone?.left ?? homeL, top = drag?.top ?? gone?.top ?? homeT;
 
+  /** Squash on the live canvas; no canvas (fallback <img>) → the old CSS jiggle for poke/pat. */
+  function squish(kind: keyof typeof KICK) {
+    if (reduced() || canvas.current?.kick(KICK[kind])) return;
+    if (kind === "poke" || kind === "pat") jiggle(kind);
+  }
   function jiggle(kind: "poke" | "pat") {
-    if (reduced()) return;
     inner.current?.animate(kind === "pat"
       ? [{ transform: "none" }, { transform: "scale(1.03,.97)" }, { transform: "scale(.99,1.02)" }, { transform: "none" }]
       : [{ transform: "none" }, { transform: "scale(1.1,.88)" }, { transform: "scale(.94,1.06)" }, { transform: "scale(1.02,.98)" }, { transform: "none" }],
@@ -178,6 +219,7 @@ export function Stage(p: Props) {
   function down(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button > 0) return; // right click → context menu
     e.currentTarget.setPointerCapture(e.pointerId);
+    hop.current?.cancel(); hop.current = null; // mid-hop: the hop ends, she is grabbed at her new spot
     const pr: Press = { samples: [{ x: e.clientX, y: e.clientY, t: e.timeStamp }], left: homeL, top: homeT, long: false, dragging: false };
     pr.timer = setTimeout(() => { if (press.current === pr && !pr.dragging) { pr.long = true; p.onMenu(); } }, LONGPRESS_MS);
     press.current = pr;
@@ -188,7 +230,11 @@ export function Stage(p: Props) {
     const a = pr.samples[0];
     pr.samples.push({ x: e.clientX, y: e.clientY, t: e.timeStamp });
     if (!pr.dragging && Math.hypot(e.clientX - a.x, e.clientY - a.y) > TAP_MAX_MOVE) { pr.dragging = true; clearTimeout(pr.timer); p.onCloseMenu(); }
-    if (pr.dragging) setDrag({ left: pr.left + e.clientX - a.x, top: pr.top + e.clientY - a.y });
+    if (pr.dragging) {
+      setDrag({ left: pr.left + e.clientX - a.x, top: pr.top + e.clientY - a.y });
+      const q = pr.samples[pr.samples.length - 2], v = (e.clientX - q.x) / Math.max(1, e.timeStamp - q.t) / DRAG_PX_MS;
+      canvas.current?.drag(spot!.flip ? -v : v); // sprite space: a flipped sprite lags the other way
+    }
   }
   function up(e: React.PointerEvent) {
     const pr = press.current; press.current = null;
@@ -202,12 +248,15 @@ export function Stage(p: Props) {
     lastTap.current = g === "menu" || g === "pat" || g === "poke" ? e.timeStamp : null;
     setDrag(null);
     if (g === "menu" || g === "longpress") p.onMenu();
-    else if (g === "pat") { setReaction({ e: any<Expression>(["flirty", "laughing"]), ms: 1800 }); jiggle("pat"); }
-    else if (g === "poke") { p.onCloseMenu(); setReaction({ e: any<Expression>(["shocked", "annoyed", "laughing"]), ms: 1500 }); jiggle("poke"); p.onPoke(); }
-    else if (g === "drag") { setMotion(SETTLE); setSpot(settleSpot({ x: dl + w / 2, y: dt + h }, collect(), fits)); }
+    else if (g === "pat") { const r = any<Expression>(["flirty", "laughing"]); act.current.react("pat"); setReaction({ e: r, ms: 1800 }); squish("pat"); }
+    else if (g === "poke") {
+      const r = any<Expression>(["shocked", "annoyed", "laughing"]);
+      p.onCloseMenu(); act.current.react("poke", r); setReaction({ e: r, ms: 1500 }); squish("poke"); p.onPoke();
+    } else if (g === "drag") { setMotion(SETTLE); setSpot(settleSpot({ x: dl + w / 2, y: dt + h }, collect(), fits)); act.current.react("drop"); squish("drop"); }
     else if (g === "flick") {
       const right = z.x + (z.x - b.x) * 4 >= vw / 2;
       setMotion(BOUNCE); setSpot(settleSpot({ x: right ? vw : 0, y: dt + h }, collect(), (q) => q === "stand"));
+      act.current.react("flick"); squish("drop");
       setReaction({ e: "annoyed", ms: 5000 }); // sulks; the behaviour loop creeps her back later
     } else if (g === "swipeOff") {
       const dx = z.x - b.x, dy = z.y - b.y, n = Math.hypot(dx, dy) || 1, k = Math.max(vw, vh);
@@ -229,24 +278,22 @@ export function Stage(p: Props) {
   );
   const flip = spot.flip ? "scaleX(-1)" : undefined;
   const src = (k: string) => `/api/mascot/sprites/${k}?v=${sprites[k]}`;
+  const playing = clip.show();
+  const frame = (playing && clipUrl(p.clips, playing.key, playing.kind, playing.frame)) || src(blink && sleepyBlink ? sleepy! : key!);
 
   return (
     <div data-noswipe className="pointer-events-none fixed inset-0 z-30 overflow-hidden select-none">
       {p.menuOpen && <button type="button" tabIndex={-1} aria-label="Close menu" className="pointer-events-auto fixed inset-0 cursor-default" onClick={p.onCloseMenu} />}
       {!hidden && key && (
-        <div role="button" tabIndex={0} aria-label={p.label} aria-expanded={p.menuOpen}
+        <div ref={box} role="button" tabIndex={0} aria-label={p.label} aria-expanded={p.menuOpen}
           onPointerDown={down} onPointerMove={moveP} onPointerUp={up} onPointerCancel={release} onLostPointerCapture={release}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onMenu(); } else if (e.key === "Escape") p.onCloseMenu(); }}
           onContextMenu={(e) => { e.preventDefault(); p.onMenu(); }}
           className={`absolute top-0 left-0 cursor-grab ${typing ? "pointer-events-none opacity-50" : "pointer-events-auto"}`}
-          style={{ width: w, height: h, transform: `translate(${left}px, ${top}px)`, transition: drag ? "none" : motion, opacity: gone ? 0 : undefined, touchAction: "none", WebkitTouchCallout: "none" }}>
+          style={{ width: w, height: h, transform: `translate(${left}px, ${top}px)`, transformOrigin: "50% 100%", transition: drag ? "none" : motion, opacity: gone ? 0 : undefined, touchAction: "none", WebkitTouchCallout: "none" }}>
           <div ref={sway} className="mascot-bob h-full w-full origin-bottom" style={{ transition: "rotate 300ms var(--ease-out)" }}>
             <div ref={inner} className={`relative h-full w-full origin-bottom transition-[filter,opacity] duration-500 ${drag ? "mascot-flail" : ""} ${p.empty ? "opacity-70 grayscale" : ""}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src(key)} alt="" draggable={false} className="h-full w-full object-contain drop-shadow-lg" style={{ transform: flip }} />
-              {/* blink: the sleepy sprite stacked on top, flashed by opacity */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {canBlink && <img src={src(sleepy!)} alt="" draggable={false} className="absolute inset-0 h-full w-full object-contain" style={{ transform: flip, opacity: blink ? 1 : 0 }} />}
+              <SpriteCanvas ref={canvas} src={frame} pose={spot.pose} empty={p.empty} bleed className="h-full w-full drop-shadow-lg" style={{ transform: flip }} />
               {p.hushed && <span aria-hidden="true" className="text-muted absolute top-[6%] right-[22%] font-mono text-xs">zzz</span>}
             </div>
           </div>

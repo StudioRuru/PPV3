@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { ChatMsg } from "@/lib/copilot-prompt";
+import { emitReact } from "@/lib/mascot/bus";
 import type { Expression } from "@/lib/mascot/core";
 import { listenPhase, nextPhase, type TalkPhase } from "@/lib/mascot/talk";
 import { bottledKey, groupBottles, historyForEdit, historyForRegenerate, singleFlight, stripVialBlock, vialOutcome, type Bottle as BottleRow } from "@/lib/mascot/ui";
@@ -160,6 +161,8 @@ export function ApothecarySheet({ open, onClose }: { open: boolean; onClose: () 
     if (!r.ok) { setError(r.error); loadList(); return false; }
     setList(r.data);
     done?.();
+    if (body.action === "drop" && touched) emitReact("miyabi", "vial_drop");
+    else if (body.action === "brew" || body.action === "bottle") emitReact("aru", "brewed");
     if (r.data.quip?.text) { setLine(r.data.quip.text); window.dispatchEvent(new CustomEvent("mascot:say", { detail: r.data.quip })); }
     return true;
   }

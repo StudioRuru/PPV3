@@ -51,7 +51,7 @@ export function vertexOffset(u0: number, v0: number, s: WarpState, pose: Pose): 
     dx = (sway * WARP.swayAmp - lag) * weight * amp; // top band shears opposite to drag
   } else if (band === "chest") dy = -breathe * WARP.breatheAmp * weight * amp;
   const q = clamp(fin(s.squash.x), -WARP.squashMax, WARP.squashMax); // + = squash (shorter, wider), - = stretch
-  dy -= (1 - v) * q; dx += (u - 0.5) * q * WARP.squashShift;
+  dy += (1 - v) * q; dx += (u - 0.5) * q * WARP.squashShift; // y down: squash brings the top down
   return [dx, dy];
 }
 
@@ -72,7 +72,7 @@ export function stepSpring(sp: Spring, dt: number): Spring {
 export type Hop = { t: number; x: number; y: number; squash: number; tilt: number };
 const HOP_PX = 120, HOP_SQUASH = 0.15, HOP_STRETCH = -0.08, HOP_TILT = 0.08;
 
-/** 2–4 hops from→to (count by distance, default hypot); keyframes at take-off/apex/landing, endpoints exact, y up = negative. */
+/** 2–4 hops from→to (count by distance, default hypot); keyframes at take-off/apex/landing, endpoints exact, y up = negative. A non-finite endpoint gives fewer than 2 points: callers treat length < 2 as "no motion". */
 export function hopPath(from: { x: number; y: number }, to: { x: number; y: number }, dist = Math.hypot(to.x - from.x, to.y - from.y)): Hop[] {
   const ok = (p: { x: number; y: number }) => Number.isFinite(p.x) && Number.isFinite(p.y);
   if (!ok(from) || !ok(to)) return [from, to].filter(ok).map((p) => ({ t: 0, x: p.x, y: p.y, squash: 0, tilt: 0 })); // no hops, just the finite point

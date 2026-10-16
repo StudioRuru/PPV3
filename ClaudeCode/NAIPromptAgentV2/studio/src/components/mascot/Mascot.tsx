@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { emitMascot } from "@/lib/mascot/bus";
 import { cannedLine, outfitFromSettings, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
+import type { Clips } from "@/lib/mascot/play";
 import { stageSprite } from "@/lib/mascot/poses";
 import { DATA_RECEIVED } from "@/lib/mascot/slime";
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
@@ -28,6 +29,7 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [sprites, setSprites] = useState<Record<string, number>>({});
+  const [clips, setClips] = useState<Clips | null>(null);
   const [say, setSay] = useState<Say | null>(null);
   const [hushUntil, setHushUntil] = useState(0);
   const [hiddenUntil, setHiddenUntil] = useState(0); // swiped off / Hide: gone until then (summon clears)
@@ -43,14 +45,15 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
   useEffect(() => {
     // Settings sheet / sprite studio push changes here; "mascot:hush" = Hush now.
     const onSettings = (e: Event) => setSettings((e as CustomEvent<Settings>).detail);
-    const onSprites = (e: Event) => setSprites((e as CustomEvent<Record<string, number>>).detail);
+    const loadSprites = () => requestJson<{ sprites: Record<string, number> } & Clips>("/api/mascot/sprites").then((r) => { if (r.ok) { setSprites(r.data.sprites); setClips(r.data); } });
+    const onSprites = () => loadSprites(); // studio picks (the event carries sprites only; clips come with the listing)
     const onHush = () => { setHushUntil(Date.now() + HUSH_MS); setSay(null); };
     const onHide = (e: Event) => { const ms = (e as CustomEvent<{ ms?: number } | null>).detail?.ms; setHiddenUntil(Date.now() + (typeof ms === "number" && ms > 0 ? ms : HIDE_MS)); setMenu(false); setSay(null); };
     const onSummon = () => setHiddenUntil(0);
     const onIdentity = () => {
       requestJson<{ settings: Settings }>("/api/mascot/state").then((r) => r.ok && setSettings(r.data.settings)); // the new slime's sliders (flirt → outfit)
       requestJson<{ empty: boolean }>("/api/mascot/slimes").then((r) => r.ok && setEmpty(r.data.empty));
-      requestJson<{ sprites: Record<string, number> }>("/api/mascot/sprites").then((r) => r.ok && setSprites(r.data.sprites)); // an inserted jar may bring its own look
+      loadSprites(); // an inserted jar may bring its own look
     };
     onIdentity();
     window.addEventListener("mascot:identity", onIdentity);
@@ -236,7 +239,7 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
       { label: "Hide 10 min", small: true, onSelect: go(() => setHiddenUntil(Date.now() + HIDE_MS)) },
     ];
     return (
-      <Stage sprites={sprites} outfit={outfit} expression={say?.expression ?? (hushed ? "sleepy" : null)} size={settings.size ?? "m"} mischief={settings.mischief ?? 5}
+      <Stage sprites={sprites} clips={clips} outfit={outfit} expression={say?.expression ?? (hushed ? "sleepy" : null)} size={settings.size ?? "m"} mischief={settings.mischief ?? 5}
         empty={empty} hushed={hushed} typing={typing} hidden={hidden || away} spy={spy} layout={bottomAt} menuOpen={menu && !hidden && !away}
         label={`Miyabi${empty ? " (empty)" : ""}${hushed ? " (hushed)" : ""} — tap for the menu, drag to move, flick to throw`}
         onMenu={() => { setMenu(true); setSay(null); }} onCloseMenu={close}
