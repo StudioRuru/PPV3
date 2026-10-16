@@ -147,3 +147,12 @@ test("fix1: clampMask minimum size", () => {
   assert.ok(c.w >= 0.02 && c.h >= 0.02 && c.x + c.w <= 1 + 1e-9 && c.y + c.h <= 1 + 1e-9);
   assert.deepEqual(clampMask(null), { x: 0, y: 0, w: 0.02, h: 0.02 });
 });
+
+test("fix2: clampMask never exceeds 1 after rounding", () => {
+  const c = clampMask({ x: 0.3333335, y: 0.3333335, w: 0.6666665, h: 0.6666665 });
+  assert.ok(c.x + c.w <= 1 && c.y + c.h <= 1);
+  for (let i = 0; i < 2000; i++) {
+    const m = clampMask({ x: Math.random(), y: Math.random(), w: Math.random(), h: Math.random() });
+    assert.ok(m.x + m.w <= 1 + 1e-12 && m.y + m.h <= 1 + 1e-12 && m.w >= 0.02 && m.h >= 0.02);
+  }
+});

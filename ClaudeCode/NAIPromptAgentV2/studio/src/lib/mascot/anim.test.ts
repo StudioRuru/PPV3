@@ -74,3 +74,20 @@ test("fix1: NaN-safe", () => {
   const p = hopPath({ x: 0, y: 0 }, { x: 50, y: 5 }, NaN);
   assert.deepEqual(p.map((q) => [q.t, q.x, q.y]), [[0, 0, 0], [1, 50, 5]]);
 });
+
+test("fix2: springs recover from overflow", () => {
+  const k = kick({ x: 0, v: 0 }, 1e308);
+  assert.ok(Number.isFinite(k.x) && Number.isFinite(k.v));
+  const s = stepSpring(k, 1 / 60);
+  assert.ok(Number.isFinite(s.x) && Number.isFinite(s.v));
+  assert.deepEqual(stepSpring(kick(k, 1e308), 1 / 60), { x: 0, v: 0 });
+  assert.deepEqual(stepSpring({ x: NaN, v: 1 }, 1 / 60), { x: 0, v: 0 });
+});
+
+test("fix2: hopPath guards non-finite endpoints", () => {
+  const f = { x: 1, y: 2 }, bad = { x: NaN, y: 3 };
+  assert.deepEqual(hopPath(f, bad).map((q) => [q.x, q.y]), [[1, 2]]);
+  assert.deepEqual(hopPath(bad, f).map((q) => [q.x, q.y]), [[1, 2]]);
+  assert.deepEqual(hopPath(bad, bad), []);
+  assert.ok(hopPath(f, { x: 400, y: Infinity }).length === 1);
+});

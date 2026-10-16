@@ -55,15 +55,18 @@ export function vertexOffset(u0: number, v0: number, s: WarpState, pose: Pose): 
   return [dx, dy];
 }
 
+/** A spring with any non-finite part (NaN, overflow) resets to rest. */
+const sane = (sp: Spring): Spring => (Number.isFinite(sp.x) && Number.isFinite(sp.v) ? sp : { x: 0, v: 0 });
+
 /** Add an impulse (velocity) to a spring. */
-export const kick = (sp: Spring, impulse: number): Spring => ({ x: sp.x, v: sp.v + fin(impulse) });
+export const kick = (sp: Spring, impulse: number): Spring => sane({ x: sp.x, v: sp.v + fin(impulse) });
 
 /** Damped spring toward 0, semi-implicit Euler in sub-steps; dt is clamped so a stalled frame can't explode it. */
 export function stepSpring(sp: Spring, dt: number): Spring {
   const { k, c, maxDt, sub } = WARP.spring, h = clamp(fin(dt), 0, maxDt) / sub;
-  let { x, v } = sp;
+  let { x, v } = sane(sp);
   for (let i = 0; i < sub; i++) { v += (-k * x - c * v) * h; x += v * h; }
-  return { x, v };
+  return sane({ x, v });
 }
 
 export type Hop = { t: number; x: number; y: number; squash: number; tilt: number };
@@ -71,6 +74,8 @@ const HOP_PX = 120, HOP_SQUASH = 0.15, HOP_STRETCH = -0.08, HOP_TILT = 0.08;
 
 /** 2–4 hops from→to (count by distance, default hypot); keyframes at take-off/apex/landing, endpoints exact, y up = negative. */
 export function hopPath(from: { x: number; y: number }, to: { x: number; y: number }, dist = Math.hypot(to.x - from.x, to.y - from.y)): Hop[] {
+  const ok = (p: { x: number; y: number }) => Number.isFinite(p.x) && Number.isFinite(p.y);
+  if (!ok(from) || !ok(to)) return [from, to].filter(ok).map((p) => ({ t: 0, x: p.x, y: p.y, squash: 0, tilt: 0 })); // no hops, just the finite point
   if (!Number.isFinite(dist)) return [{ t: 0, ...from, squash: 0, tilt: 0 }, { t: 1, ...to, squash: 0, tilt: 0 }];
   const n = clamp(Math.round(dist / HOP_PX), 2, 4), lerp = (a: number, b: number, f: number) => a + (b - a) * f;
   const lift = clamp((dist / n) * 0.4, 8, 48), lean = Math.sign(to.x - from.x) * HOP_TILT;

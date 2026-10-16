@@ -55,11 +55,11 @@ export function defaultMasks(baseKey: string): Record<MaskName, Mask> {
     : { eyes: { x: 0.32, y: 0.3, w: 0.36, h: 0.1 }, mouth: { x: 0.4, y: 0.44, w: 0.2, h: 0.08 } };
 }
 const unit = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
-const MIN_MASK = 0.02, r6 = (n: number) => Math.round(n * 1e6) / 1e6;
+const MIN_MASK = 0.02, r6 = (n: number) => Math.round(n * 1e6) / 1e6, f6 = (n: number) => Math.floor(n * 1e6 + 1e-6) / 1e6;
 /** Untrusted box → 0..1 values inside the sprite (x+w, y+h ≤ 1), at least 0.02 wide/high. */
 export function clampMask(m: unknown): Mask {
-  const r = (m ?? {}) as Record<string, unknown>, x = Math.min(unit(r.x), 1 - MIN_MASK), y = Math.min(unit(r.y), 1 - MIN_MASK);
-  return { x, y, w: r6(Math.max(MIN_MASK, Math.min(unit(r.w), 1 - x))), h: r6(Math.max(MIN_MASK, Math.min(unit(r.h), 1 - y))) };
+  const r = (m ?? {}) as Record<string, unknown>, x = r6(Math.min(unit(r.x), 1 - MIN_MASK)), y = r6(Math.min(unit(r.y), 1 - MIN_MASK));
+  return { x, y, w: Math.max(MIN_MASK, f6(Math.min(unit(r.w), 1 - x))), h: Math.max(MIN_MASK, f6(Math.min(unit(r.h), 1 - y))) };
 }
 
 // --- manifest ---
