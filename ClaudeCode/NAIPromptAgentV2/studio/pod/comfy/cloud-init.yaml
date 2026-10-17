@@ -9,6 +9,7 @@ write_files:
       TS_TAGS='tag:comfy-pod'
       HF_TOKEN='{{HF_TOKEN}}'
       CIVITAI_TOKEN='{{CIVITAI_TOKEN}}'
+      MODELS_GB='{{MODELS_GB}}'
   - path: /opt/comfy-install.sh
     permissions: "0755"
     encoding: b64
@@ -63,6 +64,5 @@ write_files:
       WantedBy=multi-user.target
 runcmd:
   - [systemctl, daemon-reload]
-  - [systemctl, enable, --now, comfy-boot.service]
-  - [bash, /opt/comfy/fetch-models.sh, /opt/comfy-manifest.yaml]
-  - [systemctl, enable, --now, comfy.service]
+  # Chained: runcmd ignores failures, and a failed bootstrap or download must never come up as "ready".
+  - [bash, -c, "systemctl enable --now comfy-boot.service && bash /opt/comfy/fetch-models.sh /opt/comfy-manifest.yaml && systemctl enable --now comfy.service"]

@@ -17,11 +17,13 @@ function setup(offers: Offer[] = [main, h100]) {
   let now = T0;
   const log: string[] = [];
   const vms = new Map<string, string>(); // id -> status
-  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, gate: null as Promise<void> | null };
+  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[] };
   let n = 0;
   const hs = {
     offers: async (min: number) => o.offers.filter((x) => x.vramGb >= min).sort((a, b) => a.usdHr - b.usdHr),
-    create: async (_o: Offer, name: string) => { if (o.gate) await o.gate; const id = `vm${++n}`; vms.set(id, "BUILD"); log.push(`create ${name}`); return id; },
+    create: async (_o: Offer, name: string, _u: string, _k: string, vol?: string) => { if (o.gate) await o.gate; const id = `vm${++n}`; vms.set(id, "BUILD"); log.push(`create ${name}`); o.vols.push(`${_o.env}:${vol}`); return id; },
+    findVolume: async () => o.vol,
+    ensureVolume: async (name: string, env: string, gb: number) => { o.vols.push(`ensure ${name} ${env} ${gb}`); },
     status: async (id: string) => vms.get(id) ?? null,
     hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); },
     restore: async (id: string) => { vms.set(id, "BUILD"); log.push(`restore ${id}`); },
@@ -41,6 +43,16 @@ test("first warm creates once and opens a run; second warm while starting is a n
   assert.deepEqual(s.log, ["create nai-comfy-main"]);
   assert.equal(runs(s.db).length, 1);
   assert.equal(runs(s.db)[0].usdHr, 1);
+});
+
+test("main ensures its models volume and stays in the volume's region; boost has none", async () => {
+  const s = setup([{ ...main, env: "cheap", usdHr: 0.5 }, { ...main, env: "vol" }, h100]);
+  s.o.vol = { env: "vol" };
+  await s.e.warm();
+  assert.deepEqual(s.o.vols, ["ensure nai-comfy-main-models vol 150", "vol:nai-comfy-main-models"]);
+  s.o.vols.length = 0;
+  await s.e.setBoost(true);
+  assert.deepEqual(s.o.vols, ["e:undefined"]);
 });
 
 test("warm on a hibernated VM restores instead of creating", async () => {
@@ -199,7 +211,7 @@ test("boost picks an H100 and boost off stops it", async () => {
 test("NoCapacity on create marks unavailable", async () => {
   const s = setup();
   const db = s.db;
-  const hs = { offers: async () => [main], create: async () => { throw new NoCapacity("capacity", 400); } } as unknown as Hyperstack;
+  const hs = { offers: async () => [main], findVolume: async () => null, ensureVolume: async () => {}, create: async () => { throw new NoCapacity("capacity", 400); } } as unknown as Hyperstack;
   const e = engine({ db, hs, ping: async () => false, now: () => T0 });
   assert.equal((await e.warm()).phase, "unavailable");
 });

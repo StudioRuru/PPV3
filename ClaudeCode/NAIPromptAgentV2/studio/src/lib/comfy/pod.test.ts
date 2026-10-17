@@ -23,6 +23,12 @@ test("cloud-init embeds host, tag and flags", () => {
   assert.equal(COMFY_PORT, 8188);
 });
 
+test("main mounts a 150 GB models volume and only goes ready after a clean fetch", () => {
+  assert.ok(renderCloudInit("main", secrets).includes("MODELS_GB='150'"));
+  assert.ok(renderCloudInit("boost", secrets).includes("MODELS_GB=''"));
+  assert.ok(renderCloudInit("main", secrets).includes("fetch-models.sh /opt/comfy-manifest.yaml && systemctl enable --now comfy.service"));
+});
+
 test("boost cloud-init only carries boost models", () => {
   const out = renderCloudInit("boost", secrets);
   const b64 = /manifest\.yaml[\s\S]*?content: (\S+)/.exec(out)![1];

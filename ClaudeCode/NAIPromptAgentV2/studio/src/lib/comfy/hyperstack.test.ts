@@ -51,6 +51,20 @@ test("create sends key_name, label and user_data and returns id", async () => {
   });
 });
 
+test("ensureVolume creates a missing volume and waits until it is available; create attaches it by name", async () => {
+  const { f, calls } = fake({
+    "GET /core/volumes": [{ body: { volumes: [] } }, { body: { volumes: [{ name: "v", status: "creating", environment: { name: "e" } }] } }, { body: { volumes: [{ name: "v", status: "available", environment: { name: "e" } }] } }],
+    "POST /core/volumes": { body: {} },
+    "POST /core/virtual-machines": { body: { instances: [{ id: 1 }] } },
+  });
+  const hs = hyperstack("KEY", f, { pollMs: 0 });
+  await hs.ensureVolume("v", "e", 150);
+  assert.deepEqual(calls[1].body, { name: "v", environment_name: "e", size: 150, volume_type: "Cloud-SSD", description: "nai-comfy" });
+  assert.deepEqual(await hs.findVolume("v"), { env: "e", status: "AVAILABLE" });
+  await hs.create({ env: "e", region: "r", flavor: "fl", gpu: "L40", vramGb: 48, usdHr: 1 }, "vm1", "#cloud", "k", "v");
+  assert.equal(calls.at(-1)!.body.volume_name, "v");
+});
+
 test("hibernate from SHUTOFF starts first", async () => {
   const { f, calls } = fake({
     "GET /core/virtual-machines/7": { body: { instance: { status: "shutoff" } } },

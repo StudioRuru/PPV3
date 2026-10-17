@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import { type Card, type VmRow, comfyDb, getVm, putVm, dropVm, openRun, closeRun, runs, readSettings, getState, setState } from "./store";
 import { type Hyperstack, type Offer, NoCapacity, hyperstack } from "./hyperstack";
 import { canStart, clampKeepWarm, dayStart, runCost, spentSince, stopReason } from "./spend";
-import { COMFY_PORT, podHost, renderCloudInit } from "./pod";
+import { COMFY_PORT, modelsVolume, podHost, renderCloudInit } from "./pod";
 import { ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
 
@@ -69,8 +69,10 @@ export function engine(d: Deps) {
   }
 
   async function pick(card: Card): Promise<Offer | null> {
-    const list = card === "boost" ? (await hs.offers(80)).filter((o) => /H100/i.test(o.gpu)) : await hs.offers(48);
-    return list[0] ?? null;
+    if (card === "boost") return (await hs.offers(80)).filter((o) => /H100/i.test(o.gpu))[0] ?? null;
+    // ponytail: the models volume pins main to its region; no stock there = unavailable (delete the volume to move regions).
+    const vol = await hs.findVolume(modelsVolume(card)!.name);
+    return (await hs.offers(48)).filter((o) => !vol || o.env === vol.env)[0] ?? null;
   }
 
   async function warm(card: Card = "main"): Promise<EngineView> {
@@ -98,7 +100,9 @@ export function engine(d: Deps) {
         const o = await pick(card);
         if (!o) { unavailable.add(card); return out(); }
         const secrets = { tsAuthKey: COMFY_TS_AUTHKEY, hfToken: HF_TOKEN, civitaiToken: CIVITAI_TOKEN };
-        const id = await hs.create(o, podHost(card), renderCloudInit(card, secrets), HYPERSTACK_KEY_NAME);
+        const vol = modelsVolume(card);
+        if (vol) await hs.ensureVolume(vol.name, o.env, vol.gb);
+        const id = await hs.create(o, podHost(card), renderCloudInit(card, secrets), HYPERSTACK_KEY_NAME, vol?.name);
         row = { card, vmId: id, env: o.env, flavor: o.flavor, host: podHost(card), usdHr: o.usdHr, status: "starting" };
       }
       putVm(db, row);

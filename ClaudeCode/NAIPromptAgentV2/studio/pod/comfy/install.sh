@@ -2,11 +2,25 @@
 # Idempotent pod bootstrap. Run by cloud-init and again on every boot (comfy-boot.service):
 # a restored VM does not re-run cloud-init, but Tailscale must re-join each time.
 set -euo pipefail
-. /etc/comfy.env   # TS_AUTHKEY TS_HOSTNAME TS_TAGS HF_TOKEN CIVITAI_TOKEN (0600, never echoed)
+. /etc/comfy.env   # TS_AUTHKEY TS_HOSTNAME TS_TAGS HF_TOKEN CIVITAI_TOKEN MODELS_GB (0600, never echoed)
 
 ROOT=/opt/comfy
 MARK=/opt/comfy-markers
 mkdir -p "$MARK" "$ROOT/models"
+
+# Every boot: mount the persistent models volume, found by its exact size so the root,
+# config-drive and ephemeral disks are never touched. Formatted only when blank.
+if [ -n "${MODELS_GB:-}" ] && ! mountpoint -q "$ROOT/models"; then
+  dev=""
+  for _ in $(seq 60); do
+    dev=$(lsblk -bdno NAME,SIZE,TYPE | awk -v b=$((MODELS_GB * 1073741824)) '$3=="disk" && $2==b {print "/dev/"$1; exit}')
+    [ -n "$dev" ] && break
+    sleep 2
+  done
+  [ -n "$dev" ] || { echo "models volume (${MODELS_GB} GB) not attached" >&2; exit 1; }
+  blkid "$dev" >/dev/null || mkfs.ext4 -q -L comfy-models "$dev"
+  mount "$dev" "$ROOT/models"
+fi
 step() { local m=$1; shift; [ -e "$MARK/$m" ] && return 0; "$@"; touch "$MARK/$m"; }
 
 # Pinned commits (clone unmodified; never vendored).

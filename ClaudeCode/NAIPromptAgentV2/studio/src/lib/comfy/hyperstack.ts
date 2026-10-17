@@ -48,6 +48,11 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
     if (res.status === 404) return null;
     return String(((await res.json()) as any).instance?.status ?? "").toUpperCase();
   }
+  async function findVolume(name: string): Promise<{ env: string; status: string } | null> {
+    const j = (await (await call("GET", "/core/volumes")).json()) as any;
+    const v = (j.volumes ?? []).find((x: any) => x.name === name);
+    return v ? { env: String(v.environment?.name ?? ""), status: String(v.status ?? "").toUpperCase() } : null;
+  }
   const start = async (id: string) => { await call("GET", `/core/virtual-machines/${id}/start`); };
 
   return {
@@ -73,15 +78,26 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
       return out.sort((a, b) => a.usdHr - b.usdHr);
     },
 
-    async create(o: Offer, name: string, userData: string, keyName: string): Promise<string> {
+    async create(o: Offer, name: string, userData: string, keyName: string, volumeName?: string): Promise<string> {
       const res = await call("POST", "/core/virtual-machines", {
         name, environment_name: o.env, flavor_name: o.flavor, image_name: IMAGE, key_name: keyName,
-        count: 1, assign_floating_ip: true, user_data: userData, labels: [LABEL],
+        count: 1, assign_floating_ip: true, user_data: userData, labels: [LABEL], ...(volumeName ? { volume_name: volumeName } : {}),
       });
       return String(((await res.json()) as any).instances[0].id);
     },
 
     status,
+    findVolume,
+
+    /** Creates the named Cloud-SSD volume in `env` if missing, then waits until it is free to attach (a flushed VM detaches it on delete). */
+    async ensureVolume(name: string, env: string, sizeGb: number): Promise<void> {
+      if (!(await findVolume(name))) await call("POST", "/core/volumes", { name, environment_name: env, size: sizeGb, volume_type: "Cloud-SSD", description: LABEL });
+      const t0 = Date.now();
+      for (let v = await findVolume(name); v?.status !== "AVAILABLE"; v = await findVolume(name)) {
+        if (Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack volume ${name}: ${v?.status ?? "missing"} after 5 min`, 408);
+        await sleep(pollMs);
+      }
+    },
 
     async hibernate(id: string): Promise<void> {
       // SHUTOFF still bills and can't hibernate: start it first.

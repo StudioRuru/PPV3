@@ -12,6 +12,8 @@ const KINDS = new Set(["checkpoints", "controlnet", "diffusion_models", "vae", "
 const b64 = (s: string) => Buffer.from(s).toString("base64");
 
 export const podHost = (card: Card) => `nai-comfy-${card}`;
+/** Main's models (~82 GB) overflow the 100 GB root disk, so they live on a persistent volume that survives Flush. Boost fits on root. */
+export const modelsVolume = (card: Card) => (card === "main" ? { name: `${podHost(card)}-models`, gb: 150 } : null);
 
 export function readManifest(file = path.join(POD_DIR, "models.manifest.yaml")): ManifestEntry[] {
   const list = YAML.parse(fs.readFileSync(file, "utf8")) as ManifestEntry[];
@@ -37,7 +39,7 @@ export function renderCloudInit(card: Card, secrets: { tsAuthKey: string; hfToke
   const read = (f: string) => fs.readFileSync(path.join(POD_DIR, f), "utf8");
   const vars: Record<string, string> = {
     TS_AUTHKEY: secrets.tsAuthKey, HOSTNAME: podHost(card), HF_TOKEN: secrets.hfToken, CIVITAI_TOKEN: secrets.civitaiToken,
-    INSTALL_B64: b64(read("install.sh")), FETCH_B64: b64(read("fetch-models.sh")), MANIFEST_B64: b64(forCard(card)),
+    MODELS_GB: String(modelsVolume(card)?.gb ?? ""), INSTALL_B64: b64(read("install.sh")), FETCH_B64: b64(read("fetch-models.sh")), MANIFEST_B64: b64(forCard(card)),
   };
   return Object.entries(vars).reduce((t, [k, v]) => t.split(`{{${k}}}`).join(v), read("cloud-init.yaml"));
 }
