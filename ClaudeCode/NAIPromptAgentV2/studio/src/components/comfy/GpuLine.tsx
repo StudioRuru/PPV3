@@ -1,9 +1,10 @@
 "use client";
+import { useEffect, useState } from "react";
 import type { EngineView } from "@/lib/comfy/engine";
 import type { Card } from "@/lib/comfy/store";
 import { alarmText, gpuLabel } from "@/lib/comfy/view";
 
-export type EngineAction = { action: "warm" | "stop"; card?: Card } | { action: "boost"; on: boolean } | { action: "keepWarm"; until: number };
+export type EngineAction = { action: "warm" | "stop" | "flush"; card?: Card } | { action: "boost"; on: boolean } | { action: "keepWarm"; until: number };
 
 /** "HH:MM" today (or tomorrow if already past) as epoch ms. The server clamps it to the keep-warm max. */
 export function timeToEpoch(hhmm: string, now: number): number | null {
@@ -24,6 +25,15 @@ export function GpuLine({ view, boostView, now, onAction, error }: { view: Engin
   const showBoost = boostView && boostView.phase !== "off" && boostView.phase !== "unavailable";
   const boost = view?.boost ?? "off";
   const btn = "border-border h-9 rounded-full border px-3 text-xs";
+  const [arm, setArm] = useState(false); // flush needs a second tap
+  useEffect(() => { if (!arm) return; const t = setTimeout(() => setArm(false), 4000); return () => clearTimeout(t); }, [arm]);
+  const canFlush = live || !!view?.kept || !!boostView?.kept;
+  const flush = () => {
+    if (!arm) return setArm(true);
+    setArm(false);
+    onAction({ action: "flush" });
+    onAction({ action: "flush", card: "boost" });
+  };
   return (
     <div className="space-y-2">
       {alarm && <p role="alert" className="bg-danger w-full rounded-lg px-3 py-2 text-sm font-semibold text-white">{alarm}</p>}
@@ -40,6 +50,8 @@ export function GpuLine({ view, boostView, now, onAction, error }: { view: Engin
             className="bg-bg border-border h-9 rounded-md border px-1.5 font-mono text-xs" />
         </label>
         <button type="button" disabled={!live} onClick={() => { onAction({ action: "stop" }); onAction({ action: "stop", card: "boost" }); }} className={`${btn} text-danger disabled:opacity-40`}>Stop now</button>
+        <button type="button" disabled={!canFlush} onClick={flush} title="Delete the GPU and its downloaded models; the next start re-downloads them"
+          className={`${btn} ${arm ? "bg-danger border-danger text-white" : "text-danger"} disabled:opacity-40`}>{arm ? "Tap again: delete models" : "Flush GPU"}</button>
       </div>
       {error && <p role="alert" className="text-danger text-xs">{error}</p>}
     </div>

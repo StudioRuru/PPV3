@@ -20,6 +20,10 @@ export async function POST(req: Request) {
         stopJobs(card); // jobs first, so a drain can't re-warm the card
         await e.stop(card, "manual");
         return NextResponse.json(e.view()[card]);
+      case "flush": // delete the VM and its downloaded models
+        stopJobs(card);
+        await e.stop(card, "flush");
+        return NextResponse.json(e.view()[card]);
       case "boost":
         if (typeof b.on !== "boolean") return NextResponse.json({ error: "on must be a boolean" }, { status: 400 });
         if (!b.on) stopJobs("boost");

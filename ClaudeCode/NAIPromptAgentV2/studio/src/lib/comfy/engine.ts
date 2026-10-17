@@ -9,6 +9,8 @@ import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTA
 export type EngineView = {
   card: Card; phase: "off" | "starting" | "warming" | "ready" | "stopping" | "unavailable"; gpu: string | null; since: number | null;
   usdHr: number; runCost: number; today: number; boost: "off" | "on" | "unavailable"; keepWarmUntil: number; alarm: string | null; deadline: number | null;
+  /** A hibernated VM holds the downloaded models (storage-only cost) until flushed. */
+  kept: boolean;
 };
 export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number };
 /** warm() refused by the spend policy; `message` is the user-facing sentence. */
@@ -58,7 +60,7 @@ export function engine(d: Deps) {
     return {
       card, phase, gpu: vm?.flavor ?? null, since: run?.startedAt ?? null, usdHr: vm?.usdHr ?? 0,
       runCost: run ? runCost(run, now) : 0, today: spentSince(all, dayStart(now), now), boost,
-      keepWarmUntil: st.keepWarmUntil, alarm: st.alarm, deadline: readDeadline(card),
+      keepWarmUntil: st.keepWarmUntil, alarm: st.alarm, deadline: readDeadline(card), kept: vm?.status === "hibernated",
     };
   }
   function view() {
@@ -125,14 +127,14 @@ export function engine(d: Deps) {
   async function stopNow(card: Card, reason: string): Promise<void> {
     if (card === "boost") setState(db, { boost: false }); // any stop: the next job runs on main until boost is turned on again
     const vm = getVm(db, card);
-    if (!vm || vm.status === "hibernated") return;
+    if (!vm || (vm.status === "hibernated" && reason !== "flush")) return;
     const finish = (hibernated: boolean) => {
       hibSince.delete(card);
       closeRun(db, card, d.now(), reason);
       if (hibernated) setStatus(vm, "hibernated"); else { dropVm(db, card); writeDeadline(card, null); }
     };
     try {
-      const del = reason === "deadline";
+      const del = reason === "flush"; // every other stop hibernates, keeping the models on disk
       const s = await hs.status(vm.vmId);
       if (s === null) finish(false); // already gone
       else if (del) { await hs.remove(vm.vmId); finish(false); }

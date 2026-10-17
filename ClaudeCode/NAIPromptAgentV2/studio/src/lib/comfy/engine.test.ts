@@ -89,7 +89,7 @@ test("a running job defers idle stop", async () => {
   assert.equal(s.vms.get("vm1"), "ACTIVE");
 });
 
-test("deadline deletes instead of hibernating", async () => {
+test("deadline hibernates, keeping the models", async () => {
   process.env.COMFY_DEV_DEADLINE_MIN = "5";
   const s = setup();
   try { await s.e.warm(); } finally { delete process.env.COMFY_DEV_DEADLINE_MIN; }
@@ -97,9 +97,22 @@ test("deadline deletes instead of hibernating", async () => {
   s.vms.set("vm1", "ACTIVE");
   s.tick(6 * 60_000);
   await s.e.tick();
+  assert.equal(s.vms.get("vm1"), "HIBERNATED");
+  assert.equal(s.e.view().main.kept, true);
+  assert.equal(runs(s.db)[0].stopReason, "deadline");
+});
+
+test("flush deletes a hibernated VM; a later flush is a no-op", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.stop("main", "manual");
+  assert.equal(s.e.view().main.kept, true);
+  await s.e.stop("main", "flush");
   assert.equal(s.vms.has("vm1"), false);
   assert.equal(getVm(s.db, "main"), null);
-  assert.equal(runs(s.db)[0].stopReason, "deadline");
+  assert.equal(s.e.view().main.kept, false);
+  await s.e.stop("main", "flush");
 });
 
 test("failed stop sets alarm and the next tick retries and clears it", async () => {

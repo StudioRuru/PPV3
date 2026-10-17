@@ -4,7 +4,7 @@ import type { EngineView } from "./engine";
 import { alarmText, gpuLabel, gpuName } from "./view";
 
 const v = (o: Partial<EngineView> = {}): EngineView => ({
-  card: "main", phase: "off", gpu: null, since: null, usdHr: 1, runCost: 0, today: 0, boost: "off", keepWarmUntil: 0, alarm: null, deadline: null, ...o,
+  card: "main", phase: "off", gpu: null, since: null, usdHr: 1, runCost: 0, today: 0, boost: "off", keepWarmUntil: 0, alarm: null, deadline: null, kept: false, ...o,
 });
 
 test("warming shows seconds since start", () => {
@@ -17,6 +17,7 @@ test("ready shows run cost to the cent", () => {
 
 test("off and unavailable", () => {
   assert.equal(gpuLabel(v(), 0), "○ GPU off");
+  assert.equal(gpuLabel(v({ kept: true }), 0), "○ GPU off · models kept");
   assert.equal(gpuLabel(v({ phase: "unavailable" }), 0), "● GPU unavailable");
 });
 

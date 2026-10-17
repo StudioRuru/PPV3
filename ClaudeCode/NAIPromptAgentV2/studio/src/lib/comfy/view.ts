@@ -14,7 +14,7 @@ export function gpuLabel(v: EngineView, now: number): string {
     case "ready": return `● ${g} ready · $${v.runCost.toFixed(2)}`;
     case "stopping": return `○ ${g} stopping…`;
     case "unavailable": return "● GPU unavailable";
-    default: return "○ GPU off";
+    default: return v.kept ? "○ GPU off · models kept" : "○ GPU off";
   }
 }
 
