@@ -25,3 +25,9 @@ test("asStartFrame sets start and animate mode", () => {
   assert.equal(v.mode, "animate");
   assert.equal(v.startImage, undefined);
 });
+
+test("clip reuse clears start and end frames", () => {
+  const t = reuseTarget(item("clip", { ...defaultVideo(), start: 3, end: 4 }));
+  assert.equal(t.pane, "video");
+  assert.deepEqual([t.recipe.start, (t.recipe as { end: number | null }).end], [null, null]);
+});

@@ -6,7 +6,7 @@ import type { Item } from "./store";
 export function reuseTarget(it: Item): { pane: "photo"; recipe: PhotoRecipe } | { pane: "video"; recipe: VideoRecipe } {
   return it.kind === "photo"
     ? { pane: "photo", recipe: { ...(it.recipe as PhotoRecipe), seed: it.seed, pose: null } } // pose images are session-only in the pane
-    : { pane: "video", recipe: { ...(it.recipe as VideoRecipe), seed: it.seed } };
+    : { pane: "video", recipe: { ...(it.recipe as VideoRecipe), seed: it.seed, start: null, end: null } } // the start item may be gone;
 }
 
 /** Send a photo to Video: it becomes the start frame in animate mode. */
