@@ -3,7 +3,7 @@ import path from "node:path";
 import type Database from "better-sqlite3";
 import sharp from "sharp";
 import { type Job, addItem, comfyDb, nextQueued, readItem, readJob, setState, updateJob } from "./store";
-import { type OutFile, fetchOutput, listModels, submit, upload, watch } from "./client";
+import { type OutFile, fetchOutput, interrupt, listModels, submit, upload, watch } from "./client";
 import { Refused, getEngine } from "./engine";
 import { type PoseJob, photoGraph, poseGraph, validatePhoto, validatePose, validateVideo, videoGraph } from "./recipe";
 import { COMFY_DIR } from "@/lib/env";
@@ -12,12 +12,13 @@ type Db = Database.Database;
 type Models = Awaited<ReturnType<typeof listModels>>;
 export type Client = {
   listModels: typeof listModels; upload: typeof upload; submit: typeof submit; watch: typeof watch; fetchOutput: typeof fetchOutput;
+  interrupt: typeof interrupt;
   history: (base: string, promptId: string) => Promise<unknown>;
 };
 export type Deps = { db: Db; eng: Pick<ReturnType<typeof getEngine>, "view" | "warm" | "base">; client: Client; dir: string; now: () => number };
 
 const realClient: Client = {
-  listModels, upload, submit, watch, fetchOutput,
+  listModels, upload, submit, watch, fetchOutput, interrupt,
   history: async (base, id) => {
     const res = await fetch(`${base}/history/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error(`ComfyUI /history failed: ${res.status}`);
@@ -31,15 +32,19 @@ const LIMIT: Record<Job["kind"], number> = { photo: 45 * MIN, pose: 45 * MIN, vi
 const DEAD = "The GPU stopped responding during this job.";
 const RESTARTED = "The app restarted before this job reached the GPU.";
 
-/** Per-db queue state on globalThis so it survives HMR. `token` lets a timed-out watcher know it may no longer write. */
-type QState = { watchers: Map<number, { since: number; token: object }>; draining: boolean; again: boolean };
-function qstate(db: Db): QState {
-  const g = globalThis as { __comfyQueue?: WeakMap<Db, QState> };
-  const m = (g.__comfyQueue ??= new WeakMap());
-  let s = m.get(db);
-  if (!s) m.set(db, (s = { watchers: new Map(), draining: false, again: false }));
-  return s;
+/**
+ * Queue state under one fixed globalThis key (like getEngine) so instrumentation and every route bundle share it
+ * and it survives HMR. `token` lets a timed-out watcher know it may no longer write; `ctl` stops its watch.
+ */
+type QState = { watchers: Map<number, { since: number; token: object; ctl: AbortController }>; draining: boolean; again: boolean };
+function qstate(): QState {
+  const g = globalThis as { __comfyQueue?: QState };
+  return (g.__comfyQueue ??= { watchers: new Map(), draining: false, again: false });
 }
+
+/** Moves a job from `from` to `to` only if it is still in `from`; true if this caller won. */
+const claim = (db: Db, id: number, from: Job["status"], to: Job["status"], progress: number) =>
+  db.prepare("UPDATE comfy_jobs SET status = ?, progress = ? WHERE id = ? AND status = ?").run(to, progress, id, from).changes === 1;
 
 const msg = (e: unknown) => (e instanceof Error && e.message ? e.message : "The job failed.");
 const fail = (db: Db, id: number, e: unknown) => updateJob(db, id, { status: "error", error: typeof e === "string" ? e : msg(e) });
@@ -49,7 +54,7 @@ const fail = (db: Db, id: number, e: unknown) => updateJob(db, id, { status: "er
  * Never blocks on a running job — the watch runs in the background and drains again when it ends.
  */
 export async function drainQueue(d: Deps = defaults()): Promise<void> {
-  const st = qstate(d.db);
+  const st = qstate();
   if (st.draining) { st.again = true; return; }
   st.draining = true;
   try {
@@ -71,6 +76,8 @@ async function drainOnce(d: Deps, st: QState): Promise<void> {
       if (j.promptId) { follow(d, j, now); busy = true; } else fail(db, id, RESTARTED);
     } else if (now - w.since > LIMIT[j.kind]) {
       st.watchers.delete(id);
+      w.ctl.abort(); // closes the watch's socket
+      try { void d.client.interrupt(d.eng.base(j.card)).catch(() => {}); } catch { /* pod already gone */ }
       fail(db, id, DEAD);
     } else busy = true;
   }
@@ -80,7 +87,8 @@ async function drainOnce(d: Deps, st: QState): Promise<void> {
   if (!q) return;
   const views = d.eng.view();
   let card = q.card;
-  if (card === "boost" && views.boost.phase === "unavailable") { card = "main"; updateJob(db, q.id, { card }); }
+  // boost only runs when the owner has it on; otherwise the job falls back to main (never warm boost here)
+  if (card === "boost" && views.boost.boost !== "on") { card = "main"; updateJob(db, q.id, { card }); }
   const phase = views[card].phase;
   if (phase === "off" || phase === "unavailable") {
     // not awaited: a cold start takes minutes; the next tick submits once ready
@@ -90,7 +98,7 @@ async function drainOnce(d: Deps, st: QState): Promise<void> {
   if (phase !== "ready") return;
 
   const j: Job = { ...q, card };
-  updateJob(db, j.id, { status: "running", progress: 0 });
+  if (!claim(db, j.id, "queued", "running", 0)) return; // another drain (other bundle) got it
   const base = d.eng.base(card);
   let promptId: string;
   try {
@@ -140,11 +148,11 @@ function read(dir: string, name: string): Buffer {
 }
 
 function follow(d: Deps, j: Job, since: number): void {
-  const st = qstate(d.db), token = {};
-  st.watchers.set(j.id, { since, token });
+  const st = qstate(), token = {}, ctl = new AbortController();
+  st.watchers.set(j.id, { since, token, ctl });
   const live = () => st.watchers.get(j.id)?.token === token;
   const base = d.eng.base(j.card);
-  d.client.watch(base, j.promptId!, (p) => { if (live()) updateJob(d.db, j.id, { progress: p }); })
+  d.client.watch(base, j.promptId!, (p) => { if (live()) updateJob(d.db, j.id, { progress: p }); }, { signal: ctl.signal })
     .then((out) => finish(d, j, base, out.files, since, live))
     .catch((e) => { if (live()) fail(d.db, j.id, e); })
     .finally(() => {
@@ -172,8 +180,8 @@ async function finish(d: Deps, j: Job, base: string, files: OutFile[], since: nu
       const raw = h?.[j.promptId!]?.outputs?.pose?.openpose_json?.[0];
       if (typeof raw === "string") keypoints = (JSON.parse(raw) as unknown[])[0] ?? null;
     }
-    if (!live()) return;
-    updateJob(d.db, j.id, { status: "done", progress: 1, recipe: { ...(j.recipe as object), result: { image, keypoints } } });
+    if (!live() || !claim(d.db, j.id, "running", "done", 1)) return;
+    updateJob(d.db, j.id, { recipe: { ...(j.recipe as object), result: { image, keypoints } } });
     return;
   }
 
@@ -186,12 +194,20 @@ async function finish(d: Deps, j: Job, base: string, files: OutFile[], since: nu
   const pf = clip ? files.find(isPoster) : undefined;
   if (pf) {
     poster = file.replace(/\.mp4$/, "-last.png");
-    writeAtomic(path.join(d.dir, poster), await d.client.fetchOutput(base, pf));
+    try {
+      writeAtomic(path.join(d.dir, poster), await d.client.fetchOutput(base, pf));
+    } catch (e) {
+      fs.rmSync(path.join(d.dir, file), { force: true });
+      throw e;
+    }
   }
   if (!live()) return; // timed out meanwhile: the files are orphaned, the job already says error
   const cost = (d.eng.view()[j.card].usdHr * (d.now() - since)) / 3_600_000;
-  const itemId = addItem(d.db, { kind: clip ? "clip" : "photo", file, poster, recipe: j.recipe, seed, cost, createdAt: d.now() });
-  updateJob(d.db, j.id, { status: "done", progress: 1, itemId });
+  d.db.transaction(() => {
+    if (!claim(d.db, j.id, "running", "done", 1)) return; // already finished elsewhere: one item per job
+    const itemId = addItem(d.db, { kind: clip ? "clip" : "photo", file, poster, recipe: j.recipe, seed, cost, createdAt: d.now() });
+    updateJob(d.db, j.id, { itemId });
+  })();
 }
 
 const fail2 = (m: string): never => { throw new Error(m); };

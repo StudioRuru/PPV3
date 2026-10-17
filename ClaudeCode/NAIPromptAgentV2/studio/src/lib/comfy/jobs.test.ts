@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -15,29 +15,36 @@ const PHOTO = {
 };
 const out = (filename: string): OutFile => ({ filename, subfolder: "", type: "output" });
 
+const dirs: string[] = [];
+after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });
+
 function setup() {
+  delete (globalThis as { __comfyQueue?: unknown }).__comfyQueue; // queue state is process-global; isolate each test
   const db = new Database(":memory:");
   migrate(db);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comfy-jobs-"));
+  dirs.push(dir);
   let now = 1_000_000;
   const o = {
-    phase: "off" as string, warms: 0, submits: [] as object[], uploads: [] as { name: string; size: number }[], watched: [] as string[],
+    phase: "off" as string, boost: "off" as string, warms: 0, warmed: [] as string[], interrupts: 0, signals: [] as (AbortSignal | undefined)[],
+    fetch: (f: OutFile): Buffer => Buffer.from(`bytes:${f.filename}`), submits: [] as object[], uploads: [] as { name: string; size: number }[], watched: [] as string[],
     watch: async (): Promise<{ files: OutFile[] }> => ({ files: [out("studio_00001_.png")] }),
     models: { checkpoints: ["ck.safetensors"], loras: ["a.safetensors"], samplers: [], schedulers: [] },
     history: {} as unknown,
   };
   const eng = {
-    view: () => ({ main: { phase: o.phase, usdHr: 3.6 }, boost: { phase: "off", usdHr: 0 } }),
-    warm: async () => { o.warms++; return {}; },
+    view: () => ({ main: { phase: o.phase, usdHr: 3.6, boost: o.boost }, boost: { phase: "off", usdHr: 0, boost: o.boost } }),
+    warm: async (card: string) => { o.warms++; o.warmed.push(card); return {}; },
     base: (card: string) => `http://pod-${card}`,
   } as unknown as Deps["eng"];
   const client: Deps["client"] = {
     listModels: async () => o.models,
     upload: async (_b, name, png) => { o.uploads.push({ name, size: png.length }); return `up/${name}`; },
     submit: async (_b, graph) => { o.submits.push(graph); return `p${o.submits.length}`; },
-    watch: async (_b, id, onProgress) => { o.watched.push(id); onProgress(0.5); return o.watch(); },
-    fetchOutput: async (_b, f) => Buffer.from(`bytes:${f.filename}`),
+    watch: async (_b, id, onProgress, opts) => { o.watched.push(id); o.signals.push(opts?.signal); onProgress(0.5); return o.watch(); },
+    fetchOutput: async (_b, f) => o.fetch(f),
     history: async () => o.history,
+    interrupt: async () => { o.interrupts++; },
   };
   const d: Deps = { db, eng, client, dir, now: () => now };
   const until = async (fn: () => boolean) => {
@@ -166,6 +173,8 @@ test("a job running past 45 min is marked as a dead GPU and the queue moves on",
   s.advance(2 * 60_000);
   await drainQueue(s.d);
   assert.equal(readJob(s.db, a)!.error, "The GPU stopped responding during this job.");
+  assert.equal(s.o.interrupts, 1, "the stuck prompt is interrupted on the pod");
+  assert.equal(s.o.signals[0]?.aborted, true, "the stuck watch is told to stop");
   assert.equal(readJob(s.db, b)!.status, "running", "next job submitted");
 });
 
@@ -185,4 +194,41 @@ test("pose jobs return keypoints and the preprocessed image in recipe.result", a
   assert.equal(fs.readFileSync(path.join(s.dir, result.image), "utf8"), "bytes:pose_1.png");
   assert.equal(listItems(s.db).length, 0);
   assert.equal(j.itemId, null);
+});
+
+test("two concurrent drains submit once and add one item", async () => {
+  const s = setup();
+  s.o.phase = "ready";
+  const id = addJob(s.db, "photo", PHOTO, "main", 1);
+  await Promise.all([drainQueue(s.d), drainQueue(s.d)]);
+  await s.until(() => readJob(s.db, id)!.status === "done");
+  await drainQueue(s.d);
+  assert.equal(s.o.submits.length, 1);
+  assert.equal(listItems(s.db).length, 1);
+});
+
+test("a boost job runs on main when boost is off, and boost is never warmed", async () => {
+  const s = setup();
+  const id = addJob(s.db, "video", { mode: "t2v", prompt: "rain", negative: "", loras: [], start: null, end: null, seconds: 2, motion: "medium", fps: 16, size: "480p", seed: 3, steps: 10, cfg: 3 }, "boost", 1);
+  s.o.watch = async () => ({ files: [out("v.mp4"), out("studio-last_1.png")] });
+  await drainQueue(s.d);
+  assert.deepEqual(s.o.warmed, ["main"]);
+  assert.equal(readJob(s.db, id)!.card, "main");
+  s.o.phase = "ready";
+  await drainQueue(s.d);
+  await s.until(() => readJob(s.db, id)!.status === "done");
+  assert.deepEqual(s.o.warmed, ["main"]);
+});
+
+test("a failed poster fetch removes the written clip and adds no item", async () => {
+  const s = setup();
+  s.o.phase = "ready";
+  const id = addJob(s.db, "video", { mode: "t2v", prompt: "rain", negative: "", loras: [], start: null, end: null, seconds: 2, motion: "medium", fps: 16, size: "480p", seed: 3, steps: 10, cfg: 3 }, "main", 1);
+  s.o.watch = async () => ({ files: [out("v.mp4"), out("studio-last_1.png")] });
+  s.o.fetch = (f) => { if (f.filename.startsWith("studio-last")) throw new Error("view failed"); return Buffer.from("clip"); };
+  await drainQueue(s.d);
+  await s.until(() => readJob(s.db, id)!.status === "error");
+  assert.equal(readJob(s.db, id)!.error, "view failed");
+  assert.equal(listItems(s.db).length, 0);
+  assert.deepEqual(fs.readdirSync(s.dir), []);
 });

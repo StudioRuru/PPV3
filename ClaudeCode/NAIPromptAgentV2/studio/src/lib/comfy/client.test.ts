@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ping, listModels, upload, submit, watch, fetchOutput, CLIENT_ID } from "./client";
+import { ping, listModels, upload, submit, watch, fetchOutput, interrupt, CLIENT_ID } from "./client";
 
 const B = "http://nai-comfy-main:8188";
 type Call = { method: string; path: string; init: any };
@@ -146,4 +146,20 @@ test("listModels accepts legacy and COMBO input shapes", async () => {
     "GET /object_info/KSampler": { body: { KSampler: { input: { required: { sampler_name: [["euler"]], scheduler: ["COMBO", { options: ["karras"] }] } } } } },
   });
   assert.deepEqual(await listModels(B, f), { checkpoints: ["c1"], loras: [], samplers: ["euler"], schedulers: ["karras"] });
+});
+
+test("watch settles and closes the socket when its signal aborts", async () => {
+  const { f } = fake({ "GET /history/p1": { body: {} } });
+  const ac = new AbortController();
+  const p = watch(B, "p1", () => {}, { ws: WS, f, signal: ac.signal });
+  ac.abort();
+  await assert.rejects(p, /stopped watching/);
+  assert.equal(FakeWS.last.closed, true);
+});
+
+test("interrupt posts /interrupt and swallows failures", async () => {
+  const { f, calls } = fake({ "POST /interrupt": {} });
+  await interrupt(B, f);
+  assert.equal(calls[0].path, "/interrupt");
+  await interrupt(B, (async () => { throw new Error("down"); }) as unknown as typeof fetch);
 });

@@ -21,6 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
     "Accept-Ranges": "bytes",
     "Cache-Control": "private, max-age=31536000, immutable",
   };
+  if (!size) return new NextResponse(null, { headers: { ...headers, "Content-Length": "0" } }); // end -1 would make createReadStream throw
   const body = (start: number, end: number) => Readable.toWeb(fs.createReadStream(file, { start, end })) as ReadableStream;
   const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
   if (!m || (!m[1] && !m[2])) return new NextResponse(body(0, size - 1), { headers: { ...headers, "Content-Length": String(size) } });

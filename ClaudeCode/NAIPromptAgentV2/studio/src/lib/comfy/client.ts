@@ -57,7 +57,7 @@ function historyError(h: any): string {
 
 export function watch(
   base: string, promptId: string, onProgress: (p: number) => void,
-  opts: { ws?: typeof WebSocket; f?: typeof fetch; pollMs?: number } = {},
+  opts: { ws?: typeof WebSocket; f?: typeof fetch; pollMs?: number; signal?: AbortSignal } = {},
 ): Promise<{ files: OutFile[] }> {
   const f = opts.f ?? fetch, WS = opts.ws ?? globalThis.WebSocket, pollMs = opts.pollMs ?? 2000;
   return new Promise((resolve, reject) => {
@@ -90,6 +90,9 @@ export function watch(
       }
     };
     const finish = () => check().then((ok) => { if (!ok) void poll(); }, poll);
+    const abort = () => settle(() => reject(new Error("The app stopped watching this job.")));
+    if (opts.signal?.aborted) return abort();
+    opts.signal?.addEventListener("abort", abort, { once: true });
 
     try {
       sock = new WS(`${base.replace(/^http/, "ws")}/ws?clientId=${CLIENT_ID}`);
@@ -109,6 +112,11 @@ export function watch(
       else if (m.type === "execution_success" || (m.type === "executing" && d.node === null)) void finish();
     });
   });
+}
+
+/** Best-effort: stops whatever the pod is running. Never throws. */
+export async function interrupt(base: string, f: typeof fetch = fetch): Promise<void> {
+  await f(`${base}/interrupt`, { method: "POST" }).catch(() => {});
 }
 
 export async function fetchOutput(base: string, file: OutFile, f: typeof fetch = fetch): Promise<Buffer> {
