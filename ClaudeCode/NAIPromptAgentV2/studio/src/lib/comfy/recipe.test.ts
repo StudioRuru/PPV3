@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  photoGraph, poseGraph, videoGraph, validatePhoto, validateVideo, wanFrames,
+  photoGraph, poseGraph, videoGraph, validatePhoto, validateVideo, wanFrames, isQwen,
   DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, type PhotoRecipe, type VideoRecipe,
 } from "./recipe";
 import { estimate } from "./estimate";
@@ -180,4 +180,31 @@ test("estimate scales with frames and card price", () => {
   assert.ok(Math.abs(five.usd - five.seconds / 3600) < 1e-9);
   assert.ok(estimate(video, "H100-80G-PCIe", 1).seconds < five.seconds);
   assert.ok(estimate({ ...photo, steps: 56 }, "L40", 1).seconds > estimate(photo, "L40", 1).seconds);
+});
+
+const qwen: PhotoRecipe = { ...photo, model: "noctQAnime_v10_fp8.safetensors", steps: 25, cfg: 3, sampler: "euler", scheduler: "simple" };
+
+test("Qwen models build a UNETLoader + TextEncodeQwenImage21 graph, no checkpoint loader", () => {
+  assert.ok(isQwen("noctQRealism_v40Base_fp8.safetensors") && isQwen("qwen_image_x.safetensors") && !isQwen(photo.model));
+  const g = photoGraph(qwen) as G;
+  assert.equal(byClass(g, "CheckpointLoaderSimple").length, 0);
+  assert.equal(one(g, "UNETLoader")[1].inputs.unet_name, qwen.model);
+  assert.deepEqual(one(g, "CLIPLoader")[1].inputs, { clip_name: "qwen_image_2.1_text_encoder.safetensors", type: "qwen_image", device: "default" });
+  const [enc, e] = one(g, "TextEncodeQwenImage21");
+  assert.deepEqual([e.inputs.prompt, e.inputs.negative_prompt, e.inputs.resolution, e.inputs.vae], [qwen.prompt, qwen.negative, 1024, undefined]);
+  const s = g.sampler.inputs;
+  assert.deepEqual([s.positive, s.negative, s.latent_image, s.steps, s.cfg, s.sampler_name, s.scheduler, s.denoise], [[enc, 0], [enc, 1], ["latent", 0], 25, 3, "euler", "simple", 1]);
+  assert.deepEqual([g.latent.inputs.width, g.latent.inputs.height], [832, 1216]);
+  assert.equal(g.save.class_type, "SaveImage");
+  assert.deepEqual(g.decode.inputs.samples, ["sampler", 0]);
+  const h = photoGraph({ ...qwen, hires: { scale: 1.5, denoise: 0.4 } }) as G;
+  assert.equal(byClass(h, "KSampler").length, 2);
+  assert.deepEqual(h.decode.inputs.samples, ["hires_sampler", 0]);
+});
+
+test("validatePhoto refuses pose and LoRAs on a Qwen model", () => {
+  const base = { ...qwen, seed: 1 };
+  assert.throws(() => validatePhoto({ ...base, pose: { kind: "pose", image: "pose.png", strength: 1 } }), /Pose isn't available for Qwen models/);
+  assert.throws(() => validatePhoto({ ...base, loras: [{ name: "x", strength: 1 }] }), /LoRAs aren't available for Qwen models/);
+  assert.equal(validatePhoto(base).model, qwen.model);
 });

@@ -26,5 +26,5 @@ export const HYPERSTACK_API_KEY = process.env.HYPERSTACK_API_KEY || "";
 export const HYPERSTACK_KEY_NAME = process.env.HYPERSTACK_KEY_NAME || "";
 export const COMFY_TS_AUTHKEY = process.env.COMFY_TS_AUTHKEY || "";
 export const HF_TOKEN = process.env.HF_TOKEN || "";
-export const CIVITAI_TOKEN = process.env.CIVITAI_TOKEN || "";
+export const CIVITAI_TOKEN = process.env.CIVITAI_TOKEN || process.env.CIVITAIRED_KEY || "";
 export const COMFY_DIR = path.join(DATA_DIR, "comfy");

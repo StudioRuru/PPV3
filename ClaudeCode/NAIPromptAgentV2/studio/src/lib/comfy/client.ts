@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isQwen } from "./recipe";
 
 export type OutFile = { filename: string; subfolder: string; type: string };
 export const CLIENT_ID = randomUUID();
@@ -18,14 +19,14 @@ export async function ping(base: string, f: typeof fetch = fetch): Promise<boole
 
 export async function listModels(base: string, f: typeof fetch = fetch) {
   const node = async (n: string) => ((await json(f, `${base}/object_info/${n}`, { signal: SHORT() }))[n]?.input?.required ?? {}) as Record<string, any>;
-  const [ck, lo, ks] = await Promise.all([node("CheckpointLoaderSimple"), node("LoraLoader"), node("KSampler")]);
+  const [ck, lo, ks, un] = await Promise.all([node("CheckpointLoaderSimple"), node("LoraLoader"), node("KSampler"), node("UNETLoader")]);
   const list = (o: Record<string, any>, k: string): string[] => {
     const v = o[k];
     if (Array.isArray(v?.[0])) return v[0];
     if (v?.[0] === "COMBO" && Array.isArray(v[1]?.options)) return v[1].options;
     return [];
   };
-  return { checkpoints: list(ck, "ckpt_name"), loras: list(lo, "lora_name"), samplers: list(ks, "sampler_name"), schedulers: list(ks, "scheduler") };
+  return { checkpoints: [...list(ck, "ckpt_name"), ...list(un, "unet_name").filter(isQwen)], loras: list(lo, "lora_name"), samplers: list(ks, "sampler_name"), schedulers: list(ks, "scheduler") };
 }
 
 export async function upload(base: string, name: string, png: Buffer, f: typeof fetch = fetch): Promise<string> {

@@ -7,6 +7,7 @@
   sha256: f116b0c78ff441467b0cdc8f1936e1ed18ea31e9997c7b132b1b8db533f0bd04
   size: 6938040682
   urls:
+    - https://civitai.red/api/download/models/2883731?fileId=2763986
     - https://civitai.com/api/download/models/2883731?fileId=2763986
   licence: "Civitai model page terms (WAI-illustrious-SDXL v17.0; commercial use: Image, RentCivit); owner may swap"
   cards: [main]
@@ -58,22 +59,6 @@
     - https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan2.2_vae.safetensors
   licence: "apache-2.0"
   cards: [main]
-- kind: diffusion_models
-  filename: wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
-  sha256: 6122e79d55e0f235698d11d657f3b196c5273c830da00b2b013c5a048d5e6a42
-  size: 14294742832
-  urls:
-    - https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
-  licence: "apache-2.0"
-  cards: [main, boost]
-- kind: diffusion_models
-  filename: wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
-  sha256: 5471a457b6ac404202a5fbe6c11595a3d5641fc766b00f38763f72303fffc21e
-  size: 14294742832
-  urls:
-    - https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
-  licence: "apache-2.0"
-  cards: [main, boost]
 - kind: text_encoders
   filename: umt5_xxl_fp8_e4m3fn_scaled.safetensors
   sha256: c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68
@@ -99,3 +84,51 @@
     - https://huggingface.co/DanielMarius/dms-rife47/resolve/main/rife47.pth
   licence: "MIT (upstream hzwer/ECCV2022-RIFE; HF mirrors carry no licence)"
   cards: [main, boost]
+- kind: diffusion_models
+  filename: smoothMixWan2214BI2V_i2vV20High.safetensors
+  sha256: 1f40184ebd858b179d71fdcfa9c1ebc5cb79fa7ae90474c5ba44ce8abe5e9bc3
+  size: 14550099704
+  urls:
+    - https://civitai.red/api/download/models/2513182?fileId=2460270
+  licence: "Civitai model page terms (Smooth Mix Wan 2.2)"
+  cards: [main, boost]
+- kind: diffusion_models
+  filename: smoothMixWan2214BI2V_i2vV20Low.safetensors
+  sha256: 5de2d526f4349834c36f06972f610997edfcbc896cdc4211362daea6b643b125
+  size: 14550099768
+  urls:
+    - https://civitai.red/api/download/models/2513186?fileId=2460676
+  licence: "Civitai model page terms (Smooth Mix Wan 2.2)"
+  cards: [main, boost]
+- kind: diffusion_models
+  filename: noctQAnime_v10_fp8.safetensors
+  sha256: cb9473d830100e10132d5d4495af85e68ef50c86b5dde61e3db09780526d2a67
+  size: 7250959200
+  urls:
+    - https://civitai.red/api/download/models/3362444?fileId=3250303
+  licence: "Qwen Research License / civitai model page terms"
+  cards: [main]
+- kind: diffusion_models
+  filename: noctQRealism_v40Base_fp8.safetensors
+  sha256: f5f7f191e09c6000181a676f5340c583be890a956a457d50f4225c3795655daa
+  size: 7250959200
+  urls:
+    - https://civitai.red/api/download/models/3372040?fileId=3260146
+  licence: "Qwen Research License / civitai model page terms"
+  cards: [main]
+- kind: text_encoders
+  filename: qwen_image_2.1_text_encoder.safetensors
+  sha256: 8bfd0f6e12abf2d2d697ecc888e5e90b0d6741d6708f05799f53afa560452e8f
+  size: 9350798360
+  urls:
+    - https://civitai.red/api/download/models/3354438?fileId=3241887
+  licence: "Qwen Research License / civitai model page terms"
+  cards: [main]
+- kind: vae
+  filename: qwen_image_2.1_vae_bf16.safetensors
+  sha256: bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9
+  size: 675509688
+  urls:
+    - https://civitai.red/api/download/models/3354396?fileId=3241805
+  licence: "Qwen Research License / civitai model page terms"
+  cards: [main]

@@ -1,12 +1,14 @@
-import { DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, type PhotoRecipe, type VideoRecipe } from "./recipe";
+import { DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, isQwen, type PhotoRecipe, type VideoRecipe } from "./recipe";
 
 export const PHOTO_DRAFT_KEY = "studio-comfy-photo-v1";
 
+export function photoTune(model: string): Pick<PhotoRecipe, "steps" | "cfg" | "sampler" | "scheduler"> {
+  return isQwen(model) ? { steps: 25, cfg: 3, sampler: "euler", scheduler: "simple" } : { steps: 28, cfg: 5.5, sampler: "euler_ancestral", scheduler: "normal" };
+}
+
 export function defaultPhoto(models: string[]): PhotoRecipe {
-  return {
-    mode: "photo", model: models[0] ?? "", prompt: "", negative: DEFAULT_PHOTO_NEGATIVE, loras: [], pose: null,
-    seed: -1, steps: 28, cfg: 5.5, sampler: "euler_ancestral", scheduler: "normal", width: 832, height: 1216, hires: null,
-  };
+  const model = models[0] ?? "";
+  return { mode: "photo", model, prompt: "", negative: DEFAULT_PHOTO_NEGATIVE, loras: [], pose: null, seed: -1, ...photoTune(model), width: 832, height: 1216, hires: null };
 }
 
 /** Per-device convenience only; storage can be blocked, so never throw. The pose is session-only (its image lives on the server). */
@@ -33,8 +35,13 @@ export function savePhoto(r: PhotoRecipe): void {
 
 export const VIDEO_DRAFT_KEY = "studio-comfy-video-v1";
 
+/** Smooth Mix i2v has lightx2v baked in (8 steps, CFG 1); the 5B T2V wants 20 / 3.5. */
+export function videoTune(mode: VideoRecipe["mode"]): { steps: number; cfg: number } {
+  return mode === "t2v" ? { steps: 20, cfg: 3.5 } : { steps: 8, cfg: 1 };
+}
+
 export function defaultVideo(): VideoRecipe {
-  return { mode: "animate", prompt: "", negative: DEFAULT_VIDEO_NEGATIVE, loras: [], start: null, end: null, seconds: 5, motion: "medium", fps: 60, size: "480p", seed: -1, steps: 20, cfg: 3.5 };
+  return { mode: "animate", prompt: "", negative: DEFAULT_VIDEO_NEGATIVE, loras: [], start: null, end: null, seconds: 5, motion: "medium", fps: 60, size: "480p", seed: -1, ...videoTune("animate") };
 }
 
 const ENUMS = { mode: ["animate", "t2v", "extend", "loop"], motion: ["low", "medium", "high"], fps: [16, 30, 60], size: ["480p", "720p"] } as const;

@@ -43,8 +43,9 @@ test("listModels reads object_info", async () => {
     "GET /object_info/CheckpointLoaderSimple": { body: { CheckpointLoaderSimple: { input: { required: { ckpt_name: [["a.safetensors"]] } } } } },
     "GET /object_info/LoraLoader": { body: { LoraLoader: { input: { required: { lora_name: [["l1", "l2"]] } } } } },
     "GET /object_info/KSampler": { body: { KSampler: { input: { required: { sampler_name: [["euler"]], scheduler: [["karras"]] } } } } },
+    "GET /object_info/UNETLoader": { body: { UNETLoader: { input: { required: { unet_name: [["wan2.2_ti2v_5B_fp16.safetensors", "noctQAnime_v10_fp8.safetensors"]] } } } } },
   });
-  assert.deepEqual(await listModels(B, f), { checkpoints: ["a.safetensors"], loras: ["l1", "l2"], samplers: ["euler"], schedulers: ["karras"] });
+  assert.deepEqual(await listModels(B, f), { checkpoints: ["a.safetensors", "noctQAnime_v10_fp8.safetensors"], loras: ["l1", "l2"], samplers: ["euler"], schedulers: ["karras"] });
 });
 
 test("upload sends multipart and returns stored name", async () => {
@@ -144,8 +145,9 @@ test("listModels accepts legacy and COMBO input shapes", async () => {
     "GET /object_info/CheckpointLoaderSimple": { body: { CheckpointLoaderSimple: { input: { required: { ckpt_name: ["COMBO", { options: ["c1"] }] } } } } },
     "GET /object_info/LoraLoader": { body: { LoraLoader: { input: { required: { lora_name: "weird" } } } } },
     "GET /object_info/KSampler": { body: { KSampler: { input: { required: { sampler_name: [["euler"]], scheduler: ["COMBO", { options: ["karras"] }] } } } } },
+    "GET /object_info/UNETLoader": { body: { UNETLoader: { input: { required: { unet_name: ["COMBO", { options: ["noctQRealism_v40Base_fp8.safetensors", "umt5.safetensors"] }] } } } } },
   });
-  assert.deepEqual(await listModels(B, f), { checkpoints: ["c1"], loras: [], samplers: ["euler"], schedulers: ["karras"] });
+  assert.deepEqual(await listModels(B, f), { checkpoints: ["c1", "noctQRealism_v40Base_fp8.safetensors"], loras: [], samplers: ["euler"], schedulers: ["karras"] });
 });
 
 test("watch settles and closes the socket when its signal aborts", async () => {

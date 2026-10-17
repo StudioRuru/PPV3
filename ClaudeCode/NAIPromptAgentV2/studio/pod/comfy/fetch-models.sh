@@ -19,7 +19,7 @@ for e in yaml.safe_load(sys.stdin):
     auth=()
     case "$url" in
       https://huggingface.co/*) [ -n "${HF_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $HF_TOKEN") ;;
-      https://civitai.com/*) [ -n "${CIVITAI_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $CIVITAI_TOKEN") ;;
+      https://civitai.com/*|https://civitai.red/*) [ -n "${CIVITAI_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $CIVITAI_TOKEN") ;;
     esac
     echo "get $kind/$name"
     if curl -fL --retry 3 -C - -o "$dest.part" "${auth[@]}" "$url" </dev/null \

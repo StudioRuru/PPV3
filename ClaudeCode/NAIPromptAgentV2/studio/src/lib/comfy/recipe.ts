@@ -41,6 +41,7 @@ const file = (v: unknown, name: string) => (typeof v === "string" && FILE.test(v
 const itemId = (v: unknown, name: string) => (v == null ? null : num(v, name, 1, Number.MAX_SAFE_INTEGER, true));
 const seed = (v: unknown) => (v === -1 ? Math.floor(Math.random() * 2 ** 32) : num(v, "seed", 0, 0xffffffff, true));
 const dim = (v: unknown, name: string) => (num(v, name, 512, 2048, true) % 64 ? fail(`${name} must be a multiple of 64`) : (v as number));
+export const isQwen = (model: string) => /qwen|noctq/i.test(model);
 const missing = (what: string, name: string) => fail(`${what} “${name}” isn't on the GPU any more`);
 
 function loras(v: unknown, have?: string[]): Lora[] {
@@ -60,6 +61,9 @@ export function validatePhoto(r: unknown, models?: { checkpoints: string[]; lora
   const model = str(o.model, "model", 255);
   if (!model) fail("Pick a model");
   if (models && !models.checkpoints.includes(model)) missing("Model", model);
+  const qwen = isQwen(model);
+  if (qwen && o.pose != null) fail("Pose isn't available for Qwen models");
+  if (qwen && Array.isArray(o.loras) && o.loras.length) fail("LoRAs aren't available for Qwen models");
   let pose: PoseRef | null = null;
   if (o.pose != null) {
     const p = obj(o.pose, "pose");
@@ -119,7 +123,34 @@ const load = (wf: object): Graph => {
   return g as Graph;
 };
 
+// Qwen Image 2.1 (Noct Q): UNET + 2.1 encoder; EmptyLatentImage is converted by KSampler's fix_empty_latent_channels.
+function qwenGraph(r: PhotoRecipe): Graph {
+  const g: Graph = {
+    unet: { class_type: "UNETLoader", inputs: { unet_name: r.model, weight_dtype: "default" } },
+    clip: { class_type: "CLIPLoader", inputs: { clip_name: "qwen_image_2.1_text_encoder.safetensors", type: "qwen_image", device: "default" } },
+    vae: { class_type: "VAELoader", inputs: { vae_name: "qwen_image_2.1_vae_bf16.safetensors" } },
+    enc: { class_type: "TextEncodeQwenImage21", inputs: { clip: ["clip", 0], prompt: r.prompt, negative_prompt: r.negative, resolution: 1024 } },
+    latent: { class_type: "EmptyLatentImage", inputs: { width: r.width, height: r.height, batch_size: 1 } },
+    sampler: {
+      class_type: "KSampler",
+      inputs: { model: ["unet", 0], positive: ["enc", 0], negative: ["enc", 1], latent_image: ["latent", 0], seed: r.seed, steps: r.steps, cfg: r.cfg, sampler_name: r.sampler, scheduler: r.scheduler, denoise: 1 },
+    },
+    decode: { class_type: "VAEDecode", inputs: { samples: ["sampler", 0], vae: ["vae", 0] } },
+    save: { class_type: "SaveImage", inputs: { images: ["decode", 0], filename_prefix: "studio" } },
+  };
+  return hires(g, r);
+}
+
+function hires(g: Graph, r: PhotoRecipe): Graph {
+  if (!r.hires) return g;
+  g.hires_up = { class_type: "LatentUpscaleBy", inputs: { samples: ["sampler", 0], upscale_method: "nearest-exact", scale_by: r.hires.scale } };
+  g.hires_sampler = { class_type: "KSampler", inputs: { ...g.sampler.inputs, latent_image: ["hires_up", 0], denoise: r.hires.denoise } };
+  g.decode.inputs.samples = ["hires_sampler", 0];
+  return g;
+}
+
 export function photoGraph(r: PhotoRecipe): object {
+  if (isQwen(r.model)) return qwenGraph(r);
   const g = load(photoWf);
   g.ckpt.inputs.ckpt_name = r.model;
   let model: Link = ["ckpt", 0], clip: Link = ["ckpt", 1];
@@ -143,12 +174,7 @@ export function photoGraph(r: PhotoRecipe): object {
     };
     Object.assign(g.sampler.inputs, { positive: ["cn_apply", 0], negative: ["cn_apply", 1] });
   }
-  if (r.hires) {
-    g.hires_up = { class_type: "LatentUpscaleBy", inputs: { samples: ["sampler", 0], upscale_method: "nearest-exact", scale_by: r.hires.scale } };
-    g.hires_sampler = { class_type: "KSampler", inputs: { ...g.sampler.inputs, latent_image: ["hires_up", 0], denoise: r.hires.denoise } };
-    g.decode.inputs.samples = ["hires_sampler", 0];
-  }
-  return g;
+  return hires(g, r);
 }
 
 export function poseGraph(image: string, kind: PoseRef["kind"]): object {

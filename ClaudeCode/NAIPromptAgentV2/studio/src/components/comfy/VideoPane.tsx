@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { EngineView } from "@/lib/comfy/engine";
 import { estimate } from "@/lib/comfy/estimate";
-import { defaultVideo, loadVideo, saveVideo } from "@/lib/comfy/photo-draft";
+import { defaultVideo, loadVideo, saveVideo, videoTune } from "@/lib/comfy/photo-draft";
 import type { VideoRecipe } from "@/lib/comfy/recipe";
 import { gpuName } from "@/lib/comfy/view";
 import { requestJson } from "@/lib/net";
@@ -53,8 +53,10 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
   };
   const setMode = (mode: Mode) => {
     // An extend start is a clip, any other start is a photo: they don't carry over.
-    if ((mode === "extend") !== (r.mode === "extend")) { patch({ mode, start: null, end: null }); setStartThumb(null); }
-    else patch({ mode });
+    // Smooth Mix i2v and the 5B T2V want different steps/CFG.
+    const tune = (mode === "t2v") !== (r.mode === "t2v") ? videoTune(mode) : {};
+    if ((mode === "extend") !== (r.mode === "extend")) { patch({ mode, start: null, end: null, ...tune }); setStartThumb(null); }
+    else patch({ mode, ...tune });
   };
   const pick = (i: LibItem) => {
     if (tool === "end") patch({ end: i.id });
