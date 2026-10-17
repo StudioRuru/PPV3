@@ -201,7 +201,7 @@ export function LiquidIsland({ tab, onTab, onSettings }: { tab: Tab; onTab: (t: 
       {/* Expanded content, clipped to the drawer while it grows. */}
       <div ref={panel} inert={state !== "expanded"} data-island={state === "expanded" || undefined} className={`absolute left-1/2 text-white ${open ? "opacity-100" : "opacity-0"} ${state === "expanded" ? "pointer-events-auto" : ""}`}
         style={{ top: a.top, width: max.w, height: max.h, paddingTop: a.h + 4, transform: centre(), touchAction: "none" }}>
-        <div className="grid grid-cols-6 px-2">
+        <div className="grid grid-cols-7 px-1">
           {[...TABS.map((t) => ({ key: t.id, label: t.label, short: t.short, d: t.d, on: t.id === tab, act: () => onTab(t.id) })),
             { key: "settings", label: "Settings", short: "Settings", d: SETTINGS_ICON, on: false, act: onSettings }].map((t) => (
             <button key={t.key} type="button" data-ctl aria-label={t.label} aria-current={t.on ? "page" : undefined} onClick={() => pick(t.act)}

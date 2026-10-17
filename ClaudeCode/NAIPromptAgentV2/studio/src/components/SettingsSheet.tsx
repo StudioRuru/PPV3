@@ -39,6 +39,13 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     if (r.ok) setModels(r.data);
   }
   const { anlas } = useAnlas(open);
+  const [gpu, setGpu] = useState<{ dailyCapUsd: number; keepWarmMaxH: number; idleMin: number } | null>(null);
+  const [gpuErr, setGpuErr] = useState<string | null>(null);
+  async function saveGpu(patch: Partial<NonNullable<typeof gpu>>) {
+    const r = await requestJson<NonNullable<typeof gpu>>("/api/comfy/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    setGpuErr(r.ok ? null : r.error);
+    if (r.ok) setGpu(r.data);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -48,6 +55,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     requestJson<{ autoDeleteDays: number | null }>("/api/settings").then((r) => r.ok && setRetention(r.data.autoDeleteDays));
     requestJson<NonNullable<typeof taste>>("/api/taste").then((r) => r.ok && setTaste(r.data));
     requestJson<NonNullable<typeof models>>("/api/rp/settings").then((r) => r.ok && setModels(r.data));
+    requestJson<NonNullable<typeof gpu>>("/api/comfy/settings").then((r) => r.ok && setGpu(r.data));
   }, [open]);
 
   const pick = (p: ThemePref) => { setTheme(p); setPref(p); };
@@ -164,6 +172,21 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
               {models?.models.filter((m) => !/embed|bge|nomic/i.test(m)).map((m) => <option key={m} value={m}>{m.replace(/:latest$/, "")}</option>)}
             </select>
           </label>
+        </section>
+
+        <section>
+          <h3 className={h3}>GPU</h3>
+          <div className="grid grid-cols-3 gap-2">
+            {([["dailyCapUsd", "Daily cap ($)", 1, 200], ["keepWarmMaxH", "Keep warm max (h)", 1, 24], ["idleMin", "Idle stop (min)", 10, 240]] as const).map(([k, label, min, max]) => (
+              <label key={k} className="text-muted text-xs">{label}
+                {/* key remounts the input when the saved (clamped) value changes, so it never shows an unsaved out-of-range number */}
+                <input key={gpu?.[k] ?? "…"} type="number" inputMode="decimal" min={min} max={max} defaultValue={gpu?.[k] ?? ""} disabled={!gpu}
+                  onBlur={(e) => { const n = e.target.valueAsNumber; if (Number.isFinite(n) && n !== gpu?.[k]) saveGpu({ [k]: n }); }}
+                  className={`${field} mt-1`} />
+              </label>
+            ))}
+          </div>
+          <p className={`mt-1 text-xs ${gpuErr ? "text-danger" : "text-faint"}`}>{gpuErr ?? "The GPU stops itself at the daily cap, after the idle time, or after keep-warm runs out."}</p>
         </section>
 
         <MascotSettings open={open} />

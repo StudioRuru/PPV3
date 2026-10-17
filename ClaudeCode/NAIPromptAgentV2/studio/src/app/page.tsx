@@ -6,6 +6,7 @@ import { CharacterBoxes } from "@/components/CharacterBoxes";
 import { FindSheet } from "@/components/FindSheet";
 import { CameraRoll } from "@/components/CameraRoll";
 import { Closet } from "@/components/Closet";
+import { ComfyScreen } from "@/components/comfy/ComfyScreen";
 import { RpScreen } from "@/components/rp/RpScreen";
 import { SaveFlash } from "@/components/SaveFlash";
 import { LiquidIsland } from "@/components/LiquidIsland";
@@ -248,7 +249,7 @@ export default function Studio() {
   }
 
   return (
-    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]" : tab === "chat" || tab === "rp" ? "pb-0" : "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]"}`}
+    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]" : tab === "chat" || tab === "rp" || tab === "comfy" ? "pb-0" : "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]"}`}
       // --pt: below the top pill on screens without a Dynamic Island (inset ≤ 50px → +2.5rem); island screens 3rem, clearing the island touch strip (inset + 2 .. inset + 46).
       // Chat/RP: no bottom padding — their sticky composers pad the safe area themselves and size to 100dvh − var(--pt) − inset-top.
       style={{ touchAction: "pan-y", "--pt": "calc(3rem + clamp(0px, (50.01px - env(safe-area-inset-top)) * 9999, 0.5rem))", paddingTop: "var(--pt)" } as React.CSSProperties}
@@ -346,6 +347,9 @@ export default function Studio() {
 
       <div className={tab === "roll" ? "lg:col-span-2" : "hidden"}>
         <CameraRoll active={tab === "roll"} onOpen={(items, id) => { setViewerItems(items); setViewing(id); }} onChanged={() => loadHistory().then((items) => setCurrent((c) => items.find((g) => g.id === c?.id) ?? items[0] ?? null))} />
+      </div>
+      <div className={tab === "comfy" ? "lg:col-span-2" : "hidden"}>
+        <ComfyScreen active={tab === "comfy"} />
       </div>
       <div className={tab === "chat" ? "lg:col-span-2" : "hidden"}>
         <ChatScreen active={tab === "chat"} state={state} seed={seed} onApply={(ops) => setState((s) => applyOps(s, ops))} />

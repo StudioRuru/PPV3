@@ -1,8 +1,9 @@
-export type Tab = "studio" | "roll" | "closet" | "chat" | "rp";
+export type Tab = "studio" | "comfy" | "roll" | "closet" | "chat" | "rp";
 
 /** App sections in order (swipe/island order), with monochrome line icons (24×24 path, currentColor). */
 export const TABS: { id: Tab; label: string; short: string; d: string }[] = [
   { id: "studio", label: "Studio", short: "Studio", d: "M4 20h4L19 9l-4-4L4 16v4Z M13 7l4 4" },
+  { id: "comfy", label: "ComfyUI", short: "Comfy", d: "M4 6a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M16 6a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M10 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0 M8 6h8 M7.5 7.5l3.5 9 M16.5 7.5l-3.5 9" },
   { id: "roll", label: "Camera roll", short: "Roll", d: "M4 7h3l2-2h6l2 2h3v12H4Z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" },
   { id: "closet", label: "Closet", short: "Closet", d: "M5 4h14v16H5Z M12 4v16 M9.5 11v2 M14.5 11v2" },
   { id: "chat", label: "Chat", short: "Chat", d: "M4 5h16v11H9l-5 4Z" },
