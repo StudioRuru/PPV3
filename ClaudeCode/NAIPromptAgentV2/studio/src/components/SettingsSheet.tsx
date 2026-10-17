@@ -41,10 +41,12 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const { anlas } = useAnlas(open);
   const [gpu, setGpu] = useState<{ dailyCapUsd: number; keepWarmMaxH: number; idleMin: number } | null>(null);
   const [gpuErr, setGpuErr] = useState<string | null>(null);
+  const [gpuSaves, setGpuSaves] = useState(0); // bumps on every save attempt so inputs remount to the stored value
   async function saveGpu(patch: Partial<NonNullable<typeof gpu>>) {
     const r = await requestJson<NonNullable<typeof gpu>>("/api/comfy/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
     setGpuErr(r.ok ? null : r.error);
     if (r.ok) setGpu(r.data);
+    setGpuSaves((n) => n + 1);
   }
 
   useEffect(() => {
@@ -179,9 +181,9 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
           <div className="grid grid-cols-3 gap-2">
             {([["dailyCapUsd", "Daily cap ($)", 1, 200], ["keepWarmMaxH", "Keep warm max (h)", 1, 24], ["idleMin", "Idle stop (min)", 10, 240]] as const).map(([k, label, min, max]) => (
               <label key={k} className="text-muted text-xs">{label}
-                {/* key remounts the input when the saved (clamped) value changes, so it never shows an unsaved out-of-range number */}
-                <input key={gpu?.[k] ?? "…"} type="number" inputMode="decimal" min={min} max={max} defaultValue={gpu?.[k] ?? ""} disabled={!gpu}
-                  onBlur={(e) => { const n = e.target.valueAsNumber; if (Number.isFinite(n) && n !== gpu?.[k]) saveGpu({ [k]: n }); }}
+                {/* key remounts the input after every save, so it always shows the stored (clamped) value */}
+                <input key={`${gpu?.[k] ?? "…"}-${gpuSaves}`} type="number" inputMode="decimal" min={min} max={max} defaultValue={gpu?.[k] ?? ""} disabled={!gpu}
+                  onBlur={(e) => { const n = e.target.valueAsNumber; if (Number.isFinite(n) && n !== gpu?.[k]) saveGpu({ [k]: n }); else e.target.value = String(gpu?.[k] ?? ""); }}
                   className={`${field} mt-1`} />
               </label>
             ))}

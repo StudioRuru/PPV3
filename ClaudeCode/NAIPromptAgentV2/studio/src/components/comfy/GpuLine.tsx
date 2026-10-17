@@ -31,12 +31,12 @@ export function GpuLine({ view, now, onAction, error }: { view: EngineView | nul
         </button>
         <label className="text-muted flex items-center gap-1.5 text-xs">keep warm until
           <input type="time" defaultValue={view && view.keepWarmUntil > now ? hhmm(view.keepWarmUntil) : ""} key={view && view.keepWarmUntil > now ? view.keepWarmUntil : 0}
-            onChange={(e) => { const t = timeToEpoch(e.target.value, Date.now()); if (t) onAction({ action: "keepWarm", until: t }); }}
+            onBlur={(e) => { const t = timeToEpoch(e.target.value, Date.now()); if (t && t !== view?.keepWarmUntil) onAction({ action: "keepWarm", until: t }); }}
             className="bg-bg border-border h-9 rounded-md border px-1.5 font-mono text-xs" />
         </label>
         <button type="button" disabled={!live} onClick={() => onAction({ action: "stop" })} className={`${btn} text-danger disabled:opacity-40`}>Stop now</button>
       </div>
-      {error && <p role="status" className="text-danger text-xs">{error}</p>}
+      {error && <p role="alert" className="text-danger text-xs">{error}</p>}
     </div>
   );
 }

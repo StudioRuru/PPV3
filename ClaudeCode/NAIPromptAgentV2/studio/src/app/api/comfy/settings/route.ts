@@ -13,7 +13,9 @@ export function GET() {
 
 export async function POST(req: NextRequest) {
   if (!req.headers.get("content-type")?.includes("application/json")) return NextResponse.json({ error: "JSON only." }, { status: 415 });
-  const b = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
+  const raw: unknown = await req.json().catch(() => null);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
+  const b = raw as Record<string, unknown>;
   const patch: Partial<ComfySettings> = {};
   for (const k of Object.keys(RANGE) as (keyof typeof RANGE)[]) {
     if (b[k] === undefined) continue;

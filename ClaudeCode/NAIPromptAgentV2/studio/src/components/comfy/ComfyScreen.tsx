@@ -18,16 +18,18 @@ export function ComfyScreen({ active }: { active: boolean }) {
   const [prompt, setPrompt] = useState("");
   const warmed = useRef(false);
 
-  const apply = (r: Awaited<ReturnType<typeof requestJson<EngineView | { main: EngineView }>>>) => {
-    if (!r.ok) { setError(r.error); return; }
-    setError(null);
+  // Errors from warm/actions stay until the next action succeeds; a poll only clears (or sets) its own error.
+  const pollErr = useRef(false);
+  const apply = (r: Awaited<ReturnType<typeof requestJson<EngineView | { main: EngineView }>>>, from: "poll" | "action" = "action") => {
+    if (!r.ok) { setError(r.error); pollErr.current = from === "poll"; return; }
+    if (from === "action" || pollErr.current) { setError(null); pollErr.current = false; }
     setView("main" in r.data ? r.data.main : r.data);
   };
 
   useEffect(() => {
     if (!active) return;
     if (!warmed.current) { warmed.current = true; requestJson<EngineView>("/api/comfy/engine", post({ action: "warm" })).then(apply); }
-    const poll = () => requestJson<{ main: EngineView }>("/api/comfy/engine").then(apply);
+    const poll = () => requestJson<{ main: EngineView }>("/api/comfy/engine").then((r) => apply(r, "poll"));
     poll();
     const p = setInterval(poll, 5000);
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -35,8 +37,8 @@ export function ComfyScreen({ active }: { active: boolean }) {
   }, [active]);
 
   const act = (a: EngineAction) => requestJson<EngineView>("/api/comfy/engine", post(a)).then((r) => {
-    if (!r.ok) setError(r.error);
-    else requestJson<{ main: EngineView }>("/api/comfy/engine").then(apply);
+    if (!r.ok) { setError(r.error); pollErr.current = false; }
+    else { setError(null); pollErr.current = false; requestJson<{ main: EngineView }>("/api/comfy/engine").then((q) => apply(q, "poll")); }
   });
 
   return (
