@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultPhoto, loadPhoto, savePhoto } from "./photo-draft";
+import { defaultPhoto, defaultVideo, loadPhoto, loadVideo, savePhoto, saveVideo, VIDEO_DRAFT_KEY } from "./photo-draft";
 
 test("default recipe uses first checkpoint and spec sizes", () => {
   const r = defaultPhoto(["a.safetensors", "b.safetensors"]);
@@ -46,6 +46,29 @@ test("loadPhoto ignores wrong-typed fields", () => {
     assert.deepEqual([r.seed, r.prompt], [7, "hi"]);
     assert.deepEqual(r.loras, [{ name: "a", strength: 0.5 }]);
     assert.equal(r.hires, null);
+  } finally {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
+test("default video recipe matches the spec defaults", () => {
+  const r = defaultVideo();
+  assert.deepEqual([r.mode, r.seconds, r.motion, r.fps, r.size, r.steps, r.cfg, r.seed], ["animate", 5, "medium", 60, "480p", 20, 3.5, -1]);
+  assert.deepEqual([r.start, r.end, r.loras], [null, null, []]);
+});
+
+test("loadVideo ignores wrong-typed fields and bad enums; saveVideo round-trips", () => {
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+  try {
+    saveVideo({ ...defaultVideo(), seconds: 8, mode: "loop", prompt: "wind" });
+    const r = loadVideo()!;
+    assert.deepEqual([r.seconds, r.mode, r.prompt], [8, "loop", "wind"]);
+    store.set(VIDEO_DRAFT_KEY, JSON.stringify({ mode: "bogus", seconds: "9", fps: 24, size: "4k", motion: "high", start: 3, end: "x", prompt: 5 }));
+    const b = loadVideo()!, d = defaultVideo();
+    assert.deepEqual([b.mode, b.seconds, b.fps, b.size, b.motion, b.start, b.end, b.prompt], [d.mode, d.seconds, d.fps, d.size, "high", 3, null, ""]);
+    store.clear();
+    assert.equal(loadVideo(), null);
   } finally {
     delete (globalThis as { localStorage?: unknown }).localStorage;
   }

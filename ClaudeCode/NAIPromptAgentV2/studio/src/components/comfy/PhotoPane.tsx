@@ -6,20 +6,18 @@ import { defaultPhoto, loadPhoto, savePhoto } from "@/lib/comfy/photo-draft";
 import { fromOpenPose, moveJoint } from "@/lib/comfy/pose";
 import type { PhotoRecipe, PoseRef } from "@/lib/comfy/recipe";
 import { requestJson } from "@/lib/net";
-import { Drawer } from "./Drawer";
+import { Drawer, type JobView, useJob } from "./Drawer";
 import { LoraStack } from "./LoraStack";
 import { EMPTY_POSE, PoseOverlay, PoseTool, type PoseState, renderSkeleton } from "./PoseEditor";
 import { TuneSheet } from "./TuneSheet";
 
 type Models = { checkpoints: string[]; loras: string[]; samplers: string[]; schedulers: string[] };
-type JobView = { status: "queued" | "running" | "done" | "error"; progress: number; error: string | null; itemId: number | null; result?: { image: string; keypoints: unknown } };
 type Tool = "model" | "lora" | "pose" | "tune";
 const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const short = (n: string) => n.replace(/\.safetensors$/, "");
 
 /** Photo sub-tab: canvas, tool chips (Model · LoRA · Pose · Tune) and the drawer that hosts them. */
-export function PhotoPane({ active, view, prompt, onPrompt }: { active: boolean; view: EngineView | null; prompt: string; onPrompt: (v: string) => void }) {
+export function PhotoPane({ active, view, prompt, onPrompt, onShot }: { active: boolean; view: EngineView | null; prompt: string; onPrompt: (v: string) => void; onShot?: (item: { id: number; file: string }) => void }) {
   const [r, setR] = useState<PhotoRecipe>(() => defaultPhoto([]));
   const [ready, setReady] = useState(false);
   const [models, setModels] = useState<Models | null>(null);
@@ -30,14 +28,13 @@ export function PhotoPane({ active, view, prompt, onPrompt }: { active: boolean;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shot, setShot] = useState<string | null>(null);
-  const alive = useRef(true);
+  const { poll, alive } = useJob();
   const kindRef = useRef<PoseRef["kind"]>(pose.kind);
   kindRef.current = pose.kind;
   // Editing the skeleton (Mirror, Reset, load, extract) brings the overlay back over the finished photo.
   const setPose = (p: Partial<PoseState>) => { if ("kp" in p) setShot(null); setPoseState((s) => ({ ...s, ...p })); };
   const patch = (p: Partial<PhotoRecipe>) => setR((x) => ({ ...x, ...p }));
 
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     const d = loadPhoto();
     if (d) { setR(d); if (d.prompt) onPrompt(d.prompt); }
@@ -58,22 +55,6 @@ export function PhotoPane({ active, view, prompt, onPrompt }: { active: boolean;
     const t = setInterval(go, 4000);
     return () => { stop = true; clearInterval(t); };
   }, [active, models]);
-
-  /** Polls a job every second until it finishes; retries a few network blips. */
-  const poll = async (id: number, tick?: (j: JobView) => void): Promise<JobView> => {
-    let fails = 0;
-    for (;;) {
-      const res = await requestJson<JobView>(`/api/comfy/jobs/${id}`);
-      if (!alive.current) return { status: "error", progress: 0, error: "Cancelled.", itemId: null };
-      if (!res.ok) { if (++fails > 5) return { status: "error", progress: 0, error: res.error, itemId: null }; }
-      else {
-        fails = 0;
-        tick?.(res.data);
-        if (res.data.status === "done" || res.data.status === "error") return res.data;
-      }
-      await sleep(1000);
-    }
-  };
 
   const extract = async () => {
     if (!pose.refUrl) return;
@@ -107,7 +88,7 @@ export function PhotoPane({ active, view, prompt, onPrompt }: { active: boolean;
     const items = await requestJson<{ items: { id: number; file: string }[] }>("/api/comfy/items");
     const it = items.ok ? items.data.items.find((i) => i.id === j.itemId) : undefined;
     setJob(null);
-    if (it) setShot(it.file);
+    if (it) { setShot(it.file); onShot?.(it); }
     else setError("Done — it's in the Library.");
   };
 

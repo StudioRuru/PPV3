@@ -1,5 +1,30 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { requestJson } from "@/lib/net";
+
+export type JobView = { status: "queued" | "running" | "done" | "error"; progress: number; error: string | null; itemId: number | null; result?: { image: string; keypoints: unknown } };
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Returns `poll(id, tick?)`: checks a job every second until it is done/error, gives up after 5 network failures, and stops (as "Cancelled.") when the component unmounts. Also returns `alive` for callers to guard state updates. */
+export function useJob() {
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const poll = async (id: number, tick?: (j: JobView) => void): Promise<JobView> => {
+    let fails = 0;
+    for (;;) {
+      const res = await requestJson<JobView>(`/api/comfy/jobs/${id}`);
+      if (!alive.current) return { status: "error", progress: 0, error: "Cancelled.", itemId: null };
+      if (!res.ok) { if (++fails > 5) return { status: "error", progress: 0, error: res.error, itemId: null }; }
+      else {
+        fails = 0;
+        tick?.(res.data);
+        if (res.data.status === "done" || res.data.status === "error") return res.data;
+      }
+      await sleep(1000);
+    }
+  };
+  return { poll, alive };
+}
 
 /** Bottom sheet for the Comfy tabs: drag the handle up/down (or tap it) to open/close; prompt, tool slot, primary button, progress. */
 export function Drawer({ prompt, onPrompt, placeholder, children, action, onAction, disabled, progress, note, open: openProp, onOpenChange }: {

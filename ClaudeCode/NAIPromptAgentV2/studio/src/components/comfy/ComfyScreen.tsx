@@ -4,6 +4,7 @@ import type { EngineView } from "@/lib/comfy/engine";
 import { requestJson } from "@/lib/net";
 import { Drawer } from "./Drawer";
 import { PhotoPane } from "./PhotoPane";
+import { VideoPane } from "./VideoPane";
 import { GpuLine, type EngineAction } from "./GpuLine";
 
 type Sub = "photo" | "video" | "library";
@@ -16,21 +17,23 @@ export function ComfyScreen({ active }: { active: boolean }) {
   const [view, setView] = useState<EngineView | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
+  const [boostView, setBoostView] = useState<EngineView | null>(null);
+  const [lastPhoto, setLastPhoto] = useState<{ id: number; file: string } | null>(null);
   const [prompt, setPrompt] = useState("");
   const warmed = useRef(false);
 
   // Errors from warm/actions stay until the next action succeeds; a poll only clears (or sets) its own error.
   const pollErr = useRef(false);
-  const apply = (r: Awaited<ReturnType<typeof requestJson<EngineView | { main: EngineView }>>>, from: "poll" | "action" = "action") => {
+  const apply = (r: Awaited<ReturnType<typeof requestJson<EngineView | { main: EngineView; boost?: EngineView }>>>, from: "poll" | "action" = "action") => {
     if (!r.ok) { setError(r.error); pollErr.current = from === "poll"; return; }
     if (from === "action" || pollErr.current) { setError(null); pollErr.current = false; }
-    setView("main" in r.data ? r.data.main : r.data);
+    if ("main" in r.data) { setView(r.data.main); setBoostView(r.data.boost ?? null); } else setView(r.data);
   };
 
   useEffect(() => {
     if (!active) return;
     if (!warmed.current) { warmed.current = true; requestJson<EngineView>("/api/comfy/engine", post({ action: "warm" })).then(apply); }
-    const poll = () => requestJson<{ main: EngineView }>("/api/comfy/engine").then((r) => apply(r, "poll"));
+    const poll = () => requestJson<{ main: EngineView; boost: EngineView }>("/api/comfy/engine").then((r) => apply(r, "poll"));
     poll();
     const p = setInterval(poll, 5000);
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -39,7 +42,7 @@ export function ComfyScreen({ active }: { active: boolean }) {
 
   const act = (a: EngineAction) => requestJson<EngineView>("/api/comfy/engine", post(a)).then((r) => {
     if (!r.ok) { setError(r.error); pollErr.current = false; }
-    else { setError(null); pollErr.current = false; requestJson<{ main: EngineView }>("/api/comfy/engine").then((q) => apply(q, "poll")); }
+    else { setError(null); pollErr.current = false; requestJson<{ main: EngineView; boost: EngineView }>("/api/comfy/engine").then((q) => apply(q, "poll")); }
   });
 
   return (
@@ -54,15 +57,18 @@ export function ComfyScreen({ active }: { active: boolean }) {
         <button type="button" role="tab" disabled aria-selected={false} className="border-border text-faint h-9 rounded-full border px-4 text-sm opacity-60">Sprites — soon</button>
       </div>
       <div className={sub === "photo" ? "space-y-3" : "hidden"}>
-        <PhotoPane active={active && sub === "photo"} view={view} prompt={prompt} onPrompt={setPrompt} />
+        <PhotoPane active={active && sub === "photo"} view={view} prompt={prompt} onPrompt={setPrompt} onShot={setLastPhoto} />
       </div>
-      {sub !== "photo" && (
+      <div className={sub === "video" ? "space-y-3" : "hidden"}>
+        <VideoPane view={view} boostView={boostView} lastPhoto={lastPhoto} />
+      </div>
+      {sub === "library" && (
         <>
           <div className="border-border text-muted grid min-h-48 place-items-center rounded-lg border p-6 text-center text-sm">
-            {sub === "library" ? "Your photos and clips will appear here." : "Video tools are coming — the prompt below is ready."}
+            Your photos and clips will appear here.
           </div>
-          <Drawer prompt={prompt} onPrompt={setPrompt} placeholder={sub === "video" ? "Describe the motion…" : "Describe the picture…"}
-            action={sub === "video" ? "Make clip" : "Make photo"} onAction={() => {}} disabled={!prompt.trim()} />
+          <Drawer prompt={prompt} onPrompt={setPrompt} placeholder="Describe the picture…"
+            action="Make photo" onAction={() => {}} disabled={!prompt.trim()} />
         </>
       )}
     </section>
