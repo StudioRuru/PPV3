@@ -33,7 +33,7 @@ export function savePhoto(r: PhotoRecipe): void {
   try { localStorage.setItem(PHOTO_DRAFT_KEY, JSON.stringify({ ...r, pose: null })); } catch {}
 }
 
-export const VIDEO_DRAFT_KEY = "studio-comfy-video-v1";
+export const VIDEO_DRAFT_KEY = "studio-comfy-video-v2"; // v2: Smooth Mix tune (8 steps, CFG 1)
 
 /** Smooth Mix i2v has lightx2v baked in (8 steps, CFG 1); the 5B T2V wants 20 / 3.5. */
 export function videoTune(mode: VideoRecipe["mode"]): { steps: number; cfg: number } {
