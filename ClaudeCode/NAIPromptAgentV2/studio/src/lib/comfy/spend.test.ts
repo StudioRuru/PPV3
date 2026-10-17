@@ -51,7 +51,7 @@ test("canStart refuses at the cap and at the budget", () => {
     { ok: false, why: "Today's GPU cap ($10) is used up — raise it in Settings or wait until tomorrow." });
   const old = new Date(2026, 4, 1).getTime();
   assert.deepEqual(canStart({ runs: [run(old, old + 20 * H)], s, now }),
-    { ok: false, why: "The GPU budget ($20) is used up — raise it in Settings." });
+    { ok: false, why: "Total GPU budget ($20) reached — ask to raise it." });
 });
 
 test("keep-warm clamps to 6 h", () => {

@@ -11,10 +11,11 @@ export async function register() {
     running = true;
     try {
       await e.tick();
-      await (await loadDrain())();
     } catch { /* next tick retries */ } finally {
       running = false;
     }
+    // Not awaited: a wedged pod must not block the stop policy. drainQueue has its own re-entry guard.
+    void loadDrain().then((drain) => drain()).catch(() => {});
   };
   void run();
   setInterval(run, 30_000);

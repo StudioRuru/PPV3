@@ -260,13 +260,31 @@ test("stop during an in-flight warm runs right after create returns", async () =
   assert.equal(s.e.view().main.phase, "off");
 });
 
-test("dev deadline env makes every stop delete the VM", async () => {
+test("dev deadline env still hibernates on a non-deadline stop", async () => {
   const s = setup();
-  await s.e.warm();
   process.env.COMFY_DEV_DEADLINE_MIN = "30";
-  try { await s.e.stop("main", "manual"); } finally { delete process.env.COMFY_DEV_DEADLINE_MIN; }
-  assert.equal(s.vms.has("vm1"), false);
-  assert.equal(getVm(s.db, "main"), null);
+  try { await s.e.warm(); await s.e.stop("main", "manual"); } finally { delete process.env.COMFY_DEV_DEADLINE_MIN; }
+  assert.equal(s.vms.get("vm1"), "HIBERNATED");
+  assert.equal(getVm(s.db, "main")?.status, "hibernated");
+});
+
+test("an idle stop of boost clears the boost flag; a manual stop of main does not", async () => {
+  const s = setup();
+  await s.e.setBoost(true);
+  await s.e.stop("main", "manual");
+  assert.equal(s.e.view().boost.boost, "on");
+  await s.e.stop("boost", "idle");
+  assert.equal(s.e.view().boost.boost, "off");
+});
+
+test("setBoost(true) rolls the flag back when the warm is refused", async () => {
+  const s = setup();
+  writeSettings(s.db, { budgetUsd: 1 });
+  await s.e.warm();
+  s.tick(2 * H);
+  await s.e.stop("main", "manual");
+  await assert.rejects(s.e.setBoost(true), (err: Error) => err instanceof Refused);
+  assert.equal(s.e.view().boost.boost, "off");
 });
 
 test("reconcile tick during an in-flight create does not remove the new VM", async () => {

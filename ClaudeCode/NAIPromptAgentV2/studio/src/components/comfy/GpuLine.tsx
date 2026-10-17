@@ -1,8 +1,9 @@
 "use client";
 import type { EngineView } from "@/lib/comfy/engine";
+import type { Card } from "@/lib/comfy/store";
 import { alarmText, gpuLabel } from "@/lib/comfy/view";
 
-export type EngineAction = { action: "warm" | "stop" } | { action: "boost"; on: boolean } | { action: "keepWarm"; until: number };
+export type EngineAction = { action: "warm" | "stop"; card?: Card } | { action: "boost"; on: boolean } | { action: "keepWarm"; until: number };
 
 /** "HH:MM" today (or tomorrow if already past) as epoch ms. The server clamps it to the keep-warm max. */
 export function timeToEpoch(hhmm: string, now: number): number | null {
@@ -15,9 +16,12 @@ export function timeToEpoch(hhmm: string, now: number): number | null {
 
 const hhmm = (t: number) => new Date(t).toTimeString().slice(0, 5);
 
-export function GpuLine({ view, now, onAction, error }: { view: EngineView | null; now: number; onAction: (a: EngineAction) => void; error: string | null }) {
+const isLive = (v: EngineView | null) => !!v && (v.phase === "starting" || v.phase === "warming" || v.phase === "ready");
+
+export function GpuLine({ view, boostView, now, onAction, error }: { view: EngineView | null; boostView: EngineView | null; now: number; onAction: (a: EngineAction) => void; error: string | null }) {
   const alarm = view ? alarmText(view) : null;
-  const live = view && (view.phase === "starting" || view.phase === "warming" || view.phase === "ready");
+  const live = isLive(view) || isLive(boostView);
+  const showBoost = boostView && boostView.phase !== "off" && boostView.phase !== "unavailable";
   const boost = view?.boost ?? "off";
   const btn = "border-border h-9 rounded-full border px-3 text-xs";
   return (
@@ -25,6 +29,7 @@ export function GpuLine({ view, now, onAction, error }: { view: EngineView | nul
       {alarm && <p role="alert" className="bg-danger w-full rounded-lg px-3 py-2 text-sm font-semibold text-white">{alarm}</p>}
       <div className="bg-surface border-border flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
         <span role="status" className="flex-1 font-mono text-xs whitespace-nowrap">{view ? gpuLabel(view, now) : "○ GPU …"}</span>
+        {showBoost && <span className="font-mono text-xs whitespace-nowrap">{gpuLabel(boostView, now)} · ${boostView.usdHr.toFixed(2)}/h</span>}
         <button type="button" role="switch" aria-checked={boost === "on"} disabled={boost === "unavailable"} onClick={() => onAction({ action: "boost", on: boost !== "on" })}
           className={`${btn} ${boost === "on" ? "bg-accent text-accent-fg border-accent" : "text-muted"} disabled:opacity-50`}>
           {boost === "unavailable" ? "H100 unavailable" : "H100"}
@@ -34,7 +39,7 @@ export function GpuLine({ view, now, onAction, error }: { view: EngineView | nul
             onBlur={(e) => { const t = timeToEpoch(e.target.value, Date.now()); if (t && t !== view?.keepWarmUntil) onAction({ action: "keepWarm", until: t }); }}
             className="bg-bg border-border h-9 rounded-md border px-1.5 font-mono text-xs" />
         </label>
-        <button type="button" disabled={!live} onClick={() => onAction({ action: "stop" })} className={`${btn} text-danger disabled:opacity-40`}>Stop now</button>
+        <button type="button" disabled={!live} onClick={() => { onAction({ action: "stop" }); onAction({ action: "stop", card: "boost" }); }} className={`${btn} text-danger disabled:opacity-40`}>Stop now</button>
       </div>
       {error && <p role="alert" className="text-danger text-xs">{error}</p>}
     </div>

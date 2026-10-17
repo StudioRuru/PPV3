@@ -4,8 +4,9 @@ import sharp from "sharp";
 import { NextResponse } from "next/server";
 import { getEngine, Refused } from "@/lib/comfy/engine";
 import { cachedModels, drainQueue } from "@/lib/comfy/jobs";
+import { canStart } from "@/lib/comfy/spend";
 import { validatePhoto, validatePose, validateVideo } from "@/lib/comfy/recipe";
-import { type Card, type JobKind, addJob, comfyDb } from "@/lib/comfy/store";
+import { type Card, type JobKind, addJob, comfyDb, readSettings, runs } from "@/lib/comfy/store";
 import { COMFY_DIR } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,8 @@ export async function POST(req: Request) {
     } catch (e) {
       return bad((e as Error).message);
     }
+    const ok = canStart({ runs: runs(comfyDb()), s: readSettings(comfyDb()), now: Date.now() }); // warm() only checks when it starts a VM
+    if (!ok.ok) return NextResponse.json({ error: ok.why }, { status: 409 });
     try {
       await eng.warm(card);
     } catch (e) {

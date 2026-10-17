@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEngine, Refused } from "@/lib/comfy/engine";
+import { stopJobs } from "@/lib/comfy/jobs";
 import type { Card } from "@/lib/comfy/store";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,10 @@ export async function POST(req: Request) {
   try {
     switch (b.action) {
       case "warm": return NextResponse.json(await e.warm(card));
-      case "stop": await e.stop(card, "manual"); return NextResponse.json(e.view()[card]);
+      case "stop": stopJobs(card); await e.stop(card, "manual"); // jobs first, so a drain can't re-warm the card return NextResponse.json(e.view()[card]);
       case "boost":
         if (typeof b.on !== "boolean") return NextResponse.json({ error: "on must be a boolean" }, { status: 400 });
+        if (!b.on) stopJobs("boost");
         return NextResponse.json(await e.setBoost(b.on));
       case "keepWarm":
         if (typeof b.until !== "number" || !Number.isFinite(b.until)) return NextResponse.json({ error: "until required" }, { status: 400 });

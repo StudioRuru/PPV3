@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import sharp from "sharp";
-import { drainQueue, type Deps } from "./jobs";
-import { migrate, addJob, readJob, listItems, addItem, updateJob, getState } from "./store";
+import { drainQueue, stopJobs, type Deps } from "./jobs";
+import { migrate, addJob, readJob, listItems, addItem, updateJob, getState, openRun } from "./store";
 import type { OutFile } from "./client";
 
 const PHOTO = {
@@ -231,4 +231,34 @@ test("a failed poster fetch removes the written clip and adds no item", async ()
   assert.equal(readJob(s.db, id)!.error, "view failed");
   assert.equal(listItems(s.db).length, 0);
   assert.deepEqual(fs.readdirSync(s.dir), []);
+});
+
+test("a ready VM over the spend cap errors the queued job and submits nothing", async () => {
+  const s = setup();
+  s.o.phase = "ready";
+  openRun(s.db, "main", "vm1", 100, 0); // ~$28 by now, over the $20 budget
+  const a = addJob(s.db, "photo", PHOTO, "main", 1);
+  const b = addJob(s.db, "photo", PHOTO, "main", 2);
+  await drainQueue(s.d);
+  assert.equal(s.o.submits.length, 0);
+  for (const id of [a, b]) {
+    assert.equal(readJob(s.db, id)!.status, "error");
+    assert.match(readJob(s.db, id)!.error!, /GPU budget/);
+  }
+});
+
+test("a manual stop errors the card's queued and running jobs, and the next drain does not warm", async () => {
+  const s = setup();
+  s.o.phase = "ready";
+  s.o.watch = () => new Promise(() => {}); // never finishes on its own
+  const run = addJob(s.db, "photo", PHOTO, "main", 1);
+  await drainQueue(s.d);
+  await s.until(() => s.o.signals.length === 1);
+  const queued = addJob(s.db, "photo", PHOTO, "main", 2);
+  stopJobs("main", s.db);
+  for (const id of [run, queued]) assert.deepEqual([readJob(s.db, id)!.status, readJob(s.db, id)!.error], ["error", "Stopped."]);
+  assert.equal(s.o.signals[0]!.aborted, true, "the running job's watcher is aborted");
+  s.o.phase = "off";
+  await drainQueue(s.d);
+  assert.equal(s.o.warms, 0);
 });

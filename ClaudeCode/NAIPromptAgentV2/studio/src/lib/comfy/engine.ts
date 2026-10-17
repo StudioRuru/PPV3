@@ -105,6 +105,7 @@ export function engine(d: Deps) {
       const min = Number(process.env.COMFY_DEV_DEADLINE_MIN);
       writeDeadline(card, min > 0 ? now + min * 60_000 : null);
     } catch (e) {
+      if (!vm) reconciled = false; // a timed-out create may still exist at Hyperstack: reconcile before the next one
       if (!(e instanceof NoCapacity)) throw e;
       unavailable.add(card);
     } finally {
@@ -122,6 +123,7 @@ export function engine(d: Deps) {
     return p;
   }
   async function stopNow(card: Card, reason: string): Promise<void> {
+    if (card === "boost" && reason !== "manual") setState(db, { boost: false }); // idle/cap/deadline: the next job runs on main
     const vm = getVm(db, card);
     if (!vm || vm.status === "hibernated") return;
     const finish = (hibernated: boolean) => {
@@ -130,7 +132,7 @@ export function engine(d: Deps) {
       if (hibernated) setStatus(vm, "hibernated"); else { dropVm(db, card); writeDeadline(card, null); }
     };
     try {
-      const del = reason === "deadline" || Number(process.env.COMFY_DEV_DEADLINE_MIN) > 0; // dev run leaves nothing behind
+      const del = reason === "deadline";
       const s = await hs.status(vm.vmId);
       if (s === null) finish(false); // already gone
       else if (del) { await hs.remove(vm.vmId); finish(false); }
@@ -214,7 +216,10 @@ export function engine(d: Deps) {
 
   async function setBoost(on: boolean): Promise<EngineView> {
     setState(db, { boost: on });
-    if (on) { unavailable.delete("boost"); await warm("boost"); } else await stop("boost", "manual");
+    if (on) {
+      unavailable.delete("boost");
+      try { await warm("boost"); } catch (e) { setState(db, { boost: false }); throw e; }
+    } else await stop("boost", "manual");
     return view().boost;
   }
 

@@ -36,7 +36,7 @@ const usd = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
 export function canStart(a: { runs: Run[]; s: ComfySettings; now: number }): { ok: true } | { ok: false; why: string } {
   if (spentSince(a.runs, 0, a.now) >= a.s.budgetUsd)
-    return { ok: false, why: `The GPU budget ($${usd(a.s.budgetUsd)}) is used up — raise it in Settings.` };
+    return { ok: false, why: `Total GPU budget ($${usd(a.s.budgetUsd)}) reached — ask to raise it.` };
   if (spentSince(a.runs, dayStart(a.now), a.now) >= a.s.dailyCapUsd)
     return { ok: false, why: `Today's GPU cap ($${usd(a.s.dailyCapUsd)}) is used up — raise it in Settings or wait until tomorrow.` };
   return { ok: true };

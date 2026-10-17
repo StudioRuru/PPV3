@@ -9,6 +9,13 @@ export type Item = { id: number; kind: "photo" | "clip"; file: string; poster: s
 export type ComfySettings = { dailyCapUsd: number; keepWarmMaxH: number; idleMin: number; budgetUsd: number };
 type Db = Database.Database;
 
+/** Maps stored rows, skipping (and logging) any whose JSON is corrupt so one bad row can't break a list. */
+function parsed<R extends { id: number }, T>(rows: R[], map: (r: R) => T, what: string): T[] {
+  return rows.flatMap((r) => {
+    try { return [map(r)]; } catch { console.warn(`comfy: skipping ${what} ${r.id} with unreadable JSON`); return []; }
+  });
+}
+
 export function migrate(db: Db): void {
   db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS comfy_vms (card TEXT PRIMARY KEY, vm_id TEXT NOT NULL, env TEXT NOT NULL, flavor TEXT NOT NULL, host TEXT NOT NULL, usd_hr REAL NOT NULL, status TEXT NOT NULL);
@@ -62,11 +69,10 @@ export function addJob(db: Db, kind: JobKind, recipe: unknown, card: Card, now: 
 }
 export function readJob(db: Db, id: number): Job | null {
   const r = db.prepare("SELECT * FROM comfy_jobs WHERE id = ?").get(id) as JobSql | undefined;
-  return r ? toJob(r) : null;
+  return r ? parsed([r], toJob, "job")[0] ?? null : null;
 }
 export function nextQueued(db: Db): Job | null {
-  const r = db.prepare("SELECT * FROM comfy_jobs WHERE status = 'queued' ORDER BY id LIMIT 1").get() as JobSql | undefined;
-  return r ? toJob(r) : null;
+  return parsed(db.prepare("SELECT * FROM comfy_jobs WHERE status = 'queued' ORDER BY id").all() as JobSql[], toJob, "job")[0] ?? null;
 }
 const JOB_COLS: Record<string, string> = { kind: "kind", status: "status", recipe: "recipe", card: "card", progress: "progress", promptId: "prompt_id", error: "error", itemId: "item_id" };
 export function updateJob(db: Db, id: number, patch: Partial<Job>): void {
@@ -85,20 +91,20 @@ export function addItem(db: Db, it: Omit<Item, "id">): number {
 }
 export function readItem(db: Db, id: number): Item | null {
   const r = db.prepare("SELECT * FROM comfy_items WHERE id = ?").get(id) as ItemSql | undefined;
-  return r ? toItem(r) : null;
+  return r ? parsed([r], toItem, "item")[0] ?? null : null;
 }
 /** Newest first; `before` is an item id cursor. */
 export function listItems(db: Db, before?: number, limit = 50): Item[] {
   const rows = before == null
     ? db.prepare("SELECT * FROM comfy_items ORDER BY id DESC LIMIT ?").all(limit)
     : db.prepare("SELECT * FROM comfy_items WHERE id < ? ORDER BY id DESC LIMIT ?").all(before, limit);
-  return (rows as ItemSql[]).map(toItem);
+  return parsed(rows as ItemSql[], toItem, "item");
 }
 export function deleteItem(db: Db, id: number): Item | null {
   const r = db.prepare("SELECT * FROM comfy_items WHERE id = ?").get(id) as ItemSql | undefined;
   if (!r) return null;
   db.prepare("DELETE FROM comfy_items WHERE id = ?").run(id);
-  return toItem(r);
+  return parsed([r], toItem, "item")[0] ?? toItem({ ...r, recipe: "null" }); // still report the files to remove
 }
 
 // ---- Poses
@@ -106,8 +112,8 @@ export function savePose(db: Db, name: string, keypoints: number[]): number {
   return Number(db.prepare("INSERT INTO comfy_poses (name, keypoints) VALUES (?,?)").run(name, JSON.stringify(keypoints)).lastInsertRowid);
 }
 export function listPoses(db: Db): { id: number; name: string; keypoints: number[] }[] {
-  return (db.prepare("SELECT * FROM comfy_poses ORDER BY id").all() as { id: number; name: string; keypoints: string }[])
-    .map((r) => ({ id: r.id, name: r.name, keypoints: JSON.parse(r.keypoints) }));
+  return parsed(db.prepare("SELECT * FROM comfy_poses ORDER BY id").all() as { id: number; name: string; keypoints: string }[],
+    (r) => ({ id: r.id, name: r.name, keypoints: JSON.parse(r.keypoints) as number[] }), "pose");
 }
 
 // ---- Settings + state (settings table, comfy.* keys, string values)
@@ -116,8 +122,8 @@ const put = (db: Db, k: string, v: string) =>
   db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(`comfy.${k}`, v);
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const num = (db: Db, k: string, def: number, lo: number, hi: number) => {
-  const n = Number(get(db, k));
-  return get(db, k) === null || !Number.isFinite(n) ? def : clamp(n, lo, hi);
+  const v = get(db, k);
+  return v === null || v.trim() === "" || !Number.isFinite(Number(v)) ? def : clamp(Number(v), lo, hi);
 };
 
 export function readSettings(db: Db): ComfySettings {

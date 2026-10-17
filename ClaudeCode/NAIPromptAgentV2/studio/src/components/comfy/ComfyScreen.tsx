@@ -65,7 +65,7 @@ export function ComfyScreen({ active }: { active: boolean }) {
   return (
     <section className="space-y-3 pb-[calc(env(safe-area-inset-bottom)+14rem)]">
       <h1 className="text-[15px] font-semibold tracking-wide">ComfyUI</h1>
-      <GpuLine view={view} now={now} onAction={act} error={error} />
+      <GpuLine view={view} boostView={boostView} now={now} onAction={act} error={error} />
       <div role="tablist" aria-label="ComfyUI sections" className="flex gap-2">
         {SUBS.map((s) => (
           <button key={s.id} type="button" role="tab" aria-selected={sub === s.id} onClick={() => setSub(s.id)}

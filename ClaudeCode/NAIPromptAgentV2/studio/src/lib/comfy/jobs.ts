@@ -2,9 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type Database from "better-sqlite3";
 import sharp from "sharp";
-import { type Job, addItem, comfyDb, nextQueued, readItem, readJob, setState, updateJob } from "./store";
+import { type Card, type Job, addItem, comfyDb, nextQueued, readItem, readJob, readSettings, runs, setState, updateJob } from "./store";
 import { type OutFile, fetchOutput, interrupt, listModels, submit, upload, watch } from "./client";
 import { Refused, getEngine } from "./engine";
+import { canStart } from "./spend";
 import { type PoseJob, photoGraph, poseGraph, validatePhoto, validatePose, validateVideo, videoGraph } from "./recipe";
 import { COMFY_DIR } from "@/lib/env";
 
@@ -20,7 +21,7 @@ export type Deps = { db: Db; eng: Pick<ReturnType<typeof getEngine>, "view" | "w
 const realClient: Client = {
   listModels, upload, submit, watch, fetchOutput, interrupt,
   history: async (base, id) => {
-    const res = await fetch(`${base}/history/${encodeURIComponent(id)}`);
+    const res = await fetch(`${base}/history/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) throw new Error(`ComfyUI /history failed: ${res.status}`);
     return res.json();
   },
@@ -69,7 +70,8 @@ async function drainOnce(d: Deps, st: QState): Promise<void> {
   const now = d.now();
   let busy = false;
   for (const { id } of db.prepare("SELECT id FROM comfy_jobs WHERE status = 'running'").all() as { id: number }[]) {
-    const j = readJob(db, id)!;
+    const j = readJob(db, id);
+    if (!j) { fail(db, id, "This job's saved data is unreadable."); continue; }
     const w = st.watchers.get(id);
     if (!w) {
       // server restarted mid-job: pick the prompt back up if it reached ComfyUI
@@ -98,6 +100,8 @@ async function drainOnce(d: Deps, st: QState): Promise<void> {
   if (phase !== "ready") return;
 
   const j: Job = { ...q, card };
+  const ok = canStart({ runs: runs(db), s: readSettings(db), now }); // a warm VM skips warm()'s check: enforce cap/budget per job
+  if (!ok.ok) { fail(db, j.id, ok.why); st.again = true; return; } // refuse the rest of the queue too; the idle tick stops the VM
   if (!claim(db, j.id, "queued", "running", 0)) return; // another drain (other bundle) got it
   const base = d.eng.base(card);
   let promptId: string;
@@ -106,9 +110,20 @@ async function drainOnce(d: Deps, st: QState): Promise<void> {
   } catch (e) {
     return fail(db, j.id, e);
   }
+  if (readJob(db, j.id)?.status !== "running") return; // stopped while submitting
   updateJob(db, j.id, { promptId });
   setState(db, { lastActivity: d.now() });
   follow(d, { ...j, promptId }, now);
+}
+
+/** Manual stop: fail the card's queued and running jobs so the queue doesn't re-warm it, and drop their watchers. */
+export function stopJobs(card: Card, db: Db = comfyDb()): void {
+  const st = qstate();
+  for (const { id } of db.prepare("SELECT id FROM comfy_jobs WHERE card = ? AND status = 'running'").all(card) as { id: number }[]) {
+    const w = st.watchers.get(id);
+    if (w) { st.watchers.delete(id); w.ctl.abort(); }
+  }
+  db.prepare("UPDATE comfy_jobs SET status = 'error', error = 'Stopped.' WHERE card = ? AND status IN ('queued', 'running')").run(card);
 }
 
 /** Validates against the pod's current models, uploads the images it needs, and returns the API graph. */

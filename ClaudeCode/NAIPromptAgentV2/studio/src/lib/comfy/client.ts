@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 export type OutFile = { filename: string; subfolder: string; type: string };
 export const CLIENT_ID = randomUUID();
 const POLL_MAX_MS = 30 * 60_000;
+const SHORT = () => AbortSignal.timeout(30_000);
+const LONG = () => AbortSignal.timeout(120_000);
 
 async function json(f: typeof fetch, url: string, init?: RequestInit): Promise<any> {
   const res = await f(url, init);
@@ -15,7 +17,7 @@ export async function ping(base: string, f: typeof fetch = fetch): Promise<boole
 }
 
 export async function listModels(base: string, f: typeof fetch = fetch) {
-  const node = async (n: string) => ((await json(f, `${base}/object_info/${n}`))[n]?.input?.required ?? {}) as Record<string, any>;
+  const node = async (n: string) => ((await json(f, `${base}/object_info/${n}`, { signal: SHORT() }))[n]?.input?.required ?? {}) as Record<string, any>;
   const [ck, lo, ks] = await Promise.all([node("CheckpointLoaderSimple"), node("LoraLoader"), node("KSampler")]);
   const list = (o: Record<string, any>, k: string): string[] => {
     const v = o[k];
@@ -30,12 +32,12 @@ export async function upload(base: string, name: string, png: Buffer, f: typeof 
   const fd = new FormData();
   fd.set("image", new Blob([new Uint8Array(png)], { type: "image/png" }), name);
   fd.set("overwrite", "true");
-  const r = await json(f, `${base}/upload/image`, { method: "POST", body: fd });
+  const r = await json(f, `${base}/upload/image`, { method: "POST", body: fd, signal: LONG() });
   return r.subfolder ? `${r.subfolder}/${r.name}` : r.name;
 }
 
 export async function submit(base: string, graph: object, f: typeof fetch = fetch): Promise<string> {
-  const res = await f(`${base}/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: graph, client_id: CLIENT_ID }) });
+  const res = await f(`${base}/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: graph, client_id: CLIENT_ID }), signal: SHORT() });
   if (res.ok) return ((await res.json()) as any).prompt_id;
   const body: any = await res.json().catch(() => ({}));
   const parts = Object.values<any>(body.node_errors ?? {}).map((n) =>
@@ -70,7 +72,7 @@ export function watch(
     };
     /** One /history check; true once the prompt is in history (and we settled). */
     const check = async (): Promise<boolean> => {
-      const res = await f(`${base}/history/${promptId}`);
+      const res = await f(`${base}/history/${promptId}`, { signal: SHORT() });
       if (!res.ok) return false;
       const h = ((await res.json()) as any)[promptId];
       if (!h) return false;
@@ -116,12 +118,12 @@ export function watch(
 
 /** Best-effort: stops whatever the pod is running. Never throws. */
 export async function interrupt(base: string, f: typeof fetch = fetch): Promise<void> {
-  await f(`${base}/interrupt`, { method: "POST" }).catch(() => {});
+  await f(`${base}/interrupt`, { method: "POST", signal: SHORT() }).catch(() => {});
 }
 
 export async function fetchOutput(base: string, file: OutFile, f: typeof fetch = fetch): Promise<Buffer> {
   const q = new URLSearchParams({ filename: file.filename, subfolder: file.subfolder, type: file.type });
-  const res = await f(`${base}/view?${q}`);
+  const res = await f(`${base}/view?${q}`, { signal: LONG() });
   if (!res.ok) throw new Error(`ComfyUI /view failed for ${file.filename}: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }

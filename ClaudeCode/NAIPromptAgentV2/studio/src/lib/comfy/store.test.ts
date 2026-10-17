@@ -53,3 +53,22 @@ test("state defaults and patch", () => {
   setState(db, { alarm: null });
   assert.equal(getState(db).alarm, null);
 });
+
+test("a blank setting falls back to the default", () => {
+  const db = mk();
+  db.prepare("INSERT INTO settings (key, value) VALUES ('comfy.idleMin', '')").run();
+  assert.equal(readSettings(db).idleMin, 50);
+});
+
+test("a corrupt stored row is skipped, not thrown", () => {
+  const db = mk();
+  const bad = addJob(db, "photo", {}, "main", 1);
+  const good = addJob(db, "photo", { a: 1 }, "main", 2);
+  db.prepare("UPDATE comfy_jobs SET recipe = '{oops' WHERE id = ?").run(bad);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.equal(readJob(db, bad), null);
+    assert.equal(nextQueued(db)?.id, good);
+  } finally { console.warn = warn; }
+});
