@@ -2,11 +2,15 @@
 import { useRef, useState } from "react";
 
 /** Bottom sheet for the Comfy tabs: drag the handle up/down (or tap it) to open/close; prompt, tool slot, primary button, progress. */
-export function Drawer({ prompt, onPrompt, placeholder, children, action, onAction, disabled, progress }: {
+export function Drawer({ prompt, onPrompt, placeholder, children, action, onAction, disabled, progress, note, open: openProp, onOpenChange }: {
   prompt: string; onPrompt: (v: string) => void; placeholder: string; children?: React.ReactNode;
-  action: string; onAction: () => void; disabled?: boolean; progress?: number | null;
+  action: string; onAction: () => void; disabled?: boolean; progress?: number | null; note?: React.ReactNode;
+  /** Optional control from the parent (chips open the drawer); otherwise it manages itself. */
+  open?: boolean; onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [own, setOwn] = useState(false);
+  const open = openProp ?? own;
+  const setOpen = (v: boolean) => { setOwn(v); onOpenChange?.(v); };
   const drag = useRef<number | null>(null);
   return (
     <div data-noswipe className="bg-surface border-border fixed inset-x-0 bottom-0 z-20 mx-auto max-w-6xl rounded-t-2xl border-t"
@@ -27,6 +31,7 @@ export function Drawer({ prompt, onPrompt, placeholder, children, action, onActi
         <textarea value={prompt} onChange={(e) => onPrompt(e.target.value)} placeholder={placeholder} rows={open ? 4 : 2} aria-label="Prompt"
           className="bg-bg border-border w-full resize-none rounded-md border px-3 py-2 text-base" />
         {open && <div>{children}</div>}
+        {note && <p role="status" className="text-muted text-center font-mono text-xs">{note}</p>}
         {progress != null && (
           <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)} className="bg-bg h-1.5 overflow-hidden rounded-full">
             <div className="bg-accent h-full" style={{ width: `${Math.round(progress * 100)}%` }} />

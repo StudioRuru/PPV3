@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { EngineView } from "@/lib/comfy/engine";
 import { requestJson } from "@/lib/net";
 import { Drawer } from "./Drawer";
+import { PhotoPane } from "./PhotoPane";
 import { GpuLine, type EngineAction } from "./GpuLine";
 
 type Sub = "photo" | "video" | "library";
@@ -52,11 +53,18 @@ export function ComfyScreen({ active }: { active: boolean }) {
         ))}
         <button type="button" role="tab" disabled aria-selected={false} className="border-border text-faint h-9 rounded-full border px-4 text-sm opacity-60">Sprites — soon</button>
       </div>
-      <div className="border-border text-muted grid min-h-48 place-items-center rounded-lg border p-6 text-center text-sm">
-        {sub === "library" ? "Your photos and clips will appear here." : `${sub === "photo" ? "Photo" : "Video"} tools are coming — the prompt below is ready.`}
+      <div className={sub === "photo" ? "space-y-3" : "hidden"}>
+        <PhotoPane active={active && sub === "photo"} view={view} prompt={prompt} onPrompt={setPrompt} />
       </div>
-      <Drawer prompt={prompt} onPrompt={setPrompt} placeholder={sub === "video" ? "Describe the motion…" : "Describe the picture…"}
-        action={sub === "video" ? "Make clip" : "Make photo"} onAction={() => {}} disabled={!prompt.trim()} />
+      {sub !== "photo" && (
+        <>
+          <div className="border-border text-muted grid min-h-48 place-items-center rounded-lg border p-6 text-center text-sm">
+            {sub === "library" ? "Your photos and clips will appear here." : "Video tools are coming — the prompt below is ready."}
+          </div>
+          <Drawer prompt={prompt} onPrompt={setPrompt} placeholder={sub === "video" ? "Describe the motion…" : "Describe the picture…"}
+            action={sub === "video" ? "Make clip" : "Make photo"} onAction={() => {}} disabled={!prompt.trim()} />
+        </>
+      )}
     </section>
   );
 }
