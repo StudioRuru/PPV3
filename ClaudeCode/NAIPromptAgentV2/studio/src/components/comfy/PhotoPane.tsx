@@ -31,7 +31,10 @@ export function PhotoPane({ active, view, prompt, onPrompt }: { active: boolean;
   const [error, setError] = useState<string | null>(null);
   const [shot, setShot] = useState<string | null>(null);
   const alive = useRef(true);
-  const setPose = (p: Partial<PoseState>) => setPoseState((s) => ({ ...s, ...p }));
+  const kindRef = useRef<PoseRef["kind"]>(pose.kind);
+  kindRef.current = pose.kind;
+  // Editing the skeleton (Mirror, Reset, load, extract) brings the overlay back over the finished photo.
+  const setPose = (p: Partial<PoseState>) => { if ("kp" in p) setShot(null); setPoseState((s) => ({ ...s, ...p })); };
   const patch = (p: Partial<PhotoRecipe>) => setR((x) => ({ ...x, ...p }));
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -74,11 +77,13 @@ export function PhotoPane({ active, view, prompt, onPrompt }: { active: boolean;
 
   const extract = async () => {
     if (!pose.refUrl) return;
+    const kind = pose.kind;
     setPose({ busy: true, error: null });
     const res = await requestJson<{ id: number }>("/api/comfy/jobs", post({ kind: "pose", recipe: { kind: pose.kind }, image: pose.refUrl }));
     if (!res.ok) return setPose({ busy: false, error: res.error });
     const j = await poll(res.data.id);
     if (!alive.current) return;
+    if (kindRef.current !== kind) return setPose({ busy: false });
     if (j.status !== "done" || !j.result) return setPose({ busy: false, error: j.error ?? "Extraction failed." });
     if (pose.kind !== "pose") return setPose({ busy: false, extracted: j.result.image });
     const kp = fromOpenPose(j.result.keypoints);
@@ -123,7 +128,7 @@ export function PhotoPane({ active, view, prompt, onPrompt }: { active: boolean;
         {shot ? <img src={`/api/comfy/file/${shot}`} alt="Latest photo" className="size-full object-fill" />
           : pose.refUrl && pose.kp ? <img src={pose.refUrl} alt="" className="size-full object-fill opacity-40" />
           : <div className="text-muted grid size-full place-items-center p-6 text-center text-sm">Your photo appears here.</div>}
-        {pose.kind === "pose" && pose.kp && <PoseOverlay kp={pose.kp} onMove={(i, x, y) => setPoseState((s) => (s.kp ? { ...s, kp: moveJoint(s.kp, i, x, y) } : s))} />}
+        {!shot && pose.kind === "pose" && pose.kp && <PoseOverlay kp={pose.kp} onMove={(i, x, y) => setPoseState((s) => (s.kp ? { ...s, kp: moveJoint(s.kp, i, x, y) } : s))} />}
       </div>
       <Drawer open={open} onOpenChange={setOpen} prompt={prompt} onPrompt={onPrompt} placeholder="Describe the picture…" action={busy ? "Working…" : "Make photo"}
         onAction={() => void generate()} disabled={busy || !prompt.trim() || !r.model} progress={job?.status === "running" ? job.progress : null} note={note}>

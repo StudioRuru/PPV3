@@ -13,7 +13,17 @@ export function defaultPhoto(models: string[]): PhotoRecipe {
 export function loadPhoto(): PhotoRecipe | null {
   try {
     const o = JSON.parse(localStorage.getItem(PHOTO_DRAFT_KEY) ?? "null");
-    return o && typeof o === "object" && o.mode === "photo" ? { ...defaultPhoto([]), ...o, pose: null } : null;
+    if (!o || typeof o !== "object" || o.mode !== "photo") return null;
+    const d = defaultPhoto([]);
+    const out: Record<string, unknown> = { ...d };
+    for (const k of Object.keys(d) as (keyof PhotoRecipe)[]) {
+      const v = o[k], w = d[k];
+      if (typeof w === "number" ? typeof v === "number" && Number.isFinite(v) : typeof w === "string" ? typeof v === "string" : false) out[k] = v;
+    }
+    const h = o.hires;
+    if (h && Number.isFinite(h.scale) && Number.isFinite(h.denoise)) out.hires = { scale: h.scale, denoise: h.denoise };
+    if (Array.isArray(o.loras)) out.loras = o.loras.filter((l: { name?: unknown; strength?: unknown }) => typeof l?.name === "string" && typeof l.strength === "number" && Number.isFinite(l.strength)).map((l: { name: string; strength: number }) => ({ name: l.name, strength: l.strength }));
+    return out as PhotoRecipe;
   } catch { return null; }
 }
 

@@ -49,7 +49,7 @@ export function TuneSheet({ r, samplers, schedulers, onChange }: {
       <div className="flex gap-2">
         {(["width", "height"] as const).map((k) => (
           <label key={k} className="flex-1 capitalize">{k}
-            <input type="number" inputMode="numeric" step={64} className={field} value={r[k]} onChange={(e) => { const n = num(e.target.value); if (n !== null) onChange({ [k]: n }); }}
+            <input type="number" inputMode="numeric" step={64} className={field} value={r[k]} onChange={(e) => { const n = num(e.target.value); if (n !== null && n >= 64) onChange({ [k]: n }); }}
               onBlur={() => onChange({ [k]: snap(r[k]) })} />
           </label>
         ))}

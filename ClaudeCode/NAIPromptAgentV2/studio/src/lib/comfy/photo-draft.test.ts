@@ -35,3 +35,18 @@ test("savePhoto round-trips and drops the pose", () => {
     delete (globalThis as { localStorage?: unknown }).localStorage;
   }
 });
+
+test("loadPhoto ignores wrong-typed fields", () => {
+  const bad = { mode: "photo", model: 5, steps: "30", cfg: null, width: Infinity, seed: 7, prompt: "hi", loras: [{ name: 1, strength: 1 }, { name: "a", strength: 0.5 }], hires: { scale: "x" } };
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify(bad) };
+  try {
+    const r = loadPhoto()!;
+    const d = defaultPhoto([]);
+    assert.deepEqual([r.model, r.steps, r.cfg, r.width], [d.model, d.steps, d.cfg, d.width]);
+    assert.deepEqual([r.seed, r.prompt], [7, "hi"]);
+    assert.deepEqual(r.loras, [{ name: "a", strength: 0.5 }]);
+    assert.equal(r.hires, null);
+  } finally {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
