@@ -1,5 +1,4 @@
-/** Task 7 wires the queue here: () => import("@/lib/comfy/queue").then((m) => m.drainQueue) */
-const loadDrain = async (): Promise<(() => Promise<void>) | undefined> => undefined;
+const loadDrain = () => import("@/lib/comfy/jobs").then((m) => m.drainQueue);
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -12,7 +11,7 @@ export async function register() {
     running = true;
     try {
       await e.tick();
-      await (await loadDrain())?.();
+      await (await loadDrain())();
     } catch { /* next tick retries */ } finally {
       running = false;
     }

@@ -68,12 +68,12 @@ export function nextQueued(db: Db): Job | null {
   const r = db.prepare("SELECT * FROM comfy_jobs WHERE status = 'queued' ORDER BY id LIMIT 1").get() as JobSql | undefined;
   return r ? toJob(r) : null;
 }
-const JOB_COLS: Record<string, string> = { kind: "kind", status: "status", card: "card", progress: "progress", promptId: "prompt_id", error: "error", itemId: "item_id" };
+const JOB_COLS: Record<string, string> = { kind: "kind", status: "status", recipe: "recipe", card: "card", progress: "progress", promptId: "prompt_id", error: "error", itemId: "item_id" };
 export function updateJob(db: Db, id: number, patch: Partial<Job>): void {
   const keys = Object.keys(patch).filter((k) => k in JOB_COLS && (patch as Record<string, unknown>)[k] !== undefined);
   if (!keys.length) return;
   db.prepare(`UPDATE comfy_jobs SET ${keys.map((k) => `${JOB_COLS[k]} = ?`).join(", ")} WHERE id = ?`)
-    .run(...keys.map((k) => (patch as Record<string, unknown>)[k] as string | number | null), id);
+    .run(...keys.map((k) => (k === "recipe" ? JSON.stringify(patch.recipe) : (patch as Record<string, unknown>)[k] as string | number | null)), id);
 }
 
 // ---- Items
@@ -82,6 +82,10 @@ const toItem = (r: ItemSql): Item => ({ id: r.id, kind: r.kind, file: r.file, po
 export function addItem(db: Db, it: Omit<Item, "id">): number {
   return Number(db.prepare("INSERT INTO comfy_items (kind, file, poster, recipe, seed, cost, created_at) VALUES (?,?,?,?,?,?,?)")
     .run(it.kind, it.file, it.poster, JSON.stringify(it.recipe), it.seed, it.cost, it.createdAt).lastInsertRowid);
+}
+export function readItem(db: Db, id: number): Item | null {
+  const r = db.prepare("SELECT * FROM comfy_items WHERE id = ?").get(id) as ItemSql | undefined;
+  return r ? toItem(r) : null;
 }
 /** Newest first; `before` is an item id cursor. */
 export function listItems(db: Db, before?: number, limit = 50): Item[] {

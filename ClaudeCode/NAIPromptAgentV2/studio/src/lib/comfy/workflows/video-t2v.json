@@ -1,0 +1,35 @@
+{
+  "_ids": {
+    "unet": "Wan 2.2 TI2V 5B", "shift": "ModelSamplingSD3 (LoRAs insert before it)", "clip": "umt5 text encoder", "vae": "Wan 2.2 VAE (5B)",
+    "pos": "positive prompt", "neg": "negative prompt", "latent": "Wan22ImageToVideoLatent", "sampler": "KSampler", "decode": "VAE decode",
+    "rife": "RIFE VFI (removed at 16 fps)", "combine": "VHS_VideoCombine h264 mp4", "last": "ImageFromBatch last frame", "poster": "SaveImage poster"
+  },
+  "unet": { "class_type": "UNETLoader", "inputs": { "unet_name": "wan2.2_ti2v_5B_fp16.safetensors", "weight_dtype": "default" } },
+  "shift": { "class_type": "ModelSamplingSD3", "inputs": { "model": ["unet", 0], "shift": 8 } },
+  "clip": { "class_type": "CLIPLoader", "inputs": { "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan", "device": "default" } },
+  "vae": { "class_type": "VAELoader", "inputs": { "vae_name": "wan2.2_vae.safetensors" } },
+  "pos": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["clip", 0] } },
+  "neg": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["clip", 0] } },
+  "latent": { "class_type": "Wan22ImageToVideoLatent", "inputs": { "vae": ["vae", 0], "width": 1280, "height": 704, "length": 81, "batch_size": 1 } },
+  "sampler": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["shift", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["latent", 0],
+      "seed": 0, "steps": 20, "cfg": 5, "sampler_name": "uni_pc", "scheduler": "simple", "denoise": 1
+    }
+  },
+  "decode": { "class_type": "VAEDecode", "inputs": { "samples": ["sampler", 0], "vae": ["vae", 0] } },
+  "rife": {
+    "class_type": "RIFE VFI",
+    "inputs": { "frames": ["decode", 0], "ckpt_name": "rife47.pth", "clear_cache_after_n_frames": 10, "multiplier": 2, "fast_mode": true, "ensemble": true, "scale_factor": 1 }
+  },
+  "combine": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["rife", 0], "frame_rate": 30, "loop_count": 0, "filename_prefix": "studio-clip", "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p", "crf": 19, "save_metadata": true, "pingpong": false, "save_output": true
+    }
+  },
+  "last": { "class_type": "ImageFromBatch", "inputs": { "image": ["decode", 0], "batch_index": 80, "length": 1 } },
+  "poster": { "class_type": "SaveImage", "inputs": { "images": ["last", 0], "filename_prefix": "studio-last" } }
+}

@@ -1,0 +1,21 @@
+{
+  "_ids": {
+    "ckpt": "checkpoint loader; LoraLoader nodes lora1..N chain off it",
+    "pos": "positive prompt", "neg": "negative prompt", "latent": "empty latent (size)",
+    "sampler": "base KSampler", "decode": "VAE decode", "save": "SaveImage",
+    "added by the filler": "lora<N>, cn_load, cn_type, cn_image, cn_apply (pose), hires_up, hires_sampler (hires)"
+  },
+  "ckpt": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "waiIllustriousSDXL_v170.safetensors" } },
+  "pos": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["ckpt", 1] } },
+  "neg": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["ckpt", 1] } },
+  "latent": { "class_type": "EmptyLatentImage", "inputs": { "width": 832, "height": 1216, "batch_size": 1 } },
+  "sampler": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["ckpt", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["latent", 0],
+      "seed": 0, "steps": 28, "cfg": 6, "sampler_name": "euler_ancestral", "scheduler": "normal", "denoise": 1
+    }
+  },
+  "decode": { "class_type": "VAEDecode", "inputs": { "samples": ["sampler", 0], "vae": ["ckpt", 2] } },
+  "save": { "class_type": "SaveImage", "inputs": { "images": ["decode", 0], "filename_prefix": "studio" } }
+}

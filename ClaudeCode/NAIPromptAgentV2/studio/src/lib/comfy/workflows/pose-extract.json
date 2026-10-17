@@ -1,0 +1,15 @@
+{
+  "_ids": {
+    "image": "LoadImage of the reference", "pose": "preprocessor; the filler swaps its class/inputs for depth or lineart",
+    "save": "SaveImage of the preprocessed image"
+  },
+  "image": { "class_type": "LoadImage", "inputs": { "image": "" } },
+  "pose": {
+    "class_type": "DWPreprocessor",
+    "inputs": {
+      "image": ["image", 0], "detect_hand": "enable", "detect_body": "enable", "detect_face": "enable", "resolution": 1024,
+      "bbox_detector": "yolox_l.onnx", "pose_estimator": "dw-ll_ucoco_384.onnx"
+    }
+  },
+  "save": { "class_type": "SaveImage", "inputs": { "images": ["pose", 0], "filename_prefix": "studio-pose" } }
+}

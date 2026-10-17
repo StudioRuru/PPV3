@@ -1,0 +1,53 @@
+{
+  "_ids": {
+    "unet_high": "Wan 2.2 I2V A14B high-noise model", "unet_low": "low-noise model",
+    "shift_high": "ModelSamplingSD3 on high (LoRAs insert before it)", "shift_low": "ModelSamplingSD3 on low",
+    "clip": "umt5 text encoder", "vae": "Wan 2.1 VAE (A14B)", "pos": "positive prompt", "neg": "negative prompt",
+    "start": "LoadImage start frame", "i2v": "WanImageToVideo; becomes WanFirstLastFrameToVideo with an end frame (filler adds node end)",
+    "ks_high": "KSamplerAdvanced first half", "ks_low": "KSamplerAdvanced second half", "decode": "VAE decode",
+    "rife": "RIFE VFI (removed at 16 fps)", "combine": "VHS_VideoCombine h264 mp4", "last": "ImageFromBatch last frame", "poster": "SaveImage poster"
+  },
+  "unet_high": { "class_type": "UNETLoader", "inputs": { "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors", "weight_dtype": "default" } },
+  "unet_low": { "class_type": "UNETLoader", "inputs": { "unet_name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors", "weight_dtype": "default" } },
+  "shift_high": { "class_type": "ModelSamplingSD3", "inputs": { "model": ["unet_high", 0], "shift": 8 } },
+  "shift_low": { "class_type": "ModelSamplingSD3", "inputs": { "model": ["unet_low", 0], "shift": 8 } },
+  "clip": { "class_type": "CLIPLoader", "inputs": { "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan", "device": "default" } },
+  "vae": { "class_type": "VAELoader", "inputs": { "vae_name": "wan_2.1_vae.safetensors" } },
+  "pos": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["clip", 0] } },
+  "neg": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["clip", 0] } },
+  "start": { "class_type": "LoadImage", "inputs": { "image": "" } },
+  "i2v": {
+    "class_type": "WanImageToVideo",
+    "inputs": { "positive": ["pos", 0], "negative": ["neg", 0], "vae": ["vae", 0], "start_image": ["start", 0], "width": 832, "height": 480, "length": 81, "batch_size": 1 }
+  },
+  "ks_high": {
+    "class_type": "KSamplerAdvanced",
+    "inputs": {
+      "model": ["shift_high", 0], "positive": ["i2v", 0], "negative": ["i2v", 1], "latent_image": ["i2v", 2],
+      "add_noise": "enable", "noise_seed": 0, "steps": 20, "cfg": 3.5, "sampler_name": "euler", "scheduler": "simple",
+      "start_at_step": 0, "end_at_step": 10, "return_with_leftover_noise": "enable"
+    }
+  },
+  "ks_low": {
+    "class_type": "KSamplerAdvanced",
+    "inputs": {
+      "model": ["shift_low", 0], "positive": ["i2v", 0], "negative": ["i2v", 1], "latent_image": ["ks_high", 0],
+      "add_noise": "disable", "noise_seed": 0, "steps": 20, "cfg": 3.5, "sampler_name": "euler", "scheduler": "simple",
+      "start_at_step": 10, "end_at_step": 10000, "return_with_leftover_noise": "disable"
+    }
+  },
+  "decode": { "class_type": "VAEDecode", "inputs": { "samples": ["ks_low", 0], "vae": ["vae", 0] } },
+  "rife": {
+    "class_type": "RIFE VFI",
+    "inputs": { "frames": ["decode", 0], "ckpt_name": "rife47.pth", "clear_cache_after_n_frames": 10, "multiplier": 2, "fast_mode": true, "ensemble": true, "scale_factor": 1 }
+  },
+  "combine": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["rife", 0], "frame_rate": 30, "loop_count": 0, "filename_prefix": "studio-clip", "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p", "crf": 19, "save_metadata": true, "pingpong": false, "save_output": true
+    }
+  },
+  "last": { "class_type": "ImageFromBatch", "inputs": { "image": ["decode", 0], "batch_index": 80, "length": 1 } },
+  "poster": { "class_type": "SaveImage", "inputs": { "images": ["last", 0], "filename_prefix": "studio-last" } }
+}
