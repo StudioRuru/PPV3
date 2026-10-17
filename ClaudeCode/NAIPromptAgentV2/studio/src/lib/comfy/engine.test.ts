@@ -17,17 +17,17 @@ function setup(offers: Offer[] = [main, h100]) {
   let now = T0;
   const log: string[] = [];
   const vms = new Map<string, string>(); // id -> status
-  const o = { stopFails: false, pingOk: false, offers };
+  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, gate: null as Promise<void> | null };
   let n = 0;
   const hs = {
     offers: async (min: number) => o.offers.filter((x) => x.vramGb >= min).sort((a, b) => a.usdHr - b.usdHr),
-    create: async (_o: Offer, name: string) => { const id = `vm${++n}`; vms.set(id, "BUILD"); log.push(`create ${name}`); return id; },
+    create: async (_o: Offer, name: string) => { if (o.gate) await o.gate; const id = `vm${++n}`; vms.set(id, "BUILD"); log.push(`create ${name}`); return id; },
     status: async (id: string) => vms.get(id) ?? null,
-    hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); },
+    hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); },
     restore: async (id: string) => { vms.set(id, "BUILD"); log.push(`restore ${id}`); },
     start: async () => {},
-    remove: async (id: string) => { vms.delete(id); log.push(`remove ${id}`); },
-    listOurs: async () => [...vms].map(([id, status]) => ({ id, status })),
+    remove: async (id: string) => { if (o.removeFails) throw new Error("rm"); vms.delete(id); log.push(`remove ${id}`); },
+    listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
   } as unknown as Hyperstack;
   const e = engine({ db, hs, ping: async () => o.pingOk, now: () => now });
   return { db, e, vms, log, o, tick: (ms: number) => { now += ms; }, at: () => now };
@@ -189,4 +189,82 @@ test("NoCapacity on create marks unavailable", async () => {
   const hs = { offers: async () => [main], create: async () => { throw new NoCapacity("capacity", 400); } } as unknown as Hyperstack;
   const e = engine({ db, hs, ping: async () => false, now: () => T0 });
   assert.equal((await e.warm()).phase, "unavailable");
+});
+
+test("reconcile retried by tick after listOurs failed at boot", async () => {
+  const s = setup();
+  s.vms.set("orphan", "ACTIVE");
+  s.o.listFails = true;
+  await s.e.tick();
+  assert.equal(s.vms.has("orphan"), true);
+  s.o.listFails = false;
+  await s.e.tick();
+  assert.equal(s.vms.has("orphan"), false);
+});
+
+test("orphan remove failure keeps the alarm across another card's good stop until it succeeds", async () => {
+  const s = setup();
+  await s.e.warm("main");
+  s.vms.set("vm1", "ACTIVE");
+  s.vms.set("orphan", "ACTIVE");
+  s.o.removeFails = true;
+  await s.e.reconcile();
+  assert.ok(s.e.view().main.alarm);
+  await s.e.stop("main", "manual");
+  assert.ok(s.e.view().main.alarm, "orphan keeps alarm");
+  s.o.removeFails = false;
+  await s.e.tick();
+  assert.equal(s.vms.has("orphan"), false);
+  assert.equal(s.e.view().main.alarm, null);
+});
+
+test("hibernate accepted but VM stays ACTIVE -> tick retries with alarm", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.o.noop = true;
+  await s.e.stop("main", "manual");
+  assert.equal(getVm(s.db, "main")?.status, "hibernating:manual");
+  assert.equal(runs(s.db)[0].stoppedAt, null);
+  await s.e.tick();
+  assert.equal(s.e.view().main.alarm, "GPU still billing — retrying stop");
+  assert.equal(s.log.filter((l) => l.startsWith("hibernate")).length, 2);
+  s.o.noop = false;
+  await s.e.tick();
+  assert.equal(s.e.view().main.phase, "off");
+  assert.equal(s.e.view().main.alarm, null);
+});
+
+test("retry when the VM is already HIBERNATED succeeds and allows warm again", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.o.stopFails = true;
+  await s.e.stop("main", "manual");
+  s.vms.set("vm1", "HIBERNATED"); // hibernate actually took effect
+  await s.e.tick();
+  assert.equal(s.e.view().main.alarm, null);
+  assert.equal(runs(s.db)[0].stopReason, "manual");
+  assert.equal((await s.e.warm()).phase, "starting");
+});
+
+test("stop during an in-flight warm runs right after create returns", async () => {
+  const s = setup();
+  let release!: () => void;
+  s.o.gate = new Promise<void>((r) => (release = r));
+  const w = s.e.warm();
+  await s.e.stop("main", "manual"); // deferred
+  release();
+  await w;
+  assert.equal(s.vms.get("vm1"), "HIBERNATED");
+  assert.equal(s.e.view().main.phase, "off");
+});
+
+test("dev deadline env makes every stop delete the VM", async () => {
+  const s = setup();
+  await s.e.warm();
+  process.env.COMFY_DEV_DEADLINE_MIN = "30";
+  try { await s.e.stop("main", "manual"); } finally { delete process.env.COMFY_DEV_DEADLINE_MIN; }
+  assert.equal(s.vms.has("vm1"), false);
+  assert.equal(getVm(s.db, "main"), null);
 });

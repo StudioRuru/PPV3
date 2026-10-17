@@ -5,9 +5,9 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { getEngine } = await import("@/lib/comfy/engine");
   const e = getEngine();
-  await e.reconcile().catch(() => {}); // errors may carry API text; swallow, tick will retry stops
   let running = false;
-  setInterval(async () => {
+  // tick() does the boot reconcile (and retries it), so a hung listOurs can't block startup.
+  const run = async () => {
     if (running) return;
     running = true;
     try {
@@ -16,5 +16,7 @@ export async function register() {
     } catch { /* next tick retries */ } finally {
       running = false;
     }
-  }, 30_000);
+  };
+  void run();
+  setInterval(run, 30_000);
 }

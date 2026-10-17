@@ -21,7 +21,12 @@ const PHASE = { starting: "starting", warming: "warming", ready: "ready" } as co
 export function engine(d: Deps) {
   const { db, hs } = d;
   const unavailable = new Set<Card>();
-  const busy = new Set<Card>(); // a warm/stop call is mid-flight for this card
+  const busy = new Set<Card>(); // a warm call is mid-flight for this card
+  const pendingStop = new Map<Card, string>(); // stop requested while warm() was in flight
+  const locks = new Map<Card, Promise<void>>(); // stops are serialized per card
+  const orphans = new Set<string>(); // labelled VMs the db doesn't know whose remove failed
+  let reconciled = false;
+  let tickN = 0;
   const base = (card: Card) => `http://${podHost(card)}:${COMFY_PORT}`;
   const dlKey = (c: Card) => `comfy.deadline.${c}`;
   const readDeadline = (c: Card): number | null => {
@@ -33,7 +38,11 @@ export function engine(d: Deps) {
   };
   const openRunOf = (c: Card) => runs(db).find((r) => r.card === c && r.stoppedAt === null) ?? null;
   const setStatus = (v: VmRow, status: string) => putVm(db, { ...v, status });
-  const isStopping = (v: VmRow) => v.status.startsWith("stopping:");
+  const isFailing = (v: VmRow) => v.status.startsWith("stopping:"); // a stop call failed or was unconfirmed
+  const isStopping = (v: VmRow) => isFailing(v) || v.status.startsWith("hibernating:");
+  const reasonOf = (v: VmRow) => (isStopping(v) ? v.status.slice(v.status.indexOf(":") + 1) : "reconciled");
+  /** One alarm, from every failing stop and every orphan we could not remove. */
+  const syncAlarm = () => setState(db, { alarm: orphans.size || CARDS.some((c) => { const v = getVm(db, c); return v && isFailing(v); }) ? ALARM : null });
 
   function view1(card: Card, boost: EngineView["boost"]): EngineView {
     const now = d.now();
@@ -62,6 +71,12 @@ export function engine(d: Deps) {
   }
 
   async function warm(card: Card = "main"): Promise<EngineView> {
+    try { return await warmInner(card); } finally {
+      const why = pendingStop.get(card);
+      if (why !== undefined && !busy.has(card)) { pendingStop.delete(card); await stop(card, why); }
+    }
+  }
+  async function warmInner(card: Card): Promise<EngineView> {
     const now = d.now();
     setState(db, { lastActivity: now });
     const out = () => view()[card];
@@ -97,38 +112,58 @@ export function engine(d: Deps) {
     return out();
   }
 
-  /** Never throws: a failed stop leaves the VM row as `stopping:<reason>` and the alarm up, and tick() retries. */
-  async function stop(card: Card, reason: string): Promise<void> {
+  /** Never throws. Serialized per card; deferred while a warm() for the card is in flight. */
+  function stop(card: Card, reason: string): Promise<void> {
+    if (busy.has(card)) { pendingStop.set(card, reason); return Promise.resolve(); }
+    const p = (locks.get(card) ?? Promise.resolve()).then(() => stopNow(card, reason));
+    locks.set(card, p);
+    return p;
+  }
+  async function stopNow(card: Card, reason: string): Promise<void> {
     const vm = getVm(db, card);
     if (!vm || vm.status === "hibernated") return;
+    const finish = (hibernated: boolean) => {
+      closeRun(db, card, d.now(), reason);
+      if (hibernated) setStatus(vm, "hibernated"); else { dropVm(db, card); writeDeadline(card, null); }
+    };
     try {
-      if (reason === "deadline") await hs.remove(vm.vmId); else await hs.hibernate(vm.vmId);
+      const del = reason === "deadline" || Number(process.env.COMFY_DEV_DEADLINE_MIN) > 0; // dev run leaves nothing behind
+      const s = await hs.status(vm.vmId);
+      if (s === null) finish(false); // already gone
+      else if (del) { await hs.remove(vm.vmId); finish(false); }
+      else if (s === "HIBERNATED") finish(true);
+      else {
+        await hs.hibernate(vm.vmId);
+        if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else setStatus(vm, `${isStopping(vm) ? "stopping" : "hibernating"}:${reason}`); // tick confirms; a retry that is still unconfirmed keeps the alarm
+      }
     } catch {
       setStatus(vm, `stopping:${reason}`);
-      setState(db, { alarm: ALARM });
-      return;
     }
-    closeRun(db, card, d.now(), reason);
-    if (reason === "deadline") { dropVm(db, card); writeDeadline(card, null); } else setStatus(vm, "hibernated");
-    if (!CARDS.some((c) => { const v = getVm(db, c); return v && isStopping(v); })) setState(db, { alarm: null });
+    syncAlarm();
   }
 
   async function tick(): Promise<void> {
     const now = d.now();
+    if (!reconciled || ++tickN % 10 === 0) await reconcile().catch(() => {}); // boot reconcile may fail; keep trying
+    await retryOrphans();
     for (const card of CARDS) {
       if (busy.has(card)) continue;
       let vm = getVm(db, card);
       if (!vm || vm.status === "hibernated") continue;
-      if (isStopping(vm)) { await stop(card, vm.status.slice("stopping:".length)); continue; }
+      if (isFailing(vm)) { await stop(card, reasonOf(vm)); continue; }
       try {
         const s = await hs.status(vm.vmId);
-        if (s === null) { closeRun(db, card, now, "vanished"); dropVm(db, card); continue; }
-        if (s === "HIBERNATED") { closeRun(db, card, now, "reconciled"); setStatus(vm, "hibernated"); continue; }
+        if (s === null) { closeRun(db, card, now, isStopping(vm) ? reasonOf(vm) : "vanished"); dropVm(db, card); writeDeadline(card, null); continue; }
+        if (s === "HIBERNATED") { closeRun(db, card, now, reasonOf(vm)); setStatus(vm, "hibernated"); continue; }
+        if (isStopping(vm)) { // hibernate was accepted: confirm, else retry
+          if (s === "ACTIVE" || s === "ERROR" || s === "SHUTOFF") { setStatus(vm, `stopping:${reasonOf(vm)}`); syncAlarm(); await stop(card, reasonOf(vm)); }
+          continue;
+        }
         if (s === "SHUTOFF") { await stop(card, "shutoff"); continue; } // still bills
         let next = "starting";
         if (s === "ACTIVE") next = (await d.ping(base(card)).catch(() => false)) ? "ready" : "warming";
         if (next !== vm.status) { setStatus(vm, next); vm = { ...vm, status: next }; }
-      } catch { /* status flaked: still evaluate the stop policy below */ }
+      } catch { if (isStopping(vm)) continue; /* status flaked: still evaluate the stop policy below */ }
       const busyJob = !!db.prepare("SELECT 1 FROM comfy_jobs WHERE status = 'running' AND card = ?").get(card);
       const st = getState(db);
       const why = stopReason({ runs: runs(db), s: readSettings(db), lastActivity: st.lastActivity, keepWarmUntil: st.keepWarmUntil, busy: busyJob, deadline: readDeadline(card), now });
@@ -139,22 +174,29 @@ export function engine(d: Deps) {
   /** Boot: kill labelled VMs the db doesn't know; adopt the ones it does. */
   async function reconcile(): Promise<void> {
     const ours = await hs.listOurs();
+    reconciled = true;
     const known = new Set(CARDS.map((c) => getVm(db, c)?.vmId));
     for (const o of ours) {
       if (known.has(o.id) || o.status === "HIBERNATED" || o.status === "DELETING") continue;
-      try { await hs.remove(o.id); } catch { setState(db, { alarm: ALARM }); }
+      try { await hs.remove(o.id); orphans.delete(o.id); } catch { orphans.add(o.id); }
     }
     for (const card of CARDS) {
       const vm = getVm(db, card);
       if (!vm) continue;
       const o = ours.find((x) => x.id === vm.vmId);
       if (!o) { closeRun(db, card, d.now(), "vanished"); dropVm(db, card); continue; }
-      if (o.status === "HIBERNATED") { closeRun(db, card, d.now(), "reconciled"); setStatus(vm, "hibernated"); }
+      if (o.status === "HIBERNATED") { closeRun(db, card, d.now(), reasonOf(vm)); setStatus(vm, "hibernated"); }
       else if (o.status === "ACTIVE" && (vm.status === "hibernated" || vm.status === "starting")) {
         setStatus(vm, "warming");
         if (!openRunOf(card)) openRun(db, card, vm.vmId, vm.usdHr, d.now());
       }
     }
+    syncAlarm();
+  }
+
+  async function retryOrphans(): Promise<void> {
+    for (const id of [...orphans]) { try { await hs.remove(id); orphans.delete(id); } catch { /* still billing; alarm stays */ } }
+    syncAlarm();
   }
 
   function keepWarm(until: number): EngineView {

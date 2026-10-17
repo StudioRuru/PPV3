@@ -16,7 +16,9 @@ export async function POST(req: Request) {
     switch (b.action) {
       case "warm": return NextResponse.json(await e.warm(card));
       case "stop": await e.stop(card, "manual"); return NextResponse.json(e.view()[card]);
-      case "boost": return NextResponse.json(await e.setBoost(!!b.on));
+      case "boost":
+        if (typeof b.on !== "boolean") return NextResponse.json({ error: "on must be a boolean" }, { status: 400 });
+        return NextResponse.json(await e.setBoost(b.on));
       case "keepWarm":
         if (typeof b.until !== "number" || !Number.isFinite(b.until)) return NextResponse.json({ error: "until required" }, { status: 400 });
         return NextResponse.json(e.keepWarm(b.until));
@@ -24,6 +26,8 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     if (err instanceof Refused) return NextResponse.json({ error: err.message }, { status: 409 });
-    return NextResponse.json({ error: err instanceof Error ? err.message : "engine error" }, { status: 500 });
+    // Upstream bodies can carry request details: log name/status only, answer generically.
+    console.error("comfy engine route failed:", err instanceof Error ? err.name : "unknown", (err as { status?: number })?.status ?? "");
+    return NextResponse.json({ error: "The GPU service failed — try again." }, { status: 500 });
   }
 }
