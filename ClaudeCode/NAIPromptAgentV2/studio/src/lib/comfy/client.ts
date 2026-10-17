@@ -17,7 +17,12 @@ export async function ping(base: string, f: typeof fetch = fetch): Promise<boole
 export async function listModels(base: string, f: typeof fetch = fetch) {
   const node = async (n: string) => ((await json(f, `${base}/object_info/${n}`))[n]?.input?.required ?? {}) as Record<string, any>;
   const [ck, lo, ks] = await Promise.all([node("CheckpointLoaderSimple"), node("LoraLoader"), node("KSampler")]);
-  const list = (o: Record<string, any>, k: string): string[] => o[k]?.[0] ?? [];
+  const list = (o: Record<string, any>, k: string): string[] => {
+    const v = o[k];
+    if (Array.isArray(v?.[0])) return v[0];
+    if (v?.[0] === "COMBO" && Array.isArray(v[1]?.options)) return v[1].options;
+    return [];
+  };
   return { checkpoints: list(ck, "ckpt_name"), loras: list(lo, "lora_name"), samplers: list(ks, "sampler_name"), schedulers: list(ks, "scheduler") };
 }
 
@@ -80,6 +85,7 @@ export function watch(
       while (!done) {
         try { if (await check()) return; } catch { /* retry next tick */ }
         if (Date.now() > deadline) return settle(() => reject(new Error("Timed out after 30 minutes waiting for ComfyUI to finish the job.")));
+        if (done) return;
         await new Promise((r) => (timer = setTimeout(r, pollMs)));
       }
     };
@@ -99,6 +105,7 @@ export function watch(
       if (d.prompt_id !== promptId) return;
       if (m.type === "progress" && d.max) onProgress(d.value / d.max);
       else if (m.type === "execution_error") settle(() => reject(new Error(d.exception_message || "ComfyUI reported an error while running the job.")));
+      else if (m.type === "execution_interrupted") settle(() => reject(new Error("The job was cancelled.")));
       else if (m.type === "execution_success" || (m.type === "executing" && d.node === null)) void finish();
     });
   });

@@ -105,6 +105,7 @@ test("watch rejects on execution_error with its message", async () => {
   await tick();
   FakeWS.last.emit("message", { type: "execution_error", data: { prompt_id: "p1", exception_message: "CUDA out of memory" } });
   await assert.rejects(p, /CUDA out of memory/);
+  assert.equal(FakeWS.last.closed, true);
 });
 
 test("watch falls back to /history when the socket drops", async () => {
@@ -126,4 +127,23 @@ test("fetchOutput returns bytes", async () => {
   const { f, calls } = fake({ "GET /view?filename=a.png&subfolder=&type=output": {} });
   assert.deepEqual([...await fetchOutput(B, { filename: "a.png", subfolder: "", type: "output" }, f)], [1, 2, 3]);
   assert.equal(calls.length, 1);
+});
+
+test("watch rejects on execution_interrupted and closes the socket", async () => {
+  const { f } = fake({ "GET /history/p1": { body: {} } });
+  const p = watch(B, "p1", () => {}, { ws: WS, f });
+  FakeWS.last.emit("open");
+  await tick();
+  FakeWS.last.emit("message", { type: "execution_interrupted", data: { prompt_id: "p1" } });
+  await assert.rejects(p, /The job was cancelled\./);
+  assert.equal(FakeWS.last.closed, true);
+});
+
+test("listModels accepts legacy and COMBO input shapes", async () => {
+  const { f } = fake({
+    "GET /object_info/CheckpointLoaderSimple": { body: { CheckpointLoaderSimple: { input: { required: { ckpt_name: ["COMBO", { options: ["c1"] }] } } } } },
+    "GET /object_info/LoraLoader": { body: { LoraLoader: { input: { required: { lora_name: "weird" } } } } },
+    "GET /object_info/KSampler": { body: { KSampler: { input: { required: { sampler_name: [["euler"]], scheduler: ["COMBO", { options: ["karras"] }] } } } } },
+  });
+  assert.deepEqual(await listModels(B, f), { checkpoints: ["c1"], loras: [], samplers: ["euler"], schedulers: ["karras"] });
 });
