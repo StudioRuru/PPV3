@@ -20,3 +20,11 @@ export const TIPO_URL = (process.env.TIPO_URL || "http://127.0.0.1:8193").replac
 /** Optional Danbooru account (raises the 2-tag search limit). */
 export const DANBOORU_LOGIN = process.env.DANBOORU_LOGIN || "";
 export const DANBOORU_API_KEY = process.env.DANBOORU_API_KEY || "";
+
+/** Comfy GPU tab: secrets are read here only; never log or return them. */
+export const HYPERSTACK_API_KEY = process.env.HYPERSTACK_API_KEY || "";
+export const HYPERSTACK_KEY_NAME = process.env.HYPERSTACK_KEY_NAME || "";
+export const COMFY_TS_AUTHKEY = process.env.COMFY_TS_AUTHKEY || "";
+export const HF_TOKEN = process.env.HF_TOKEN || "";
+export const CIVITAI_TOKEN = process.env.CIVITAI_TOKEN || "";
+export const COMFY_DIR = path.join(DATA_DIR, "comfy");

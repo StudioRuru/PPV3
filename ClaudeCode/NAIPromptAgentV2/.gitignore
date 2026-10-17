@@ -3,3 +3,4 @@ data/studio.db*
 .DS_Store
 data/thumbs/
 data/chat-images/
+.superpowers/
