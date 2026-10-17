@@ -25,6 +25,7 @@ export function engine(d: Deps) {
   const pendingStop = new Map<Card, string>(); // stop requested while warm() was in flight
   const locks = new Map<Card, Promise<void>>(); // stops are serialized per card
   const orphans = new Set<string>(); // labelled VMs the db doesn't know whose remove failed
+  const hibSince = new Map<Card, number>(); // when a hibernate was accepted but not yet confirmed
   let reconciled = false;
   let tickN = 0;
   const base = (card: Card) => `http://${podHost(card)}:${COMFY_PORT}`;
@@ -116,13 +117,15 @@ export function engine(d: Deps) {
   function stop(card: Card, reason: string): Promise<void> {
     if (busy.has(card)) { pendingStop.set(card, reason); return Promise.resolve(); }
     const p = (locks.get(card) ?? Promise.resolve()).then(() => stopNow(card, reason));
-    locks.set(card, p);
+    locks.set(card, p.catch(() => {})); // one failure must not block later stops
+
     return p;
   }
   async function stopNow(card: Card, reason: string): Promise<void> {
     const vm = getVm(db, card);
     if (!vm || vm.status === "hibernated") return;
     const finish = (hibernated: boolean) => {
+      hibSince.delete(card);
       closeRun(db, card, d.now(), reason);
       if (hibernated) setStatus(vm, "hibernated"); else { dropVm(db, card); writeDeadline(card, null); }
     };
@@ -134,7 +137,7 @@ export function engine(d: Deps) {
       else if (s === "HIBERNATED") finish(true);
       else {
         await hs.hibernate(vm.vmId);
-        if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else setStatus(vm, `${isStopping(vm) ? "stopping" : "hibernating"}:${reason}`); // tick confirms; a retry that is still unconfirmed keeps the alarm
+        if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else { if (!isStopping(vm)) hibSince.set(card, d.now()); setStatus(vm, `${isStopping(vm) ? "stopping" : "hibernating"}:${reason}`); } // tick confirms; a retry that is still unconfirmed keeps the alarm
       }
     } catch {
       setStatus(vm, `stopping:${reason}`);
@@ -144,8 +147,10 @@ export function engine(d: Deps) {
 
   async function tick(): Promise<void> {
     const now = d.now();
-    if (!reconciled || ++tickN % 10 === 0) await reconcile().catch(() => {}); // boot reconcile may fail; keep trying
-    await retryOrphans();
+    if (!busy.size) { // a warm in flight has a VM at Hyperstack that the db doesn't know yet
+      if (!reconciled || ++tickN % 10 === 0) await reconcile().catch(() => {}); // boot reconcile may fail; keep trying
+      await retryOrphans();
+    }
     for (const card of CARDS) {
       if (busy.has(card)) continue;
       let vm = getVm(db, card);
@@ -156,7 +161,9 @@ export function engine(d: Deps) {
         if (s === null) { closeRun(db, card, now, isStopping(vm) ? reasonOf(vm) : "vanished"); dropVm(db, card); writeDeadline(card, null); continue; }
         if (s === "HIBERNATED") { closeRun(db, card, now, reasonOf(vm)); setStatus(vm, "hibernated"); continue; }
         if (isStopping(vm)) { // hibernate was accepted: confirm, else retry
-          if (s === "ACTIVE" || s === "ERROR" || s === "SHUTOFF") { setStatus(vm, `stopping:${reasonOf(vm)}`); syncAlarm(); await stop(card, reasonOf(vm)); }
+          if (!hibSince.has(card)) hibSince.set(card, now);
+          const stuck = now - hibSince.get(card)! > 10 * 60_000; // HIBERNATING for too long
+          if (stuck || s === "ACTIVE" || s === "ERROR" || s === "SHUTOFF") { setStatus(vm, `stopping:${reasonOf(vm)}`); syncAlarm(); await stop(card, reasonOf(vm)); }
           continue;
         }
         if (s === "SHUTOFF") { await stop(card, "shutoff"); continue; } // still bills

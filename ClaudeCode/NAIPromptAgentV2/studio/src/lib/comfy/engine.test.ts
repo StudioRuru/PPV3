@@ -268,3 +268,43 @@ test("dev deadline env makes every stop delete the VM", async () => {
   assert.equal(s.vms.has("vm1"), false);
   assert.equal(getVm(s.db, "main"), null);
 });
+
+test("reconcile tick during an in-flight create does not remove the new VM", async () => {
+  const s = setup();
+  let release!: () => void;
+  s.o.gate = new Promise<void>((r) => (release = r));
+  const w = s.e.warm();
+  await new Promise((r) => setImmediate(r));
+  s.vms.set("vm9", "ACTIVE"); // exists at Hyperstack, row not written yet
+  await s.e.tick();
+  assert.equal(s.vms.has("vm9"), true);
+  release();
+  await w;
+});
+
+test("a stop error does not block later stops for the card", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  const real = s.db.prepare.bind(s.db);
+  let boom = 2;
+  (s.db as unknown as { prepare: unknown }).prepare = (q: string) => { if (boom > 0 && /UPDATE comfy_runs|INSERT OR REPLACE INTO comfy_vms/.test(q)) { boom--; throw new Error("db"); } return real(q); };
+  await assert.rejects(s.e.stop("main", "manual"));
+  await s.e.stop("main", "manual");
+  assert.equal(s.e.view().main.phase, "off");
+});
+
+test("hibernating for over 10 minutes raises the alarm and retries", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.o.noop = true;
+  await s.e.stop("main", "manual");
+  s.vms.set("vm1", "HIBERNATING");
+  await s.e.tick();
+  assert.equal(s.e.view().main.alarm, null);
+  s.tick(11 * 60_000);
+  await s.e.tick();
+  assert.ok(s.e.view().main.alarm);
+  assert.equal(s.log.filter((l) => l.startsWith("hibernate")).length, 2);
+});

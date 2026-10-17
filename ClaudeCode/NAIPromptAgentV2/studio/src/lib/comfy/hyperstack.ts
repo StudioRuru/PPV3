@@ -24,10 +24,14 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   async function req(method: string, path: string, body?: unknown): Promise<Response> {
+    // Bounded so a hung request can't freeze the watchdog; the timeout text carries no URL or key.
     const res = await f(BASE + path, {
+      signal: AbortSignal.timeout(30_000),
       method,
       headers: { api_key: apiKey, accept: "application/json", ...(body ? { "content-type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
+    }).catch((e) => {
+      throw new HyperstackError(`hyperstack ${method} ${path.split("?")[0]}: ${e instanceof Error && e.name === "TimeoutError" ? "timed out" : "request failed"}`, 0);
     });
     return res;
   }
