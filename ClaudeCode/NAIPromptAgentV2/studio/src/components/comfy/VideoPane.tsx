@@ -77,12 +77,12 @@ export function VideoPane({ view, boostView, lastPhoto }: { view: EngineView | n
   // Boost sends every mode but text-to-video to the H100 card.
   const h100 = view?.boost === "on" && r.mode !== "t2v";
   const gpu = h100 ? "H100" : gpuName(view?.gpu ?? null);
-  const usdHr = h100 ? boostView?.usdHr || view?.usdHr || 0 : view?.usdHr ?? 0;
+  const usdHr = (h100 ? boostView?.usdHr : view?.usdHr) ?? 0;
   const est = estimate(r, gpu, usdHr);
   const estLine = `~${Math.max(1, Math.round(est.seconds / 60))} min on ${gpu}${usdHr ? ` ≈ $${est.usd.toFixed(2)}` : ""}`;
   const needStart = r.mode !== "t2v" && r.start == null;
   const note = job ? (job.status === "queued" ? "Queued — GPU warming" : `Rendering ${Math.round(job.progress * 100)}%`) : error ?? estLine;
-  const shown = (lib ?? []).filter((i) => (tool === "start" && r.mode === "extend" ? i.kind === "clip" : i.kind === "photo"));
+  const shown = (lib ?? []).filter((i) => (tool === "start" && r.mode === "extend" ? i.kind === "clip" && !!i.poster : i.kind === "photo"));
   const btn = (on: boolean) => `min-h-11 shrink-0 rounded-full border px-4 text-sm ${on ? "bg-accent text-accent-fg border-accent font-semibold" : "border-border text-muted"}`;
 
   return (
