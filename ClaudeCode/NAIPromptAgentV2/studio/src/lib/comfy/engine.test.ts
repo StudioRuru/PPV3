@@ -277,6 +277,13 @@ test("an idle stop of boost clears the boost flag; a manual stop of main does no
   assert.equal(s.e.view().boost.boost, "off");
 });
 
+test("a manual stop of boost clears the boost flag too", async () => {
+  const s = setup();
+  await s.e.setBoost(true);
+  await s.e.stop("boost", "manual");
+  assert.equal(s.e.view().boost.boost, "off");
+});
+
 test("setBoost(true) rolls the flag back when the warm is refused", async () => {
   const s = setup();
   writeSettings(s.db, { budgetUsd: 1 });

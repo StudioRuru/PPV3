@@ -123,7 +123,7 @@ export function engine(d: Deps) {
     return p;
   }
   async function stopNow(card: Card, reason: string): Promise<void> {
-    if (card === "boost" && reason !== "manual") setState(db, { boost: false }); // idle/cap/deadline: the next job runs on main
+    if (card === "boost") setState(db, { boost: false }); // any stop: the next job runs on main until boost is turned on again
     const vm = getVm(db, card);
     if (!vm || vm.status === "hibernated") return;
     const finish = (hibernated: boolean) => {

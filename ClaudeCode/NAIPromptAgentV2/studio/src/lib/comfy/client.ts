@@ -123,7 +123,7 @@ export async function interrupt(base: string, f: typeof fetch = fetch): Promise<
 
 export async function fetchOutput(base: string, file: OutFile, f: typeof fetch = fetch): Promise<Buffer> {
   const q = new URLSearchParams({ filename: file.filename, subfolder: file.subfolder, type: file.type });
-  const res = await f(`${base}/view?${q}`, { signal: LONG() });
+  const res = await f(`${base}/view?${q}`, { signal: AbortSignal.timeout(600_000) }); // whole body: a clip over a relayed tailnet is slow
   if (!res.ok) throw new Error(`ComfyUI /view failed for ${file.filename}: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
