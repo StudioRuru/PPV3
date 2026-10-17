@@ -1,9 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { EngineView } from "@/lib/comfy/engine";
+import { defaultVideo, loadVideo as loadVideoDraft } from "@/lib/comfy/photo-draft";
+import type { PhotoRecipe, VideoRecipe } from "@/lib/comfy/recipe";
+import { asStartFrame, reuseTarget } from "@/lib/comfy/reuse";
+import type { Item } from "@/lib/comfy/store";
 import { requestJson } from "@/lib/net";
-import { Drawer } from "./Drawer";
 import { PhotoPane } from "./PhotoPane";
+import { LibraryPane } from "./LibraryPane";
 import { VideoPane } from "./VideoPane";
 import { GpuLine, type EngineAction } from "./GpuLine";
 
@@ -20,7 +24,20 @@ export function ComfyScreen({ active }: { active: boolean }) {
   const [boostView, setBoostView] = useState<EngineView | null>(null);
   const [lastPhoto, setLastPhoto] = useState<{ id: number; file: string } | null>(null);
   const [prompt, setPrompt] = useState("");
+  const [loadPhoto, setLoadPhoto] = useState<{ recipe: PhotoRecipe; nonce: number }>();
+  const [loadVideo, setLoadVideo] = useState<{ recipe: VideoRecipe; nonce: number; thumb?: string }>();
   const warmed = useRef(false);
+  // Library actions: push the recipe into the (mounted) pane, then switch to it.
+  const reuse = (it: Item) => {
+    const t = reuseTarget(it);
+    if (t.pane === "photo") setLoadPhoto({ recipe: t.recipe, nonce: Date.now() });
+    else setLoadVideo({ recipe: t.recipe, nonce: Date.now() });
+    setSub(t.pane);
+  };
+  const animate = (it: Item) => {
+    setLoadVideo({ recipe: asStartFrame(it, loadVideoDraft() ?? defaultVideo()), nonce: Date.now(), thumb: `/api/comfy/file/${it.file}` });
+    setSub("video");
+  };
 
   // Errors from warm/actions stay until the next action succeeds; a poll only clears (or sets) its own error.
   const pollErr = useRef(false);
@@ -57,20 +74,12 @@ export function ComfyScreen({ active }: { active: boolean }) {
         <button type="button" role="tab" disabled aria-selected={false} className="border-border text-faint h-9 rounded-full border px-4 text-sm opacity-60">Sprites — soon</button>
       </div>
       <div className={sub === "photo" ? "space-y-3" : "hidden"}>
-        <PhotoPane active={active && sub === "photo"} view={view} prompt={prompt} onPrompt={setPrompt} onShot={setLastPhoto} />
+        <PhotoPane active={active && sub === "photo"} view={view} prompt={prompt} onPrompt={setPrompt} onShot={setLastPhoto} load={loadPhoto} />
       </div>
       <div className={sub === "video" ? "space-y-3" : "hidden"}>
-        <VideoPane view={view} boostView={boostView} lastPhoto={lastPhoto} />
+        <VideoPane view={view} boostView={boostView} lastPhoto={lastPhoto} load={loadVideo} />
       </div>
-      {sub === "library" && (
-        <>
-          <div className="border-border text-muted grid min-h-48 place-items-center rounded-lg border p-6 text-center text-sm">
-            Your photos and clips will appear here.
-          </div>
-          <Drawer prompt={prompt} onPrompt={setPrompt} placeholder="Describe the picture…"
-            action="Make photo" onAction={() => {}} disabled={!prompt.trim()} />
-        </>
-      )}
+      {sub === "library" && <LibraryPane onReuse={reuse} onAnimate={animate} />}
     </section>
   );
 }

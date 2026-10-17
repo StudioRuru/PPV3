@@ -17,7 +17,7 @@ const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "ap
 const short = (n: string) => n.replace(/\.safetensors$/, "");
 
 /** Photo sub-tab: canvas, tool chips (Model · LoRA · Pose · Tune) and the drawer that hosts them. */
-export function PhotoPane({ active, view, prompt, onPrompt, onShot }: { active: boolean; view: EngineView | null; prompt: string; onPrompt: (v: string) => void; onShot?: (item: { id: number; file: string }) => void }) {
+export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { active: boolean; view: EngineView | null; prompt: string; onPrompt: (v: string) => void; onShot?: (item: { id: number; file: string }) => void; load?: { recipe: PhotoRecipe; nonce: number } }) {
   const [r, setR] = useState<PhotoRecipe>(() => defaultPhoto([]));
   const [ready, setReady] = useState(false);
   const [models, setModels] = useState<Models | null>(null);
@@ -40,6 +40,12 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot }: { active: 
     if (d) { setR(d); if (d.prompt) onPrompt(d.prompt); }
     setReady(true);
   }, []);
+  // Library "Reuse": the pane stays mounted, so a new nonce pushes the recipe in.
+  useEffect(() => {
+    if (!load) return;
+    setR(load.recipe); onPrompt(load.recipe.prompt); setShot(null); setPoseState(EMPTY_POSE); setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load?.nonce]);
   useEffect(() => { if (ready) savePhoto({ ...r, prompt }); }, [r, prompt, ready]);
 
   // Model lists come from the GPU: poll until it answers.

@@ -18,7 +18,7 @@ const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "ap
 const thumb = (i: LibItem) => `/api/comfy/file/${i.kind === "clip" ? i.poster ?? i.file : i.file}`;
 
 /** Video sub-tab: mode chips, start frame, canvas with the finished clip, and the drawer (Motion · Library picker). */
-export function VideoPane({ view, boostView, lastPhoto }: { view: EngineView | null; boostView: EngineView | null; lastPhoto: { id: number; file: string } | null }) {
+export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineView | null; boostView: EngineView | null; lastPhoto: { id: number; file: string } | null; load?: { recipe: VideoRecipe; nonce: number; thumb?: string } }) {
   const [r, setR] = useState<VideoRecipe>(defaultVideo);
   const [ready, setReady] = useState(false);
   const [tool, setTool] = useState<Tool>("motion");
@@ -38,6 +38,12 @@ export function VideoPane({ view, boostView, lastPhoto }: { view: EngineView | n
     if (d) setR({ ...d, start: null, end: null });
     setReady(true);
   }, []);
+  // Library "Reuse" / "Animate this": the pane stays mounted, so a new nonce pushes the recipe in.
+  useEffect(() => {
+    if (!load) return;
+    setR(load.recipe); setStartThumb(load.thumb ?? null); setClip(null); setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load?.nonce]);
   useEffect(() => { if (ready) saveVideo(r); }, [r, ready]);
 
   const openTool = (t: Tool) => {
