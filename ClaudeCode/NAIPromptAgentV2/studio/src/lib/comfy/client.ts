@@ -39,8 +39,11 @@ export async function upload(base: string, name: string, png: Buffer, f: typeof 
 
 export async function submit(base: string, graph: object, f: typeof fetch = fetch): Promise<string> {
   const res = await f(`${base}/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: graph, client_id: CLIENT_ID }), signal: SHORT() });
-  if (res.ok) return ((await res.json()) as any).prompt_id;
   const body: any = await res.json().catch(() => ({}));
+  const bad = Object.keys(body.node_errors ?? {}).length > 0;
+  if (res.ok && !bad) return body.prompt_id;
+  // A 200 with node_errors means ComfyUI queued only the outputs that validated: drop that partial run.
+  if (res.ok) await f(`${base}/queue`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ delete: [body.prompt_id] }), signal: SHORT() }).catch(() => {});
   const parts = Object.values<any>(body.node_errors ?? {}).map((n) =>
     `${n.class_type}: ${(n.errors ?? []).map((e: any) => (e.details ? `${e.message} (${e.details})` : e.message)).join(", ")}`);
   throw new Error(parts.length ? parts.join("; ") : body.error?.message ?? `ComfyUI rejected the prompt (${res.status})`);

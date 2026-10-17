@@ -69,6 +69,13 @@ test("submit surfaces node_errors as one sentence", async () => {
   await assert.rejects(submit(B, {}, f), (e: Error) => e.message === "KSampler: Value not in list (sampler_name: 'bad'); LoraLoader: Missing");
 });
 
+test("submit rejects a 200 that dropped outputs and dequeues the partial run", async () => {
+  const { f, calls } = fake({ "POST /prompt": { body: { prompt_id: "p9", node_errors: {
+    rife: { class_type: "RIFE VFI", errors: [{ message: "Required input is missing", details: "dtype" }] } } } }, "POST /queue": { body: {} } });
+  await assert.rejects(submit(B, {}, f), (e: Error) => e.message === "RIFE VFI: Required input is missing (dtype)");
+  assert.deepEqual(JSON.parse(calls[1].init.body), { delete: ["p9"] });
+});
+
 test("submit 400 without node_errors uses error.message", async () => {
   const { f } = fake({ "POST /prompt": { status: 400, body: { error: { message: "bad graph" } } } });
   await assert.rejects(submit(B, {}, f), /bad graph/);

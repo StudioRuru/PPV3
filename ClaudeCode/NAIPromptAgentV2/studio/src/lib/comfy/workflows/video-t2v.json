@@ -21,7 +21,7 @@
   "decode": { "class_type": "VAEDecode", "inputs": { "samples": ["sampler", 0], "vae": ["vae", 0] } },
   "rife": {
     "class_type": "RIFE VFI",
-    "inputs": { "frames": ["decode", 0], "ckpt_name": "rife47.pth", "clear_cache_after_n_frames": 10, "multiplier": 2, "fast_mode": true, "ensemble": true, "scale_factor": 1 }
+    "inputs": { "frames": ["decode", 0], "ckpt_name": "rife47.pth", "clear_cache_after_n_frames": 10, "multiplier": 2, "fast_mode": true, "ensemble": true, "scale_factor": 1, "dtype": "float32", "torch_compile": false, "batch_size": 1 }
   },
   "combine": {
     "class_type": "VHS_VideoCombine",
