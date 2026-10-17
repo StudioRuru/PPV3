@@ -44,7 +44,11 @@ nodes() {
 step apt apt_deps
 step tailscale tailscale_install
 # Every boot, no marker: re-join the tailnet (ephemeral key; node may be gone).
-tailscale up --authkey="$TS_AUTHKEY" --hostname="$TS_HOSTNAME" --ssh --advertise-tags="$TS_TAGS"
+for i in 1 2 3 4 5; do
+  tailscale up --authkey="$TS_AUTHKEY" --hostname="$TS_HOSTNAME" --ssh --advertise-tags="$TS_TAGS" && break
+  [ "$i" = 5 ] && exit 1
+  sleep 10
+done
 step comfy comfy_clone
 step venv venv_torch
 step nodes nodes

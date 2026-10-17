@@ -17,12 +17,14 @@ export function readManifest(file = path.join(POD_DIR, "models.manifest.yaml")):
   const list = YAML.parse(fs.readFileSync(file, "utf8")) as ManifestEntry[];
   if (!Array.isArray(list)) throw new Error("manifest must be a list");
   for (const e of list) {
+    if (!e || typeof e !== "object") throw new Error("manifest entry must be an object");
     const bad = (why: string) => new Error(`manifest ${e?.filename}: ${why}`);
     if (!KINDS.has(e.kind)) throw bad(`unknown kind ${e.kind}`);
     if (!/^[0-9a-f]{64}$/.test(e.sha256)) throw bad("sha256 must be 64 lowercase hex");
     if (!/^[\w.-]+$/.test(e.filename)) throw bad("bad filename");
     if (!Array.isArray(e.urls) || !e.urls.length || !e.urls.every((u) => u.startsWith("https://"))) throw bad("urls must be https");
     if (!(e.size > 0) || !e.licence || !Array.isArray(e.cards) || !e.cards.length) throw bad("size, licence and cards required");
+    if (!e.cards.every((c) => c === "main" || c === "boost")) throw bad("cards must be main or boost");
   }
   return list;
 }
@@ -54,5 +56,5 @@ const sshRun: Run = (cmd, args, stdin) =>
 
 /** Pushes the card's manifest to the pod over Tailscale SSH and downloads any missing models. */
 export function syncModels(card: Card, run: Run = sshRun): Promise<string> {
-  return run("ssh", ["-o", "BatchMode=yes", `root@${podHost(card)}`, "bash", "/opt/comfy/fetch-models.sh"], forCard(card));
+  return run("ssh", ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", `root@${podHost(card)}`, "bash", "/opt/comfy/fetch-models.sh"], forCard(card));
 }

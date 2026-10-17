@@ -16,7 +16,7 @@ test("manifest validates", () => {
 
 test("cloud-init embeds host, tag and flags", () => {
   const out = renderCloudInit("main", secrets);
-  for (const s of ["nai-comfy-main", "tag:comfy-pod", "--disable-cuda-malloc", "--listen $(tailscale ip -4)", "tskey-test"]) assert.ok(out.includes(s), s);
+  for (const s of ["nai-comfy-main", "tag:comfy-pod", "--disable-cuda-malloc", "tskey-test"]) assert.ok(out.includes(s), s);
   assert.ok(!out.includes("0.0.0.0"));
   assert.ok(!out.includes("{{"));
   assert.equal(podHost("boost"), "nai-comfy-boost");
@@ -38,6 +38,18 @@ test("syncModels sends the manifest on stdin to the right host", async () => {
   assert.equal(out, "ok");
   assert.equal(calls[0].cmd, "ssh");
   assert.ok(calls[0].args.includes("root@nai-comfy-boost"));
+  const a = calls[0].args.join(" ");
+  for (const o of ["BatchMode=yes", "StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"]) assert.ok(a.includes(o), o);
   assert.ok(calls[0].args.join(" ").endsWith("bash /opt/comfy/fetch-models.sh"));
   assert.ok(YAML.parse(calls[0].stdin).every((e: { cards: string[] }) => e.cards.includes("boost")));
+});
+
+test("wrapper waits for a tailnet IP and never listens bare", () => {
+  const out = renderCloudInit("main", secrets);
+  assert.ok(out.includes("ip=$(tailscale ip -4 2>/dev/null | head -n1)"));
+  assert.ok(out.includes('[ -n "$ip" ] || {'));
+  assert.ok(out.includes('--listen "$ip"'));
+  assert.ok(!/--listen(?! "\$ip")/.test(out));
+  assert.ok(!out.includes("0.0.0.0"));
+  assert.ok(out.includes("After=network-online.target tailscaled.service"));
 });

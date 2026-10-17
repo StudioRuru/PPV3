@@ -25,17 +25,27 @@ write_files:
     permissions: "0755"
     content: |
       #!/usr/bin/env bash
+      # Never start without a tailnet IP (an empty listen address would be public).
+      ip=""
+      for _ in $(seq 60); do
+        ip=$(tailscale ip -4 2>/dev/null | head -n1)
+        [ -n "$ip" ] && break
+        sleep 2
+      done
+      [ -n "$ip" ] || { echo "no tailnet IP after 120s" >&2; exit 1; }
       cd /opt/comfy
-      exec /opt/comfy/venv/bin/python main.py --listen $(tailscale ip -4) --port 8188 --disable-cuda-malloc
+      exec /opt/comfy/venv/bin/python main.py --listen "$ip" --port 8188 --disable-cuda-malloc
   - path: /etc/systemd/system/comfy-boot.service
     content: |
       [Unit]
       Description=Comfy pod bootstrap (idempotent, every boot)
-      After=network-online.target
-      Wants=network-online.target
+      After=network-online.target tailscaled.service
+      Wants=network-online.target tailscaled.service
       [Service]
       Type=oneshot
       RemainAfterExit=yes
+      Restart=on-failure
+      RestartSec=15
       ExecStart=/opt/comfy-install.sh
       [Install]
       WantedBy=multi-user.target
