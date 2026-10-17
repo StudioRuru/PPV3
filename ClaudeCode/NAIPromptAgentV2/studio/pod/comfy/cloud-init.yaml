@@ -1,0 +1,58 @@
+#cloud-config
+# Rendered by studio/src/lib/comfy/pod.ts. Contains secrets: never log or write to disk.
+write_files:
+  - path: /etc/comfy.env
+    permissions: "0600"
+    content: |
+      TS_AUTHKEY='{{TS_AUTHKEY}}'
+      TS_HOSTNAME='{{HOSTNAME}}'
+      TS_TAGS='tag:comfy-pod'
+      HF_TOKEN='{{HF_TOKEN}}'
+      CIVITAI_TOKEN='{{CIVITAI_TOKEN}}'
+  - path: /opt/comfy-install.sh
+    permissions: "0755"
+    encoding: b64
+    content: {{INSTALL_B64}}
+  - path: /opt/comfy/fetch-models.sh
+    permissions: "0755"
+    encoding: b64
+    content: {{FETCH_B64}}
+  - path: /opt/comfy-manifest.yaml
+    permissions: "0644"
+    encoding: b64
+    content: {{MANIFEST_B64}}
+  - path: /usr/local/bin/comfy-run
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      cd /opt/comfy
+      exec /opt/comfy/venv/bin/python main.py --listen $(tailscale ip -4) --port 8188 --disable-cuda-malloc
+  - path: /etc/systemd/system/comfy-boot.service
+    content: |
+      [Unit]
+      Description=Comfy pod bootstrap (idempotent, every boot)
+      After=network-online.target
+      Wants=network-online.target
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/opt/comfy-install.sh
+      [Install]
+      WantedBy=multi-user.target
+  - path: /etc/systemd/system/comfy.service
+    content: |
+      [Unit]
+      Description=ComfyUI (tailnet only)
+      Requires=comfy-boot.service
+      After=comfy-boot.service
+      [Service]
+      ExecStart=/usr/local/bin/comfy-run
+      Restart=always
+      RestartSec=5
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, comfy-boot.service]
+  - [bash, /opt/comfy/fetch-models.sh, /opt/comfy-manifest.yaml]
+  - [systemctl, enable, --now, comfy.service]

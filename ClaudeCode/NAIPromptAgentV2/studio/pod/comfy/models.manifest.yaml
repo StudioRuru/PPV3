@@ -1,0 +1,101 @@
+# Pod model manifest. sha256/size come from Hugging Face x-linked-etag / x-linked-size headers
+# (Civitai: API files[].hashes.SHA256 and sizeKB). kind = subdir of /opt/comfy/models.
+# The Miyabi LoRA is added in Task 13.
+
+- kind: checkpoints
+  filename: waiIllustriousSDXL_v170.safetensors
+  sha256: f116b0c78ff441467b0cdc8f1936e1ed18ea31e9997c7b132b1b8db533f0bd04
+  size: 6938040682
+  urls:
+    - https://civitai.com/api/download/models/2883731?fileId=2763986
+  licence: "Civitai model page terms (WAI-illustrious-SDXL v17.0; commercial use: Image, RentCivit); owner may swap"
+  cards: [main]
+- kind: controlnet
+  filename: diffusion_pytorch_model_promax.safetensors
+  sha256: 9fae2e50cb431bfcbe05822b59ec2228df545ef27f711dea8949e9f4ed9f7cdc
+  size: 2513342408
+  urls:
+    - https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/resolve/main/diffusion_pytorch_model_promax.safetensors
+  licence: "apache-2.0"
+  cards: [main]
+- kind: dwpose
+  filename: dw-ll_ucoco_384.onnx
+  sha256: 724f4ff2439ed61afb86fb8a1951ec39c6220682803b4a8bd4f598cd913b1843
+  size: 134399116
+  urls:
+    - https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.onnx
+  licence: "apache-2.0"
+  cards: [main]
+- kind: dwpose
+  filename: yolox_l.onnx
+  sha256: 7860ae79de6c89a3c1eb72ae9a2756c0ccfbe04b7791bb5880afabd97855a411
+  size: 216746733
+  urls:
+    - https://huggingface.co/yzd-v/DWPose/resolve/main/yolox_l.onnx
+  licence: "apache-2.0"
+  cards: [main]
+- kind: depth
+  filename: depth_anything_v2_vits.pth
+  sha256: 715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378
+  size: 99218434
+  urls:
+    - https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth
+  licence: "apache-2.0"
+  cards: [main]
+- kind: diffusion_models
+  filename: wan2.2_ti2v_5B_fp16.safetensors
+  sha256: 456f901338bd9eadbded3828b819109a9b68e8a525ca5cf8d0049a69fcfeca1e
+  size: 9999658848
+  urls:
+    - https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors
+  licence: "apache-2.0"
+  cards: [main]
+- kind: vae
+  filename: wan2.2_vae.safetensors
+  sha256: e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156
+  size: 1409400960
+  urls:
+    - https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan2.2_vae.safetensors
+  licence: "apache-2.0"
+  cards: [main]
+- kind: diffusion_models
+  filename: wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
+  sha256: 6122e79d55e0f235698d11d657f3b196c5273c830da00b2b013c5a048d5e6a42
+  size: 14294742832
+  urls:
+    - https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors
+  licence: "apache-2.0"
+  cards: [main, boost]
+- kind: diffusion_models
+  filename: wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
+  sha256: 5471a457b6ac404202a5fbe6c11595a3d5641fc766b00f38763f72303fffc21e
+  size: 14294742832
+  urls:
+    - https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors
+  licence: "apache-2.0"
+  cards: [main, boost]
+- kind: text_encoders
+  filename: umt5_xxl_fp8_e4m3fn_scaled.safetensors
+  sha256: c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68
+  size: 6735906897
+  urls:
+    - https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
+  licence: "apache-2.0"
+  cards: [main, boost]
+- kind: vae
+  filename: wan_2.1_vae.safetensors
+  sha256: 2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b
+  size: 253815318
+  urls:
+    - https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors
+  licence: "apache-2.0"
+  cards: [main, boost]
+- kind: rife
+  filename: rife47.pth
+  sha256: 6a8a825ab2750558bdd20dcced386fd82b7222c7ba58c11d3b611d9c44f1be63
+  size: 21344827
+  urls:
+    - https://huggingface.co/dci05049/rife47.pth/resolve/main/rife47.pth
+    - https://huggingface.co/DanielMarius/dms-rife47/resolve/main/rife47.pth
+  licence: "MIT (upstream hzwer/ECCV2022-RIFE; HF mirrors carry no licence)"
+  cards: [main, boost]
