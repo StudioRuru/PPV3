@@ -76,6 +76,7 @@ test("missing with a key: its endpoint, idle and edge clips to approved neighbou
   assert.equal(got.length, nb * 2 + 1);
   assert.ok(got.includes("sit>sit") && got.every((g) => g.includes("sit")));
   assert.equal(missing(db, "stage", "day", "all", "nope").length, 0);
+  assert.equal(missing(db, "stage", "day", "all", "").length, 0);
 });
 test("missing endpoints need an approved base", () => {
   assert.equal(missing(db, "chat", "day", "basic").length, 0);

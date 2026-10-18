@@ -44,7 +44,7 @@ export function PoseGraphView({ outfit, inv, run, onAct, ensure, onChange }: {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="space-y-3">
-        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Pose graph" onPointerUp={up} onPointerCancel={() => setFrom(null)} className="border-border bg-surface w-full touch-none rounded-lg border select-none">
+        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Pose graph" onPointerUp={up} onPointerCancel={() => setFrom(null)} onPointerLeave={() => setFrom(null)} onPointerDown={() => setFrom(null)} className="border-border bg-surface w-full touch-none rounded-lg border select-none">
           {inv.edges.filter(([a, b]) => pos[a] && pos[b]).map(([a, b]) => (
             <g key={`${a}-${b}`}>
               <line x1={pos[a].x} y1={pos[a].y} x2={pos[b].x} y2={pos[b].y} className="stroke-border" strokeWidth={2} />
@@ -54,7 +54,7 @@ export function PoseGraphView({ outfit, inv, run, onAct, ensure, onChange }: {
           {shown_.map((k) => {
             const c = endpoint(k), t = c && shown(c), p = pos[k];
             return (
-              <g key={k} data-node={k} transform={`translate(${p.x},${p.y})`} onPointerDown={(e) => { e.preventDefault(); setFrom(k); }} className="cursor-grab" role="button" aria-label={`Pose ${k}`}>
+              <g key={k} data-node={k} transform={`translate(${p.x},${p.y})`} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setFrom(k); }} className="cursor-grab" role="button" aria-label={`Pose ${k}`}>
                 <circle r={R} className={from === k || sel === k ? "fill-surface stroke-accent" : "fill-surface stroke-border"} strokeWidth={3} />
                 {t && <foreignObject x={-R + 3} y={-R + 3} width={2 * R - 6} height={2 * R - 6} pointerEvents="none"><div className="size-full overflow-hidden rounded-full"><Clip t={t} className="size-full object-cover" /></div></foreignObject>}
                 <text y={R + 14} textAnchor="middle" className="fill-current text-[11px]" pointerEvents="none">{keys.find((x) => x.key === k)?.label}</text>

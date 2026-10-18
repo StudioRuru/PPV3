@@ -111,13 +111,13 @@ export function missing(db: Db, surface: Surface, outfit: string, scope: Scope, 
   if (baseItem(db, surface, outfit) == null) return [];
   const keys = allowedKeys(listKeys(db, surface), scope === "basic" ? "tame" : "lewd", outfit).map((k) => k.key);
   const ok = (k: string) => endpointItem(db, surface, outfit, k) != null;
-  const out: Cell[] = keys.filter((k) => !ok(k) && (!only || k === only)).map((k) => cell(db, surface, outfit, k, ""))
+  const out: Cell[] = keys.filter((k) => !ok(k) && (only === undefined || k === only)).map((k) => cell(db, surface, outfit, k, ""))
     .filter((c) => !["approved", "queued", "generating", "review"].includes(status(db, c)));
   const pairs: [string, string][] = surface === "chat"
     ? keys.flatMap((a) => keys.map((b): [string, string] => [a, b]))
     : [...edges(db).filter(([a, b]) => keys.includes(a) && keys.includes(b)).flatMap(([a, b]): [string, string][] => [[a, b], [b, a]]), ...keys.map((k): [string, string] => [k, k])];
   for (const [a, b] of pairs) {
-    if (only && a !== only && b !== only) continue;
+    if (only !== undefined && a !== only && b !== only) continue;
     if (!ok(a) || !ok(b)) continue;
     const c = cell(db, surface, outfit, a, b);
     if (!c.reverse && status(db, c) === "empty") out.push(c);
