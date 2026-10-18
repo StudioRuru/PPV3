@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import YAML from "yaml";
 import type { Card } from "./store";
 
@@ -43,6 +43,17 @@ export function renderCloudInit(card: Card, secrets: { tsAuthKey: string; hfToke
   };
   return Object.entries(vars).reduce((t, [k, v]) => t.split(`{{${k}}}`).join(v), read("cloud-init.yaml"));
 }
+
+/**
+ * The tailnet IP of the online node that asked for `host`. A flushed pod's stale node keeps the bare MagicDNS
+ * name and the new pod becomes "<host>-1", so match on the requested HostName, not DNS. Null if none is online.
+ */
+export async function tailnetIp(host: string, status: () => Promise<string> = tsStatus): Promise<string | null> {
+  const peers = Object.values((JSON.parse(await status()) as { Peer?: Record<string, { HostName: string; Online: boolean; TailscaleIPs?: string[] }> }).Peer ?? {});
+  return peers.find((p) => p.HostName === host && p.Online)?.TailscaleIPs?.[0] ?? null;
+}
+const tsStatus = () => new Promise<string>((resolve, reject) =>
+  execFile(process.env.TAILSCALE_BIN || "/usr/local/bin/tailscale", ["status", "--json"], { timeout: 10_000 }, (e, out) => (e ? reject(e) : resolve(out))));
 
 type Run = (cmd: string, args: string[], stdin: string) => Promise<string>;
 const sshRun: Run = (cmd, args, stdin) =>

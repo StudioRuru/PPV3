@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import { type Card, type VmRow, comfyDb, getVm, putVm, dropVm, openRun, closeRun, runs, readSettings, getState, setState } from "./store";
 import { type Hyperstack, type Offer, NoCapacity, hyperstack } from "./hyperstack";
 import { canStart, clampKeepWarm, dayStart, runCost, spentSince, stopReason } from "./spend";
-import { COMFY_PORT, modelsVolume, podHost, renderCloudInit } from "./pod";
+import { COMFY_PORT, modelsVolume, podHost, renderCloudInit, tailnetIp } from "./pod";
 import { ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
 
@@ -12,12 +12,13 @@ export type EngineView = {
   /** A hibernated VM holds the downloaded models (storage-only cost) until flushed. */
   kept: boolean;
 };
-export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number };
+export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null> };
 /** warm() refused by the spend policy; `message` is the user-facing sentence. */
 export class Refused extends Error {}
 
 const ALARM = "GPU still billing — retrying stop";
 const CARDS: Card[] = ["main", "boost"];
+const WARM_MAX_MS = 90 * 60_000;
 const PHASE = { starting: "starting", warming: "warming", ready: "ready" } as const;
 
 export function engine(d: Deps) {
@@ -30,7 +31,8 @@ export function engine(d: Deps) {
   const hibSince = new Map<Card, number>(); // when a hibernate was accepted but not yet confirmed
   let reconciled = false;
   let tickN = 0;
-  const base = (card: Card) => `http://${podHost(card)}:${COMFY_PORT}`;
+  const addr = new Map<Card, string>(); // the live pod's tailnet IP, refreshed each tick while ACTIVE
+  const base = (card: Card) => `http://${addr.get(card) ?? podHost(card)}:${COMFY_PORT}`;
   const dlKey = (c: Card) => `comfy.deadline.${c}`;
   const readDeadline = (c: Card): number | null => {
     const r = db.prepare("SELECT value FROM settings WHERE key = ?").get(dlKey(c)) as { value: string } | undefined;
@@ -178,10 +180,18 @@ export function engine(d: Deps) {
         }
         if (s === "SHUTOFF") { await stop(card, "shutoff"); continue; } // still bills
         let next = "starting";
-        if (s === "ACTIVE") next = (await d.ping(base(card)).catch(() => false)) ? "ready" : "warming";
+        if (s === "ACTIVE") {
+          const ip = d.resolve ? await d.resolve(podHost(card)).catch(() => null) : null;
+          if (ip) addr.set(card, ip); else addr.delete(card);
+          next = (await d.ping(base(card)).catch(() => false)) ? "ready" : "warming";
+        }
+        if (next === "ready" && vm.status !== "ready") setState(db, { lastActivity: now }); // idle counts from ready, not from the warm click
         if (next !== vm.status) { setStatus(vm, next); vm = { ...vm, status: next }; }
       } catch { if (isStopping(vm)) continue; /* status flaked: still evaluate the stop policy below */ }
-      const busyJob = !!db.prepare("SELECT 1 FROM comfy_jobs WHERE status = 'running' AND card = ?").get(card);
+      // A cold boot downloads ~80 GB: booting counts as busy for up to WARM_MAX_MS, then idle may stop a pod that never came up.
+      const run = runs(db).find((r) => r.card === card && r.stoppedAt === null);
+      const booting = vm.status !== "ready" && !!run && now - run.startedAt < WARM_MAX_MS;
+      const busyJob = booting || !!db.prepare("SELECT 1 FROM comfy_jobs WHERE status = 'running' AND card = ?").get(card);
       const st = getState(db);
       const why = stopReason({ runs: runs(db), s: readSettings(db), lastActivity: st.lastActivity, keepWarmUntil: st.keepWarmUntil, busy: busyJob, deadline: readDeadline(card), now });
       if (why) await stop(card, why);
@@ -237,5 +247,5 @@ export function engine(d: Deps) {
 type Engine = ReturnType<typeof engine>;
 export function getEngine(): Engine {
   const g = globalThis as { __comfyEngine?: Engine };
-  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now }));
+  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h) }));
 }

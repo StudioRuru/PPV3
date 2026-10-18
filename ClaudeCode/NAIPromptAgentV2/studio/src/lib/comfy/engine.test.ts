@@ -11,7 +11,7 @@ const main: Offer = { env: "e", region: "r", flavor: "f48", gpu: "L40", vramGb: 
 const h100: Offer = { env: "e", region: "r", flavor: "fh", gpu: "H100-80G-PCIe", vramGb: 80, usdHr: 2 };
 const a100: Offer = { env: "e", region: "r", flavor: "fa", gpu: "A100-80G-PCIe", vramGb: 80, usdHr: 1.5 };
 
-function setup(offers: Offer[] = [main, h100]) {
+function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>) {
   const db = new Database(":memory:");
   migrate(db);
   let now = T0;
@@ -32,8 +32,9 @@ function setup(offers: Offer[] = [main, h100]) {
     remove: async (id: string) => { if (o.removeFails) throw new Error("rm"); vms.delete(id); log.push(`remove ${id}`); },
     listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
   } as unknown as Hyperstack;
-  const e = engine({ db, hs, ping: async () => o.pingOk, now: () => now });
-  return { db, e, vms, log, o, tick: (ms: number) => { now += ms; }, at: () => now };
+  const pinged: string[] = [];
+  const e = engine({ db, hs, ping: async (b) => { pinged.push(b); return o.pingOk; }, now: () => now, resolve });
+  return { db, e, vms, log, o, pinged, tick: (ms: number) => { now += ms; }, at: () => now };
 }
 
 test("first warm creates once and opens a run; second warm while starting is a no-op", async () => {
@@ -54,6 +55,45 @@ test("main ensures its models volume and stays in the volume's region; boost has
   s.o.vols.length = 0;
   await s.e.setBoost(true);
   assert.deepEqual(s.o.vols, ["create e"]);
+});
+
+test("pings the resolved tailnet IP, falling back to the MagicDNS name", async () => {
+  let ip: string | null = "100.0.0.2";
+  const s = setup(undefined, async () => ip);
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.tick();
+  assert.equal(s.e.base("main"), "http://100.0.0.2:8188");
+  ip = null;
+  await s.e.tick();
+  assert.deepEqual(s.pinged, ["http://100.0.0.2:8188", "http://nai-comfy-main:8188"]);
+});
+
+test("a cold boot is not idle-stopped until 90 min; idle then counts from ready", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.tick(60 * 60_000); // past idleMin (50) while still warming
+  await s.e.tick();
+  assert.equal(s.e.view().main.phase, "warming");
+  s.o.pingOk = true;
+  await s.e.tick();
+  assert.equal(s.e.view().main.phase, "ready");
+  s.tick(40 * 60_000);
+  await s.e.tick();
+  assert.equal(s.e.view().main.phase, "ready");
+  s.tick(11 * 60_000);
+  await s.e.tick();
+  assert.equal(s.e.view().main.phase, "off");
+});
+
+test("a pod that never comes up is idle-stopped after 90 min", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.tick(91 * 60_000);
+  await s.e.tick();
+  assert.notEqual(s.e.view().main.phase, "warming");
 });
 
 test("warm on a hibernated VM restores instead of creating", async () => {
@@ -84,6 +124,8 @@ test("idle tick hibernates and closes the run with reason idle", async () => {
   const s = setup();
   await s.e.warm();
   s.vms.set("vm1", "ACTIVE");
+  s.o.pingOk = true;
+  await s.e.tick();
   s.tick(51 * 60_000);
   await s.e.tick();
   assert.equal(s.vms.get("vm1"), "HIBERNATED");

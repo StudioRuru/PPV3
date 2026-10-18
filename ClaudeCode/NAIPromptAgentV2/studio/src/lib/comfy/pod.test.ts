@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import YAML from "yaml";
-import { readManifest, renderCloudInit, podHost, syncModels, COMFY_PORT } from "./pod";
+import { readManifest, renderCloudInit, podHost, syncModels, tailnetIp, COMFY_PORT } from "./pod";
 
 const secrets = { tsAuthKey: "tskey-test", hfToken: "hf_test", civitaiToken: "civ_test" };
 
@@ -58,4 +58,13 @@ test("wrapper waits for a tailnet IP and never listens bare", () => {
   assert.ok(!/--listen(?! "\$ip")/.test(out));
   assert.ok(!out.includes("0.0.0.0"));
   assert.ok(out.includes("After=network-online.target tailscaled.service"));
+});
+
+test("tailnetIp picks the online node by requested HostName, not the stale bare name", async () => {
+  const json = JSON.stringify({ Peer: {
+    a: { HostName: "nai-comfy-main", DNSName: "nai-comfy-main.x.ts.net.", Online: false, TailscaleIPs: ["100.0.0.1"] },
+    b: { HostName: "nai-comfy-main", DNSName: "nai-comfy-main-1.x.ts.net.", Online: true, TailscaleIPs: ["100.0.0.2"] },
+    c: { HostName: "nai-comfy-boost", DNSName: "nai-comfy-boost.x.ts.net.", Online: true, TailscaleIPs: ["100.0.0.3"] } } });
+  assert.equal(await tailnetIp("nai-comfy-main", async () => json), "100.0.0.2");
+  assert.equal(await tailnetIp("nai-comfy-x", async () => json), null);
 });
