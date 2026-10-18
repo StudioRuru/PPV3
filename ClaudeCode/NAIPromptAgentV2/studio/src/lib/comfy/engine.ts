@@ -95,11 +95,19 @@ export function engine(d: Deps) {
     busy.add(card);
     try {
       let row: VmRow;
+      let o: Offer | null = null;
       if (vm) {
-        await hs.restore(vm.vmId);
-        row = { ...vm, status: "starting" };
-      } else {
-        const o = await pick(card);
+        try { await hs.restore(vm.vmId); } catch (e) {
+          // The hibernated card is out of stock: the models live on the volume, so swap to the cheapest card in stock.
+          // ponytail: no swap back once a pricier card is kept; flush to re-pick the cheapest.
+          if (!(e instanceof NoCapacity) || !modelsVolume(card) || !(o = await pick(card))) throw e;
+          await hs.remove(vm.vmId);
+          dropVm(db, card);
+        }
+      }
+      if (vm && !o) row = { ...vm, status: "starting" };
+      else {
+        o ??= await pick(card);
         if (!o) { unavailable.add(card); return out(); }
         const secrets = { tsAuthKey: COMFY_TS_AUTHKEY, hfToken: HF_TOKEN, civitaiToken: CIVITAI_TOKEN };
         const vol = modelsVolume(card);
@@ -115,7 +123,7 @@ export function engine(d: Deps) {
       const min = Number(process.env.COMFY_DEV_DEADLINE_MIN);
       writeDeadline(card, min > 0 ? now + min * 60_000 : null);
     } catch (e) {
-      if (!vm) reconciled = false; // a timed-out create may still exist at Hyperstack: reconcile before the next one
+      if (!getVm(db, card)) reconciled = false; // a timed-out create may still exist at Hyperstack: reconcile before the next one
       if (!(e instanceof NoCapacity)) throw e;
       unavailable.add(card);
     } finally {

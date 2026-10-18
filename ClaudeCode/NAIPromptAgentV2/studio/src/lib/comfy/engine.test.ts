@@ -17,7 +17,7 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
   let now = T0;
   const log: string[] = [];
   const vms = new Map<string, string>(); // id -> status
-  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[] };
+  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, restoreFails: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[] };
   let n = 0;
   const hs = {
     offers: async (min: number) => o.offers.filter((x) => x.vramGb >= min).sort((a, b) => a.usdHr - b.usdHr),
@@ -27,7 +27,7 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
     ensureVolume: async (name: string, env: string, gb: number) => { o.vols.push(`ensure ${name} ${env} ${gb}`); },
     status: async (id: string) => vms.get(id) ?? null,
     hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); },
-    restore: async (id: string) => { vms.set(id, "BUILD"); log.push(`restore ${id}`); },
+    restore: async (id: string) => { if (o.restoreFails) throw new NoCapacity("Not Enough Stock", 400); vms.set(id, "BUILD"); log.push(`restore ${id}`); },
     start: async () => {},
     remove: async (id: string) => { if (o.removeFails) throw new Error("rm"); vms.delete(id); log.push(`remove ${id}`); },
     listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
@@ -105,6 +105,33 @@ test("warm on a hibernated VM restores instead of creating", async () => {
   assert.equal(v.phase, "starting");
   assert.deepEqual(s.log, ["create nai-comfy-main", "hibernate vm1", "restore vm1"]);
   assert.equal(runs(s.db).length, 2);
+});
+
+test("hibernated card out of stock: swaps to the cheapest in-stock card on the same volume", async () => {
+  const s = setup([main, a100]);
+  s.o.vol = { env: "e" };
+  await s.e.warm();
+  await s.e.stop("main", "manual");
+  s.o.offers = [a100];
+  s.o.vols.length = 0;
+  s.o.restoreFails = true;
+  const v = await s.e.warm();
+  assert.equal(v.phase, "starting");
+  assert.equal(v.gpu, "fa");
+  assert.deepEqual(s.log, ["create nai-comfy-main", "hibernate vm1", "remove vm1", "create nai-comfy-main"]);
+  assert.deepEqual(s.o.vols, ["ensure nai-comfy-main-models e 150", "create e", "attach vm2 nai-comfy-main-models"]);
+});
+
+test("hibernated card out of stock with nothing else in stock stays kept and unavailable", async () => {
+  const s = setup();
+  await s.e.warm();
+  await s.e.stop("main", "manual");
+  s.o.offers = [];
+  s.o.restoreFails = true;
+  const v = await s.e.warm();
+  assert.equal(v.phase, "unavailable");
+  assert.equal(v.kept, true);
+  assert.deepEqual(s.log, ["create nai-comfy-main", "hibernate vm1"]);
 });
 
 test("phase goes starting -> warming -> ready across ticks", async () => {
