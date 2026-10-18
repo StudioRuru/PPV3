@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     }
     case "remove-key":
       if (!surface || typeof b.key !== "string") return bad("Need a surface and a key.");
+      if (!listKeys(db, surface).some((k) => k.key === b.key)) return bad("No such key.", 404);
       removeKeyData(db, surface, b.key, { dir: COMFY_DIR, lib: SPRITE_LIB });
       return NextResponse.json({ ok: true });
     case "add-outfit":
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
       addOutfit(db, b.key, b.label.trim());
       return NextResponse.json({ ok: true });
     case "edge":
-      if (typeof b.a !== "string" || typeof b.b !== "string" || b.a === b.b) return bad("Need two different keys.");
+      if (!slug(b.a) || !slug(b.b) || b.a === b.b) return bad("Need two different keys.");
       setEdge(db, b.a, b.b, b.on !== false);
       return NextResponse.json({ ok: true });
     default:

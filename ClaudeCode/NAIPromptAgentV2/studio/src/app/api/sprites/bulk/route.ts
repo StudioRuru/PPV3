@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bulkCancel, bulkEstimate, bulkStart } from "@/lib/sprites/service";
-import { spritesDb } from "@/lib/sprites/store";
+import { listOutfits, spritesDb } from "@/lib/sprites/store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   const b = (await req.json().catch(() => null)) as { surface?: unknown; outfit?: unknown; scope?: unknown; confirm?: unknown; cancel?: unknown } | null;
   if (!b || (b.surface !== "chat" && b.surface !== "stage") || typeof b.outfit !== "string") return bad("Need a surface and an outfit.");
   const db = spritesDb();
+  if (!listOutfits(db).some((o) => o.key === b.outfit)) return bad("Unknown outfit.");
   try {
     if (b.cancel === true) return NextResponse.json({ cancelled: bulkCancel(db, b.surface, b.outfit) });
     if (b.scope !== "basic" && b.scope !== "all") return bad("scope must be basic or all.");

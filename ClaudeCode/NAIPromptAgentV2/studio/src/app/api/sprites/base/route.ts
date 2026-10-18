@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readItem } from "@/lib/comfy/store";
 import { deriveBase, setBase } from "@/lib/sprites/service";
-import { spritesDb } from "@/lib/sprites/store";
+import { listOutfits, spritesDb } from "@/lib/sprites/store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
   const surface = surf(b?.surface);
   if (!b || !surface || typeof b.outfit !== "string") return bad("Need a surface and an outfit.");
   const db = spritesDb();
+  const outfits = listOutfits(db).map((o) => o.key);
+  if (!outfits.includes(b.outfit)) return bad("Unknown outfit.");
   try {
     if (b.itemId != null) {
       if (!readItem(db, Number(b.itemId))) return bad("No such Library item.", 404);
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     const d = b.derive, from = surf(d?.surface);
-    if (!d || !from || typeof d.outfit !== "string" || typeof d.prompt !== "string" || !d.prompt.trim()) return bad("Need itemId, or derive { surface, outfit, prompt }.");
+    if (!d || !from || typeof d.outfit !== "string" || !outfits.includes(d.outfit) || typeof d.prompt !== "string" || !d.prompt.trim()) return bad("Need itemId, or derive { surface, outfit, prompt }.");
     return NextResponse.json({ jobs: deriveBase(db, surface, b.outfit, from, d.outfit, d.prompt.trim()) });
   } catch (e) {
     return bad(e instanceof Error ? e.message : "Failed.");

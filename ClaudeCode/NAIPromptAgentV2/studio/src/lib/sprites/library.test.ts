@@ -67,3 +67,11 @@ test("removeKeyData deletes cells, takes, edges, lib dirs and generated items bu
   assert.ok(!fs.existsSync(path.join(lib, "stage", "day", "stand~sit")));
   assert.ok(fs.existsSync(path.join(lib, "stage", "day", "stand~kneel")));
 });
+test("a traversal outfit never reaches the filesystem", () => {
+  const lib = mk(), victim = mk();
+  fs.mkdirSync(path.join(victim, "a~b"));
+  const c = cell(db, "stage", path.relative(path.join(lib, "stage"), victim), "a", "b");
+  removeKeyData(db, "stage", "a", { dir: mk(), lib });
+  assert.ok(fs.existsSync(path.join(victim, "a~b")));
+  assert.equal(db.prepare("SELECT 1 FROM sprite_cells WHERE id = ?").get(c.id), undefined);
+});

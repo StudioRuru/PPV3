@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { cutout } from "../mascot/sprites";
 import { readItem } from "../comfy/store";
 import { COMFY_DIR, FFMPEG, SPRITE_LIB } from "../env";
+import { safeLibPath } from "./library";
 import { spritesDb, takes } from "./store";
 
 type Db = Database.Database;
@@ -26,7 +27,8 @@ export async function cutClip(cellId: number, d: CutDeps): Promise<void> {
   const c = d.db.prepare("SELECT surface, outfit, from_key, to_key, approved_take FROM sprite_cells WHERE id = ?").get(cellId) as
     { surface: "chat" | "stage"; outfit: string; from_key: string; to_key: string; approved_take: number | null } | undefined;
   if (!c) return;
-  const final = path.join(d.lib, c.surface, c.outfit, `${c.from_key}~${c.to_key}`);
+  const final = safeLibPath(d.lib, [c.surface, c.outfit, `${c.from_key}~${c.to_key}`]);
+  if (!final) { set("error"); return; }
   const work = path.join(d.lib, `.tmp-${cellId}-${Date.now()}`);
   set("cutting");
   try {

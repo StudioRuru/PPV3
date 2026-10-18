@@ -10,7 +10,10 @@ export const runtime = "nodejs";
 
 function bytes(dir: string): number {
   let n = 0;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) if (e.isFile()) n += fs.statSync(path.join(e.parentPath, e.name)).size;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) {
+    const p = path.join(e.parentPath, e.name);
+    if (e.isFile() && !p.includes(`${path.sep}.tmp-`)) try { n += fs.statSync(p).size; } catch { /* vanished mid-walk */ }
+  }
   return n;
 }
 

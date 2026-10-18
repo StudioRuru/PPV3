@@ -62,3 +62,11 @@ test("an idle drops nothing at cut time; meta.frames equals extracted count", as
   assert.equal(JSON.parse(fs.readFileSync(path.join(lib, "chat", "day", "happy~happy", "meta.json"), "utf8")).frames, 5);
   assert.equal(fs.readdirSync(path.join(lib, "chat", "day", "happy~happy")).length, 6);
 });
+test("a traversal outfit is refused by the dir guard", async () => {
+  const lib = mk(), c = cell(db, "chat", "../../x", "happy", "sad");
+  const item = addItem(db, { kind: "clip", file: "a.mp4", poster: null, recipe: {}, seed: 1, cost: 0, createdAt: 0 });
+  const tk = addTake(db, c.id, 5, 1, {}); linkTakeItem(db, tk, item); approve(db, c.id, tk);
+  await cutClip(c.id, { db, dir: mk(), lib, extract: fakeExtract(1), cut: cutOk });
+  assert.equal(cell(db, "chat", "../../x", "happy", "sad").cut, "error");
+  assert.deepEqual(fs.readdirSync(lib), []);
+});

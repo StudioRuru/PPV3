@@ -43,7 +43,8 @@ export function removeKeyData(db: Db, surface: Surface, key: string, o: { dir: s
     for (const { item_id } of items) dropItem(db, item_id, o.dir);
     db.prepare("DELETE FROM sprite_takes WHERE cell_id = ?").run(c.id);
     db.prepare("DELETE FROM sprite_cells WHERE id = ?").run(c.id);
-    if (c.to_key) fs.rmSync(path.join(o.lib, surface, c.outfit, `${c.from_key}~${c.to_key}`), { recursive: true, force: true });
+    const dir = c.to_key ? safeLibPath(o.lib, [surface, c.outfit, `${c.from_key}~${c.to_key}`]) : null;
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
   }
   if (surface === "stage") db.prepare("DELETE FROM sprite_edges WHERE a = ? OR b = ?").run(key, key);
   removeKey(db, surface, key);
