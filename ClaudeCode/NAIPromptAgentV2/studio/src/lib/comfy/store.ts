@@ -3,7 +3,7 @@ import type Database from "better-sqlite3";
 export type Card = "main" | "boost";
 export type VmRow = { card: Card; vmId: string; env: string; flavor: string; host: string; usdHr: number; status: string };
 export type Run = { id: number; card: Card; vmId: string; usdHr: number; startedAt: number; stoppedAt: number | null; stopReason: string | null };
-export type JobKind = "photo" | "video" | "pose";
+export type JobKind = "photo" | "video" | "pose" | "edit" | "sprite";
 export type Job = { id: number; kind: JobKind; status: "queued" | "running" | "done" | "error"; recipe: unknown; card: Card; progress: number; promptId: string | null; error: string | null; itemId: number | null; createdAt: number };
 export type Item = { id: number; kind: "photo" | "clip"; file: string; poster: string | null; recipe: unknown; seed: number; cost: number; createdAt: number };
 export type ComfySettings = { dailyCapUsd: number; keepWarmMaxH: number; idleMin: number; budgetUsd: number };

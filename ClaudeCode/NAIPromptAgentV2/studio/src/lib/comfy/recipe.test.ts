@@ -165,7 +165,7 @@ test("poseGraph picks the preprocessor for the kind", () => {
 
 test("wanFrames(5) = 81", () => {
   assert.equal(wanFrames(5), 81);
-  assert.equal(wanFrames(0), 17);
+  assert.equal(wanFrames(0), 9); // floor 0.5 s (sprite clips)
   assert.equal(wanFrames(99), 161);
   assert.equal((wanFrames(2.6) - 1) % 4, 0);
 });

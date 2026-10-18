@@ -5,8 +5,10 @@ import sharp from "sharp";
 import { type Card, type Job, addItem, comfyDb, nextQueued, readItem, readJob, readSettings, runs, setState, updateJob } from "./store";
 import { type OutFile, fetchOutput, interrupt, listModels, submit, upload, watch } from "./client";
 import { Refused, getEngine } from "./engine";
+import { linkTakeItem } from "@/lib/sprites/store";
+import { editGraph, spriteRecipe } from "@/lib/sprites/graph";
 import { canStart } from "./spend";
-import { type PoseJob, photoGraph, poseGraph, validatePhoto, validatePose, validateVideo, videoGraph } from "./recipe";
+import { type PoseJob, photoGraph, poseGraph, validateEdit, validatePhoto, validatePose, validateSprite, validateVideo, videoGraph } from "./recipe";
 import { COMFY_DIR } from "@/lib/env";
 
 type Db = Database.Database;
@@ -29,7 +31,7 @@ const realClient: Client = {
 const defaults = (): Deps => ({ db: comfyDb(), eng: getEngine(), client: realClient, dir: COMFY_DIR, now: Date.now });
 
 const MIN = 60_000;
-const LIMIT: Record<Job["kind"], number> = { photo: 45 * MIN, pose: 45 * MIN, video: 60 * MIN };
+const LIMIT: Record<Job["kind"], number> = { photo: 45 * MIN, pose: 45 * MIN, video: 60 * MIN, edit: 45 * MIN, sprite: 60 * MIN };
 const DEAD = "The GPU stopped responding during this job.";
 const RESTARTED = "The app restarted before this job reached the GPU.";
 
@@ -133,6 +135,20 @@ async function build(d: Deps, j: Job, base: string): Promise<object> {
     const p = validatePose(j.recipe);
     return poseGraph(await put(p.image), p.kind);
   }
+  const frame = (id: number, what: string) => {
+    const it = readItem(d.db, id);
+    const file = it && (it.kind === "clip" ? it.poster : it.file);
+    if (!file) throw new Error(`The ${what} frame is no longer in the Library.`);
+    return file;
+  };
+  if (j.kind === "edit") {
+    const e = validateEdit(j.recipe);
+    return editGraph(e, await put(frame(e.base, "base")));
+  }
+  if (j.kind === "sprite") {
+    const s = validateSprite(j.recipe);
+    return videoGraph(spriteRecipe(s), { start: await put(frame(s.start, "start")), end: s.end === s.start ? undefined : await put(frame(s.end, "end")), portrait: true });
+  }
   const models: Models = await d.client.listModels(base);
   if (j.kind === "photo") {
     const r = validatePhoto(j.recipe, models);
@@ -141,12 +157,6 @@ async function build(d: Deps, j: Job, base: string): Promise<object> {
   }
   const r = validateVideo(j.recipe, models);
   if (r.mode === "t2v") return videoGraph(r, {});
-  const frame = (id: number, what: string) => {
-    const it = readItem(d.db, id);
-    const file = it && (it.kind === "clip" ? it.poster : it.file);
-    if (!file) throw new Error(`The ${what} frame is no longer in the Library.`);
-    return file;
-  };
   const startName = r.startImage ?? frame(r.start!, "start");
   const meta = await sharp(read(d.dir, startName)).metadata();
   const frames: Parameters<typeof videoGraph>[1] = { start: await put(startName), portrait: (meta.height ?? 0) > (meta.width ?? 0) };
@@ -200,7 +210,7 @@ async function finish(d: Deps, j: Job, base: string, files: OutFile[], since: nu
     return;
   }
 
-  const clip = j.kind === "video";
+  const clip = j.kind === "video" || j.kind === "sprite";
   const seed = Number((j.recipe as { seed?: number }).seed) || 0;
   const main = files.find((f) => (clip ? /\.mp4$/i.test(f.filename) : /\.png$/i.test(f.filename) && !isPoster(f)))
     ?? fail2(clip ? "ComfyUI finished without a clip." : "ComfyUI finished without an image.");
@@ -222,6 +232,8 @@ async function finish(d: Deps, j: Job, base: string, files: OutFile[], since: nu
     if (!claim(d.db, j.id, "running", "done", 1)) return; // already finished elsewhere: one item per job
     const itemId = addItem(d.db, { kind: clip ? "clip" : "photo", file, poster, recipe: j.recipe, seed, cost, createdAt: d.now() });
     updateJob(d.db, j.id, { itemId });
+    const target = (j.recipe as { target?: { takeId: number } }).target;
+    if (target) linkTakeItem(d.db, target.takeId, itemId);
   })();
 }
 

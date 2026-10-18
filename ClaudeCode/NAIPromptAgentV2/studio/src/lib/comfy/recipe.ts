@@ -1,6 +1,7 @@
 // Client-safe: imported by components. No fs/sharp/db/env here.
 import photoWf from "./workflows/photo.json";
 import poseWf from "./workflows/pose-extract.json";
+import type { EditJob, SpriteJob } from "../sprites/graph";
 import i2vWf from "./workflows/video-i2v.json";
 import t2vWf from "./workflows/video-t2v.json";
 
@@ -107,10 +108,26 @@ export function validatePose(r: unknown): PoseJob {
   return { kind: oneOf(o.kind, "kind", ["pose", "depth", "lineart"] as const), image: file(o.image, "image") };
 }
 
-/** 16·s+1 frames rounded to 4k+1 (what Wan wants), s clamped 1–10. */
+/** 16·s+1 frames rounded to 4k+1 (what Wan wants), s clamped 0.5–10. */
 export function wanFrames(seconds: number): number {
-  const s = Math.min(10, Math.max(1, seconds));
+  const s = Math.min(10, Math.max(0.5, seconds));
   return 4 * Math.round((16 * s) / 4) + 1;
+}
+
+export function validateEdit(r: unknown): EditJob {
+  const o = obj(r, "recipe");
+  return {
+    preset: oneOf(o.preset, "preset", ["noct", "turbo"] as const), base: num(o.base, "base", 1, Number.MAX_SAFE_INTEGER, true), prompt: str(o.prompt, "prompt"),
+    seed: seed(o.seed), width: 768, height: 1344, target: { takeId: num(obj(o.target, "target").takeId, "take", 1, Number.MAX_SAFE_INTEGER, true) },
+  };
+}
+
+export function validateSprite(r: unknown): SpriteJob {
+  const o = obj(r, "recipe"), id = (v: unknown, n: string) => num(v, n, 1, Number.MAX_SAFE_INTEGER, true);
+  return {
+    surface: oneOf(o.surface, "surface", ["chat", "stage"] as const), start: id(o.start, "start"), end: id(o.end, "end"), prompt: str(o.prompt ?? "", "prompt"),
+    seconds: num(o.seconds, "seconds", 0.5, 3), seed: seed(o.seed), target: { takeId: id(obj(o.target, "target").takeId, "take") },
+  };
 }
 
 // ---- graph fillers

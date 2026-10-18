@@ -8,6 +8,7 @@ import sharp from "sharp";
 import { drainQueue, stopJobs, type Deps } from "./jobs";
 import { migrate, addJob, readJob, listItems, addItem, updateJob, getState, openRun } from "./store";
 import type { OutFile } from "./client";
+import { migrateSprites, cell, addTake, takes } from "../sprites/store";
 
 const PHOTO = {
   mode: "photo", model: "ck.safetensors", prompt: "1girl", negative: "bad", loras: [{ name: "a.safetensors", strength: 1 }], pose: null,
@@ -22,6 +23,7 @@ function setup() {
   delete (globalThis as { __comfyQueue?: unknown }).__comfyQueue; // queue state is process-global; isolate each test
   const db = new Database(":memory:");
   migrate(db);
+  migrateSprites(db);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comfy-jobs-"));
   dirs.push(dir);
   let now = 1_000_000;
@@ -261,4 +263,42 @@ test("a manual stop errors the card's queued and running jobs, and the next drai
   s.o.phase = "off";
   await drainQueue(s.d);
   assert.equal(s.o.warms, 0);
+});
+
+async function seedFrame(s: ReturnType<typeof setup>, name: string) {
+  fs.writeFileSync(path.join(s.dir, name), await sharp({ create: { width: 64, height: 112, channels: 3, background: "#000" } }).png().toBuffer());
+  return addItem(s.db, { kind: "photo", file: name, poster: null, recipe: {}, seed: 1, cost: 0, createdAt: 1 });
+}
+
+test("edit job saves an image item and links its take", async () => {
+  const s = setup();
+  s.o.phase = "ready";
+  const base = await seedFrame(s, "base.png");
+  const c = cell(s.db, "chat", "day", "neutral", "happy");
+  const takeId = addTake(s.db, c.id, null, 7, {});
+  const id = addJob(s.db, "edit", { preset: "noct", base, prompt: "smiling", seed: 7, width: 768, height: 1344, target: { takeId } }, "main", 1);
+  s.o.watch = async () => ({ files: [out("studio-edit_00001_.png")] });
+  await drainQueue(s.d);
+  await s.until(() => readJob(s.db, id)!.status === "done");
+  assert.deepEqual(s.o.uploads.map((u) => u.name), ["base.png"]);
+  const item = listItems(s.db).find((i) => i.id === readJob(s.db, id)!.itemId)!;
+  assert.equal(item.kind, "photo");
+  assert.equal(takes(s.db, c.id)[0].itemId, item.id);
+});
+
+test("sprite job saves mp4 + poster and links its take", async () => {
+  const s = setup();
+  s.o.phase = "ready";
+  const a = await seedFrame(s, "a.png"), b = await seedFrame(s, "b.png");
+  const c = cell(s.db, "chat", "day", "neutral", "happy");
+  const takeId = addTake(s.db, c.id, null, 9, {});
+  const id = addJob(s.db, "sprite", { surface: "chat", start: a, end: b, prompt: "", seconds: 0.75, seed: 9, target: { takeId } }, "main", 1);
+  s.o.watch = async () => ({ files: [out("studio-clip_00001.mp4"), out("studio-last_00001_.png")] });
+  await drainQueue(s.d);
+  await s.until(() => readJob(s.db, id)!.status === "done");
+  assert.deepEqual(s.o.uploads.map((u) => u.name), ["a.png", "b.png"]);
+  const item = listItems(s.db).find((i) => i.id === readJob(s.db, id)!.itemId)!;
+  assert.equal(item.kind, "clip");
+  assert.ok(item.poster);
+  assert.equal(takes(s.db, c.id)[0].itemId, item.id);
 });
