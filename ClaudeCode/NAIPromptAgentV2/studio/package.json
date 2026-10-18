@@ -8,6 +8,7 @@
     "start": "next start -H 0.0.0.0 -p 3100",
     "test": "tsx --test 'src/**/*.test.ts'",
     "typecheck": "tsc --noEmit",
+    "build:behaviour": "node scripts/build-behaviour.mjs",
     "fetch:danbooru": "curl -fsSL -o data/danbooru.csv https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/danbooru.csv",
     "tagger": "cd ../tagger && uv run uvicorn tagger:app --host 127.0.0.1 --port 8190",
     "captioner": "llama-server -m ~/models/toriigate/ToriiGate-0.5-Q4_K_M.gguf --mmproj ~/models/toriigate/ToriiGate-0.5-Q8_0.mmproj.gguf --host 127.0.0.1 --port 8191 -c 8192 -ngl 99",
