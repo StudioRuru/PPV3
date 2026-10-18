@@ -80,7 +80,7 @@ enum ClipRoute {
 
     private func draw(fade: Bool) {
         guard let state, let client, let (clip, i) = ClipRoute.frameIndex(state, now) else { return }
-        let url = client.frameURL(clip, i)
+        guard let url = client.frameURL(clip, i) else { return }
         let img = cache[url] ?? CGImageSourceCreateWithURL(url as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
         guard let img else { return }
         if cache.count > 240 { cache = [:] }

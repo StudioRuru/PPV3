@@ -40,9 +40,9 @@ final class LibraryClientTests: XCTestCase {
         let lib = try await c.sync(base: base)
         XCTAssertEqual(lib.outfits, ["day"])
         XCTAssertEqual(lib.clips[0].v, 7)
-        let f = c.frameURL(lib.clips[0], 1)
+        let f = try XCTUnwrap(c.frameURL(lib.clips[0], 1))
         XCTAssertEqual(try Data(contentsOf: f), Data([1, 2, 3]))
-        XCTAssertTrue(f.path.hasPrefix(dir.path))
+        XCTAssertTrue(f.standardizedFileURL.path.hasPrefix(dir.standardizedFileURL.path + "/stage/day/stand~stand/7/"))
         XCTAssertTrue(StubProtocol.seen.contains { $0.url!.path == "/api/sprites/library/file/stage/day/stand~stand/001.webp" && $0.url!.query == "v=7" })
     }
 
@@ -78,10 +78,48 @@ final class LibraryClientTests: XCTestCase {
         XCTAssertEqual(StubProtocol.seen.last?.value(forHTTPHeaderField: "Cookie"), "studio_session=tok123")
     }
 
+    func testTraversalClipSkippedAndNothingEscapes() async throws {
+        let evil = json.replacingOccurrences(of: #""v":7}"#, with: #""v":7,"reverseOf":"../../x"}"#)
+        StubProtocol.handler = { r in r.url!.path == "/api/sprites/library" ? (200, Data(evil.utf8)) : (200, Data([9])) }
+        let parent = dir.appendingPathComponent("p")
+        let cache = parent.appendingPathComponent("cache")
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.protocolClasses = [StubProtocol.self]
+        let c = LibraryClient(session: URLSession(configuration: cfg), cacheDir: cache, cookies: MemoryCookieStore())
+        let lib = try await c.sync(base: base)
+        XCTAssertNil(c.frameURL(lib.clips[0], 0))
+        XCTAssertFalse(StubProtocol.seen.contains { $0.url!.path.contains("file") })
+        let all = FileManager.default.enumerator(atPath: dir.path)?.allObjects as? [String] ?? []
+        XCTAssertFalse(all.contains { $0.contains("x/") || $0.hasSuffix("000.webp") })
+        XCTAssertFalse(LibraryClient.safe("a/b")); XCTAssertFalse(LibraryClient.safe("..")); XCTAssertFalse(LibraryClient.safe("")); XCTAssertTrue(LibraryClient.safe("stand~sit"))
+    }
+
+    func testFailedFrameSkipsMetaThenRetries() async throws {
+        StubProtocol.handler = { r in r.url!.path == "/api/sprites/library" ? (200, Data(self.json.utf8)) : (500, Data()) }
+        let c = client()
+        _ = try await c.sync(base: base)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("library.json").path))
+        StubProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        do { _ = try await c.sync(base: base); XCTFail("no complete cache") } catch {}
+        StubProtocol.handler = { r in r.url!.path == "/api/sprites/library" ? (200, Data(self.json.utf8)) : (200, Data([1])) }
+        _ = try await c.sync(base: base)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("library.json").path))
+    }
+
     func testQuipBody() async throws {
         StubProtocol.handler = { _ in (200, Data(#"{"expression":"smug","text":"hi","source":"canned"}"#.utf8)) }
         let q = try await client().quip(base: base, kind: "tap", now: 5)
         XCTAssertEqual(q.text, "hi")
+        let req = try XCTUnwrap(StubProtocol.seen.last)
+        let data = try XCTUnwrap(req.httpBody ?? req.httpBodyStream.map { Data(reading: $0) })
+        let o = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let ev = try XCTUnwrap(o["event"] as? [String: Any])
+        XCTAssertEqual(ev["kind"] as? String, "tap")
+        XCTAssertEqual(ev["at"] as? Double, 5)
+        let cx = try XCTUnwrap(o["context"] as? [String: Any])
+        XCTAssertEqual(cx["promptSummary"] as? String, "")
+        XCTAssertEqual(cx["nsfw"] as? Bool, false)
+        XCTAssertEqual(req.url?.path, "/api/mascot/quip")
     }
 }
 

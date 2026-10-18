@@ -32,9 +32,9 @@ import AppKit
     /// Mouse events pass through unless the pixel under the cursor is (mostly) opaque.
     private func updateHit() {
         guard isVisible else { return }
+        if NSEvent.pressedMouseButtons != 0, !ignoresMouseEvents { return } // keep a drag alive, even if the cursor outruns the window
         let m = NSEvent.mouseLocation
         guard frame.contains(m), let img = alphaSource() else { ignoresMouseEvents = true; return }
-        if NSEvent.pressedMouseButtons != 0, !ignoresMouseEvents { return } // keep a drag alive
         let p = CGPoint(x: (m.x - frame.minX) / frame.width * CGFloat(img.width), y: (1 - (m.y - frame.minY) / frame.height) * CGFloat(img.height))
         ignoresMouseEvents = HitTest.alphaAt(img, p) < 0.1
     }

@@ -51,16 +51,32 @@ final class LibraryClient: Sendable {
 
     private var metaFile: URL { cacheDir.appendingPathComponent("library.json") }
 
-    /// Local path of a frame, keyed by clip version.
-    func frameURL(_ c: LibClip, _ i: Int) -> URL {
-        cacheDir.appendingPathComponent("\(c.surface)/\(c.outfit)/\(c.dir)/\(c.v)/\(String(format: "%03d", i)).webp")
+    /// A library-supplied path segment must be a plain name.
+    static func safe(_ s: String) -> Bool {
+        !s.isEmpty && s != "." && s != ".." && !s.contains { $0 == "/" || $0 == "\\" || $0 == "\0" }
+    }
+    private func valid(_ c: LibClip) -> Bool { [c.surface, c.outfit, c.from, c.to, c.dir].allSatisfy(Self.safe) && c.frames >= 0 && c.frames < 10_000 }
+
+    /// Local path of a frame, keyed by clip version; nil for an unsafe clip or a path that escapes the cache.
+    func frameURL(_ c: LibClip, _ i: Int) -> URL? {
+        guard valid(c) else { return nil }
+        let u = cacheDir.appendingPathComponent("\(c.surface)/\(c.outfit)/\(c.dir)/\(c.v)/\(String(format: "%03d", i)).webp").standardizedFileURL
+        return u.path.hasPrefix(cacheDir.standardizedFileURL.path + "/") ? u : nil
+    }
+
+    private final class SameHost: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        let host: String?
+        init(_ h: String?) { host = h }
+        func urlSession(_ s: URLSession, task: URLSessionTask, willPerformHTTPRedirection r: HTTPURLResponse, newRequest q: URLRequest, completionHandler done: @escaping (URLRequest?) -> Void) {
+            done(q.url?.host == host ? q : nil)
+        }
     }
 
     private func send(_ req: URLRequest) async throws -> (Data, HTTPURLResponse) {
         var r = req
         r.httpShouldHandleCookies = false
         if let c = cookies.cookie { r.setValue("studio_session=\(c)", forHTTPHeaderField: "Cookie") }
-        let (d, resp) = try await session.data(for: r)
+        let (d, resp) = try await session.data(for: r, delegate: SameHost(req.url?.host))
         let h = resp as! HTTPURLResponse
         if h.statusCode == 401 { throw LibraryError.needsLogin }
         guard (200..<300).contains(h.statusCode) else { throw LibraryError.http(h.statusCode) }
@@ -74,17 +90,19 @@ final class LibraryClient: Sendable {
         r.httpBody = try JSONEncoder().encode(["password": password])
         let (_, h) = try await send(r)
         let fields = h.allHeaderFields as? [String: String] ?? [:]
-        if let c = HTTPCookie.cookies(withResponseHeaderFields: fields, for: base).first(where: { $0.name == "studio_session" }) { cookies.cookie = c.value }
+        if let c = HTTPCookie.cookies(withResponseHeaderFields: fields, for: base).first(where: { $0.name == "studio_session" }) { try cookies.setCookie(c.value) }
     }
 
-    /// Fresh library with its frames cached; offline (or any non-auth failure) falls back to the cache.
+    /// Fresh library with its frames cached; the meta is written only once every frame is in, so a partial fetch retries next sync.
+    /// Offline (or any non-auth failure) falls back to the last complete cache.
     func sync(base: URL) async throws -> Library {
         do {
             let (d, _) = try await send(URLRequest(url: base.appendingPathComponent("api/sprites/library")))
             let lib = try JSONDecoder().decode(Library.self, from: d)
-            try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-            try d.write(to: metaFile)
-            await fetchFrames(base: base, lib)
+            if await fetchFrames(base: base, lib) {
+                try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+                try d.write(to: metaFile, options: .atomic)
+            }
             return lib
         } catch LibraryError.needsLogin {
             throw LibraryError.needsLogin
@@ -94,20 +112,37 @@ final class LibraryClient: Sendable {
         }
     }
 
-    private func fetchFrames(base: URL, _ lib: Library) async {
+    private static let seg = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))
+
+    /// True when every frame of every valid clip is on disk. At most 6 fetches in flight; invalid clips are skipped.
+    private func fetchFrames(base: URL, _ lib: Library) async -> Bool {
         var seen = Set<URL>()
-        let jobs = lib.clips.flatMap { c in (0..<c.frames).map { (c, $0) } }.filter { seen.insert(frameURL($0.0, $0.1)).inserted && !FileManager.default.fileExists(atPath: frameURL($0.0, $0.1).path) }
-        await withTaskGroup(of: Void.self) { g in
-            for (c, i) in jobs {
-                g.addTask {
-                    var u = URLComponents(url: base.appendingPathComponent("api/sprites/library/file/\(c.surface)/\(c.outfit)/\(c.dir)/\(String(format: "%03d", i)).webp"), resolvingAgainstBaseURL: false)!
-                    u.queryItems = [URLQueryItem(name: "v", value: String(c.v))]
-                    guard let (d, _) = try? await self.send(URLRequest(url: u.url!)) else { return }
-                    let f = self.frameURL(c, i)
-                    try? FileManager.default.createDirectory(at: f.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try? d.write(to: f, options: .atomic)
-                }
+        var jobs: [(LibClip, Int, URL)] = []
+        for c in lib.clips where valid(c) {
+            for i in 0..<c.frames {
+                guard let f = frameURL(c, i), seen.insert(f).inserted, !FileManager.default.fileExists(atPath: f.path) else { continue }
+                jobs.append((c, i, f))
             }
+        }
+        let root = base.absoluteString.hasSuffix("/") ? String(base.absoluteString.dropLast()) : base.absoluteString
+        return await withTaskGroup(of: Bool.self) { g in
+            var ok = true, it = jobs.makeIterator()
+            func next() -> Bool {
+                guard let (c, i, f) = it.next() else { return false }
+                let path = ["api", "sprites", "library", "file", c.surface, c.outfit, c.dir, String(format: "%03d.webp", i)].map { $0.addingPercentEncoding(withAllowedCharacters: Self.seg)! }.joined(separator: "/")
+                g.addTask {
+                    guard let u = URL(string: "\(root)/\(path)?v=\(c.v)"), let (d, _) = try? await self.send(URLRequest(url: u)) else { return false }
+                    do {
+                        try FileManager.default.createDirectory(at: f.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try d.write(to: f, options: .atomic)
+                        return true
+                    } catch { return false }
+                }
+                return true
+            }
+            for _ in 0..<6 { if !next() { break } }
+            while let r = await g.next() { ok = ok && r; _ = next() }
+            return ok
         }
     }
 

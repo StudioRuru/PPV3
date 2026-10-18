@@ -36,5 +36,6 @@ final class BehaviourTests: XCTestCase {
         let r = try b.step(state: s, event: "nope", lib: lib(), outfit: "day", boldness: "tame", now: 2)
         XCTAssertNotNil(r.error)
         XCTAssertNil(r.act)
+        XCTAssertEqual(r.state, s)
     }
 }
