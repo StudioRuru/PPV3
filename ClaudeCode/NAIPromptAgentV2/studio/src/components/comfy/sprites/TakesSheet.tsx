@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { CellStatus } from "@/lib/sprites/core";
 import type { CellView, TakeView } from "./grid";
 
@@ -8,7 +8,9 @@ const tone: Record<CellStatus, string> = { empty: "text-faint border-border", qu
 
 export const Chip = ({ s }: { s: CellStatus }) => <span className={`rounded-full border px-2 py-0.5 text-[11px] ${tone[s]}`}>{s}</span>;
 
-export function useReduced() {
+export const ReducedCtx = createContext(false);
+/** One listener, provided by the screen. */
+export function useReducedMotion() {
   const [r, setR] = useState(false);
   useEffect(() => { const m = matchMedia("(prefers-reduced-motion: reduce)"); setR(m.matches); const f = () => setR(m.matches); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, []);
   return r;
@@ -19,10 +21,10 @@ export const shown = (c: CellView): TakeView | undefined => c.takes.find((t) => 
 
 /** A take's media: looping muted mp4 (poster still under reduced motion); bases are plain images. */
 export function Clip({ t, className = "" }: { t: TakeView; className?: string }) {
-  const reduced = useReduced();
+  const reduced = useContext(ReducedCtx);
   if (!t.file) return null;
   if (!/\.(mp4|webm)$/i.test(t.file) || (reduced && t.poster)) return <img src={url(reduced && t.poster ? t.poster : t.file)} alt="" loading="lazy" className={className} />;
-  return <video src={url(t.file)} poster={t.poster ? url(t.poster) : undefined} muted loop playsInline autoPlay preload="metadata" className={className} />;
+  return <video src={url(t.file)} poster={t.poster ? url(t.poster) : undefined} muted loop playsInline autoPlay={!reduced} preload="metadata" className={className} />;
 }
 
 /** Takes side by side, restarted together on open so the loops line up. */
@@ -30,10 +32,11 @@ export function TakesSheet({ cell, title, mirror, onClose, onAct }: {
   cell: CellView; title: string; mirror?: CellView | null; onClose: () => void; onAct: (cellId: number, body: object) => Promise<void>;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  const reduced = useContext(ReducedCtx);
   const src = mirror ?? cell;
   const ts = src.takes.filter((t) => t.file);
   const sig = ts.map((t) => t.id).join();
-  useEffect(() => { box.current?.querySelectorAll("video").forEach((v) => { v.currentTime = 0; void v.play().catch(() => {}); }); }, [sig]);
+  useEffect(() => { box.current?.querySelectorAll("video").forEach((v) => { v.currentTime = 0; if (!reduced) void v.play().catch(() => {}); }); }, [sig, reduced]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);

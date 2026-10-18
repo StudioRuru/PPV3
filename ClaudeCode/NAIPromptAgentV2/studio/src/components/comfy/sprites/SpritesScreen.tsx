@@ -5,10 +5,12 @@ import { requestJson } from "@/lib/net";
 import { BasesView } from "./BasesView";
 import { BulkBar } from "./BulkBar";
 import { GridView } from "./GridView";
+import { ReducedCtx, useReducedMotion } from "./TakesSheet";
 import type { CellView } from "./grid";
 
 type State = { outfits: { key: string; label: string }[]; keys: SpriteKey[]; edges: [string, string][]; cells: CellView[]; bulk: { queued: number; running: number }; libraryBytes: number };
 export type Inv = State & { allowed: (surface: Surface, outfit: string) => SpriteKey[] };
+export type Ensure = (surface: Surface, outfit: string, from: string, to?: string) => Promise<number | null>;
 export const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 type View = "bases" | "grid" | "size";
@@ -22,6 +24,7 @@ export function SpritesScreen({ active }: { active: boolean }) {
   const [surface, setSurface] = useState<Surface>("chat");
   const [outfit, setOutfit] = useState("day");
   const [error, setError] = useState<string | null>(null);
+  const reduced = useReducedMotion();
   const [adding, setAdding] = useState(false);
   const [newOutfit, setNewOutfit] = useState("");
 
@@ -48,6 +51,14 @@ export function SpritesScreen({ active }: { active: boolean }) {
   };
   const act = async (cellId: number, body: object) => { await run(`/api/sprites/cells/${cellId}`, body); };
 
+  /** Gets or creates the cell (endpoint when `to` is omitted) and returns its id. */
+  const ensure = async (surface: Surface, outfit: string, from: string, to = "") => {
+    const r = await requestJson<{ id: number }>("/api/sprites/cells", post({ surface, outfit, from, to }));
+    if (!r.ok) { setError(r.error); return null; }
+    await load();
+    return r.data.id;
+  };
+
   if (!state) return <p className="text-muted text-sm">{error ?? "Loading sprites…"}</p>;
   const inv: Inv = { ...state, allowed: (s, o) => allowedKeys(state.keys.filter((k) => k.surface === s), "lewd", o) };
   const addOutfit = async () => {
@@ -57,6 +68,7 @@ export function SpritesScreen({ active }: { active: boolean }) {
   };
   const mb = (state.libraryBytes / 1048576).toFixed(1);
   return (
+    <ReducedCtx.Provider value={reduced}>
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Sprites view" className="border-border flex max-w-full overflow-x-auto rounded-full border">
@@ -78,10 +90,11 @@ export function SpritesScreen({ active }: { active: boolean }) {
           : <button type="button" onClick={() => setAdding(true)} className="border-border text-muted h-11 rounded-full border px-4 text-sm">Add outfit</button>}
       </div>
       {error && <p role="alert" className="text-danger text-sm">{error}</p>}
-      {view !== "size" && <BulkBar surface={surface} outfit={outfit} bulk={state.bulk} onChange={load} />}
-      {view === "bases" && <BasesView surface={surface} outfit={outfit} inv={inv} run={run} onAct={act} />}
-      {view === "grid" && <GridView surface={surface} outfit={outfit} inv={inv} onAct={act} />}
+      {view !== "size" && <BulkBar key={`${surface}/${outfit}`} surface={surface} outfit={outfit} bulk={state.bulk} onChange={load} />}
+      {view === "bases" && <BasesView surface={surface} outfit={outfit} inv={inv} run={run} onAct={act} ensure={ensure} />}
+      {view === "grid" && <GridView surface={surface} outfit={outfit} inv={inv} onAct={act} ensure={ensure} />}
       {view === "size" && <p className="border-border bg-surface rounded-lg border p-4 text-sm">Sprite library: {mb} MB on disk.</p>}
     </div>
+    </ReducedCtx.Provider>
   );
 }

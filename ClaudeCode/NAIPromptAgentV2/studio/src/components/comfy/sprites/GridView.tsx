@@ -3,10 +3,10 @@ import { useState } from "react";
 import type { Surface } from "@/lib/sprites/core";
 import { type CellView, gridRows } from "./grid";
 import { Chip, Clip, TakesSheet, shown } from "./TakesSheet";
-import type { Inv } from "./SpritesScreen";
+import type { Ensure, Inv } from "./SpritesScreen";
 
 /** Chat: key x key matrix. Stage: every edge both ways, plus the idles. Cells appear as the server creates them. */
-export function GridView({ surface, outfit, inv, onAct }: { surface: Surface; outfit: string; inv: Inv; onAct: (cellId: number, body: object) => Promise<void> }) {
+export function GridView({ surface, outfit, inv, onAct, ensure }: { surface: Surface; outfit: string; inv: Inv; onAct: (cellId: number, body: object) => Promise<void>; ensure: Ensure }) {
   const [openId, setOpenId] = useState<number | null>(null);
   const keys = inv.keys.filter((k) => k.surface === surface);
   const label = (k: string) => keys.find((x) => x.key === k)?.label ?? k;
@@ -19,8 +19,8 @@ export function GridView({ surface, outfit, inv, onAct }: { surface: Surface; ou
     const src = isRev ? find(to, from) : c;
     const t = src && shown(src);
     return (
-      <button key={`${from}>${to}`} type="button" disabled={!c} onClick={() => c && setOpenId(c.id)} aria-label={`${label(from)} to ${label(to)}${c ? ` ${c.status}` : ""}`}
-        className={`border-border bg-surface relative overflow-hidden rounded border ${size} ${c ? "" : "opacity-40"} ${from === to ? "border-accent" : ""}`}>
+      <button key={`${from}>${to}`} type="button" onClick={async () => { const id = c?.id ?? await ensure(surface, outfit, from, to); if (id != null) setOpenId(id); }} aria-label={`${label(from)} to ${label(to)}${c ? ` ${c.status}` : ""}`}
+        className={`border-border bg-surface relative overflow-hidden rounded border ${size} ${c ? "" : "opacity-60"} ${from === to ? "border-accent" : ""}`}>
         {t ? <Clip t={t} className="size-full object-cover" /> : <span aria-hidden className="text-faint grid size-full place-items-center text-xs">·</span>}
         {isRev && <span className="absolute top-0.5 left-0.5 rounded bg-black/60 px-1 text-[10px] text-white">↺ reverse</span>}
         {src && <span className="absolute right-0.5 bottom-0.5"><Chip s={src.status} /></span>}
@@ -65,7 +65,7 @@ export function GridView({ surface, outfit, inv, onAct }: { surface: Surface; ou
   return (
     <>
       {body}
-      {open && <TakesSheet cell={open} mirror={mirror && !open.takes.some((t) => t.file) ? mirror : null} title={open.from === open.to ? `${label(open.from)} idle` : `${label(open.from)} → ${label(open.to)}`} onClose={() => setOpenId(null)} onAct={onAct} />}
+      {open && <TakesSheet cell={open} mirror={open.reverse && !open.takes.some((t) => t.file) ? mirror ?? open : null} title={open.from === open.to ? `${label(open.from)} idle` : `${label(open.from)} → ${label(open.to)}`} onClose={() => setOpenId(null)} onAct={onAct} />}
     </>
   );
 }

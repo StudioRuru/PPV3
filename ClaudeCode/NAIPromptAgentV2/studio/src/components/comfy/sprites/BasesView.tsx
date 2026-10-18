@@ -4,7 +4,7 @@ import type { Surface, Tier } from "@/lib/sprites/core";
 import { requestJson } from "@/lib/net";
 import type { CellView } from "./grid";
 import { Chip, Clip, TakesSheet, shown } from "./TakesSheet";
-import type { Inv } from "./SpritesScreen";
+import type { Ensure, Inv } from "./SpritesScreen";
 
 type LibItem = { id: number; kind: "photo" | "clip"; file: string; poster: string | null };
 const BASE = "@base";
@@ -12,8 +12,8 @@ const btn = "min-h-11 rounded-full border px-4 text-sm disabled:opacity-50";
 const field = "border-border bg-surface h-11 rounded-md border px-3 text-sm";
 
 /** The base for this surface+outfit, then its endpoints (one still per expression/pose). */
-export function BasesView({ surface, outfit, inv, run, onAct }: {
-  surface: Surface; outfit: string; inv: Inv; run: (url: string, body: object) => Promise<boolean>; onAct: (cellId: number, body: object) => Promise<void>;
+export function BasesView({ surface, outfit, inv, run, onAct, ensure }: {
+  surface: Surface; outfit: string; inv: Inv; run: (url: string, body: object) => Promise<boolean>; onAct: (cellId: number, body: object) => Promise<void>; ensure: Ensure;
 }) {
   const [picking, setPicking] = useState<LibItem[] | null>(null);
   const [deriving, setDeriving] = useState(false);
@@ -71,7 +71,6 @@ export function BasesView({ surface, outfit, inv, run, onAct }: {
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Endpoints</h2>
         {!baseOk && <p className="text-muted text-sm">Approve a base first — endpoints are made from it.</p>}
-        {baseOk && keys.some((k) => !find(k.key)) && <p className="text-muted text-sm">Rows without a Generate button start with “Generate missing”.</p>}
         <ul className="grid gap-2 lg:grid-cols-2">
           {keys.map((k) => {
             const c = find(k.key);
@@ -82,7 +81,7 @@ export function BasesView({ surface, outfit, inv, run, onAct }: {
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{k.label}</p><p className="text-faint text-xs">{k.tier}{c && c.takes.length ? ` · ${c.takes.filter((x) => x.file).length} takes` : ""}</p></div>
                 <Chip s={c?.status ?? "empty"} />
                 {c && c.takes.some((x) => x.file) && <button type="button" onClick={() => setOpenId(c.id)} className={`${btn} border-border text-muted`}>Review</button>}
-                {c && (c.status === "empty" || c.status === "rejected") && <button type="button" disabled={!baseOk} onClick={() => void onAct(c.id, { op: "generate", n: 3 })} className={`${btn} border-accent text-accent-ink`}>Generate</button>}
+                {(!c || c.status === "empty" || c.status === "rejected") && <button type="button" disabled={!baseOk} onClick={async () => { const id = c?.id ?? await ensure(surface, outfit, k.key); if (id != null) await onAct(id, { op: "generate", n: 3 }); }} className={`${btn} border-accent text-accent-ink`}>Generate</button>}
               </li>
             );
           })}
