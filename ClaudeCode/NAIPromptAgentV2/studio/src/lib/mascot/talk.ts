@@ -1,5 +1,5 @@
 // Waist-up "talk portrait" frames (Plan 20). Pure data + fallback; request/path builders live in sprites.ts.
-import { EXPRESSIONS, pickSprite, type Expression, type Outfit } from "./core";
+import { EXPRESSIONS, pickSprite, TO_LEGACY, type Expression, type Outfit } from "./core";
 
 export const TALK_FRAMES = [...EXPRESSIONS, "think1", "think2", "talk_open", "talk_closed", "listen"] as const;
 export type TalkFrame = (typeof TALK_FRAMES)[number];
@@ -77,7 +77,7 @@ export function listenPhase(phase: TalkPhase, focused: boolean): TalkPhase {
 
 /** Portrait key: talk chain → bust (expression frames keep their expression, others smug) → null (placeholder). bob = a motion frame stood in by a still. */
 export function portraitPick(have: Set<string>, outfit: string, frame: TalkFrame): { key: string | null; bob: boolean } {
-  const expr = (EXPRESSIONS as readonly string[]).includes(frame) ? (frame as Expression) : null;
+  const expr = (EXPRESSIONS as readonly string[]).includes(frame) ? (frame as Expression) : TO_LEGACY[frame] ?? null;
   const key = pickTalkFrame(have, outfit, frame) ?? pickSprite(have, outfit as Outfit, expr ?? "smug");
   return { key, bob: !expr && key !== talkKey(outfit, frame) };
 }

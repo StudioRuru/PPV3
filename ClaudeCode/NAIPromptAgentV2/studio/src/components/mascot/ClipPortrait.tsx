@@ -15,68 +15,90 @@ export function ClipPortrait({ lib, outfit, expression, className = "" }: { lib:
   const L = useRef({ lib, outfit });
   L.current = { lib, outfit };
   const st = useRef<PlayerState>(initial(lib, outfit, expression, performance.now()));
-  const bmps = useRef(new Map<string, Promise<(ImageBitmap | null)[]>>()); // decoded frames per clip folder: current idle + active transition only
+  type Entry = { p: Promise<(ImageBitmap | null)[]>; done: (ImageBitmap | null)[] | null; dead: boolean };
+  const bmps = useRef(new Map<string, Entry>()); // decoded frames per clip folder: current idle + active transition only
   const width = useRef(480);
   const reduced = useRef(false);
   const ver = useRef(0);
+  const gone = useRef(false);
+  const shown = useRef<{ b: ImageBitmap | null; orphan: ImageBitmap | null }>({ b: null, orphan: null }); // orphan = shown frame of an evicted clip, closed once replaced
 
-  const load = (c: LibClip) => {
+  const load = (c: LibClip): Promise<unknown> => {
     const k = dirKey(c);
-    let p = bmps.current.get(k);
-    if (!p) {
-      p = Promise.all(Array.from({ length: c.frames }, async (_, i) => {
+    let e = bmps.current.get(k);
+    if (!e && !gone.current) {
+      const n: Entry = { done: null, dead: false, p: null as never };
+      n.p = Promise.all(Array.from({ length: c.frames }, async (_, i) => {
         try {
           const r = await fetch(url(c, i));
-          return r.ok ? await createImageBitmap(await r.blob(), { resizeWidth: width.current }) : null;
+          const b = r.ok ? await createImageBitmap(await r.blob(), { resizeWidth: width.current }) : null;
+          if (b && n.dead) { b.close(); return null; } // evicted or unmounted while decoding
+          return b;
         } catch { return null; }
-      }));
-      bmps.current.set(k, p);
+      })).then((a) => (n.done = a));
+      bmps.current.set(k, n); e = n;
     }
-    return p;
+    return e?.p ?? Promise.resolve([]);
+  };
+  const evict = (k: string) => {
+    const e = bmps.current.get(k);
+    if (!e) return;
+    bmps.current.delete(k); e.dead = true;
+    e.p.then((a) => a.forEach((b) => { if (!b) return; if (b === shown.current.b) shown.current.orphan = b; else b.close(); }));
   };
   const prune = () => {
     const { seg, at } = st.current, keep = new Set<string>();
     if (seg) keep.add(dirKey(seg.clip));
     const idle = L.current.lib.clips.find((c) => c.surface === "chat" && c.outfit === L.current.outfit && c.from === at && c.to === at);
     if (idle) keep.add(dirKey(idle));
-    for (const k of [...bmps.current.keys()]) if (!keep.has(k)) bmps.current.delete(k); // GC frees them; `last` may still show one, so no close()
+    for (const k of [...bmps.current.keys()]) if (!keep.has(k)) evict(k);
   };
 
   useEffect(() => {
+    gone.current = false;
     const m = window.matchMedia("(prefers-reduced-motion: reduce)"), on = () => { reduced.current = m.matches; };
     on(); m.addEventListener("change", on);
     const c = cv.current!, g = c.getContext("2d")!;
-    const fit = () => { const d = Math.min(2, window.devicePixelRatio || 1); c.width = Math.max(1, Math.round(c.clientWidth * d)); c.height = Math.max(1, Math.round(c.clientHeight * d)); width.current = Math.min(480, c.width); };
+    let drawn: ImageBitmap | null = null; // what the canvas holds; a resize clears it
+    const fit = () => { const d = Math.min(2, window.devicePixelRatio || 1); c.width = Math.max(1, Math.round(c.clientWidth * d)); c.height = Math.max(1, Math.round(c.clientHeight * d)); width.current = Math.min(480, c.width); drawn = null; };
     fit();
     const ro = new ResizeObserver(fit); ro.observe(c);
     const snap = document.createElement("canvas"); // previous frame, faded out under a crossfade
-    let fade = 0, segDir = "", raf = 0, alive = true, last: ImageBitmap | null = null;
-    const paint = (b: ImageBitmap, a = 1) => {
-      const s = Math.min(c.width / b.width, c.height / b.height), w = b.width * s, h = b.height * s;
-      g.globalAlpha = a; g.drawImage(b, (c.width - w) / 2, c.height - h, w, h); g.globalAlpha = 1;
-    };
+    let fade = 0, segDir = "", raf = 0;
     const frame = (now: number) => {
-      if (!alive) return;
+      if (gone.current) return;
       const { lib: l, outfit: o } = L.current;
       st.current = tick(st.current, l, o, now);
       const s = st.current, f = frameAt(s, now);
+      let b = shown.current.b;
       if (f) {
         const k = dirKey(f.clip);
         if (k !== segDir) { // new clip: crossfade into idles, hard cut into transitions (their first frame is the previous idle's)
           if (segDir && s.seg?.loop && c.width) { snap.width = c.width; snap.height = c.height; snap.getContext("2d")!.drawImage(c, 0, 0); fade = now; }
           segDir = k; prune();
         }
-        load(f.clip).then((a) => { last = a[reduced.current ? 0 : f.index] ?? last; });
+        const e = bmps.current.get(k);
+        if (!e) void load(f.clip);
+        const nb = e?.done?.[reduced.current ? 0 : f.index];
+        if (nb && nb !== b) { b = nb; const old = shown.current.orphan; shown.current = { b: nb, orphan: null }; old?.close(); }
       }
-      if (last && c.width) {
+      const fading = fade && now - fade < FADE_MS;
+      if (b && c.width && (b !== drawn || fading || fade)) {
         g.clearRect(0, 0, c.width, c.height);
-        paint(last);
-        if (fade && now - fade < FADE_MS) { g.globalAlpha = 1 - (now - fade) / FADE_MS; g.drawImage(snap, 0, 0); g.globalAlpha = 1; } else fade = 0;
+        const sc = Math.min(c.width / b.width, c.height / b.height), w = b.width * sc, h = b.height * sc;
+        g.drawImage(b, (c.width - w) / 2, c.height - h, w, h);
+        if (fading) { g.globalAlpha = 1 - (now - fade) / FADE_MS; g.drawImage(snap, 0, 0); g.globalAlpha = 1; } else fade = 0;
+        drawn = b;
       }
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => { alive = false; cancelAnimationFrame(raf); ro.disconnect(); m.removeEventListener("change", on); const all = [...bmps.current.values()]; bmps.current.clear(); all.forEach((p) => p.then((a) => a.forEach((b) => b?.close()))); };
+    return () => {
+      gone.current = true; cancelAnimationFrame(raf); ro.disconnect(); m.removeEventListener("change", on);
+      const { b, orphan } = shown.current; shown.current = { b: null, orphan: null };
+      for (const k of [...bmps.current.keys()]) evict(k);
+      b?.close(); orphan?.close();
+    };
   }, []);
 
   // A new expression: warm the transition + target idle, wait up to 400 ms, else crossfade straight to the target idle.

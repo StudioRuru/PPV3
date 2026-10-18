@@ -46,7 +46,7 @@ export function SpritesScreen({ active }: { active: boolean }) {
   /** Runs a mutation, then refreshes; errors show in the banner. */
   const run = async (url: string, body: object) => {
     const r = await requestJson(url, post(body));
-    if (!r.ok) setError(r.error);
+    if (!r.ok) setError(r.error); else window.dispatchEvent(new Event("mascot:sprites")); // Chat portraits refetch the library
     await load();
     return r.ok;
   };

@@ -23,6 +23,8 @@ export function shouldSpeak(
   return s.now - s.lastSpokeAt >= (priority ? s.cooldownMs / 2 : s.cooldownMs);
 }
 
+/** Chat keys -> the closest legacy still (the old portrait path only has the legacy expressions). */
+export const TO_LEGACY: Record<string, Expression> = { neutral: "smug", happy: "excited", pouty: "pout", sad: "pout", surprised: "shocked", horny: "flirty", blush: "flirty", humiliated: "pout", yandere: "smug" };
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Old expression tags -> the Sprites studio chat keys (smug, laughing, annoyed and sleepy keep their names). */
 export const LEGACY: Record<string, string> = { wink: "smug", pout: "pouty", flirty: "horny", shocked: "surprised", excited: "happy" };

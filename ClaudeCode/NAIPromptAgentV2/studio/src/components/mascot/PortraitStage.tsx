@@ -12,9 +12,9 @@ import { SpriteCanvas, useClip } from "./SpriteCanvas";
 
 const MOTION: TalkFrame[] = ["think1", "think2", "talk_open", "talk_closed", "listen", "smug"];
 
-/** Waist-up talk portrait: an outfit with a Sprites-studio chat idle for the current expression plays animated clips (ClipPortrait; talk/think/listen
- *  still use the frames below); any other outfit keeps the SpriteCanvas path (spec §13.1). Waist-up talk portrait on a SpriteCanvas. Talk = the still's `talk` clip if picked, else one interval alternates talk_open/talk_closed (think too);
- *  blink clip every 2.5–6 s and reaction clips on `mascot:react` (+ generated/upscaled for Miyabi) while showing the still; empty = fixed smug, dimmed, breathing only; reduced motion = expression only. */
+/** Waist-up talk portrait. An outfit with a Sprites-studio chat idle for the current expression plays animated clips (ClipPortrait, kept mounted);
+ *  talk/think/listen frames are stills drawn over it. Other outfits keep the SpriteCanvas path: blink and reaction clips over the still,
+ *  one interval alternating talk_open/talk_closed (think too), empty = fixed smug, dimmed, breathing only; reduced motion = expression only (spec §13.1). */
 export function PortraitStage({ profile, outfit, phase, expression, empty, className = "", style }: {
   profile: Profile; outfit: string; phase: TalkPhase; expression: Expression; empty: boolean; className?: string; style?: React.CSSProperties;
 }) {
@@ -90,14 +90,15 @@ export function PortraitStage({ profile, outfit, phase, expression, empty, class
   useEffect(() => { for (const u of clipUrls(clipList, still, profile === "aru")) new Image().src = u; }, [clipList, still, profile]);
   const lib = useLibrary();
   const ck = p === "empty" ? "smug" : LEGACY[expression] ?? expression;
-  const animated = !!lib && frame === expression && lib.clips.some((c) => c.surface === "chat" && c.outfit === outfit && c.from === ck && c.to === ck);
+  const animated = !!lib && lib.clips.some((c) => c.surface === "chat" && c.outfit === outfit && c.from === ck && c.to === ck);
   const playing = clip.show();
   const shown = key && ((playing && clipUrl(clipList, playing.key, playing.kind, playing.frame, profile === "aru")) || src(key));
 
   return (
-    <div style={style} className={`flex items-end justify-center transition-[filter,opacity,height] duration-300 ${empty ? `opacity-70 ${shown ? "" : "grayscale"}` : ""} ${className}`}>
+    <div style={style} className={`relative flex items-end justify-center transition-[filter,opacity,height] duration-300 ${empty ? `opacity-70 ${shown ? "" : "grayscale"}` : ""} ${className}`}>
+      {animated && <ClipPortrait key={outfit} lib={lib} outfit={outfit} expression={ck} className="h-full w-full" />}
       {animated
-        ? <ClipPortrait key={outfit} lib={lib} outfit={outfit} expression={ck} className="h-full w-full" />
+        ? frame !== expression && key && <SpriteCanvas src={src(key)} empty={empty} alt={`${name}${empty ? " (empty)" : ""}`} className={`absolute inset-x-0 bottom-0 h-full w-full ${bob && !empty ? "mascot-bob" : ""}`} />
         : shown
         ? <SpriteCanvas src={shown} cut={playing?.kind === "blink"} empty={empty} alt={`${name}${empty ? " (empty)" : ""}`} className={`h-full w-full ${bob && !empty ? "mascot-bob" : ""}`} />
         : <span role="img" aria-label={name} className="bg-accent-soft text-accent-ink border-border mascot-bob flex aspect-[3/4] h-4/5 items-center justify-center rounded-t-full border text-4xl font-semibold">{name[0]}</span>}

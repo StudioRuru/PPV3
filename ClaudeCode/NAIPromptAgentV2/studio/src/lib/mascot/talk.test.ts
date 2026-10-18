@@ -172,3 +172,8 @@ test("splitExpressionTag: a model-written ⚠️ paragraph mid-reply doesn't hid
 test("TALK_UC blocks two-view sheets", () => {
   for (const t of ["multiple views", "reference sheet", "inset", "split screen"]) assert.ok(TALK_UC.includes(t));
 });
+
+test("portraitPick: chat keys fall back to the closest legacy still", () => {
+  const busts = new Set(["day/pout", "day/excited", "day/smug", "day/flirty"]);
+  for (const [k, want] of [["sad", "pout"], ["pouty", "pout"], ["happy", "excited"], ["horny", "flirty"], ["neutral", "smug"]]) assert.equal(portraitPick(busts, "day", k as never).key, `day/${want}`);
+});
