@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import type Database from "better-sqlite3";
 import { dropItem } from "./service";
-import { type SpriteKey, type Surface, edges, listKeys, listOutfits, removeKey } from "./store";
+import type { LibClip, Library } from "./core";
+import { type Surface, edges, listKeys, listOutfits, removeKey } from "./store";
 
 type Db = Database.Database;
-export type LibClip = { surface: Surface; outfit: string; from: string; to: string; frames: number; fps: number; w: number; h: number; v: number; reverseOf?: string };
-export type Library = { outfits: string[]; keys: SpriteKey[]; edges: [string, string][]; clips: LibClip[] };
+export type { LibClip, Library };
 type Row = { surface: Surface; outfit: string; from_key: string; to_key: string; cut: string; reverse: number };
 
 const metaOf = (lib: string, r: Row) => {

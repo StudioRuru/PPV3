@@ -22,6 +22,8 @@ export type QuipDeps = {
   /** The heavy gate: rp_spy while it's paused ("heavy") and idle answers on `heavyModel` inside it. */
   gate?: { readonly state: "light" | "heavy"; readonly busy: boolean; run<T>(fn: () => Promise<T>): Promise<T> };
   heavyModel?: () => string;
+  /** Chat expression keys the model may pick (defaults to the legacy list). */
+  keys?: () => string[];
 };
 export type QuipResult = { expression: Expression; text: string; source: "model" | "canned" };
 
@@ -55,7 +57,7 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     const c = d.context();
     const { system, user } = quipPrompt(e, {
       // Empty: the previous slime's lines and facts would pull her back into its voice.
-      ...c, promptSummary, facts: c.identity.empty ? [] : d.store.facts().map((f) => f.text), recent: c.identity.empty ? [] : d.store.recent(5).reverse().map((r) => r.line),
+      ...c, keys: d.keys?.(), promptSummary, facts: c.identity.empty ? [] : d.store.facts().map((f) => f.text), recent: c.identity.empty ? [] : d.store.recent(5).reverse().map((r) => r.line),
     });
     inFlight = true;
     // Heavy: no num_ctx, so the resident model isn't reloaded at another context size (explicit model ⇒ think:false).
@@ -65,7 +67,7 @@ export function makeQuip(d: QuipDeps): (body: unknown) => Promise<QuipResult> {
     let t: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), d.timeoutMs ?? 8000); });
     try {
-      const q = parseQuip(await Promise.race([run, timeout]), [c.identity.selfName, "miyabi"]);
+      const q = parseQuip(await Promise.race([run, timeout]), d.keys?.().length ? d.keys!() : undefined, [c.identity.selfName, "miyabi"]);
       return q && { ...q, source: "model" };
     } finally { clearTimeout(t); }
   }

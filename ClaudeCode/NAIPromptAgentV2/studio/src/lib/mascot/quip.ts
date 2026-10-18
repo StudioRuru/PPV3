@@ -4,6 +4,7 @@ import { BRAIN_MODEL } from "@/lib/env";
 import { getDrift, learnedBlock, learnedStoryBlock } from "@/lib/learning";
 import { chatStream, heavyGate } from "@/lib/llm";
 import { installedModels } from "@/lib/rp/server";
+import { listKeys, spritesDb } from "@/lib/sprites/store";
 import { tierModel } from "@/lib/tiers";
 import { DbIdentity } from "./identity";
 import { makeQuip } from "./quip-run";
@@ -29,6 +30,7 @@ export const quip = makeQuip({
   gate: heavyGate,
   heavyModel: () => tierModel("heavy", getSetting, BRAIN_MODEL),
   installed: installedModels,
+  keys: () => { try { return listKeys(spritesDb(), "chat").map((k) => k.key); } catch { return []; } }, // empty -> legacy list
   context: () => ({ identity: activeIdentity(), taste: learnedBlock(), story: learnedStoryBlock() }),
   drift: (e) => liveIdentity.drift(e),
   store: mascotStore,

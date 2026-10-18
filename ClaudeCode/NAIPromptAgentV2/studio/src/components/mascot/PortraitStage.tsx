@@ -1,16 +1,19 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Expression } from "@/lib/mascot/core";
+import { LEGACY, type Expression } from "@/lib/mascot/core";
 import { clipsFor, clipUrl, clipUrls, reactionFor, type Clips, type ReactEvent } from "@/lib/mascot/play";
 import type { Profile } from "@/lib/mascot/profiles";
 import { blinkSchedule } from "@/lib/mascot/stage";
 import { portraitPick, talkFrame, TALK_TICK_MS, THINK_TICK_MS, type TalkFrame, type TalkPhase } from "@/lib/mascot/talk";
 import { requestJson } from "@/lib/net";
+import { useLibrary } from "@/lib/sprites/useLibrary";
+import { ClipPortrait } from "./ClipPortrait";
 import { SpriteCanvas, useClip } from "./SpriteCanvas";
 
 const MOTION: TalkFrame[] = ["think1", "think2", "talk_open", "talk_closed", "listen", "smug"];
 
-/** Waist-up talk portrait on a SpriteCanvas. Talk = the still's `talk` clip if picked, else one interval alternates talk_open/talk_closed (think too);
+/** Waist-up talk portrait: an outfit with a Sprites-studio chat idle for the current expression plays animated clips (ClipPortrait; talk/think/listen
+ *  still use the frames below); any other outfit keeps the SpriteCanvas path (spec §13.1). Waist-up talk portrait on a SpriteCanvas. Talk = the still's `talk` clip if picked, else one interval alternates talk_open/talk_closed (think too);
  *  blink clip every 2.5–6 s and reaction clips on `mascot:react` (+ generated/upscaled for Miyabi) while showing the still; empty = fixed smug, dimmed, breathing only; reduced motion = expression only. */
 export function PortraitStage({ profile, outfit, phase, expression, empty, className = "", style }: {
   profile: Profile; outfit: string; phase: TalkPhase; expression: Expression; empty: boolean; className?: string; style?: React.CSSProperties;
@@ -85,12 +88,17 @@ export function PortraitStage({ profile, outfit, phase, expression, empty, class
   }, [profile, clip]);
   // The still's clip frames into the HTTP cache so swaps don't wait on the network.
   useEffect(() => { for (const u of clipUrls(clipList, still, profile === "aru")) new Image().src = u; }, [clipList, still, profile]);
+  const lib = useLibrary();
+  const ck = p === "empty" ? "smug" : LEGACY[expression] ?? expression;
+  const animated = !!lib && frame === expression && lib.clips.some((c) => c.surface === "chat" && c.outfit === outfit && c.from === ck && c.to === ck);
   const playing = clip.show();
   const shown = key && ((playing && clipUrl(clipList, playing.key, playing.kind, playing.frame, profile === "aru")) || src(key));
 
   return (
     <div style={style} className={`flex items-end justify-center transition-[filter,opacity,height] duration-300 ${empty ? `opacity-70 ${shown ? "" : "grayscale"}` : ""} ${className}`}>
-      {shown
+      {animated
+        ? <ClipPortrait key={outfit} lib={lib} outfit={outfit} expression={ck} className="h-full w-full" />
+        : shown
         ? <SpriteCanvas src={shown} cut={playing?.kind === "blink"} empty={empty} alt={`${name}${empty ? " (empty)" : ""}`} className={`h-full w-full ${bob && !empty ? "mascot-bob" : ""}`} />
         : <span role="img" aria-label={name} className="bg-accent-soft text-accent-ink border-border mascot-bob flex aspect-[3/4] h-4/5 items-center justify-center rounded-t-full border text-4xl font-semibold">{name[0]}</span>}
     </div>
