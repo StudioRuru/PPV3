@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { LibClip, Library } from "./core";
-import { dropLoopSeam, frameAt, initial, request, route, tick } from "./player";
+import { dropLoopSeam, frameAt, initial, request, route, tick, withStageIdles } from "./player";
 import { parseQuip } from "../mascot/core";
 
 const clip = (from: string, to: string, extra: Partial<LibClip> = {}): LibClip => ({ surface: "chat", outfit: "day", from, to, frames: 13, fps: 30, w: 480, h: 832, v: 1, ...extra });
@@ -70,7 +70,7 @@ test("parseQuip maps legacy expression keys", () => {
 });
 
 test("stage route follows next hop; missing edge clip crossfades", () => {
-  const sc = (from: string, to: string, extra: Partial<LibClip> = {}) => clip(from, to, { surface: "stage", frames: from === to ? 41 : 41, ...extra });
+  const sc = (from: string, to: string, extra: Partial<LibClip> = {}) => clip(from, to, { surface: "stage", frames: 41, ...extra });
   const S = { outfits: ["day"], keys: [], edges: [["stand", "sit"], ["sit", "lie_down"]] as [string, string][], clips: [sc("stand", "stand"), sc("sit", "sit"), sc("lie_down", "lie_down"), sc("stand", "sit")] };
   let s = request(initial(S, "day", "stand", 0, "stage"), "sit", S, "day", 0, "stage");
   assert.deepEqual([s.seg?.clip.surface, s.seg?.clip.from, s.seg?.clip.to, s.seg?.loop], ["stage", "stand", "sit", false]);
@@ -79,4 +79,11 @@ test("stage route follows next hop; missing edge clip crossfades", () => {
   s = request(s, "lie_down", S, "day", 5000, "stage"); // sit~lie_down not approved
   assert.deepEqual([s.seg?.clip.to, s.seg?.loop, s.at], ["lie_down", true, "lie_down"]);
   assert.equal(initial(S, "day", "stand", 0).seg, null); // default surface stays chat
+});
+
+test("withStageIdles drops stage keys without an approved idle for the outfit", () => {
+  const key = (surface: "chat" | "stage", k: string) => ({ surface, key: k, label: k, tier: "tame" as const, tags: [], prompt: "", sort: 0 });
+  const l: Library = { outfits: ["day"], keys: [key("chat", "happy"), key("stage", "stand"), key("stage", "sit")], edges: [], clips: [clip("stand", "stand", { surface: "stage" }), clip("sit", "sit", { surface: "stage", outfit: "night" })] };
+  assert.deepEqual(withStageIdles(l, "day").keys.map((k) => k.key), ["happy", "stand"]);
+  assert.equal(withStageIdles(l, "day").clips, l.clips);
 });

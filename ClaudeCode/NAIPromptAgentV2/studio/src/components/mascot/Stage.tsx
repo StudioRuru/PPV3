@@ -10,6 +10,7 @@ import {
 } from "@/lib/mascot/stage";
 import type { Boldness, Library } from "@/lib/sprites/core";
 import { init, step, type Act, type Ev } from "@/lib/sprites/behaviour";
+import { withStageIdles } from "@/lib/sprites/player";
 import { ClipPortrait } from "./ClipPortrait";
 import { SpriteCanvas, useClip, type SpriteHandle } from "./SpriteCanvas";
 
@@ -50,7 +51,8 @@ export function Stage(p: Props) {
   const startPose = lib?.clips.find((c) => c.surface === "stage" && c.outfit === outfit && c.from === c.to && c.from === "stand")?.from ?? lib?.clips.find((c) => c.surface === "stage" && c.outfit === outfit && c.from === c.to)?.from ?? null;
   const eng = startPose !== null; // an approved Stage idle exists for this outfit
   const [bpose, setBpose] = useState(startPose ?? "stand");
-  const bs = useRef(init(bpose, Date.now(), Math.random));
+  const bs = useRef<ReturnType<typeof init> | null>(null);
+  bs.current ??= init(bpose, Date.now(), Math.random);
   const have = useMemo(() => new Set(Object.keys(sprites)), [sprites]);
   // stableH sizes her: the tallest innerHeight seen at this width, so keyboards/toolbars don't make her grow and shrink (reset on rotate).
   const [view, setView] = useState(() => ({ vw: window.innerWidth, vh: window.innerHeight, stableH: window.innerHeight }));
@@ -148,7 +150,7 @@ export function Stage(p: Props) {
   // Behaviour engine: Web sends tick / poke / typing only (drag, drop, sys* are Mac-only).
   act.current.run = (ev) => {
     if (!lib) return;
-    const r = step(bs.current, ev, { lib, outfit, boldness: p.boldness, now: Date.now(), rand: Math.random });
+    const r = step(bs.current!, ev, { lib: withStageIdles(lib, outfit), outfit, boldness: p.boldness, now: Date.now(), rand: Math.random });
     bs.current = r.s;
     if (r.act) { setBpose(r.act.pose); if (r.act.quip) p.onQuip(r.act.quip); }
   };

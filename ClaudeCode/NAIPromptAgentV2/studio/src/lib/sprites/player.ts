@@ -14,6 +14,11 @@ export const dropLoopSeam = (n: number) => Math.max(1, n - 1);
 export const clipDir = (c: LibClip) => c.reverseOf ?? `${c.from}~${c.to}`;
 export const clipMs = (c: LibClip) => (c.frames / c.fps) * 1000;
 
+/** The library with stage keys limited to poses that have an approved idle for the outfit (chat keys and clips untouched). */
+export const withStageIdles = (lib: Library, outfit: string): Library => ({
+  ...lib, keys: lib.keys.filter((k) => k.surface !== "stage" || lib.clips.some((c) => c.surface === "stage" && c.outfit === outfit && c.from === k.key && c.to === k.key)),
+});
+
 export function idleSeg(lib: Library, surface: Surface, outfit: string, key: string): Seg | null {
   const clip = find(lib, surface, outfit, key, key);
   return clip ? { clip, reversed: false, loop: true } : null;
