@@ -5,6 +5,7 @@ import { requestJson } from "@/lib/net";
 import { BasesView } from "./BasesView";
 import { BulkBar } from "./BulkBar";
 import { GridView } from "./GridView";
+import { PoseGraphView } from "./PoseGraphView";
 import { ReducedCtx, useReducedMotion } from "./TakesSheet";
 import type { CellView } from "./grid";
 
@@ -13,8 +14,8 @@ export type Inv = State & { allowed: (surface: Surface, outfit: string) => Sprit
 export type Ensure = (surface: Surface, outfit: string, from: string, to?: string) => Promise<number | null>;
 export const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-type View = "bases" | "grid" | "size";
-const VIEWS: { id: View; label: string }[] = [{ id: "bases", label: "Bases & endpoints" }, { id: "grid", label: "Grid" }, { id: "size", label: "Library size" }];
+type View = "bases" | "grid" | "pose" | "size";
+const VIEWS: { id: View; label: string }[] = [{ id: "bases", label: "Bases & endpoints" }, { id: "grid", label: "Grid" }, { id: "pose", label: "Pose graph" }, { id: "size", label: "Library size" }];
 const seg = (on: boolean) => `h-11 px-4 text-sm whitespace-nowrap ${on ? "bg-accent text-accent-fg font-semibold" : "text-muted"}`;
 
 /** Sprites sub-tab: pick a view, surface and outfit; polls fast while anything is generating. */
@@ -72,11 +73,10 @@ export function SpritesScreen({ active }: { active: boolean }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Sprites view" className="border-border flex max-w-full overflow-x-auto rounded-full border">
-          {VIEWS.map((v) => <button key={v.id} type="button" role="tab" aria-selected={view === v.id} onClick={() => setView(v.id)} className={seg(view === v.id)}>{v.label}</button>)}
-          <button type="button" role="tab" disabled aria-selected={false} className={`${seg(false)} opacity-60`}>Pose graph — soon</button>
+          {VIEWS.filter((v) => v.id !== "pose" || surface === "stage").map((v) => <button key={v.id} type="button" role="tab" aria-selected={view === v.id} onClick={() => setView(v.id)} className={seg(view === v.id)}>{v.label}</button>)}
         </div>
         <div role="radiogroup" aria-label="Surface" className="border-border flex overflow-hidden rounded-full border">
-          {(["chat", "stage"] as const).map((s) => <button key={s} type="button" role="radio" aria-checked={surface === s} onClick={() => setSurface(s)} className={seg(surface === s)}>{s === "chat" ? "Chat" : "Stage"}</button>)}
+          {(["chat", "stage"] as const).map((s) => <button key={s} type="button" role="radio" aria-checked={surface === s} onClick={() => { setSurface(s); if (s === "chat" && view === "pose") setView("bases"); }} className={seg(surface === s)}>{s === "chat" ? "Chat" : "Stage"}</button>)}
         </div>
         <select aria-label="Outfit" value={outfit} onChange={(e) => setOutfit(e.target.value)} className="border-border bg-surface h-11 rounded-full border px-3 text-sm">
           {state.outfits.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
@@ -93,6 +93,7 @@ export function SpritesScreen({ active }: { active: boolean }) {
       {view !== "size" && <BulkBar key={`${surface}/${outfit}`} surface={surface} outfit={outfit} bulk={state.bulk} onChange={load} />}
       {view === "bases" && <BasesView surface={surface} outfit={outfit} inv={inv} run={run} onAct={act} ensure={ensure} />}
       {view === "grid" && <GridView surface={surface} outfit={outfit} inv={inv} onAct={act} ensure={ensure} />}
+      {view === "pose" && surface === "stage" && <PoseGraphView outfit={outfit} inv={inv} run={run} onAct={act} ensure={ensure} onChange={load} />}
       {view === "size" && <p className="border-border bg-surface rounded-lg border p-4 text-sm">Sprite library: {mb} MB on disk.</p>}
     </div>
     </ReducedCtx.Provider>

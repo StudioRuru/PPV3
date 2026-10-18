@@ -67,6 +67,16 @@ test("missing stage set = both directions of each edge + idles", () => {
   assert.equal(edges(db).length, 20);
   assert.equal(missing(db, "stage", "day", "all").length, 20 * 2 + 14);
 });
+test("missing with a key: its endpoint, idle and edge clips to approved neighbours only", () => {
+  setBase(db, "stage", "day", 1);
+  assert.deepEqual(missing(db, "stage", "day", "all", "sit").map((c) => [c.from, c.to]), [["sit", ""]]);
+  ["sit", "stand", "kneel"].forEach((k, i) => approveEndpoint(k, 300 + i, "stage"));
+  const got = missing(db, "stage", "day", "all", "sit").map((c) => `${c.from}>${c.to}`).sort();
+  const nb = edges(db).filter(([a, b]) => (a === "sit" || b === "sit") && [a, b].every((x) => ["sit", "stand", "kneel"].includes(x))).length;
+  assert.equal(got.length, nb * 2 + 1);
+  assert.ok(got.includes("sit>sit") && got.every((g) => g.includes("sit")));
+  assert.equal(missing(db, "stage", "day", "all", "nope").length, 0);
+});
 test("missing endpoints need an approved base", () => {
   assert.equal(missing(db, "chat", "day", "basic").length, 0);
   setBase(db, "chat", "day", 1);

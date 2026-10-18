@@ -106,17 +106,18 @@ export function decide(db: Db, cellId: number, o: { approve?: number; reject?: t
 
 const status = (db: Db, c: Cell) => cellStatus(c, takes(db, c.id), (id) => readJob(db, id)?.status ?? null);
 
-/** Cells worth generating next: unapproved endpoints once the base is approved, then clips whose endpoints are approved. */
-export function missing(db: Db, surface: Surface, outfit: string, scope: Scope): Cell[] {
+/** Cells worth generating next: unapproved endpoints once the base is approved, then clips whose endpoints are approved. `only` narrows to one pose: its endpoint, idle and edge clips. */
+export function missing(db: Db, surface: Surface, outfit: string, scope: Scope, only?: string): Cell[] {
   if (baseItem(db, surface, outfit) == null) return [];
   const keys = allowedKeys(listKeys(db, surface), scope === "basic" ? "tame" : "lewd", outfit).map((k) => k.key);
   const ok = (k: string) => endpointItem(db, surface, outfit, k) != null;
-  const out: Cell[] = keys.filter((k) => !ok(k)).map((k) => cell(db, surface, outfit, k, ""))
+  const out: Cell[] = keys.filter((k) => !ok(k) && (!only || k === only)).map((k) => cell(db, surface, outfit, k, ""))
     .filter((c) => !["approved", "queued", "generating", "review"].includes(status(db, c)));
   const pairs: [string, string][] = surface === "chat"
     ? keys.flatMap((a) => keys.map((b): [string, string] => [a, b]))
     : [...edges(db).filter(([a, b]) => keys.includes(a) && keys.includes(b)).flatMap(([a, b]): [string, string][] => [[a, b], [b, a]]), ...keys.map((k): [string, string] => [k, k])];
   for (const [a, b] of pairs) {
+    if (only && a !== only && b !== only) continue;
     if (!ok(a) || !ok(b)) continue;
     const c = cell(db, surface, outfit, a, b);
     if (!c.reverse && status(db, c) === "empty") out.push(c);
@@ -132,8 +133,8 @@ function liveRate(): Rate {
   return { gpu: m.gpu ?? "", usdHr: m.usdHr };
 }
 
-export function bulkEstimate(db: Db, surface: Surface, outfit: string, scope: Scope, takes = 3, rate?: Rate): { jobs: number; seconds: number; usd: number } {
-  const cells = missing(db, surface, outfit, scope);
+export function bulkEstimate(db: Db, surface: Surface, outfit: string, scope: Scope, takes = 3, rate?: Rate, only?: string): { jobs: number; seconds: number; usd: number } {
+  const cells = missing(db, surface, outfit, scope, only);
   const r = rate ?? liveRate();
   let seconds = 0, usd = 0;
   for (const c of cells) {
@@ -145,8 +146,8 @@ export function bulkEstimate(db: Db, surface: Surface, outfit: string, scope: Sc
 }
 
 /** Enqueues `takes` jobs for every missing cell; returns the job count. */
-export function bulkStart(db: Db, surface: Surface, outfit: string, scope: Scope, takesEach = 3, now = Date.now(), drain = kick): number {
-  const cells = missing(db, surface, outfit, scope);
+export function bulkStart(db: Db, surface: Surface, outfit: string, scope: Scope, takesEach = 3, now = Date.now(), drain = kick, only?: string): number {
+  const cells = missing(db, surface, outfit, scope, only);
   const n = cells.reduce((sum, c) => sum + enqueue(db, c, spec(db, c, "noct"), takesEach, now, () => {}).length, 0);
   drain();
   return n;
