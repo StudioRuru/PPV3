@@ -12,7 +12,7 @@ mkdir -p "$MARK" "$ROOT/models"
 # config-drive and ephemeral disks are never touched. Formatted only when blank.
 if [ -n "${MODELS_GB:-}" ] && ! mountpoint -q "$ROOT/models"; then
   dev=""
-  for _ in $(seq 60); do
+  for _ in $(seq 300); do   # attached only once the VM is ACTIVE: allow 10 min
     dev=$(lsblk -bdno NAME,SIZE,TYPE | awk -v b=$((MODELS_GB * 1073741824)) '$3=="disk" && $2==b {print "/dev/"$1; exit}')
     [ -n "$dev" ] && break
     sleep 2

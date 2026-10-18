@@ -102,7 +102,9 @@ export function engine(d: Deps) {
         const secrets = { tsAuthKey: COMFY_TS_AUTHKEY, hfToken: HF_TOKEN, civitaiToken: CIVITAI_TOKEN };
         const vol = modelsVolume(card);
         if (vol) await hs.ensureVolume(vol.name, o.env, vol.gb);
-        const id = await hs.create(o, podHost(card), renderCloudInit(card, secrets), HYPERSTACK_KEY_NAME, vol?.name);
+        const id = await hs.create(o, podHost(card), renderCloudInit(card, secrets), HYPERSTACK_KEY_NAME);
+        // Background: the pod blocks on the disk, so a failed attach just never reaches ready (the deadline stops it).
+        if (vol) hs.attachWhenActive(id, vol.name).catch((e) => console.error("comfy models volume attach failed:", e instanceof Error ? e.message : "unknown"));
         row = { card, vmId: id, env: o.env, flavor: o.flavor, host: podHost(card), usdHr: o.usdHr, status: "starting" };
       }
       putVm(db, row);

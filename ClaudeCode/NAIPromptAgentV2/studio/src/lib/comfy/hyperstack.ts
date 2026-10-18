@@ -6,7 +6,7 @@ const RESTORE_WAIT_MS = 5 * 60_000;
 
 export type Offer = { env: string; region: string; flavor: string; gpu: string; vramGb: number; usdHr: number };
 export class HyperstackError extends Error {
-  constructor(msg: string, public status: number) { super(msg); }
+  constructor(msg: string, public status: number) { super(msg); this.name = new.target.name; }
 }
 export class NoCapacity extends HyperstackError {}
 export type Hyperstack = ReturnType<typeof hyperstack>;
@@ -48,10 +48,10 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
     if (res.status === 404) return null;
     return String(((await res.json()) as any).instance?.status ?? "").toUpperCase();
   }
-  async function findVolume(name: string): Promise<{ env: string; status: string } | null> {
+  async function findVolume(name: string): Promise<{ id: number; env: string; status: string } | null> {
     const j = (await (await call("GET", "/core/volumes")).json()) as any;
     const v = (j.volumes ?? []).find((x: any) => x.name === name);
-    return v ? { env: String(v.environment?.name ?? ""), status: String(v.status ?? "").toUpperCase() } : null;
+    return v ? { id: Number(v.id), env: String(v.environment?.name ?? ""), status: String(v.status ?? "").toUpperCase() } : null;
   }
   const start = async (id: string) => { await call("GET", `/core/virtual-machines/${id}/start`); };
 
@@ -78,10 +78,10 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
       return out.sort((a, b) => a.usdHr - b.usdHr);
     },
 
-    async create(o: Offer, name: string, userData: string, keyName: string, volumeName?: string): Promise<string> {
+    async create(o: Offer, name: string, userData: string, keyName: string): Promise<string> {
       const res = await call("POST", "/core/virtual-machines", {
         name, environment_name: o.env, flavor_name: o.flavor, image_name: IMAGE, key_name: keyName,
-        count: 1, assign_floating_ip: true, user_data: userData, labels: [LABEL], ...(volumeName ? { volume_name: volumeName } : {}),
+        count: 1, assign_floating_ip: true, user_data: userData, labels: [LABEL],
       });
       return String(((await res.json()) as any).instances[0].id);
     },
@@ -97,6 +97,18 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
         if (Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack volume ${name}: ${v?.status ?? "missing"} after 5 min`, 408);
         await sleep(pollMs);
       }
+    },
+
+    /** create's volume_name can't see data volumes, so attach once the VM is ACTIVE; the pod waits for the disk. */
+    async attachWhenActive(vmId: string, volumeName: string): Promise<void> {
+      const t0 = Date.now();
+      for (let s = await status(vmId); s !== "ACTIVE"; s = await status(vmId)) {
+        if (s === null || s === "ERROR" || Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack ${vmId}: ${s ?? "gone"} before the models volume attached`, 408);
+        await sleep(pollMs);
+      }
+      const v = await findVolume(volumeName);
+      if (!v) throw new HyperstackError(`hyperstack volume ${volumeName}: missing`, 404);
+      await call("POST", `/core/virtual-machines/${vmId}/attach-volumes`, { volume_ids: [v.id] });
     },
 
     async hibernate(id: string): Promise<void> {

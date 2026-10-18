@@ -21,7 +21,8 @@ function setup(offers: Offer[] = [main, h100]) {
   let n = 0;
   const hs = {
     offers: async (min: number) => o.offers.filter((x) => x.vramGb >= min).sort((a, b) => a.usdHr - b.usdHr),
-    create: async (_o: Offer, name: string, _u: string, _k: string, vol?: string) => { if (o.gate) await o.gate; const id = `vm${++n}`; vms.set(id, "BUILD"); log.push(`create ${name}`); o.vols.push(`${_o.env}:${vol}`); return id; },
+    create: async (_o: Offer, name: string) => { if (o.gate) await o.gate; const id = `vm${++n}`; vms.set(id, "BUILD"); log.push(`create ${name}`); o.vols.push(`create ${_o.env}`); return id; },
+    attachWhenActive: async (id: string, vol: string) => { o.vols.push(`attach ${id} ${vol}`); },
     findVolume: async () => o.vol,
     ensureVolume: async (name: string, env: string, gb: number) => { o.vols.push(`ensure ${name} ${env} ${gb}`); },
     status: async (id: string) => vms.get(id) ?? null,
@@ -49,10 +50,10 @@ test("main ensures its models volume and stays in the volume's region; boost has
   const s = setup([{ ...main, env: "cheap", usdHr: 0.5 }, { ...main, env: "vol" }, h100]);
   s.o.vol = { env: "vol" };
   await s.e.warm();
-  assert.deepEqual(s.o.vols, ["ensure nai-comfy-main-models vol 150", "vol:nai-comfy-main-models"]);
+  assert.deepEqual(s.o.vols, ["ensure nai-comfy-main-models vol 150", "create vol", "attach vm1 nai-comfy-main-models"]);
   s.o.vols.length = 0;
   await s.e.setBoost(true);
-  assert.deepEqual(s.o.vols, ["e:undefined"]);
+  assert.deepEqual(s.o.vols, ["create e"]);
 });
 
 test("warm on a hibernated VM restores instead of creating", async () => {
