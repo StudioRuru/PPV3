@@ -50,7 +50,20 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 }
 
 final class StudioViewController: UIViewController {
-    override func loadView() { view = WebHost.shared.webView }
+    /// The web view ends at the keyboard's top, so the page shrinks instead of WebKit scrolling it (sticky headers stay put).
+    override func loadView() {
+        view = UIView()
+        let web = WebHost.shared.webView
+        web.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(web)
+        view.keyboardLayoutGuide.usesBottomSafeArea = false
+        NSLayoutConstraint.activate([
+            web.topAnchor.constraint(equalTo: view.topAnchor),
+            web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            web.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+        ])
+    }
     override var preferredStatusBarStyle: UIStatusBarStyle { WebHost.shared.lightTheme ? .darkContent : .lightContent }
 }
 
