@@ -19,13 +19,15 @@ const hhmm = (t: number) => new Date(t).toTimeString().slice(0, 5);
 
 const isLive = (v: EngineView | null) => !!v && (v.phase === "starting" || v.phase === "warming" || v.phase === "ready");
 
-export function GpuLine({ view, boostView, now, onAction, error }: { view: EngineView | null; boostView: EngineView | null; now: number; onAction: (a: EngineAction) => void; error: string | null }) {
+export function GpuLine({ view, boostView, now, onAction, error }: { view: EngineView | null; boostView: EngineView | null; now: number; onAction: (a: EngineAction) => unknown; error: string | null }) {
   const alarm = view ? alarmText(view) : null;
   const live = isLive(view) || isLive(boostView);
   const showBoost = boostView && boostView.phase !== "off" && boostView.phase !== "unavailable";
   const boost = view?.boost ?? "off";
   const btn = "border-border h-9 rounded-full border px-3 text-xs";
   const [arm, setArm] = useState(false); // flush needs a second tap
+  const [seeking, setSeeking] = useState(false); // a restore can wait minutes on Hyperstack
+  const seek = () => { setSeeking(true); Promise.resolve(onAction({ action: "warm" })).finally(() => setSeeking(false)); };
   useEffect(() => { if (!arm) return; const t = setTimeout(() => setArm(false), 4000); return () => clearTimeout(t); }, [arm]);
   const canFlush = live || !!view?.kept || !!boostView?.kept;
   const flush = () => {
@@ -39,6 +41,9 @@ export function GpuLine({ view, boostView, now, onAction, error }: { view: Engin
       {alarm && <p role="alert" className="bg-danger w-full rounded-lg px-3 py-2 text-sm font-semibold text-white">{alarm}</p>}
       <div className="bg-surface border-border flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
         <span role="status" className="flex-1 font-mono text-xs whitespace-nowrap">{view ? gpuLabel(view, now) : "○ GPU …"}</span>
+        {view && (view.phase === "off" || view.phase === "unavailable") && (
+          <button type="button" disabled={seeking} onClick={seek} className={`${btn} text-accent disabled:opacity-60`}>{seeking ? "Seeking…" : view.phase === "unavailable" ? "Retry" : "Start"}</button>
+        )}
         {showBoost && <span className="font-mono text-xs whitespace-nowrap">{gpuLabel(boostView, now)} · ${boostView.usdHr.toFixed(2)}/h</span>}
         <button type="button" role="switch" aria-checked={boost === "on"} disabled={boost === "unavailable"} onClick={() => onAction({ action: "boost", on: boost !== "on" })}
           className={`${btn} ${boost === "on" ? "bg-accent text-accent-fg border-accent" : "text-muted"} disabled:opacity-50`}>

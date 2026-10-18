@@ -19,6 +19,7 @@ test("off and unavailable", () => {
   assert.equal(gpuLabel(v(), 0), "○ GPU off");
   assert.equal(gpuLabel(v({ kept: true }), 0), "○ GPU off · models kept");
   assert.equal(gpuLabel(v({ phase: "unavailable" }), 0), "● GPU unavailable");
+  assert.equal(gpuLabel(v({ phase: "unavailable", gpu: "n3-RTX-A6000x1" }), 0), "● A6000 unavailable");
 });
 
 test("alarm text present only when alarm set", () => {
@@ -29,7 +30,7 @@ test("alarm text present only when alarm set", () => {
 test("short GPU name derives from the flavor", () => {
   assert.equal(gpuName("n3-L40x1"), "L40");
   assert.equal(gpuName("n3-H100x1"), "H100");
-  assert.equal(gpuName("n3-RTX-A6000x1"), "RTX-A6000");
+  assert.equal(gpuName("n3-RTX-A6000x1"), "A6000");
   assert.equal(gpuName("n3-H100-80G-PCIex2"), "H100-80G-PCIe");
   assert.equal(gpuName(null), "GPU");
 });
