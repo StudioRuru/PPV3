@@ -1,0 +1,43 @@
+name: MiyabiOverlay
+options:
+  bundleIdPrefix: com.philly95
+  deploymentTarget:
+    macOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: 9TL96DXFPC
+    CODE_SIGN_STYLE: Automatic
+targets:
+  MiyabiOverlay:
+    type: application
+    platform: macOS
+    sources: [MiyabiOverlay]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.philly95.miyabiOverlay
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_APP_SANDBOX: NO
+  MiyabiOverlayTests:
+    type: bundle.unit-test
+    platform: macOS
+    # Sources are compiled in directly (minus @main) so tests never launch the app.
+    sources:
+      - MiyabiOverlayTests
+      - path: MiyabiOverlay
+        excludes: ["App.swift"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.philly95.miyabiOverlayTests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  MiyabiOverlay:
+    build:
+      targets:
+        MiyabiOverlay: all
+        MiyabiOverlayTests: [test]
+    test:
+      targets: [MiyabiOverlayTests]
