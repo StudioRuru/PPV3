@@ -180,6 +180,7 @@ test("estimate scales with frames and card price", () => {
   assert.ok(Math.abs(five.usd - five.seconds / 3600) < 1e-9);
   assert.ok(estimate(video, "H100-80G-PCIe", 1).seconds < five.seconds);
   assert.ok(estimate({ ...photo, steps: 56 }, "L40", 1).seconds > estimate(photo, "L40", 1).seconds);
+  assert.ok(estimate({ ...photo, model: "noctQAnime_v10_fp8.safetensors", steps: 25 }, "L40", 1).seconds > 3 * estimate(photo, "L40", 1).seconds);
 });
 
 const qwen: PhotoRecipe = { ...photo, model: "noctQAnime_v10_fp8.safetensors", steps: 25, cfg: 3, sampler: "euler", scheduler: "simple" };
