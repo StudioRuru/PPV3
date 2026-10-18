@@ -84,3 +84,28 @@ test("toJSONStep round-trips", () => {
   const out = JSON.parse(toJSONStep(JSON.stringify({ s: st(), ev: { type: "poke" }, ctx: { lib, outfit: "day", boldness: "tame", now: T + 500 } })));
   assert.equal(out.act.quip, "poke"); assert.equal(out.s.pose, out.act.pose); assert.deepEqual(out.s.pokes, [T + 500]);
 });
+test("drag/drop/sleep/wake keys are gated by allowedKeys", () => {
+  const gated: Library = { ...lib, keys: lib.keys.map((x) => (x.key === "sit" ? k("sit", "teasing", ["rest"]) : x)) };
+  assert.equal(step(st(), { type: "drop" }, { ...ctx(), lib: gated }).act!.pose, "stand");
+  assert.equal(step(st(), { type: "drop" }, { ...ctx({ boldness: "teasing" }), lib: gated }).act!.pose, "sit");
+  const noDangle: Library = { ...lib, keys: lib.keys.filter((x) => x.key !== "dangle") };
+  const d = step(st(), { type: "dragStart" }, { ...ctx(), lib: noDangle });
+  assert.equal(d.act!.pose, "stand"); assert.ok(d.s.dragging);
+  const lewdSleep: Library = { ...lib, keys: lib.keys.map((x) => (x.key === "lie_down" ? k("lie_down", "tame", ["lewd"]) : x)) };
+  assert.equal(step(st(), { type: "sysIdle" }, { ...ctx(), lib: lewdSleep }).act!.pose, "stand");
+});
+test("4:59 ignored does not escalate", () => {
+  const a = step(st({ nextDrift: T }), { type: "tick" }, ctx({ boldness: "teasing", now: T + 5 * MIN - 1000 }));
+  assert.equal(a.act?.quip, undefined);
+});
+test("toJSONStep never throws", () => {
+  const good = { s: st(), ev: { type: "poke" }, ctx: { lib, outfit: "day", boldness: "tame", now: T } };
+  const run = (o: unknown) => JSON.parse(toJSONStep(typeof o === "string" ? o : JSON.stringify(o)));
+  const bad = run("{nope");
+  assert.equal(bad.act, null); assert.equal(bad.s, null); assert.ok(bad.error);
+  const ev = run({ ...good, ev: { type: "bogus" } });
+  assert.equal(ev.act, null); assert.ok(ev.error); assert.equal(ev.s.pose, "stand");
+  const now = run({ ...good, ctx: { ...good.ctx, now: undefined } });
+  assert.equal(now.act, null); assert.ok(now.error);
+  assert.ok(run({ ...good, ctx: { ...good.ctx, rand: "x" } }).act);
+});

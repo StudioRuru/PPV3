@@ -29,8 +29,8 @@ export function path(edges: [string, string][], from: string, to: string): strin
 export function step(s: BState, ev: Ev, c: Ctx): { s: BState; act: Act | null } {
   const { now, rand } = c;
   const stage = c.lib.keys.filter((k) => k.surface === "stage");
-  const has = (key: string) => stage.some((k) => k.key === key);
   const ok = allowedKeys(stage, c.boldness, c.outfit);
+  const has = (key: string) => ok.some((k) => k.key === key);
   const tagged = (...t: string[]) => ok.filter((k) => t.some((x) => k.tags.includes(x)));
   const names = new Set(ok.map((k) => k.key)).add(s.pose);
   // next hop toward `to` over allowed poses only; the player crossfades if the clip isn't approved
@@ -70,11 +70,23 @@ export function step(s: BState, ev: Ev, c: Ctx): { s: BState; act: Act | null } 
       const n = { ...s, lastUser: now, asleep: false, nextDrift: drift(now, rand) };
       return s.asleep ? move(n, has("stand") ? "stand" : s.pose, { quip: "finally" }) : none(n);
     }
+    default: return none();
   }
 }
 
-/** Overlay entry: JSON {s, ev, ctx:{lib, outfit, boldness, now}} in, JSON {s, act} out. */
+const EVS = new Set(["tick", "poke", "dragStart", "drop", "typing", "sysIdle", "sysActive"]);
+/** Overlay entry: JSON {s, ev, ctx:{lib, outfit, boldness, now}} in, JSON {s, act} out; never throws. */
 export function toJSONStep(json: string): string {
-  const { s, ev, ctx } = JSON.parse(json);
-  return JSON.stringify(step(s, ev, { rand: Math.random, ...ctx }));
+  let s: BState | null = null;
+  try {
+    const i = JSON.parse(json);
+    s = i?.s ?? null;
+    if (!s || typeof s !== "object") throw new Error("bad s");
+    if (!EVS.has(i.ev?.type)) throw new Error("bad ev");
+    if (!i.ctx?.lib || !Number.isFinite(i.ctx.now)) throw new Error("bad ctx");
+    const rand = typeof i.ctx.rand === "function" ? i.ctx.rand : Math.random;
+    return JSON.stringify(step(s, i.ev, { ...i.ctx, rand }));
+  } catch (e) {
+    return JSON.stringify({ s: s && typeof s === "object" ? s : null, act: null, error: String(e) });
+  }
 }

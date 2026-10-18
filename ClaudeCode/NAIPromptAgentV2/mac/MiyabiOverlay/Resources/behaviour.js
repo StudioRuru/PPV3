@@ -63,8 +63,8 @@ var Behaviour = (() => {
   function step(s, ev, c) {
     const { now, rand } = c;
     const stage = c.lib.keys.filter((k) => k.surface === "stage");
-    const has = (key) => stage.some((k) => k.key === key);
     const ok = allowedKeys(stage, c.boldness, c.outfit);
+    const has = (key) => ok.some((k) => k.key === key);
     const tagged = (...t) => ok.filter((k) => t.some((x) => k.tags.includes(x)));
     const names = new Set(ok.map((k) => k.key)).add(s.pose);
     const hop = (to) => path(c.lib.edges.filter(([a, b]) => names.has(a) && names.has(b)), s.pose, to)[1] ?? s.pose;
@@ -108,11 +108,24 @@ var Behaviour = (() => {
         const n = { ...s, lastUser: now, asleep: false, nextDrift: drift(now, rand) };
         return s.asleep ? move(n, has("stand") ? "stand" : s.pose, { quip: "finally" }) : none(n);
       }
+      default:
+        return none();
     }
   }
+  var EVS = /* @__PURE__ */ new Set(["tick", "poke", "dragStart", "drop", "typing", "sysIdle", "sysActive"]);
   function toJSONStep(json) {
-    const { s, ev, ctx } = JSON.parse(json);
-    return JSON.stringify(step(s, ev, { rand: Math.random, ...ctx }));
+    let s = null;
+    try {
+      const i = JSON.parse(json);
+      s = i?.s ?? null;
+      if (!s || typeof s !== "object") throw new Error("bad s");
+      if (!EVS.has(i.ev?.type)) throw new Error("bad ev");
+      if (!i.ctx?.lib || !Number.isFinite(i.ctx.now)) throw new Error("bad ctx");
+      const rand = typeof i.ctx.rand === "function" ? i.ctx.rand : Math.random;
+      return JSON.stringify(step(s, i.ev, { ...i.ctx, rand }));
+    } catch (e) {
+      return JSON.stringify({ s: s && typeof s === "object" ? s : null, act: null, error: String(e) });
+    }
   }
   return __toCommonJS(behaviour_exports);
 })();
