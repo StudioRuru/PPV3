@@ -28,3 +28,7 @@ export const COMFY_TS_AUTHKEY = process.env.COMFY_TS_AUTHKEY || "";
 export const HF_TOKEN = process.env.HF_TOKEN || "";
 export const CIVITAI_TOKEN = process.env.CIVITAI_TOKEN || process.env.CIVITAIRED_KEY || "";
 export const COMFY_DIR = path.join(DATA_DIR, "comfy");
+
+/** Sprites studio: ffmpeg (launchd's PATH lacks Homebrew) and the cut WebP frame library. */
+export const FFMPEG = process.env.FFMPEG || "/opt/homebrew/bin/ffmpeg";
+export const SPRITE_LIB = path.join(DATA_DIR, "mascot", "library");

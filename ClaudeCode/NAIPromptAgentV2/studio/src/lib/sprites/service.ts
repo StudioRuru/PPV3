@@ -83,6 +83,12 @@ export function deriveBase(db: Db, surface: Surface, outfit: string, fromSurface
   return enqueue(db, cell(db, surface, outfit, BASE, ""), { kind: "edit", recipe: edit(from, prompt, preset) }, n, now, drain);
 }
 
+/** Deletes a Library item row and its mp4/poster files. */
+export function dropItem(db: Db, id: number, dir = COMFY_DIR): void {
+  const it = deleteItem(db, id);
+  if (it) for (const f of [it.file, it.poster]) if (f) fs.rmSync(path.join(dir, path.basename(f)), { force: true });
+}
+
 /** Approve (dropping the other takes' items and files), reject, or toggle whether a Chat clip plays its mirror backwards. */
 export function decide(db: Db, cellId: number, o: { approve?: number; reject?: true; own?: boolean }, dir = COMFY_DIR): void {
   if (o.approve != null) {
@@ -90,8 +96,7 @@ export function decide(db: Db, cellId: number, o: { approve?: number; reject?: t
     const adopted = new Set(takes(db, cellId).filter((t) => t.jobId == null && t.itemId != null).map((t) => t.itemId));
     for (const id of approve(db, cellId, o.approve).dropItems) {
       if (adopted.has(id)) continue;
-      const it = deleteItem(db, id);
-      if (it) for (const f of [it.file, it.poster]) if (f) fs.rmSync(path.join(dir, path.basename(f)), { force: true });
+      dropItem(db, id, dir);
     }
   }
   if (o.reject) reject(db, cellId);
