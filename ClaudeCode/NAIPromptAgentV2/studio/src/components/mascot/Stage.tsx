@@ -8,6 +8,9 @@ import {
   blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, TAP_MAX_MOVE,
   type PointerSample, type Rect, type Spot, type StageEvent,
 } from "@/lib/mascot/stage";
+import type { Boldness, Library } from "@/lib/sprites/core";
+import { init, step, type Act, type Ev } from "@/lib/sprites/behaviour";
+import { ClipPortrait } from "./ClipPortrait";
 import { SpriteCanvas, useClip, type SpriteHandle } from "./SpriteCanvas";
 
 export const FIELD = "textarea, [contenteditable]:not([contenteditable=false]), input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file],[type=color])";
@@ -35,13 +38,19 @@ type Props = {
   /** Changes when a [data-composer] shows/hides/resizes: re-check she isn't covering one. */
   layout: string;
   menuOpen: boolean; overlay: ReactNode; label: string;
+  /** Sprites-studio clip library + boldness: with an approved Stage idle for the outfit, the behaviour engine drives her; otherwise the legacy poses. */
+  lib: Library | null; boldness: Boldness; onQuip: (quip: NonNullable<Act["quip"]>) => void;
   onMenu: () => void; onCloseMenu: () => void; onPoke: () => void; onSwipeOff: () => void;
 };
 type Press = { samples: PointerSample[]; left: number; top: number; long: boolean; dragging: boolean; timer?: ReturnType<typeof setTimeout> };
 
 /** Full-body Miyabi: roams the viewport (stage brain in lib/mascot/stage), reacts to touch. Transform/opacity animation only. */
 export function Stage(p: Props) {
-  const { sprites, outfit, mischief, hidden, typing } = p;
+  const { sprites, outfit, mischief, hidden, typing, lib } = p;
+  const startPose = lib?.clips.find((c) => c.surface === "stage" && c.outfit === outfit && c.from === c.to && c.from === "stand")?.from ?? lib?.clips.find((c) => c.surface === "stage" && c.outfit === outfit && c.from === c.to)?.from ?? null;
+  const eng = startPose !== null; // an approved Stage idle exists for this outfit
+  const [bpose, setBpose] = useState(startPose ?? "stand");
+  const bs = useRef(init(bpose, Date.now(), Math.random));
   const have = useMemo(() => new Set(Object.keys(sprites)), [sprites]);
   // stableH sizes her: the tallest innerHeight seen at this width, so keyboards/toolbars don't make her grow and shrink (reset on rotate).
   const [view, setView] = useState(() => ({ vw: window.innerWidth, vh: window.innerHeight, stableH: window.innerHeight }));
@@ -65,7 +74,7 @@ export function Stage(p: Props) {
 
   const { vw, vh } = view, baseH = view.stableH * SIZE_VH[p.size];
   const dims = (pose: Pose) => { const sp = POSE_SPEC[pose], h = baseH * (sp.height / 1216); return { w: (h * sp.width) / sp.height, h }; };
-  const fits = (pose: Pose) => stageSprite(have, pose, outfit, "smug") !== null;
+  const fits = (pose: Pose) => eng || stageSprite(have, pose, outfit, "smug") !== null;
   /** Measured only when choosing a spot: composers, the island and a focused field are off limits; [data-mascot-target] cards are fair game. */
   const collect = () => {
     const q = (s: string) => [...document.querySelectorAll(s)].map(rectOf);
@@ -77,11 +86,12 @@ export function Stage(p: Props) {
     let s = chooseSpot(ctx);
     for (let i = 0; i < 12 && !fits(s.pose); i++) s = chooseSpot(ctx);
     if (!fits(s.pose)) s = chooseSpot({ ...ctx, mischief: 0 }); // stand/peek: always drawable (stand exists)
+    if (act.current.eng) s = { ...s, pose: "stand" }; // engine poses are clips in one box; position logic only
     setMotion(reduced() ? MOVE : HOP); setGone(null); setSpot(s); setMood(idleMood(Math.random, event === "bored"));
   }
   // Latest closures for long-lived listeners.
-  const act = useRef({ move, spot, collect, mischief, hidden, typing, baseH, react: (_ev: ReactEvent, _mood?: Expression) => {}, blink: () => {} });
-  act.current = { ...act.current, move, spot, collect, mischief, hidden, typing, baseH };
+  const act = useRef({ eng, run: (_ev: Ev) => {}, move, spot, collect, mischief, hidden, typing, baseH, react: (_ev: ReactEvent, _mood?: Expression) => {}, blink: () => {} });
+  act.current = { ...act.current, eng, move, spot, collect, mischief, hidden, typing, baseH };
   /** Resize: stay put unless she drifted off-screen (nudge back) or now covers an avoid rect (re-pick). */
   const refit = () => {
     const a = act.current, s = a.spot;
@@ -135,6 +145,20 @@ export function Stage(p: Props) {
     };
   }, []);
 
+  // Behaviour engine: Web sends tick / poke / typing only (drag, drop, sys* are Mac-only).
+  act.current.run = (ev) => {
+    if (!lib) return;
+    const r = step(bs.current, ev, { lib, outfit, boldness: p.boldness, now: Date.now(), rand: Math.random });
+    bs.current = r.s;
+    if (r.act) { setBpose(r.act.pose); if (r.act.quip) p.onQuip(r.act.quip); }
+  };
+  useEffect(() => { if (startPose) { bs.current = init(startPose, Date.now(), Math.random); setBpose(startPose); } }, [outfit, startPose === null]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!eng || hidden) return;
+    const t = setInterval(() => { if (!document.hidden) act.current.run({ type: "tick" }); }, 1000); // paused while the tab is hidden
+    return () => clearInterval(t);
+  }, [eng, hidden]);
+  useEffect(() => { if (eng && typing && !hidden) act.current.run({ type: "typing" }); }, [typing]); // eslint-disable-line react-hooks/exhaustive-deps
   // On stage at mount and on summon; hiding drops any gesture in progress.
   useEffect(() => {
     if (!hidden) { act.current.move(); return; }
@@ -169,10 +193,10 @@ export function Stage(p: Props) {
   }, [reaction]);
 
   const expr: Expression = drag ? "shocked" : reaction?.e ?? p.expression ?? mood;
-  const key = spot && stageSprite(have, spot.pose, outfit, expr);
+  const key = spot && (eng ? "engine" : stageSprite(have, spot.pose, outfit, expr));
   const clip = useClip(p.empty);
-  const clips = useMemo(() => clipsFor(p.clips, key), [p.clips, key]);
-  const sleepy = spot && !p.empty && spot.pose !== "back" ? stageSprite(have, spot.pose, outfit, "sleepy") : null;
+  const clips = useMemo(() => clipsFor(p.clips, eng ? null : key), [p.clips, key, eng]);
+  const sleepy = spot && !eng && !p.empty && spot.pose !== "back" ? stageSprite(have, spot.pose, outfit, "sleepy") : null;
   const sleepyBlink = !clips.blink && !!sleepy && sleepy.endsWith("/sleepy") && sleepy !== key; // no blink clip: flash the sleepy sprite
   const canBlink = !hidden && !p.empty && spot?.pose !== "back" && (!!clips.blink || sleepyBlink);
   act.current.react = (ev, m = expr) => { const k = reactionFor(ev, m, Math.random); if (clips[k] && !reduced()) clip.play(k, key, clips); };
@@ -251,10 +275,11 @@ export function Stage(p: Props) {
     lastTap.current = g === "menu" || g === "pat" || g === "poke" ? e.timeStamp : null;
     setDrag(null);
     if (g === "menu" || g === "longpress") p.onMenu();
-    else if (g === "pat") { const r = any<Expression>(["flirty", "laughing"]); act.current.react("pat"); setReaction({ e: r, ms: 1800 }); squish("pat"); }
+    else if (g === "pat") { const r = any<Expression>(["flirty", "laughing"]); act.current.react("pat"); if (eng) act.current.run({ type: "poke" }); setReaction({ e: r, ms: 1800 }); squish("pat"); }
     else if (g === "poke") {
       const r = any<Expression>(["shocked", "annoyed", "laughing"]);
-      p.onCloseMenu(); act.current.react("poke", r); setReaction({ e: r, ms: 1500 }); squish("poke"); p.onPoke();
+      p.onCloseMenu(); act.current.react("poke", r); setReaction({ e: r, ms: 1500 }); squish("poke");
+      if (eng) act.current.run({ type: "poke" }); else p.onPoke();
     } else if (g === "drag") { setMotion(SETTLE); setSpot(settleSpot({ x: dl + w / 2, y: dt + h }, collect(), fits)); act.current.react("drop"); squish("drop"); }
     else if (g === "flick") {
       const right = z.x + (z.x - b.x) * 4 >= vw / 2;
@@ -282,7 +307,7 @@ export function Stage(p: Props) {
   const flip = spot.flip ? "scaleX(-1)" : undefined;
   const src = (k: string) => `/api/mascot/sprites/${k}?v=${sprites[k]}`;
   const playing = clip.show();
-  const frame = (playing && clipUrl(p.clips, playing.key, playing.kind, playing.frame)) || src(blink && sleepyBlink ? sleepy! : key!);
+  const frame = eng ? "" : (playing && clipUrl(p.clips, playing.key, playing.kind, playing.frame)) || src(blink && sleepyBlink ? sleepy! : key!);
 
   return (
     <div data-noswipe className="pointer-events-none fixed inset-0 z-30 overflow-hidden select-none">
@@ -298,7 +323,8 @@ export function Stage(p: Props) {
             <div ref={inner} className={`relative h-full w-full origin-bottom transition-[filter,opacity] duration-500 ${drag ? "mascot-flail" : ""} ${p.empty ? "opacity-70" : ""}`}>
               {/* contact shadow: a static gradient, no filter (a filter on the repainting canvas would cost every frame) */}
               <div aria-hidden="true" className="absolute -bottom-[1.5%] left-1/2 h-[4%] w-[55%] -translate-x-1/2" style={{ background: "radial-gradient(closest-side, rgb(0 0 0 / 0.22), transparent)" }} />
-              <SpriteCanvas ref={canvas} src={frame} cut={playing?.kind === "blink" || (blink && sleepyBlink)} pose={spot.pose} empty={p.empty} bleed className="h-full w-full" style={{ transform: flip }} />
+              {eng && lib ? <ClipPortrait key={outfit} surface="stage" lib={lib} outfit={outfit} expression={bpose} className="h-full w-full" />
+                : <SpriteCanvas ref={canvas} src={frame} cut={playing?.kind === "blink" || (blink && sleepyBlink)} pose={spot.pose} empty={p.empty} bleed className="h-full w-full" style={{ transform: flip }} />}
               {p.hushed && <span aria-hidden="true" className="text-muted absolute top-[6%] right-[22%] font-mono text-xs">zzz</span>}
             </div>
           </div>

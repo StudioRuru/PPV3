@@ -8,10 +8,11 @@ import { DATA_RECEIVED } from "@/lib/mascot/slime";
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
 import { TABS, type Tab } from "@/lib/tabs";
+import { useLibrary } from "@/lib/sprites/useLibrary";
 import { isTyping, Stage } from "./Stage";
 import { TabCarousel, type Bubble } from "./TabCarousel";
 
-type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; sliders: { flirt: { value: number; live?: number } }; corner: Corner; size: "s" | "m" | "l"; mischief?: number; activity?: boolean };
+type Settings = { show: boolean; cooldownMs: number | null; nightFrom: number; nightTo: number; pin: Outfit | null; sliders: { flirt: { value: number; live?: number } }; corner: Corner; size: "s" | "m" | "l"; mischief?: number; activity?: boolean; boldness?: "tame" | "teasing" | "lewd" };
 type Say = { expression: Expression; text: string };
 
 const HUSH_MS = 30 * 60_000, IDLE_MS = 10 * 60_000, LONG_MS = 500, HIDE_MS = 10 * 60_000;
@@ -30,6 +31,7 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
   const [settings, setSettings] = useState<Settings | null>(null);
   const [sprites, setSprites] = useState<Record<string, number>>({});
   const [clips, setClips] = useState<Clips | null>(null);
+  const lib = useLibrary();
   const [say, setSay] = useState<Say | null>(null);
   const [hushUntil, setHushUntil] = useState(0);
   const [hiddenUntil, setHiddenUntil] = useState(0); // swiped off / Hide: gone until then (summon clears)
@@ -239,10 +241,11 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
       { label: "Hide 10 min", small: true, onSelect: go(() => setHiddenUntil(Date.now() + HIDE_MS)) },
     ];
     return (
-      <Stage sprites={sprites} clips={clips} outfit={outfit} expression={say?.expression ?? (hushed ? "sleepy" : null)} size={settings.size ?? "m"} mischief={settings.mischief ?? 5}
+      <Stage sprites={sprites} clips={clips} outfit={outfit} expression={say?.expression ?? (hushed ? "sleepy" : null)} size={settings.size ?? "m"} mischief={settings.mischief ?? 5} lib={lib} boldness={settings.boldness ?? "teasing"}
         empty={empty} hushed={hushed} typing={typing} hidden={hidden || away} spy={spy} layout={bottomAt} menuOpen={menu && !hidden && !away}
         label={`Miyabi${empty ? " (empty)" : ""}${hushed ? " (hushed)" : ""} — tap for the menu, drag to move, flick to throw`}
         onMenu={() => { setMenu(true); setSay(null); }} onCloseMenu={close}
+        onQuip={(q) => { if (!hushed && Math.random() < 0.4) sayNow.current(empty ? { expression: "smug", text: DATA_RECEIVED } : cannedLine(q === "ignored" ? "idle" : q === "finally" ? "greet" : "tap")); }}
         onPoke={() => { if (!hushed && Math.random() < 0.4) sayNow.current(empty ? { expression: "smug", text: DATA_RECEIVED } : cannedLine("tap")); }}
         onSwipeOff={() => { setMenu(false); const s: Say = empty ? { expression: "smug", text: DATA_RECEIVED } : SULK[Math.floor(Math.random() * SULK.length)]; if (!isTyping()) { live.current.lastSpokeAt = Date.now(); setSay(s); } setHiddenUntil(Date.now() + HIDE_MS); }}
         overlay={away ? null : menu && !hidden ? <TabCarousel items={bubbles} onClose={close} />

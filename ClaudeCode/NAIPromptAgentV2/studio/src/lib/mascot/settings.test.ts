@@ -143,3 +143,10 @@ test("activity: default true, boolean only", () => {
   for (const v of ["no", 0, null]) assert.equal(mergeMascotSettings(D, { activity: v }).activity, true, String(v));
   assert.equal(parseMascotSettings(JSON.stringify({ activity: false })).activity, false);
 });
+
+test("boldness defaults to teasing; unknown values fall back", () => {
+  assert.equal(D.boldness, "teasing");
+  assert.equal(parseMascotSettings(JSON.stringify({ boldness: "lewd" })).boldness, "lewd");
+  assert.equal(parseMascotSettings(JSON.stringify({ boldness: "wild" })).boldness, "teasing");
+  assert.equal(mergeMascotSettings({ ...D, boldness: "tame" }, { boldness: 3 }).boldness, "tame");
+});

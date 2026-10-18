@@ -1,4 +1,4 @@
-// Pure Chat portrait player: which clip plays when, no DOM. Client-safe (types only from core).
+// Pure clip player (Chat portrait and Stage): which clip plays when, no DOM. Client-safe (types only from core).
 import type { LibClip, Library, Surface } from "./core";
 
 export type Seg = { clip: LibClip; reversed: boolean; loop: boolean };
@@ -27,21 +27,20 @@ export function route(lib: Library, surface: Surface, outfit: string, from: stri
   return mirror && !mirror.reverseOf ? { clip: mirror, reversed: true, loop: false } : "crossfade";
 }
 
-const idleState = (lib: Library, outfit: string, at: string, now: number): PlayerState => ({ at, seg: idleSeg(lib, "chat", outfit, at), startedAt: now, pending: null });
-export const initial = idleState;
+export const initial = (lib: Library, outfit: string, at: string, now: number, surface: Surface = "chat"): PlayerState => ({ at, seg: idleSeg(lib, surface, outfit, at), startedAt: now, pending: null });
 
-export function request(s: PlayerState, to: string, lib: Library, outfit: string, now: number): PlayerState {
+export function request(s: PlayerState, to: string, lib: Library, outfit: string, now: number, surface: Surface = "chat"): PlayerState {
   if (s.seg && !s.seg.loop) return { ...s, pending: to === s.at ? null : to }; // mid-transition: only the latest target waits
   if (to === s.at) return s;
-  const r = route(lib, "chat", outfit, s.at, to);
-  return r === "crossfade" ? idleState(lib, outfit, to, now) : { at: to, seg: r, startedAt: now, pending: null };
+  const r = route(lib, surface, outfit, s.at, to);
+  return r === "crossfade" ? initial(lib, outfit, to, now, surface) : { at: to, seg: r, startedAt: now, pending: null };
 }
 
-export function tick(s: PlayerState, lib: Library, outfit: string, now: number): PlayerState {
-  if (!s.seg) return s.seg === null && idleSeg(lib, "chat", outfit, s.at) ? idleState(lib, outfit, s.at, now) : s;
+export function tick(s: PlayerState, lib: Library, outfit: string, now: number, surface: Surface = "chat"): PlayerState {
+  if (!s.seg) return idleSeg(lib, surface, outfit, s.at) ? initial(lib, outfit, s.at, now, surface) : s;
   if (s.seg.loop || now - s.startedAt < clipMs(s.seg.clip)) return s;
-  const settled = idleState(lib, outfit, s.at, now);
-  return s.pending ? request(settled, s.pending, lib, outfit, now) : settled;
+  const settled = initial(lib, outfit, s.at, now, surface);
+  return s.pending ? request(settled, s.pending, lib, outfit, now, surface) : settled;
 }
 
 export function frameAt(s: PlayerState, now: number): { clip: LibClip; index: number } | null {

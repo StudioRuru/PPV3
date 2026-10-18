@@ -1,3 +1,4 @@
+import type { Boldness } from "../sprites/core";
 import { EXPRESSIONS, type Expression, type Outfit } from "./core";
 import { PERSONAS } from "../persona";
 import { migrateMods, type Sliders } from "./slime"; // type only: slime.ts imports this module's defaults
@@ -16,6 +17,8 @@ export type MascotSettings = {
   shelf: boolean;
   /** Stage: how often and how far she wanders into the way (0 = parked at an edge). */
   mischief: number;
+  /** Stage companion: which animated poses/expression tiers the behaviour engine may use. */
+  boldness: Boldness;
   /** Liquid island calibration: offsets from the sample's anchor geometry. */
   island: Calibration;
   /** Show Miyabi in the Dynamic Island Live Activity while the app is in the background (iOS shell). */
@@ -30,6 +33,7 @@ const SLIDER_IDS = ["brat", "tease", "flirt", "bimbo", "hypnosis", "heat", "leng
 const OUTFITS: Outfit[] = ["day", "night", "lewd"];
 const CORNERS = ["br", "bl", "tr", "tl"];
 export const SIZES = ["s", "m", "l"] as const;
+export const BOLDNESS: Boldness[] = ["tame", "teasing", "lewd"];
 const MAX_TAGS = 1500;
 
 export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
@@ -52,7 +56,7 @@ export const DEFAULT_MASCOT_SETTINGS: MascotSettings = {
     excited: "excited, open smile, sparkling eyes, fang",
     sleepy: "sleepy, half-closed eyes, yawning, tears",
   },
-  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false, vials: [], mischief: 5, island: CAL_ZERO, activity: true,
+  voice: PERSONAS.find((p) => p.id === "miyabi")!.voice, selfName: "Miyabi", heatDrift: false, spriteDir: "", empty: false, shelf: false, vials: [], mischief: 5, boldness: "teasing", island: CAL_ZERO, activity: true,
   sliders: { brat: { value: 6, cap: 10 }, tease: { value: 6, cap: 10 }, flirt: { value: 6, cap: 10 }, bimbo: { value: 0, cap: 10 }, hypnosis: { value: 0, cap: 10 }, heat: { value: 0, cap: 10 }, length: { value: 4, cap: 10 } },
 };
 
@@ -91,6 +95,7 @@ export function mergeMascotSettings(cur: MascotSettings, patch: unknown): Mascot
   if (typeof patch.empty === "boolean") out.empty = patch.empty;
   if (typeof patch.shelf === "boolean") out.shelf = patch.shelf;
   if (typeof patch.activity === "boolean") out.activity = patch.activity;
+  if (BOLDNESS.includes(patch.boldness as Boldness)) out.boldness = patch.boldness as Boldness;
   if (int(patch.mischief, 10)) out.mischief = patch.mischief;
   out.island = mergeCalibration(cur.island, patch.island);
   if (typeof patch.spriteDir === "string" && patch.spriteDir.length <= 200 && isSafeSpriteDir(patch.spriteDir)) out.spriteDir = patch.spriteDir;

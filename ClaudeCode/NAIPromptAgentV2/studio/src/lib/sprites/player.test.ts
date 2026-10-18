@@ -68,3 +68,15 @@ test("parseQuip maps legacy expression keys", () => {
   assert.equal(parseQuip("[yandere] hi", keys)?.expression, "smug"); // unknown key
   assert.equal(parseQuip("[yandere] hi", [...keys, "yandere"])?.expression, "yandere");
 });
+
+test("stage route follows next hop; missing edge clip crossfades", () => {
+  const sc = (from: string, to: string, extra: Partial<LibClip> = {}) => clip(from, to, { surface: "stage", frames: from === to ? 41 : 41, ...extra });
+  const S = { outfits: ["day"], keys: [], edges: [["stand", "sit"], ["sit", "lie_down"]] as [string, string][], clips: [sc("stand", "stand"), sc("sit", "sit"), sc("lie_down", "lie_down"), sc("stand", "sit")] };
+  let s = request(initial(S, "day", "stand", 0, "stage"), "sit", S, "day", 0, "stage");
+  assert.deepEqual([s.seg?.clip.surface, s.seg?.clip.from, s.seg?.clip.to, s.seg?.loop], ["stage", "stand", "sit", false]);
+  s = tick(s, S, "day", 5000, "stage");
+  assert.deepEqual([s.seg?.clip.from, s.seg?.loop, s.at], ["sit", true, "sit"]);
+  s = request(s, "lie_down", S, "day", 5000, "stage"); // sit~lie_down not approved
+  assert.deepEqual([s.seg?.clip.to, s.seg?.loop, s.at], ["lie_down", true, "lie_down"]);
+  assert.equal(initial(S, "day", "stand", 0).seg, null); // default surface stays chat
+});

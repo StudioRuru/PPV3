@@ -116,6 +116,16 @@ export function MascotSettings({ open }: { open: boolean }) {
         <input type="range" min={0} max={10} step={1} value={s.mischief} onChange={(e) => save({ mischief: Number(e.target.value) })} className="accent-accent mt-1 h-8 w-full" />
         <span className="text-faint flex justify-between text-[11px]"><span>Stays put</span><span>Always in the way</span></span>
       </label>
+      <div className="py-1">
+        <p className="mb-1 text-sm">Boldness</p>
+        <div role="radiogroup" aria-label="Boldness" className="border-border grid grid-cols-3 overflow-hidden rounded-md border">
+          {(["tame", "teasing", "lewd"] as const).map((b) => (
+            <button key={b} type="button" role="radio" aria-checked={s.boldness === b} onClick={() => save({ boldness: b })}
+              className={`h-11 text-xs font-medium capitalize ${s.boldness === b ? "bg-accent text-accent-fg" : "text-muted"}`}>{b}</button>
+          ))}
+        </div>
+        <p className="text-faint mt-1 text-[11px]">How daring the animated Stage poses get.</p>
+      </div>
       {view && hasIsland(view.top) && (
         <div className="py-1">
           <p className="flex items-center justify-between text-sm">Island
