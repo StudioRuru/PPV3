@@ -70,3 +70,15 @@ test("a traversal outfit is refused by the dir guard", async () => {
   assert.equal(cell(db, "chat", "../../x", "happy", "sad").cut, "error");
   assert.deepEqual(fs.readdirSync(lib), []);
 });
+test("a take re-approved mid-cut is not published and stays queued", async () => {
+  const { c } = approved("happy", "sad");
+  const item = addItem(db, { kind: "clip", file: "b.mp4", poster: null, recipe: {}, seed: 2, cost: 0, createdAt: 0 });
+  const t2 = addTake(db, c.id, 5, 2, {}); linkTakeItem(db, t2, item);
+  const lib = mk();
+  let n = 0;
+  await cutClip(c.id, { db, dir: mk(), lib, extract: fakeExtract(2), cut: async (b) => { if (++n === 1) approve(db, c.id, t2); return b; } });
+  const after = cell(db, "chat", "day", "happy", "sad");
+  assert.equal(after.cut, "none");
+  assert.equal(after.approvedTake, t2);
+  assert.equal(fs.existsSync(path.join(lib, "chat", "day", "happy~sad")), false);
+});

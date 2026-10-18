@@ -31,6 +31,7 @@ export async function cutClip(cellId: number, d: CutDeps): Promise<void> {
   if (!final) { set("error"); return; }
   const work = path.join(d.lib, `.tmp-${cellId}-${Date.now()}`);
   set("cutting");
+  const current = () => !!d.db.prepare("SELECT 1 FROM sprite_cells WHERE id = ? AND approved_take IS ? AND cut = 'cutting'").get(cellId, c.approved_take);
   try {
     const itemId = c.approved_take == null ? null : takes(d.db, cellId).find((t) => t.id === c.approved_take)?.itemId;
     const item = itemId == null ? null : readItem(d.db, itemId);
@@ -48,11 +49,14 @@ export async function cutClip(cellId: number, d: CutDeps): Promise<void> {
       ({ width: w, height: h } = r);
     }
     fs.writeFileSync(path.join(out, "meta.json"), JSON.stringify({ frames: pngs.length, fps: 30, w, h, v: c.approved_take }));
+    // Re-approved mid-cut (approve/staleDependents reset the row): drop this output, the queue re-cuts the new take. No await from here on, so nothing interleaves.
+    if (!current()) return;
     fs.mkdirSync(path.dirname(final), { recursive: true });
     fs.rmSync(final, { recursive: true, force: true });
     fs.renameSync(out, final);
     set("done");
   } catch (e) {
+    if (!current()) return;
     console.warn(`sprites: cut of cell ${cellId} failed: ${e instanceof Error ? e.message : e}`);
     fs.rmSync(final, { recursive: true, force: true });
     set("error");
