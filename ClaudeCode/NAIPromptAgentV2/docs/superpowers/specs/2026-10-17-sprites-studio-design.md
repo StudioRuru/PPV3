@@ -41,7 +41,9 @@ Prior art the owner pointed at: aldegad/sprite-gen (pipeline shape), but run on 
 | Scope | All outfits, all pairs, background bulk job |
 | Idle | Generated loop per expression, replaces warp |
 | Surfaces | Chat portrait + Stage, plus a Mac desktop overlay ("Both") |
-| Endpoints | Real approved sprites; Wan fills the in-between |
+| Endpoints | Real approved images (not Wan-invented); Wan fills the in-between |
+| Old sprites | Scrapped — start fresh: new bases and endpoints are generated in the studio |
+| Expressions | A basic companion set + 5 adult specials: **humiliated, horny, yandere, smug, blush** (§5.5) |
 | Takes | Several takes per clip; owner picks one or rejects all |
 | Location | Sprites sub-tab in the ComfyUI tab (Photo · Video · Sprites · Library); old Settings sprite studio links there |
 | Consistency | Qwen Image 2.1 editing: derive endpoints from one base image (owner's workflow, see §5) |
@@ -83,7 +85,7 @@ One **clip engine** (two images in → reviewed, approved, transparent clip out)
 ### 5.1 Endpoints via Qwen edit (identity lock)
 - Qwen Image 2.1 edits natively through ComfyUI's built-in `TextEncodeQwenImage21`, which takes `images.image_1..7` + `vae` alongside the prompt. Our Photo graph already uses this node (`studio/src/lib/comfy/recipe.ts`, text-only); editing = wiring `image_1` (the base) and the VAE.
 - Owner's reference workflow (civitai.red model 2965021, "Turbo AIO", read-only in scratchpad): stock `qwen_image_2.1_turbo` (int8), `qwen3vl_8b` text encoder, `qwen_image_2.1_vae_bf16`, CFG 1, `euler`, ManualSigmas 8 steps `1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0.0`. KJNodes/rgthree/Sage Attention in it are conveniences and not required.
-- Flow: owner picks/approves **one base image per outfit per surface** (Chat bust, Stage full-body). Each expression/pose endpoint = base + an edit instruction ("same character, same outfit, same framing; <expression/pose>"). Owner approves endpoints before any clip is generated.
+- Flow: the existing sprites are scrapped. The studio generates **one fresh base image per outfit per surface** (Chat bust, Stage full-body) with the Photo pipeline — several candidates, owner approves one. The Stage base is made by Qwen edit from the approved Chat base (same outfit) so both surfaces share one face; the three outfit bases are likewise edited from the first approved one (outfit swap), keeping one identity across all six bases. Each expression/pose endpoint = base + an edit instruction ("same character, same outfit, same framing; <expression/pose>"). Owner approves endpoints before any clip is generated.
 - Stage poses change the whole body, which is harder than expression edits. Builder may add DWPose/depth ControlNet guidance (already on the pod) if Qwen edit alone drifts. Validate early (§11).
 
 ### 5.2 Clips via Wan first/last frame
@@ -99,7 +101,13 @@ One **clip engine** (two images in → reviewed, approved, transparent clip out)
 - Encode with alpha in a format iOS Safari and the Mac overlay both play smoothly (animated WebP vs. WebM/HEVC-with-alpha — builder measures and picks; may store two encodes if needed).
 
 ### 5.4 Volume and cost (estimate)
-Chat ≈ 8 expressions → 28–56 transitions + 8 idles per outfit; Stage ≈ 12+ poses on a sparse graph (~20 edges) + 12 idles per outfit; × 3 outfits × 3 takes ⇒ several hundred clips. At measured A6000 rates (~$0.50/hr; i2v ~2.5 min per 5 s clip, shorter clips cheaper) this is a few dollars and a few hours of background GPU time. The UI shows an estimate before a bulk job starts, using the existing estimator.
+Chat = 13 expressions (§5.5) → 78 pairs (156 directed if reverse-play is rejected) + 13 idles per outfit; Stage ≈ 12+ poses on a sparse graph (~20 edges) + 12 idles per outfit; × 3 outfits × 3 takes ⇒ roughly 1,100–1,800 clips. Chat clips are < 1 s (much cheaper than the measured 5 s clip at ~2.5 min); estimate ~$8–15 and an overnight background run at ~$0.50/hr. The grid lets the owner generate one outfit (or only the basic set) first. The UI shows an estimate before a bulk job starts, using the existing estimator.
+
+### 5.5 Expression set (seed)
+- **Basic companion set (my call, 8):** neutral, happy, laughing, pouty, annoyed, sad, surprised, sleepy.
+- **Adult specials (owner, 5):** humiliated, horny, yandere, smug, blush. Tagged `adult`.
+- Available in every outfit. The behaviour/boldness setting gates which ones the companion may pick on its own: `tame` = basic only; `teasing` adds smug and blush; `lewd` adds humiliated, horny, yandere (my call). Chat mood detection may use any of them.
+- More expressions can be added in the studio (data rows), and the grid fills in their missing clips.
 
 ## 6. Data model (shape, builder finalises)
 
@@ -188,8 +196,8 @@ Build order inside the single design: clip engine + Qwen edit endpoints → revi
 
 ## 13. Builder-check answers
 
-1. **Endpoints:** Qwen-edited from one base per outfit/surface (owner decided the Qwen identity-lock approach). Existing Miyabi sprites are *base candidates*: the owner picks one existing sprite per outfit as the base; if no full-body sprite suits the Stage, the studio generates a Stage base with the Photo pipeline and the owner approves it. Existing expression sprites are not reused as endpoints directly (my call: mixing old and edited endpoints reintroduces drift).
-2. **Inventory:** user-extensible (owner: "customizable to add or create more variants"). Outfits, expressions and poses are data rows, not enums; day/night/lewd and the current expression set are seeded from the existing mascot data. Grid scrolls; no pagination needed at this scale.
+1. **Endpoints:** owner scrapped the old sprites. Fresh bases are generated in the studio (§5.1) and every endpoint is Qwen-edited from them. Old sprites stay in place for the current crossfade fallback until the new set covers a surface, then are retired (my call).
+2. **Inventory:** user-extensible (owner: "customizable to add or create more variants"). Outfits, expressions and poses are data rows, not enums; seeded with day/night/lewd, the 13 expressions in §5.5 and the starter poses in §3. Grid scrolls; no pagination needed at this scale.
 3. **Wan first/last frame:** the Video recipe already carries `start`/`end` item ids (`studio/src/lib/comfy/recipe.ts`, `VideoRecipe`) on the Smooth Mix i2v graph — extend that graph/pattern rather than authoring a new one; idle loop = `start == end` (the existing `loop` mode).
 4. **Validation gate:** not a hard stop for building. Build the clip engine, review grid, players, behaviour engine and overlay against mock/sample clips; §11 validation runs when the owner approves the GPU spend, and gates only the **bulk generation**, not the code (my call).
 5. **Overlay auth:** the studio already has optional app-password auth (`studio/src/middleware.ts`, session cookie). The overlay logs in through `/api/auth/login` with the password the owner types into the overlay's settings once, keeps the session in the macOS Keychain, and only calls read endpoints (library + pose graph) and the quip endpoint. No new token system (my call).
