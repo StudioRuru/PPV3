@@ -46,13 +46,14 @@ function spec(db: Db, c: Cell, preset: EditPreset): Spec {
 }
 
 function enqueue(db: Db, c: Cell, s: Spec, n: number, now: number, drain: () => void): number[] {
-  const ids = Array.from({ length: n }, () => {
+  const one = db.transaction(() => {
     const sd = seed();
     const takeId = addTake(db, c.id, null, sd, s.recipe);
     const id = addJob(db, s.kind, { ...s.recipe, seed: sd, target: { takeId } }, "main", now);
     db.prepare("UPDATE sprite_takes SET job_id = ?, recipe = ? WHERE id = ?").run(id, JSON.stringify({ ...s.recipe, seed: sd, target: { takeId } }), takeId);
     return id;
   });
+  const ids = Array.from({ length: n }, () => one());
   drain();
   return ids;
 }
@@ -85,7 +86,10 @@ export function deriveBase(db: Db, surface: Surface, outfit: string, fromSurface
 /** Approve (dropping the other takes' items and files), reject, or toggle whether a Chat clip plays its mirror backwards. */
 export function decide(db: Db, cellId: number, o: { approve?: number; reject?: true; own?: boolean }, dir = COMFY_DIR): void {
   if (o.approve != null) {
+    // library-adopted takes (job_id null, from setBase) are the user's own items: never delete them
+    const adopted = new Set(takes(db, cellId).filter((t) => t.jobId == null && t.itemId != null).map((t) => t.itemId));
     for (const id of approve(db, cellId, o.approve).dropItems) {
+      if (adopted.has(id)) continue;
       const it = deleteItem(db, id);
       if (it) for (const f of [it.file, it.poster]) if (f) fs.rmSync(path.join(dir, path.basename(f)), { force: true });
     }
@@ -117,6 +121,7 @@ export function missing(db: Db, surface: Surface, outfit: string, scope: Scope):
 
 type Rate = { gpu: string; usdHr: number };
 function liveRate(): Rate {
+  // lazy: engine pulls in server-only deps (db, hyperstack) that unit tests must not load
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const m = (require("../comfy/engine") as typeof import("../comfy/engine")).getEngine().view().main;
   return { gpu: m.gpu ?? "", usdHr: m.usdHr };

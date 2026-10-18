@@ -85,7 +85,7 @@ test("approve deletes dropped take files", () => {
   const mk = (n: string) => {
     fs.writeFileSync(path.join(dir, n), "x");
     const item = addItem(db, { kind: "photo", file: n, poster: null, recipe: {}, seed: 1, cost: 0, createdAt: 0 });
-    const t = addTake(db, c.id, null, 1, {}); linkTakeItem(db, t, item); return { t, item, n };
+    const t = addTake(db, c.id, 5, 1, {}); linkTakeItem(db, t, item); return { t, item, n };
   };
   const a = mk("a.png"), b = mk("b.png");
   decide(db, c.id, { approve: a.t }, dir);
@@ -113,4 +113,16 @@ test("bulkCancel fails only queued jobs of that outfit", () => {
   assert.equal(bulkCancel(db, "chat", "day"), 1);
   assert.equal(readJob(db, dayQ)!.status, "error"); assert.equal(readJob(db, dayQ)!.error, "Cancelled.");
   assert.equal(readJob(db, nightQ)!.status, "queued"); assert.equal(readJob(db, dayR)!.status, "running");
+});
+test("approving a generated take never deletes an adopted library base", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sprites-svc-")); dirs.push(dir);
+  fs.writeFileSync(path.join(dir, "lib.png"), "x"); fs.writeFileSync(path.join(dir, "gen.png"), "x");
+  const mk = (n: string) => addItem(db, { kind: "photo", file: n, poster: null, recipe: {}, seed: 1, cost: 0, createdAt: 0 });
+  const lib = mk("lib.png"), gen = mk("gen.png");
+  setBase(db, "chat", "day", lib);
+  const c = cell(db, "chat", "day", "@base", "");
+  const t = addTake(db, c.id, 99, 1, {}); linkTakeItem(db, t, gen);
+  decide(db, c.id, { approve: t }, dir);
+  assert.ok(readItem(db, lib)); assert.ok(fs.existsSync(path.join(dir, "lib.png")));
+  assert.equal(cell(db, "chat", "day", "@base", "").approvedTake, t);
 });
