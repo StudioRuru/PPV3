@@ -146,6 +146,7 @@ export function SpriteStudio({ open, onClose, settings, onSave }: {
       className="h-[94dvh] rounded-t-2xl border-t lg:h-auto lg:max-w-xl lg:rounded-none lg:border-l">
       <header className="flex items-center gap-2 p-3">
         <h2 className="flex-1 text-base font-semibold">Sprite studio</h2>
+        <button type="button" onClick={() => { close(); window.dispatchEvent(new CustomEvent("comfy:sprites")); (window as unknown as { studioIntent?: (i: unknown) => void }).studioIntent?.({ tab: "comfy" }); }} className="text-accent-ink h-11 shrink-0 px-2 text-sm">Open Sprites studio</button>
         <button type="button" onClick={close} aria-label="Close" className="border-border h-11 w-11 shrink-0 rounded-full border">×</button>
       </header>
       <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>

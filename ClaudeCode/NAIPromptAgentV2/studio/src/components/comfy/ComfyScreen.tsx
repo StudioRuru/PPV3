@@ -9,10 +9,11 @@ import { requestJson } from "@/lib/net";
 import { PhotoPane } from "./PhotoPane";
 import { LibraryPane } from "./LibraryPane";
 import { VideoPane } from "./VideoPane";
+import { SpritesScreen } from "./sprites/SpritesScreen";
 import { GpuLine, type EngineAction } from "./GpuLine";
 
-type Sub = "photo" | "video" | "library";
-const SUBS: { id: Sub; label: string }[] = [{ id: "photo", label: "Photo" }, { id: "video", label: "Video" }, { id: "library", label: "Library" }];
+type Sub = "photo" | "video" | "sprites" | "library";
+const SUBS: { id: Sub; label: string }[] = [{ id: "photo", label: "Photo" }, { id: "video", label: "Video" }, { id: "sprites", label: "Sprites" }, { id: "library", label: "Library" }];
 const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** ComfyUI tab: GPU status line + sub-tabs. Opening the tab pre-warms the GPU once; the prompt and drawer work whatever the GPU is doing. */
@@ -47,6 +48,12 @@ export function ComfyScreen({ active }: { active: boolean }) {
     if ("main" in r.data) { setView(r.data.main); setBoostView(r.data.boost ?? null); } else setView(r.data);
   };
 
+  useEffect(() => { // "Open Sprites studio" in the mascot sprite studio
+    const f = () => setSub("sprites");
+    window.addEventListener("comfy:sprites", f);
+    return () => window.removeEventListener("comfy:sprites", f);
+  }, []);
+
   useEffect(() => {
     if (!active) return;
     if (!warmed.current) { warmed.current = true; requestJson<EngineView>("/api/comfy/engine", post({ action: "warm" })).then(apply); }
@@ -71,7 +78,6 @@ export function ComfyScreen({ active }: { active: boolean }) {
           <button key={s.id} type="button" role="tab" aria-selected={sub === s.id} onClick={() => setSub(s.id)}
             className={`h-9 rounded-full border px-4 text-sm ${sub === s.id ? "bg-accent text-accent-fg border-accent font-semibold" : "border-border text-muted"}`}>{s.label}</button>
         ))}
-        <button type="button" role="tab" disabled aria-selected={false} className="border-border text-faint h-9 rounded-full border px-4 text-sm opacity-60">Sprites — soon</button>
       </div>
       <div className={sub === "photo" ? "space-y-3" : "hidden"}>
         <PhotoPane active={active && sub === "photo"} view={view} prompt={prompt} onPrompt={setPrompt} onShot={setLastPhoto} load={loadPhoto} />
@@ -79,6 +85,7 @@ export function ComfyScreen({ active }: { active: boolean }) {
       <div className={sub === "video" ? "space-y-3" : "hidden"}>
         <VideoPane view={view} boostView={boostView} lastPhoto={lastPhoto} load={loadVideo} />
       </div>
+      {sub === "sprites" && <SpritesScreen active={active} />}
       {sub === "library" && <LibraryPane onReuse={reuse} onAnimate={animate} />}
     </section>
   );
