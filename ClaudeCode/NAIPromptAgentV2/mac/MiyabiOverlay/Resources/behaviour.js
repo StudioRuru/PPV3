@@ -116,3 +116,4 @@ var Behaviour = (() => {
   }
   return __toCommonJS(behaviour_exports);
 })();
+globalThis.Behaviour = Behaviour;
