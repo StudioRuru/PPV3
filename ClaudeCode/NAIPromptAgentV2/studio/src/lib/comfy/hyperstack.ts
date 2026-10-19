@@ -94,6 +94,8 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
       if (!(await findVolume(name))) await call("POST", "/core/volumes", { name, environment_name: env, size: sizeGb, volume_type: "Cloud-SSD", description: LABEL });
       const t0 = Date.now();
       for (let v = await findVolume(name); v?.status !== "AVAILABLE"; v = await findVolume(name)) {
+        // RESERVED = stranded by a VM hibernated or deleted with it attached; only Hyperstack support (or deleting it) frees it.
+        if (v?.status === "RESERVED") throw new HyperstackError(`hyperstack volume ${name}: RESERVED, needs Hyperstack support`, 409);
         if (Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack volume ${name}: ${v?.status ?? "missing"} after 5 min`, 408);
         await sleep(pollMs);
       }
