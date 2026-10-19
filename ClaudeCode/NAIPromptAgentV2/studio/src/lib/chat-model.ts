@@ -1,9 +1,9 @@
 import { EXPRESSIONS } from "./mascot/core";
-import { DATA_RECEIVED } from "./mascot/slime";
+import { DATA_RECEIVED, sliderBlock } from "./mascot/slime";
 import type { ThreadStore } from "./threads";
 import { slimePersona, type Identity } from "./mascot/identity";
 import { deltaChips } from "./mascot/ui";
-import type { Vial } from "./mascot/vial";
+import { vialsBlock, type Vial } from "./mascot/vial";
 import { personaBlock, type PersonaId } from "./persona";
 import { tierModel } from "./tiers";
 
@@ -14,13 +14,19 @@ export function modelFor(persona: PersonaId, get: (key: string) => string | null
 
 const TAG_RULE = `End every reply with exactly one expression tag, after everything else (after any json block too), chosen from: ${EXPRESSIONS.map((e) => `[${e}]`).join(" ")}. Example: [smug]`;
 
-/** Persona block (+ Ollama options) for a thread: Miyabi speaks as the active slime, reply length and num_predict from its length slider. */
-export function chatPersona(persona: PersonaId, drift: number, identity: () => Identity, companion = false): { block: string; options?: Record<string, unknown> } {
+/**
+ * Persona block (+ Ollama options) for a thread. Miyabi speaks as the active slime; her sliders, potions and reply length
+ * come back separately as `mood`, which callers put last so later rules can't drown it out.
+ */
+export function chatPersona(persona: PersonaId, drift: number, identity: () => Identity, companion = false): { block: string; mood?: string; options?: Record<string, unknown> } {
   if (persona !== "miyabi") return { block: personaBlock(persona, drift) };
   const i = identity();
   if (i.empty) return { block: slimePersona(i, true), options: { num_predict: 800 } };
-  const len = `Keep each reply to ${i.lengthShape.talk}${companion ? "" : " (a json patch block doesn't count)"}.`;
-  return { block: `${slimePersona(i, true)}\n${len}\n${TAG_RULE}`, options: { num_predict: companion ? i.lengthShape.talkPredict : Math.max(i.lengthShape.talkPredict, 800) } }; // co-pilot needs room for patch cards
+  const mood = [`# ${i.selfName}'s state right now (overrides her usual voice and the rules above where they conflict)`,
+    sliderBlock(i.sliders, i.selfName, { length: false }), vialsBlock(i.vials),
+    `Keep each reply to ${i.lengthShape.talk}${companion ? "" : " (a json patch block doesn't count)"}.`].filter(Boolean).join("\n");
+  return { block: `${personaBlock("miyabi", i.drift, { name: i.selfName, voice: i.voice })}\n${TAG_RULE}`, mood,
+    options: { num_predict: companion ? i.lengthShape.talkPredict : Math.max(i.lengthShape.talkPredict, 800) } }; // co-pilot needs room for patch cards
 }
 
 /** Empty slime on a Miyabi thread: store the exchange with "Data received." and return it to stream; null = normal path. No model involved. */
@@ -43,7 +49,7 @@ export function aruContext(recipes: V[], bottles: Pick<V, "name">[]): string {
 /** Aru isn't a prompt co-pilot: no patch-card format, just her persona + shop data. */
 export const aruSystem = (block: string, ctx: string, note: string) => [block, ctx, note].filter(Boolean).join("\n\n");
 
-export const COMPANION_RULES = "This is a private one-on-one chat between friends, not a studio session. No prompt help, tags or code blocks unless the owner explicitly asks about the studio. Text like a familiar friend: short and natural. Bring up memories the way a friend would, never as a readout.";
+export const COMPANION_RULES = "This is a private one-on-one chat between friends, not a studio session. No prompt help, tags or code blocks unless the owner explicitly asks about the studio. Text like a familiar friend, naturally. Bring up memories the way a friend would, never as a readout.";
 
-/** Just Chat: persona, then what she remembers, then the friend rules. No co-pilot prompt. */
-export const companionSystem = (block: string, notebook: string, note: string) => [block, notebook, COMPANION_RULES, note].filter(Boolean).join("\n\n");
+/** Just Chat: persona, then what she remembers, then the friend rules, then her current state (mood). No co-pilot prompt. */
+export const companionSystem = (block: string, notebook: string, note: string, mood = "") => [block, notebook, COMPANION_RULES, mood, note].filter(Boolean).join("\n\n");

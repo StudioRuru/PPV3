@@ -18,7 +18,9 @@ test("chatPersona: miyabi threads take persona + talk length from the active ide
   const kit = () => { reads++; return identityOf({ ...D, voice: "You are Kit.", selfName: "Kit", sliders: { ...D.sliders, length: { value: 9, cap: 10 } } }, 40); };
   const m = chatPersona("miyabi", 0, kit);
   assert.match(m.block, /# Personality: Kit\nYou are Kit\./);
-  assert.match(m.block, /Kit is a smug show-off/);
+  assert.match(m.mood!, /^# Kit's state right now/);
+  assert.match(m.mood!, /Kit is a smug show-off/);
+  assert.doesNotMatch(m.block, /smug show-off/, "slider directives live in mood, not the persona block");
   assert.match(m.block, /intensity 40\/100/);
   assert.deepEqual(m.options, { num_predict: 900 });
   assert.match(m.block, /End every reply with exactly one expression tag/);
@@ -38,11 +40,11 @@ test("chat honors the length slider: talk rule in both modes; co-pilot keeps 800
   const short = () => identityOf({ ...D, sliders: { ...D.sliders, length: { value: 2, cap: 10 } } }, 0);
   const m = chatPersona("miyabi", 0, short);
   assert.doesNotMatch(m.block, /Keep replies to/, "no quip rule");
-  assert.match(m.block, /Keep each reply to 1–2 short sentences.*json patch block/);
+  assert.match(m.mood!, /Keep each reply to 1–2 short sentences.*json patch block/);
   assert.deepEqual(m.options, { num_predict: 800 });
   const c = chatPersona("miyabi", 0, short, true);
-  assert.match(c.block, /Keep each reply to 1–2 short sentences, like a quick text\./);
-  assert.doesNotMatch(c.block, /json patch block/);
+  assert.match(c.mood!, /Keep each reply to 1–2 short sentences, like a quick text\./);
+  assert.doesNotMatch(c.mood!, /json patch block/);
   assert.deepEqual(c.options, { num_predict: 250 });
 });
 
@@ -108,4 +110,17 @@ test("companion system puts the relationship after the persona and has no co-pil
   assert.ok(s.endsWith("NOTE"));
   assert.doesNotMatch(s, /patch card|```json/i);
   assert.equal(companionSystem("P", "", "N"), ["P", COMPANION_RULES, "N"].join("\n\n"));
+});
+
+test("heat/hypnosis reach Just Chat after the friend rules and notebook, just before the note", async () => {
+  const { chatPersona } = await import("./chat-model");
+  const { identityOf } = await import("./mascot/identity");
+  const { DEFAULT_MASCOT_SETTINGS: D } = await import("./mascot/settings");
+  const hot = () => identityOf({ ...D, sliders: { ...D.sliders, heat: { value: 8, cap: 10 }, hypnosis: { value: 6, cap: 10 } } }, 0);
+  const p = chatPersona("miyabi", 0, hot, true);
+  const s = companionSystem(p.block, "# You and the owner\nclose", "NOTE", p.mood);
+  const at = (re: RegExp) => s.search(re);
+  assert.ok(at(/heavy heat/) > s.indexOf(COMPANION_RULES), "heat after friend rules");
+  assert.ok(at(/hypnosis level 6\/10/) > s.indexOf("# You and the owner"), "hypnosis after notebook");
+  assert.ok(at(/heavy heat/) < s.indexOf("NOTE") && s.endsWith("NOTE"));
 });
