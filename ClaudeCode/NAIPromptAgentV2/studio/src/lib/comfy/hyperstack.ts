@@ -111,9 +111,12 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
       await call("POST", `/core/virtual-machines/${vmId}/attach-volumes`, { volume_ids: [v.id] });
     },
 
-    async hibernate(id: string): Promise<void> {
+    async hibernate(id: string, volumeName?: string): Promise<void> {
       // SHUTOFF still bills and can't hibernate: start it first.
       if ((await status(id)) === "SHUTOFF") await start(id);
+      // A hibernated VM keeps its volumes, which strands the models if its card goes out of stock: detach first (restore re-attaches; the pod mounts on boot).
+      const v = volumeName ? await findVolume(volumeName) : null;
+      if (v) await call("POST", `/core/virtual-machines/${id}/detach-volumes`, { volume_ids: [v.id] }).catch((e) => console.warn("comfy models volume detach failed:", e instanceof Error ? e.message : "unknown"));
       await call("GET", `/core/virtual-machines/${id}/hibernate`, undefined, [404]);
     },
 

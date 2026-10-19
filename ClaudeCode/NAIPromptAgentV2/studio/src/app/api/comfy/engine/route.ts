@@ -35,8 +35,8 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     if (err instanceof Refused) return NextResponse.json({ error: err.message }, { status: 409 });
-    // Upstream bodies can carry request details: log name/status only, answer generically.
-    console.error("comfy engine route failed:", err instanceof Error ? err.name : "unknown", (err as { status?: number })?.status ?? "");
+    // HyperstackError messages are key-scrubbed; answer generically.
+    console.error("comfy engine route failed:", err instanceof Error ? `${err.name}: ${err.message.slice(0, 300)}` : "unknown");
     return NextResponse.json({ error: "The GPU service failed — try again." }, { status: 500 });
   }
 }

@@ -102,10 +102,16 @@ export function engine(d: Deps) {
           // ponytail: no swap back once a pricier card is kept; flush to re-pick the cheapest.
           if (!(e instanceof NoCapacity) || !modelsVolume(card) || !(o = await pick(card))) throw e;
           await hs.remove(vm.vmId);
+          // Hyperstack can accept the delete of a hibernated VM yet keep it, and the models volume with it: keep the row.
+          if ((await hs.status(vm.vmId)) === "HIBERNATED") throw new NoCapacity(`hyperstack ${vm.vmId}: still hibernated after delete`, 409);
           dropVm(db, card);
         }
       }
-      if (vm && !o) row = { ...vm, status: "starting" };
+      if (vm && !o) {
+        const vol = modelsVolume(card);
+        if (vol) hs.attachWhenActive(vm.vmId, vol.name).catch((e) => console.error("comfy models volume attach failed:", e instanceof Error ? e.message : "unknown"));
+        row = { ...vm, status: "starting" };
+      }
       else {
         o ??= await pick(card);
         if (!o) { unavailable.add(card); return out(); }
@@ -156,7 +162,7 @@ export function engine(d: Deps) {
       else if (del) { await hs.remove(vm.vmId); finish(false); }
       else if (s === "HIBERNATED") finish(true);
       else {
-        await hs.hibernate(vm.vmId);
+        await hs.hibernate(vm.vmId, modelsVolume(card)?.name);
         if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else { if (!isStopping(vm)) hibSince.set(card, d.now()); setStatus(vm, `${isStopping(vm) ? "stopping" : "hibernating"}:${reason}`); } // tick confirms; a retry that is still unconfirmed keeps the alarm
       }
     } catch {

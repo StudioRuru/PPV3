@@ -17,7 +17,7 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
   let now = T0;
   const log: string[] = [];
   const vms = new Map<string, string>(); // id -> status
-  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, restoreFails: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[] };
+  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, restoreFails: false, removeNoop: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[] };
   let n = 0;
   const hs = {
     offers: async (min: number) => o.offers.filter((x) => x.vramGb >= min).sort((a, b) => a.usdHr - b.usdHr),
@@ -29,7 +29,7 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
     hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); },
     restore: async (id: string) => { if (o.restoreFails) throw new NoCapacity("Not Enough Stock", 400); vms.set(id, "BUILD"); log.push(`restore ${id}`); },
     start: async () => {},
-    remove: async (id: string) => { if (o.removeFails) throw new Error("rm"); vms.delete(id); log.push(`remove ${id}`); },
+    remove: async (id: string) => { if (o.removeFails) throw new Error("rm"); if (!o.removeNoop) vms.delete(id); log.push(`remove ${id}`); },
     listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
   } as unknown as Hyperstack;
   const pinged: string[] = [];
@@ -120,6 +120,31 @@ test("hibernated card out of stock: swaps to the cheapest in-stock card on the s
   assert.equal(v.gpu, "fa");
   assert.deepEqual(s.log, ["create nai-comfy-main", "hibernate vm1", "remove vm1", "create nai-comfy-main"]);
   assert.deepEqual(s.o.vols, ["ensure nai-comfy-main-models e 150", "create e", "attach vm2 nai-comfy-main-models"]);
+});
+
+test("swap whose delete Hyperstack ignores keeps the hibernated row and goes unavailable", async () => {
+  const s = setup([main, a100]);
+  s.o.vol = { env: "e" };
+  await s.e.warm();
+  await s.e.stop("main", "manual");
+  s.o.offers = [a100];
+  s.o.restoreFails = true;
+  s.o.removeNoop = true;
+  const v = await s.e.warm();
+  assert.equal(v.phase, "unavailable");
+  assert.equal(v.kept, true);
+  assert.equal(getVm(s.db, "main")?.vmId, "vm1");
+  assert.deepEqual(s.log, ["create nai-comfy-main", "hibernate vm1", "remove vm1"]);
+});
+
+test("restore re-attaches the models volume detached at hibernate", async () => {
+  const s = setup();
+  s.o.vol = { env: "e" };
+  await s.e.warm();
+  await s.e.stop("main", "manual");
+  s.o.vols.length = 0;
+  await s.e.warm();
+  assert.deepEqual(s.o.vols, ["attach vm1 nai-comfy-main-models"]);
 });
 
 test("hibernated card out of stock with nothing else in stock stays kept and unavailable", async () => {
