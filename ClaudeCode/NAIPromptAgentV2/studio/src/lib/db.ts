@@ -3,6 +3,7 @@ import fs from "node:fs";
 import Database from "better-sqlite3";
 import { DATA_DIR, DB_PATH } from "@/lib/env";
 import { migrateChat } from "@/lib/threads";
+import { migrateNotebook } from "@/lib/companion/notebook";
 import { migrateRp } from "@/lib/rp/schema";
 import { migrateMascot } from "@/lib/mascot/store";
 import { migrateSlimes } from "@/lib/mascot/slime-store";
@@ -43,6 +44,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
   content TEXT NOT NULL
 )`);
 migrateChat(db);
+migrateNotebook(db);
 // Taste learning (Chat 2.0): what the owner applies, likes and dislikes, plus rules they pin.
 db.exec(`CREATE TABLE IF NOT EXISTS taste_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, kind TEXT NOT NULL,
