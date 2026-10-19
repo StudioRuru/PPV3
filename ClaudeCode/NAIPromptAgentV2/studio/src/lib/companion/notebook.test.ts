@@ -57,3 +57,19 @@ test("new notes carry their provenance", () => {
   assert.equal(n.thread_id, 7);
   assert.equal(n.msg_index, 11);
 });
+
+test("an update cannot collide with an existing or tombstoned text", () => {
+  const nb = mk();
+  nb.apply({ add: [fact("likes rain"), fact("likes tea"), fact("has a cat")] }, from);
+  const id = (t: string) => nb.live().find((x) => x.text === t)!.id;
+  nb.ownerDelete(id("has a cat"));
+  nb.apply({ update: [{ id: id("likes tea"), text: "Likes  rain" }, { id: id("likes rain"), text: "HAS a cat" }] }, from);
+  assert.deepEqual(nb.live().map((x) => x.text).sort(), ["likes rain", "likes tea"]);
+});
+
+test("stance rows are not tombstones", () => {
+  const nb = mk();
+  nb.apply({ stance: "warming up" }, from);
+  nb.ownerDelete(nb.live()[0].id);
+  assert.deepEqual(nb.tombstones(), []);
+});

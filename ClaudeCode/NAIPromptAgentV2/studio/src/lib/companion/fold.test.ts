@@ -63,3 +63,21 @@ test("nothing settled is idle", async () => {
 });
 
 test("bumpTurn increments the shared counter", () => { const a = currentTurn(); bumpTurn(); assert.equal(currentTurn(), a + 1); });
+
+test("3 consecutive failures skip the batch; done resets the count", async () => {
+  const { noteFold, FOLD_BATCH } = await import("./fold");
+  const s = setup(8); // settled 6
+  assert.equal(noteFold(s.id, "failed", s.store), false);
+  assert.equal(noteFold(s.id, "failed", s.store), false);
+  noteFold(s.id, "done", s.store);
+  assert.equal(noteFold(s.id, "failed", s.store), false);
+  assert.equal(noteFold(s.id, "failed", s.store), false);
+  assert.equal(s.store.foldState(s.id)!.folded, 0);
+  assert.equal(noteFold(s.id, "failed", s.store), true);
+  assert.equal(s.store.foldState(s.id)!.folded, Math.min(6, FOLD_BATCH));
+});
+
+test("an early t0 snapshot aborts the pass", async () => {
+  const s = setup(8);
+  assert.equal(await foldOnce(s.id, { ...deps(s, say("{}"), () => 5), t0: 4 }), "aborted");
+});

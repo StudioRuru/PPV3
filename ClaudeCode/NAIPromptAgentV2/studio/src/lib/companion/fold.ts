@@ -3,10 +3,10 @@ import type { Notebook, NoteOps } from "./notebook";
 
 export const FOLD_BATCH = 40;
 
-export type PassDeps = { store: ThreadStore; notes: Notebook; stream: (system: string, user: string) => AsyncIterable<string>; turn: () => number; name: string };
+export type PassDeps = { store: ThreadStore; notes: Notebook; stream: (system: string, user: string) => AsyncIterable<string>; turn: () => number; name: string; /** turn snapshot taken by the caller before any await */ t0?: number };
 
 // route bundles get separate module instances, so the counter lives on globalThis
-const g = globalThis as { __companionTurn?: number; __companionFold?: boolean };
+const g = globalThis as { __companionTurn?: number; __companionFold?: boolean; __companionFails?: Map<number, number> };
 export const bumpTurn = (): void => { g.__companionTurn = (g.__companionTurn ?? 0) + 1; };
 export const currentTurn = (): number => g.__companionTurn ?? 0;
 
@@ -57,7 +57,7 @@ export async function foldOnce(thread: number, d: PassDeps): Promise<"done" | "a
   if (!f || f.folded >= f.settled) return "idle";
   const end = Math.min(f.settled, f.folded + FOLD_BATCH);
   const batch = d.store.messages(thread).slice(f.folded, end);
-  const t0 = d.turn();
+  const t0 = d.t0 ?? d.turn();
   const { system, user } = prompt(d, batch);
   let out = "";
   for await (const c of d.stream(system, user)) {
@@ -72,21 +72,38 @@ export async function foldOnce(thread: number, d: PassDeps): Promise<"done" | "a
   return "done";
 }
 
+export const FOLD_MAX_FAILS = 3;
+/** Count a failed batch; on the 3rd in a row skip it (advance the mark) so one stuck thread can't pin the notebook. */
+export function noteFold(thread: number, r: "done" | "aborted" | "failed" | "idle", store: ThreadStore): boolean {
+  const fails = (g.__companionFails ??= new Map());
+  if (r !== "failed") { if (r === "done") fails.delete(thread); return false; }
+  const n = (fails.get(thread) ?? 0) + 1;
+  console.warn(`companion: fold failed for thread ${thread} (${n}/${FOLD_MAX_FAILS})`);
+  if (n < FOLD_MAX_FAILS) { fails.set(thread, n); return false; }
+  fails.delete(thread);
+  const f = store.foldState(thread);
+  if (f) { store.setFolded(thread, Math.min(f.settled, f.folded + FOLD_BATCH)); console.warn(`companion: skipped a stuck batch for thread ${thread}`); }
+  return true;
+}
+
 /** Single-flight drain over companion threads with unfolded history; never throws. */
 export function companionFold(): void {
   if (g.__companionFold) return;
   g.__companionFold = true;
+  const t0 = currentTurn(); // before any await, so a reply sent right after a branch aborts this fold
   void (async () => {
     try {
       // lazy: importing these opens the live DB
       const [{ db, getSetting }, { chatStream, heavyGate }, { modelFor }, { BRAIN_MODEL }, { activeIdentity }, { ThreadStore }, { Notebook }] = await Promise.all([
         import("@/lib/db"), import("@/lib/llm"), import("@/lib/chat-model"), import("@/lib/env"), import("@/lib/mascot/quip"), import("../threads"), import("./notebook"),
       ]);
+      if (heavyGate.state === "light") return; // the next companion reply folds while the heavy model is loaded
       const store = new ThreadStore(db), notes = new Notebook(db);
       const stream = (system: string, user: string) => chatStream(system, [{ role: "user", content: user }], { model: modelFor("miyabi", getSetting, BRAIN_MODEL), options: { temperature: 0.3, num_predict: 700 } });
       for (const id of store.companionThreads()) {
-        const r = await heavyGate.run(() => foldOnce(id, { store, notes, stream, turn: currentTurn, name: activeIdentity().selfName }));
-        if (r === "aborted" || r === "failed") break;
+        const r = await heavyGate.run(() => foldOnce(id, { store, notes, stream, turn: currentTurn, name: activeIdentity().selfName, t0 }));
+        if (r === "aborted") break;
+        noteFold(id, r, store);
       }
     } catch (e) { console.warn(`companion: fold stopped: ${e instanceof Error ? e.message : e}`); }
     finally { g.__companionFold = false; }

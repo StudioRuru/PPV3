@@ -26,20 +26,20 @@ export class Notebook {
   }
 
   tombstones(limit = 50): string[] {
-    return (this.db.prepare("SELECT text FROM companion_notes WHERE deleted = 1 ORDER BY updated_at DESC, id DESC LIMIT ?").all(limit) as { text: string }[]).map((r) => r.text);
+    return (this.db.prepare("SELECT text FROM companion_notes WHERE deleted = 1 AND kind != 'stance' ORDER BY updated_at DESC, id DESC LIMIT ?").all(limit) as { text: string }[]).map((r) => r.text);
   }
 
   apply(ops: NoteOps, from: { thread: number; at: number }): void {
     const db = this.db;
     db.transaction(() => {
       const now = Date.now();
+      const seen = new Set((db.prepare("SELECT text FROM companion_notes WHERE kind != 'stance'").all() as { text: string }[]).map((r) => norm(r.text)));
       const unpinnedLive = (id: number) => !!db.prepare("SELECT 1 FROM companion_notes WHERE id = ? AND deleted = 0 AND pinned = 0 AND kind != 'stance'").get(id);
       for (const u of ops.update ?? []) {
         const text = clean(u.text);
-        if (text && unpinnedLive(u.id)) db.prepare("UPDATE companion_notes SET text = ?, updated_at = ? WHERE id = ?").run(text, now, u.id);
+        if (text && !seen.has(norm(text)) && unpinnedLive(u.id)) db.prepare("UPDATE companion_notes SET text = ?, updated_at = ? WHERE id = ?").run(text, now, u.id);
       }
       for (const id of ops.remove ?? []) if (unpinnedLive(id)) db.prepare("DELETE FROM companion_notes WHERE id = ?").run(id);
-      const seen = new Set((db.prepare("SELECT text FROM companion_notes WHERE kind != 'stance'").all() as { text: string }[]).map((r) => norm(r.text)));
       for (const a of ops.add ?? []) {
         const text = clean(a.text);
         if (!text || (a.kind !== "fact" && a.kind !== "moment") || seen.has(norm(text))) continue;

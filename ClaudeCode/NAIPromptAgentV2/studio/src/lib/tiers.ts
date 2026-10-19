@@ -96,7 +96,7 @@ export class HeavyGate {
     if (this.pausing) await this.pausing;
     if (this.restoring) await this.restoring;
     if (this.state === "light") return true;
-    if (this.users > 0) return false;
+    if (this.users > 0) { (globalThis as { __companionTurn?: number }).__companionTurn = ((globalThis as { __companionTurn?: number }).__companionTurn ?? 0) + 1; return false; } // same counter as bumpTurn in companion/fold.ts: aborts a running fold
     await this.restore();
     return true;
   }
