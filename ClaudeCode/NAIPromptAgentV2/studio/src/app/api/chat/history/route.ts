@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { companionFold } from "@/lib/companion/fold";
 import { db } from "@/lib/db";
 import { ThreadStore } from "@/lib/threads";
 
@@ -19,6 +20,7 @@ export async function PUT(req: Request) {
   if (typeof b.thread !== "number" || !store.list().some((t) => t.id === b.thread) || !Array.isArray(b.messages)) return NextResponse.json({ error: "Bad request." }, { status: 400 });
   const ok = store.replace(b.thread, b.messages.filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content, image: typeof m.image === "string" ? m.image : null })), typeof b.version === "number" ? b.version : undefined);
+  if (ok && store.list().find((t) => t.id === b.thread)?.mode === "companion") companionFold();
   return ok ? NextResponse.json({ ok: true, version: store.version(b.thread) })
     : NextResponse.json({ error: "This chat changed on another device — reloaded it.", conflict: true }, { status: 409 });
 }

@@ -40,3 +40,8 @@ export function aruContext(recipes: V[], bottles: Pick<V, "name">[]): string {
 
 /** Aru isn't a prompt co-pilot: no patch-card format, just her persona + shop data. */
 export const aruSystem = (block: string, ctx: string, note: string) => [block, ctx, note].filter(Boolean).join("\n\n");
+
+export const COMPANION_RULES = "This is a private one-on-one chat between friends, not a studio session. No prompt help, tags or code blocks unless the owner explicitly asks about the studio. Text like a familiar friend: short and natural. Bring up memories the way a friend would, never as a readout.";
+
+/** Just Chat: persona, then what she remembers, then the friend rules. No co-pilot prompt. */
+export const companionSystem = (block: string, notebook: string, note: string) => [block, notebook, COMPANION_RULES, note].filter(Boolean).join("\n\n");

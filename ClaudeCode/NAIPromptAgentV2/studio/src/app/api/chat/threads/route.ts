@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
+import { companionFold } from "@/lib/companion/fold";
 import { db } from "@/lib/db";
 import { DATA_DIR } from "@/lib/env";
 import { asPersona } from "@/lib/persona";
@@ -26,10 +27,16 @@ export function GET() {
   return NextResponse.json({ threads: store().list() });
 }
 
-/** { persona? } → a new empty thread. */
+/** { persona?, mode? } → a new empty thread; { from, at } → a branch of `from` at message `at`. */
 export async function POST(req: NextRequest) {
-  const b = ((await req.json().catch(() => null)) ?? {}) as { persona?: unknown };
-  const id = store().create("New chat", asPersona(b.persona));
+  const b = ((await req.json().catch(() => null)) ?? {}) as { persona?: unknown; mode?: unknown; from?: unknown; at?: unknown };
+  if (b.from !== undefined || b.at !== undefined) {
+    const made = typeof b.from === "number" && typeof b.at === "number" ? store().branch(b.from, b.at) : null;
+    if (made === null) return NextResponse.json({ error: "Can't branch there." }, { status: 400 });
+    companionFold();
+    return NextResponse.json({ id: made, threads: store().list() });
+  }
+  const id = store().create("New chat", asPersona(b.persona), b.mode === "companion" ? "companion" : "copilot");
   return NextResponse.json({ id, threads: store().list() });
 }
 

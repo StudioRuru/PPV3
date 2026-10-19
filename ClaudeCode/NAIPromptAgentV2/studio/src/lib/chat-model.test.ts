@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { modelFor } from "./chat-model";
+import { COMPANION_RULES, companionSystem, modelFor } from "./chat-model";
 
 test("modelFor: miyabi on the heavy tier, Aru on the everyday brain", () => {
   const none = () => null;
@@ -94,4 +94,13 @@ test("emptyChat: empty Miyabi replies 'Data received.', stores both messages, ne
   // Non-empty Miyabi and Aru keep the normal (model) path.
   assert.equal(emptyChat("miyabi", () => identityOf(D, 0), store, id, []), null);
   assert.equal(emptyChat("aru", empty, store, id, []), null);
+});
+
+test("companion system puts the relationship after the persona and has no co-pilot text", () => {
+  const s = companionSystem("PERSONA", "# You and the owner\nclose", "NOTE");
+  assert.ok(s.indexOf("PERSONA") < s.indexOf("# You and the owner"));
+  assert.ok(s.indexOf("# You and the owner") < s.indexOf(COMPANION_RULES));
+  assert.ok(s.endsWith("NOTE"));
+  assert.doesNotMatch(s, /patch card|```json/i);
+  assert.equal(companionSystem("P", "", "N"), ["P", COMPANION_RULES, "N"].join("\n\n"));
 });
