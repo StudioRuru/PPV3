@@ -86,8 +86,8 @@ export function noteFold(thread: number, r: "done" | "aborted" | "failed" | "idl
   return true;
 }
 
-/** Single-flight drain over companion threads with unfolded history; never throws. */
-export function companionFold(): void {
+/** Single-flight drain over companion threads with unfolded history; never throws. `afterReply`: the heavy model is already loaded (or the light servers are off), so fold even when the gate reads "light". */
+export function companionFold(afterReply = false): void {
   if (g.__companionFold) return;
   g.__companionFold = true;
   const t0 = currentTurn(); // before any await, so a reply sent right after a branch aborts this fold
@@ -97,7 +97,7 @@ export function companionFold(): void {
       const [{ db, getSetting }, { chatStream, heavyGate }, { modelFor }, { BRAIN_MODEL }, { activeIdentity }, { ThreadStore }, { Notebook }] = await Promise.all([
         import("@/lib/db"), import("@/lib/llm"), import("@/lib/chat-model"), import("@/lib/env"), import("@/lib/mascot/quip"), import("../threads"), import("./notebook"),
       ]);
-      if (heavyGate.state === "light") return; // the next companion reply folds while the heavy model is loaded
+      if (!afterReply && heavyGate.state === "light") return; // don't power down light servers just for background work; the next reply folds
       const store = new ThreadStore(db), notes = new Notebook(db);
       const stream = (system: string, user: string) => chatStream(system, [{ role: "user", content: user }], { model: modelFor("miyabi", getSetting, BRAIN_MODEL), options: { temperature: 0.3, num_predict: 700 } });
       for (const id of store.companionThreads()) {

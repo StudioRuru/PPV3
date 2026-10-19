@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         const past = strip ? messages.map((m) => (m.role === "assistant" ? { ...m, content: splitExpressionTag(m.content).text } : m)) : messages;
         if (!store.replace(threadId, [...past, { role: "assistant", content: strip ? splitExpressionTag(reply).text : reply }], expect)) {
           put("\n\n⚠️ Not saved: this chat was changed or deleted elsewhere while I was answering.");
-        } else if (companion) companionFold(); // detached: single-flight, never throws
+        } else if (companion) companionFold(true); // detached: single-flight, never throws
       };
       try {
         await (model ? heavyGate.run(answer) : answer());
