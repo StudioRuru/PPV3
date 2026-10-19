@@ -31,7 +31,7 @@ export function SpritesScreen({ active }: { active: boolean }) {
 
   const load = useCallback(async () => {
     const r = await requestJson<State>("/api/sprites");
-    if (r.ok) { setState(r.data); setError(null); } else setError(r.error);
+    if (r.ok) setState(r.data); else setError(r.error); // a refresh never clears an action's error
   }, []);
   const busy = state ? state.bulk.queued + state.bulk.running > 0 || state.cells.some((c) => c.status === "queued" || c.status === "generating") : false;
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -46,7 +46,8 @@ export function SpritesScreen({ active }: { active: boolean }) {
   /** Runs a mutation, then refreshes; errors show in the banner. */
   const run = async (url: string, body: object) => {
     const r = await requestJson(url, post(body));
-    if (!r.ok) setError(r.error); else window.dispatchEvent(new Event("mascot:sprites")); // Chat portraits refetch the library
+    setError(r.ok ? null : r.error);
+    if (r.ok) window.dispatchEvent(new Event("mascot:sprites")); // Chat portraits refetch the library
     await load();
     return r.ok;
   };
@@ -89,7 +90,7 @@ export function SpritesScreen({ active }: { active: boolean }) {
           </form>
           : <button type="button" onClick={() => setAdding(true)} className="border-border text-muted h-11 rounded-full border px-4 text-sm">Add outfit</button>}
       </div>
-      {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+      {error && <button type="button" role="alert" onClick={() => setError(null)} className="bg-surface border-danger text-danger fixed inset-x-4 bottom-24 z-40 mx-auto max-w-lg rounded-lg border p-3 text-left text-sm shadow-lg">{error} <span className="text-faint">· tap to dismiss</span></button>}
       {view !== "size" && <BulkBar key={`${surface}/${outfit}`} surface={surface} outfit={outfit} bulk={state.bulk} onChange={load} />}
       {view === "bases" && <BasesView surface={surface} outfit={outfit} inv={inv} run={run} onAct={act} ensure={ensure} />}
       {view === "grid" && <GridView surface={surface} outfit={outfit} inv={inv} onAct={act} ensure={ensure} />}

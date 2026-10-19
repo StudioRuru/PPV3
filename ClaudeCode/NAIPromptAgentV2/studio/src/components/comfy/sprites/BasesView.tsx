@@ -29,7 +29,8 @@ export function BasesView({ surface, outfit, inv, run, onAct, ensure }: {
   const baseOk = base?.status === "approved";
   const open = openId == null ? null : inv.cells.find((c) => c.id === openId) ?? null;
   const keys = inv.allowed(surface, outfit);
-  const opts = (["chat", "stage"] as const).flatMap((s) => inv.outfits.map((o) => ({ v: `${s}:${o.key}`, t: `${s === "chat" ? "Chat" : "Stage"} · ${o.label}` }))).filter((o) => o.v !== `${surface}:${outfit}`);
+  const opts = (["chat", "stage"] as const).flatMap((s) => inv.outfits.map((o) => ({ v: `${s}:${o.key}`, t: `${s === "chat" ? "Chat" : "Stage"} · ${o.label}` })))
+    .filter((o) => o.v !== `${surface}:${outfit}` && inv.cells.some((c) => `${c.surface}:${c.outfit}` === o.v && c.from === BASE && c.to === "" && c.status === "approved")); // derive copies an approved base
 
   const openPicker = async () => {
     setPicking([]);
@@ -55,12 +56,13 @@ export function BasesView({ surface, outfit, inv, run, onAct, ensure }: {
             <div className="flex items-center gap-2"><Chip s={base?.status ?? "empty"} />{base && base.takes.some((t) => t.file) && <button type="button" onClick={() => setOpenId(base.id)} className={`${btn} border-border text-muted`}>Review takes</button>}</div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => void openPicker()} className={`${btn} border-accent text-accent-ink`}>Pick from Library</button>
-              <button type="button" onClick={() => { setDeriving((d) => !d); setSrc(opts[0]?.v ?? ""); }} className={`${btn} border-border text-muted`}>Derive from…</button>
+              {opts.length > 0 && <button type="button" onClick={() => { setDeriving((d) => !d); setSrc(opts[0]?.v ?? ""); }} className={`${btn} border-border text-muted`}>Derive from…</button>}
             </div>
+            {opts.length === 0 && !baseOk && <p className="text-muted text-xs">Start with a photo from the Library. Once one base is approved, others can be derived from it.</p>}
             {deriving && (
               <form onSubmit={(e) => { e.preventDefault(); void derive(); }} className="flex flex-wrap gap-2">
                 <select aria-label="Derive from" value={src} onChange={(e) => setSrc(e.target.value)} className={field}>{opts.map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}</select>
-                <input value={prompt} onChange={(e) => setPrompt(e.target.value)} aria-label="What changes" placeholder="What changes (e.g. full body, night outfit)" className={`${field} min-w-0 flex-1`} />
+                <input value={prompt} onChange={(e) => setPrompt(e.target.value)} aria-label="What changes" placeholder="What changes (e.g. full body, night outfit)" className={`${field} min-w-0 basis-full`} />
                 <button type="submit" disabled={!prompt.trim() || !src} className={`${btn} border-accent text-accent-ink`}>Make 3 takes</button>
               </form>
             )}
