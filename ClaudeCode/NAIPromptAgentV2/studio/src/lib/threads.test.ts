@@ -78,3 +78,48 @@ test("plan 20: old personas become miyabi, aru stays, messages untouched, second
   migrateChat(db);
   assert.equal(snap(), after);
 });
+
+test("companion thread round-trips its mode; old threads are copilot", () => {
+  const db = mem(); migrateChat(db); const s = new ThreadStore(db);
+  const a = s.create("New chat", "miyabi"); const b = s.create("New chat", "miyabi", "companion");
+  assert.equal(s.list().find((t) => t.id === a)!.mode, "copilot");
+  assert.equal(s.list().find((t) => t.id === b)!.mode, "companion");
+});
+
+test("branch copies messages through `at` and settles the parent", () => {
+  const db = mem(); migrateChat(db); const s = new ThreadStore(db);
+  const p = s.create("Us", "miyabi", "companion");
+  s.replace(p, ["a", "b", "c", "d"].map((c, i) => ({ role: i % 2 ? "assistant" : "user", content: c })));
+  const b = s.branch(p, 1)!;
+  assert.deepEqual(s.messages(b).map((m) => m.content), ["a", "b"]);
+  const t = s.list().find((x) => x.id === b)!;
+  assert.deepEqual([t.parent_id, t.parent_at, t.mode], [p, 1, "companion"]);
+  assert.deepEqual(s.foldState(b), { folded: 2, settled: 2 });
+  assert.deepEqual(s.foldState(p), { folded: 0, settled: 4 }); // branching settles the parent's last pair
+  assert.equal(s.branch(p, 9), null);
+});
+
+test("settled excludes the final pair until the owner moves on", () => {
+  const db = mem(); migrateChat(db); const s = new ThreadStore(db);
+  const t = s.create("Us", "miyabi", "companion");
+  s.replace(t, ["a", "b", "c", "d"].map((c, i) => ({ role: i % 2 ? "assistant" : "user", content: c })));
+  assert.deepEqual(s.foldState(t), { folded: 0, settled: 2 });
+  assert.deepEqual(s.companionThreads(), [t]);
+});
+
+test("replace clamps the fold mark to the common prefix", () => {
+  const db = mem(); migrateChat(db); const s = new ThreadStore(db);
+  const t = s.create("Us", "miyabi", "companion");
+  const m = (xs: string[]) => xs.map((c, i) => ({ role: (i % 2 ? "assistant" : "user") as "user" | "assistant", content: c }));
+  s.replace(t, m(["a", "b", "c", "d", "e", "f"])); s.setFolded(t, 4);
+  s.replace(t, m(["a", "b", "C!", "x"]));   // owner edited message 2 and resent
+  assert.equal(s.foldState(t)!.folded, 2);
+});
+
+test("branch of a deleted parent has no parent", () => {
+  const db = mem(); migrateChat(db); const s = new ThreadStore(db);
+  const p = s.create("Us", "miyabi", "companion");
+  s.replace(p, [{ role: "user", content: "a" }, { role: "assistant", content: "b" }]);
+  const b = s.branch(p, 1)!; s.remove(p);
+  assert.equal(s.list().find((t) => t.id === b)!.parent_id, null);
+});

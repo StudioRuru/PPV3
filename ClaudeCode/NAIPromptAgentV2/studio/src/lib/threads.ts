@@ -2,7 +2,8 @@ import type Database from "better-sqlite3";
 import type { PersonaId } from "./persona";
 
 export type StoredMsg = { role: "user" | "assistant"; content: string; image?: string | null };
-export type Thread = { id: number; title: string; persona: PersonaId; updated_at: number };
+export type ThreadMode = "copilot" | "companion";
+export type Thread = { id: number; title: string; persona: PersonaId; updated_at: number; mode: ThreadMode; parent_id: number | null; parent_at: number | null };
 
 const has = (db: Database.Database, table: string, col: string) =>
   (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
@@ -15,6 +16,11 @@ export function migrateChat(db: Database.Database): void {
   for (const [col, type] of [["thread_id", "INTEGER"], ["image", "TEXT"]] as const) {
     if (!has(db, "chat_messages", col)) {
       try { db.exec(`ALTER TABLE chat_messages ADD COLUMN ${col} ${type}`); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
+    }
+  }
+  for (const [col, type] of [["mode", "TEXT NOT NULL DEFAULT 'copilot'"], ["parent_id", "INTEGER"], ["parent_at", "INTEGER"], ["folded", "INTEGER NOT NULL DEFAULT 0"], ["settled_min", "INTEGER NOT NULL DEFAULT 0"]] as const) {
+    if (!has(db, "chat_threads", col)) {
+      try { db.exec(`ALTER TABLE chat_threads ADD COLUMN ${col} ${type}`); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
     }
   }
   const orphans = (db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE thread_id IS NULL").get() as { n: number }).n;
@@ -39,12 +45,48 @@ export class ThreadStore {
   constructor(private db: Database.Database) {}
 
   list(): Thread[] {
-    return this.db.prepare("SELECT id, title, persona, updated_at FROM chat_threads ORDER BY updated_at DESC").all() as Thread[];
+    return this.db.prepare(
+      `SELECT t.id, t.title, t.persona, t.updated_at, t.mode, p.id AS parent_id, CASE WHEN p.id IS NULL THEN NULL ELSE t.parent_at END AS parent_at
+       FROM chat_threads t LEFT JOIN chat_threads p ON p.id = t.parent_id ORDER BY t.updated_at DESC`).all() as Thread[];
   }
 
-  create(title: string, persona: PersonaId): number {
+  create(title: string, persona: PersonaId, mode: ThreadMode = "copilot"): number {
     const now = Date.now();
-    return Number(this.db.prepare("INSERT INTO chat_threads (title, persona, created_at, updated_at) VALUES (?, ?, ?, ?)").run(title, persona, now, now).lastInsertRowid);
+    return Number(this.db.prepare("INSERT INTO chat_threads (title, persona, mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run(title, persona, mode, now, now).lastInsertRowid);
+  }
+
+  /** A new companion thread holding messages 0..at of `from`; that prefix is the parent's to fold, and the parent's tail settles. */
+  branch(from: number, at: number): number | null {
+    return this.db.transaction(() => {
+      const p = this.db.prepare("SELECT title, persona, mode FROM chat_threads WHERE id = ?").get(from) as { title: string; persona: PersonaId; mode: ThreadMode } | undefined;
+      const msgs = this.messages(from);
+      if (!p || p.mode !== "companion" || !Number.isInteger(at) || at < 0 || at >= msgs.length) return null;
+      const now = Date.now();
+      const id = Number(this.db.prepare("INSERT INTO chat_threads (title, persona, mode, parent_id, parent_at, folded, settled_min, created_at, updated_at) VALUES (?, ?, 'companion', ?, ?, ?, ?, ?, ?)")
+        .run(`↳ ${p.title}`.slice(0, 80), p.persona, from, at, at + 1, at + 1, now, now).lastInsertRowid);
+      const ins = this.db.prepare("INSERT INTO chat_messages (created_at, role, content, thread_id, image) VALUES (?, ?, ?, ?, ?)");
+      msgs.slice(0, at + 1).forEach((m) => ins.run(now, m.role, m.content, id, m.image ?? null));
+      this.db.prepare("UPDATE chat_threads SET settled_min = MAX(settled_min, ?) WHERE id = ?").run(msgs.length, from);
+      return id;
+    })();
+  }
+
+  /** folded = messages the notebook has absorbed; settled = messages old enough to absorb (the final pair waits until the owner moves on). */
+  foldState(id: number): { folded: number; settled: number } | null {
+    const t = this.db.prepare("SELECT folded, settled_min FROM chat_threads WHERE id = ?").get(id) as { folded: number; settled_min: number } | undefined;
+    if (!t) return null;
+    const len = this.messages(id).length;
+    return { folded: t.folded, settled: Math.min(len, Math.max(len - 2, t.settled_min)) };
+  }
+
+  setFolded(id: number, n: number): void {
+    this.db.prepare("UPDATE chat_threads SET folded = ? WHERE id = ?").run(n, id);
+  }
+
+  /** Companion threads with something left to fold, oldest first. */
+  companionThreads(): number[] {
+    return (this.db.prepare("SELECT id FROM chat_threads WHERE mode = 'companion' ORDER BY updated_at").all() as { id: number }[])
+      .filter((r) => { const f = this.foldState(r.id)!; return f.folded < f.settled; }).map((r) => r.id);
   }
 
   update(id: number, patch: { title?: string; persona?: PersonaId }): void {
@@ -71,6 +113,10 @@ export class ThreadStore {
     return this.db.transaction(() => {
       const v = this.version(id);
       if (v === null || (expect !== undefined && v !== expect)) return false;
+      const old = this.messages(id);
+      let common = 0; // the fold mark can't outlive an edit: clamp it to the shared prefix
+      while (common < old.length && common < msgs.length && old[common].role === msgs[common].role && old[common].content === msgs[common].content) common++;
+      this.db.prepare("UPDATE chat_threads SET folded = MIN(folded, ?), settled_min = MIN(settled_min, ?) WHERE id = ?").run(common, common, id);
       this.db.prepare("DELETE FROM chat_messages WHERE thread_id = ?").run(id);
       msgs.forEach((m) => ins.run(now, m.role, m.content, id, m.image ?? null));
       const t = this.db.prepare("SELECT title FROM chat_threads WHERE id = ?").get(id) as { title: string } | undefined;
