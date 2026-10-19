@@ -31,14 +31,19 @@ test("chatPersona: miyabi threads take persona + talk length from the active ide
   assert.equal(reads, 1, "identity only read for miyabi");
 });
 
-test("final review: deep talk drops the quip length rule and never predicts under 800", async () => {
+test("chat honors the length slider: talk rule in both modes; co-pilot keeps 800 for cards, Just Chat caps at talkPredict", async () => {
   const { chatPersona } = await import("./chat-model");
   const { identityOf } = await import("./mascot/identity");
   const { DEFAULT_MASCOT_SETTINGS: D } = await import("./mascot/settings");
   const short = () => identityOf({ ...D, sliders: { ...D.sliders, length: { value: 2, cap: 10 } } }, 0);
   const m = chatPersona("miyabi", 0, short);
-  assert.doesNotMatch(m.block, /Keep replies to/);
+  assert.doesNotMatch(m.block, /Keep replies to/, "no quip rule");
+  assert.match(m.block, /Keep each reply to 1–2 short sentences.*json patch block/);
   assert.deepEqual(m.options, { num_predict: 800 });
+  const c = chatPersona("miyabi", 0, short, true);
+  assert.match(c.block, /Keep each reply to 1–2 short sentences, like a quick text\./);
+  assert.doesNotMatch(c.block, /json patch block/);
+  assert.deepEqual(c.options, { num_predict: 250 });
 });
 
 test("aru: everyday brain, own persona (no slime identity), context quotes + caps", async () => {

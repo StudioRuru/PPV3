@@ -52,11 +52,11 @@ test("bimbo/hypnosis reuse rp/mods prose; live overrides value", () => {
 });
 
 test("lengthShape bands", () => {
-  assert.deepEqual(lengthShape(0), { sentences: "one short burst", quipPredict: 60, talkPredict: 250 });
+  assert.deepEqual(lengthShape(0), { sentences: "one short burst", talk: "1–2 short sentences, like a quick text", quipPredict: 60, talkPredict: 250 });
   assert.equal(lengthShape(3).quipPredict, 60);
-  assert.deepEqual(lengthShape(4), { sentences: "1–2 sentences", quipPredict: 120, talkPredict: 500 });
+  assert.deepEqual(lengthShape(4), { sentences: "1–2 sentences", talk: "a short paragraph (2–4 sentences)", quipPredict: 120, talkPredict: 500 });
   assert.equal(lengthShape(6).talkPredict, 500);
-  assert.deepEqual(lengthShape(7), { sentences: "a 3–5 sentence tantrum", quipPredict: 220, talkPredict: 900 });
+  assert.deepEqual(lengthShape(7), { sentences: "a 3–5 sentence tantrum", talk: "a full paragraph or two when there's something to say", quipPredict: 220, talkPredict: 900 });
   assert.equal(lengthShape(10).quipPredict, 220);
 });
 

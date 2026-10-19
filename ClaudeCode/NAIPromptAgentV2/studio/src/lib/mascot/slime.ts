@@ -55,15 +55,15 @@ const bimboTier = (L: number) => Math.min(4, Math.floor(L / 2)); // same as rp/m
 const fill = (t: string, L: number, who: string) =>
   t.replace(/\{\{char\}\}|\{who\}/g, who).replace(/\{\{user\}\}/g, "the owner").replace("{L}", String(L)).replace("{P}", String(L * 10));
 
-export const lengthShape = (level: number): { sentences: string; quipPredict: number; talkPredict: number } =>
-  level <= 3 ? { sentences: "one short burst", quipPredict: 60, talkPredict: 250 }
-  : level <= 6 ? { sentences: "1–2 sentences", quipPredict: 120, talkPredict: 500 }
-  : { sentences: "a 3–5 sentence tantrum", quipPredict: 220, talkPredict: 900 };
+export const lengthShape = (level: number): { sentences: string; talk: string; quipPredict: number; talkPredict: number } =>
+  level <= 3 ? { sentences: "one short burst", talk: "1–2 short sentences, like a quick text", quipPredict: 60, talkPredict: 250 }
+  : level <= 6 ? { sentences: "1–2 sentences", talk: "a short paragraph (2–4 sentences)", quipPredict: 120, talkPredict: 500 }
+  : { sentences: "a 3–5 sentence tantrum", talk: "a full paragraph or two when there's something to say", quipPredict: 220, talkPredict: 900 };
 
 const eff = (s: Slider) => s.live ?? s.value;
 
 /** Tier directives per slider at its effective level; "" when everything is 0. Length is shaped via lengthShape. */
-/** opts.length false = no reply-length rule (deep talk sets its own length). */
+/** opts.length false = no reply-length rule (chat sets its own via lengthShape().talk). */
 export function sliderBlock(s: Sliders, who = "Miyabi", opts: { length?: boolean } = {}): string {
   const out: string[] = [];
   const add = (id: Exclude<SliderId, "length">, tiers: string[], pick = tier) => {
