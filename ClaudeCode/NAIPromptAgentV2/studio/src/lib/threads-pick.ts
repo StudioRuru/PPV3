@@ -8,3 +8,6 @@ export const newThreadPersona = (): "miyabi" => "miyabi";
 
 /** Chat tab composer: Miyabi talks on the heavy model, so she needs Ollama reachable, not the brain loaded (the heavy pause unloads it); an empty slime needs no model. */
 export const canCompose = (s: { on: boolean; brain: boolean } | null, empty: boolean): boolean => empty || !!s?.brain;
+
+/** Just Chat threads: no mode chips or patch cards, a notebook instead of taste. */
+export const isCompanion = (t: { mode?: string } | null): boolean => t?.mode === "companion";

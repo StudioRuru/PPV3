@@ -9,7 +9,7 @@ import { requestJson } from "@/lib/net";
 import { learnTags, parseReply, type Op } from "@/lib/patch";
 import type { PersonaId } from "@/lib/persona";
 import type { PromptState } from "@/lib/prompt";
-import { canCompose, chatTabThreads, defaultThreadId, newThreadPersona } from "@/lib/threads-pick";
+import { canCompose, chatTabThreads, defaultThreadId, isCompanion, newThreadPersona } from "@/lib/threads-pick";
 import { PortraitStage } from "./mascot/PortraitStage";
 import { SlidersPanel } from "./mascot/SlidersPanel";
 import { PatchCard } from "./PatchCard";
@@ -18,7 +18,8 @@ import { AutoTextarea } from "./TagInput";
 import { Trash } from "./icons";
 
 type Status = { on: boolean; brain: boolean; caption: boolean; tipo: boolean; power?: boolean; heavy?: boolean; error?: string };
-type Thread = { id: number; title: string; persona: PersonaId; updated_at: number };
+type Thread = { id: number; title: string; persona: PersonaId; updated_at: number; mode?: "copilot" | "companion"; parent_id?: number | null; parent_at?: number | null };
+type Note = { id: number; kind: "fact" | "moment" | "stance"; text: string; thread_id: number; msg_index: number; pinned: boolean; updated_at: number };
 /** cid: client-side id (stable keys for cards/ratings); error: shown locally, never sent or stored. */
 type Msg = ChatMsg & { image?: string | null; cid: string; error?: boolean };
 const withId = (m: ChatMsg & { image?: string | null; cid?: string; error?: boolean }): Msg => ({ ...m, cid: m.cid ?? crypto.randomUUID() });
@@ -66,6 +67,9 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const [confirmReset, setConfirmReset] = useState(false);
   const [tasteOpen, setTasteOpen] = useState(false);
   const [mood, setMood] = useState(false); // sliders sheet
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [noteEdit, setNoteEdit] = useState<{ id: number; text: string } | null>(null);
   // Face to face: her portrait's phase/expression, the outfit rule's inputs, and whether a slime is in.
   const [phase, setPhase] = useState<TalkPhase>("idle");
   const [expression, setExpression] = useState<Expression>("smug");
@@ -82,6 +86,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   const tidRef = useRef(tid);
   tidRef.current = tid;
   const thread = threads.find((t) => t.id === tid) ?? null;
+  const companion = isCompanion(thread);
 
   const loadThreads = useCallback(async (pick?: number) => {
     const r = await requestJson<{ threads: Thread[] }>("/api/chat/threads");
@@ -104,7 +109,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     setRated({}); setEditing(null); setFeedback(null);
   }, [tid]);
   useEffect(() => { if (active) end.current?.scrollIntoView({ block: "end" }); }, [msgs, active]);
-  useEffect(() => { if (!active) { setPhase((p) => nextPhase(p, "reset")); setMood(false); setFocused(false); } }, [active]); // Safari may not blur on tab hide
+  useEffect(() => { if (!active) { setPhase((p) => nextPhase(p, "reset")); setMood(false); setNotesOpen(false); setFocused(false); } }, [active]); // Safari may not blur on tab hide
   useEffect(() => {
     const load = () => {
       requestJson<{ settings: LookSettings }>("/api/mascot/state").then((r) => r.ok && setLook(r.data.settings));
@@ -133,8 +138,14 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
 
   /** The user picks another thread: her face resets. */
   function switchTo(id: number | null) { setTid(id); setPhase((p) => nextPhase(p, "reset")); setExpression("smug"); }
-  async function newThread() {
-    const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: newThreadPersona() }) });
+  async function newThread(mode?: "companion") {
+    const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ persona: newThreadPersona(), mode }) });
+    if (r.ok) { setThreads(r.data.threads); switchTo(r.data.id); }
+  }
+  /** Branch at message `at`: on the last message that's the switch, on an earlier one it's the save-point rewind. The parent stays as it was. */
+  async function branchFrom(at: number) {
+    if (tid === null) return;
+    const r = await requestJson<{ id: number; threads: Thread[] }>("/api/chat/threads", { method: "POST", ...json({ from: tid, at }) });
     if (r.ok) { setThreads(r.data.threads); switchTo(r.data.id); }
   }
   async function deleteThread(id: number) {
@@ -148,6 +159,16 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     if (r.ok) setThreads(r.data.threads);
   }
   async function loadTaste() { const r = await requestJson<Taste>("/api/taste"); if (r.ok) setTaste(r.data); }
+  async function loadNotes() { const r = await requestJson<{ notes: Note[] }>("/api/chat/notebook"); if (r.ok) setNotes(r.data.notes); }
+  async function saveNote() {
+    if (!noteEdit?.text.trim()) return;
+    const r = await requestJson<{ notes: Note[] }>("/api/chat/notebook", { method: "PATCH", ...json(noteEdit) });
+    if (r.ok) { setNotes(r.data.notes); setNoteEdit(null); }
+  }
+  async function deleteNote(id: number) {
+    const r = await requestJson<{ notes: Note[] }>(`/api/chat/notebook?id=${id}`, { method: "DELETE" });
+    if (r.ok) setNotes(r.data.notes);
+  }
   async function tasteAction(body: object) { const r = await requestJson<Taste>("/api/taste", { method: "POST", ...json(body) }); if (r.ok) setTaste(r.data); }
 
   /** Send `history` (ending with the user's message) to thread `id` and stream the reply into place. false = not sent (no thread could be made). */
@@ -171,7 +192,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
     setBusy("Thinking…"); setStreamCid(reply.cid); face("send");
     let text = "";
     try {
-      const res = await fetch("/api/chat", { method: "POST", ...json({ thread: id, version, messages: wire(history), state, mode: m }) });
+      const res = await fetch("/api/chat", { method: "POST", ...json({ thread: id, version, messages: wire(history), state, mode: isCompanion(threads.find((t) => t.id === id) ?? null) ? "companion" : m }) });
       if (res.status === 409) {
         const h = await requestJson<{ messages: Msg[] }>(`/api/chat/history?thread=${id}`);
         if (h.ok) show([...h.data.messages.map(withId), withId({ role: "assistant", content: "⚠️ This chat changed on another device — reloaded. Send again.", error: true })]);
@@ -311,8 +332,11 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
           </button>
           <button type="button" aria-haspopup="dialog" onClick={() => setMood(true)}
             className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Mood</button>
-          <button type="button" onClick={() => { setTasteOpen(true); loadTaste(); }}
-            className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Taste</button>
+          {companion
+            ? <button type="button" aria-haspopup="dialog" onClick={() => { setNotesOpen(true); loadNotes(); }}
+                className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Notebook</button>
+            : <button type="button" onClick={() => { setTasteOpen(true); loadTaste(); }}
+                className="border-border text-muted h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">Taste</button>}
         </header>
       </div>
       {(offline || status?.error) && <p role="alert" className="text-danger text-sm">{status?.error ?? (status?.power ? "Servers are off — flip the switch to start them." : "Brain offline — run `npm run up` on the Mac.")}</p>}
@@ -321,11 +345,12 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       <div data-noswipe className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1">
         {chatTabThreads(threads).map((t) => (
           <span key={t.id} className={`flex h-9 shrink-0 items-center rounded-full border text-xs ${t.id === tid ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
-            <button type="button" disabled={!!busy} onClick={() => switchTo(t.id)} className="max-w-[10rem] truncate pr-1 pl-3 disabled:opacity-60">{t.title}</button>
+            <button type="button" disabled={!!busy} onClick={() => switchTo(t.id)} className="max-w-[10rem] truncate pr-1 pl-3 disabled:opacity-60">{isCompanion(t) && <span aria-hidden="true">♥ </span>}{t.title}</button>
             <button type="button" disabled={!!busy} aria-label={`Delete chat ${t.title}`} onClick={() => setConfirmDel(t.id)} className="grid size-8 place-items-center opacity-70 disabled:opacity-30">×</button>
           </span>
         ))}
-        <button type="button" disabled={!!busy} onClick={newThread} className="border-border text-accent h-9 shrink-0 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">+ New</button>
+        <button type="button" disabled={!!busy} onClick={() => newThread()} className="border-border text-accent h-9 shrink-0 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">+ New</button>
+        <button type="button" disabled={!!busy} onClick={() => newThread("companion")} className="border-border text-accent h-9 shrink-0 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">+ Just Chat</button>
       </div>
       {confirmDel !== null && (
         <div role="alertdialog" className="border-danger/40 bg-danger/10 flex items-center gap-2 rounded-lg border p-2 text-sm">
@@ -337,7 +362,10 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
 
       {/* Messages */}
       <div className="flex-1 space-y-3">
-        {msgs.length === 0 && <p className="text-muted text-sm">Talk to her properly — or ask for a character, a scene, a theme or the next arc step — or attach an image and ask about a detail. Suggested changes arrive as cards you can pick from and apply.</p>}
+        {thread?.parent_id != null && threads.some((t) => t.id === thread.parent_id) && (
+          <button type="button" disabled={!!busy} onClick={() => switchTo(thread.parent_id!)} className="border-border text-accent h-9 rounded-full border px-3 text-xs font-semibold disabled:opacity-40">← Back to main</button>
+        )}
+        {msgs.length === 0 && !companion && <p className="text-muted text-sm">Talk to her properly — or ask for a character, a scene, a theme or the next arc step — or attach an image and ask about a detail. Suggested changes arrive as cards you can pick from and apply.</p>}
         {msgs.map((m, i) => {
           const p = m.role === "assistant" ? parseReply(m.cid === streamCid ? visibleWhileStreaming(m.content) : m.content) : null;
           const said = m.content.includes(EYES) ? m.content.slice(0, m.content.indexOf(EYES)) : m.content;
@@ -357,19 +385,25 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
               {m.image && <img src={`/api/chat/image/${m.image}`} alt="Attached" className="max-h-48 rounded-md" />}
               <p className="whitespace-pre-wrap">{said}</p>
               {eyes && <details className="text-muted text-xs"><summary className="cursor-pointer">eyes report</summary><p className="mt-1 whitespace-pre-wrap">{eyes}</p></details>}
-              {!busy && !streamCid && <button type="button" onClick={() => setEditing({ i, text: said })} className="text-faint text-xs">Edit</button>}
+              {!busy && !streamCid && (
+                <div className="text-faint flex items-center gap-3 text-xs">
+                  <button type="button" onClick={() => setEditing({ i, text: said })}>Edit</button>
+                  {companion && <button type="button" onClick={() => branchFrom(i)}>Branch from here</button>}
+                </div>
+              )}
             </div>
           ) : (
             <div key={m.cid} className={`animate-rise space-y-1.5 text-sm leading-relaxed ${m.error ? "text-danger" : ""}`}>
               <Md text={p!.prose} />
               {p!.error && <p className="text-danger mt-1 text-xs">{p!.error}</p>}
-              {p!.ops.length > 0 && <PatchCard ops={p!.ops} onApply={applyOps} />}
+              {!companion && p!.ops.length > 0 && <PatchCard ops={p!.ops} onApply={applyOps} />}
               {!busy && !streamCid && m.content && !m.error && (
                 <div className="text-faint flex items-center gap-3 text-xs">
                   <button type="button" aria-label="Like reply" aria-pressed={rated[m.cid] === "like"} disabled={!!rated[m.cid]} onClick={() => rate(m.cid, "like")} className={rated[m.cid] === "like" ? "text-ok" : ""}>👍</button>
                   <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.cid] === "dislike"} disabled={!!rated[m.cid]} onClick={() => rate(m.cid, "dislike")} className={rated[m.cid] === "dislike" ? "text-danger" : ""}>👎</button>
                   {i === lastAssistant && <button type="button" onClick={() => run(msgs.slice(0, i))}>Regenerate</button>}
                   <button type="button" onClick={() => setEditing({ i, text: m.content })}>Edit</button>
+                  {companion && <button type="button" onClick={() => branchFrom(i)}>Branch from here</button>}
                 </div>
               )}
               {feedback?.cid === m.cid && (
@@ -401,13 +435,13 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       {/* Composer: sticks to the bottom, padded clear of the home indicator */}
       <div data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}>
         {/* Typing: the mode chips step aside so the keyboard leaves room for messages. */}
-        <div data-noswipe className={`gap-1.5 overflow-x-auto ${focused ? "hidden" : "flex"}`}>
+        <div data-noswipe className={`gap-1.5 overflow-x-auto ${focused || companion ? "hidden" : "flex"}`}>
           {MODES.map(([k, label]) => (
             <button key={k} type="button" aria-pressed={mode === k} onClick={() => { setMode(mode === k ? "chat" : k); setPreset(null); }}
               className={`h-8 shrink-0 rounded-full px-3 text-xs ${mode === k ? "bg-accent text-accent-fg" : "border-border border"}`}>{label}</button>
           ))}
         </div>
-        {presetKind && closet.some((c) => c.kind === presetKind) && (
+        {!companion && presetKind && closet.some((c) => c.kind === presetKind) && (
           <div data-noswipe className="flex gap-1.5 overflow-x-auto">
             <span className="text-faint shrink-0 self-center text-[11px]">from:</span>
             {closet.filter((c) => c.kind === presetKind).map((c) => (
@@ -416,7 +450,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
             ))}
           </div>
         )}
-        {preset && (
+        {!companion && preset && (
           <div data-noswipe className="flex gap-1.5 overflow-x-auto">
             {PRESET_ACTIONS.map((a) => (
               <button key={a} type="button" onClick={() => setInput(`${a} "${preset.name}": `)} className="border-cyan/50 text-cyan h-8 shrink-0 rounded-full border border-dashed px-3 text-xs">{a}</button>
@@ -453,6 +487,41 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
         {mood && (
           <div className="flex-1 overflow-y-auto overscroll-contain px-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
             <SlidersPanel />
+          </div>
+        )}
+      </Sheet>
+
+      {/* Notebook sheet: what she keeps about you (her stance first, then notes newest first) */}
+      <Sheet open={notesOpen} onClose={() => setNotesOpen(false)} label="Notebook" closeLabel="Close notebook"
+        className="max-h-[88dvh] rounded-t-2xl border-t lg:max-h-none lg:max-w-md lg:rounded-none lg:border-l">
+        <header className="flex items-center gap-2 p-3">
+          <h2 className="flex-1 text-base font-semibold">Notebook</h2>
+          <button type="button" onClick={() => setNotesOpen(false)} aria-label="Close" className="border-border h-11 w-11 rounded-full border">×</button>
+        </header>
+        {notesOpen && (
+          <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-6" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
+            {notes.length === 0 && <p className="text-faint text-sm">Nothing yet — she writes here as you talk.</p>}
+            {[...notes.filter((n) => n.kind === "stance"), ...notes.filter((n) => n.kind !== "stance")].map((n) => (
+              <div key={n.id} className="space-y-1.5 text-sm">
+                {noteEdit?.id === n.id ? (
+                  <>
+                    <AutoTextarea value={noteEdit.text} onChange={(text) => setNoteEdit({ id: n.id, text })} />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={saveNote} className="bg-accent text-accent-fg rounded-md px-3 py-1.5 font-semibold">Save</button>
+                      <button type="button" onClick={() => setNoteEdit(null)} className="px-3 py-1.5">Cancel</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className={`whitespace-pre-wrap ${n.kind === "stance" ? "leading-relaxed italic" : ""}`}>{n.pinned && <span aria-label="Pinned" className="text-accent mr-1.5 text-xs">📌</span>}{n.text}</p>
+                    <div className="text-faint flex gap-3 text-xs">
+                      <button type="button" onClick={() => setNoteEdit({ id: n.id, text: n.text })}>Edit</button>
+                      <button type="button" onClick={() => deleteNote(n.id)}>Delete</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </Sheet>
