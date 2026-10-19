@@ -388,7 +388,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
               {!busy && !streamCid && (
                 <div className="text-faint flex items-center gap-3 text-xs">
                   <button type="button" onClick={() => setEditing({ i, text: said })}>Edit</button>
-                  {companion && <button type="button" onClick={() => branchFrom(i)}>Branch from here</button>}
+                  {companion && <button type="button" onClick={() => branchFrom(msgs.slice(0, i).filter((x) => !x.error).length)}>Branch from here</button>}
                 </div>
               )}
             </div>
@@ -403,7 +403,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
                   <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.cid] === "dislike"} disabled={!!rated[m.cid]} onClick={() => rate(m.cid, "dislike")} className={rated[m.cid] === "dislike" ? "text-danger" : ""}>👎</button>
                   {i === lastAssistant && <button type="button" onClick={() => run(msgs.slice(0, i))}>Regenerate</button>}
                   <button type="button" onClick={() => setEditing({ i, text: m.content })}>Edit</button>
-                  {companion && <button type="button" onClick={() => branchFrom(i)}>Branch from here</button>}
+                  {companion && <button type="button" onClick={() => branchFrom(msgs.slice(0, i).filter((x) => !x.error).length)}>Branch from here</button>}
                 </div>
               )}
               {feedback?.cid === m.cid && (
@@ -513,7 +513,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
                   </>
                 ) : (
                   <>
-                    <p className={`whitespace-pre-wrap ${n.kind === "stance" ? "leading-relaxed italic" : ""}`}>{n.pinned && <span aria-label="Pinned" className="text-accent mr-1.5 text-xs">📌</span>}{n.text}</p>
+                    <p className={`whitespace-pre-wrap ${n.kind === "stance" ? "leading-relaxed italic" : ""}`}>{n.pinned && <span role="img" aria-label="Pinned" className="text-accent mr-1.5 text-xs">📌</span>}{n.text}</p>
                     <div className="text-faint flex gap-3 text-xs">
                       <button type="button" onClick={() => setNoteEdit({ id: n.id, text: n.text })}>Edit</button>
                       <button type="button" onClick={() => deleteNote(n.id)}>Delete</button>
