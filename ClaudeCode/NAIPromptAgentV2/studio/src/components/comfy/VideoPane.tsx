@@ -7,10 +7,11 @@ import type { VideoRecipe } from "@/lib/comfy/recipe";
 import { gpuName } from "@/lib/comfy/view";
 import { requestJson } from "@/lib/net";
 import { Drawer, useJob } from "./Drawer";
+import { LoraStack } from "./LoraStack";
 import { MotionSheet } from "./MotionSheet";
 
 type LibItem = { id: number; kind: "photo" | "clip"; file: string; poster: string | null };
-type Tool = "motion" | "start" | "end";
+type Tool = "motion" | "lora" | "start" | "end";
 type Mode = VideoRecipe["mode"];
 // Room for more modes later: add an entry here.
 const MODES: [Mode, string][] = [["animate", "Animate image"], ["t2v", "Text → video"], ["extend", "Extend clip"], ["loop", "Loop"]];
@@ -24,6 +25,7 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
   const [tool, setTool] = useState<Tool>("motion");
   const [open, setOpen] = useState(false);
   const [lib, setLib] = useState<LibItem[] | null>(null);
+  const [loraNames, setLoraNames] = useState<string[] | null>(null);
   const [startThumb, setStartThumb] = useState<string | null>(null);
   const [job, setJob] = useState<{ status: string; progress: number } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +51,8 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
   const openTool = (t: Tool) => {
     setTool(t);
     setOpen(true);
+    // ponytail: one fetch per open; a cold GPU shows "Waiting for GPU…" until the LoRA tool is reopened
+    if (t === "lora") { void requestJson<{ loras?: string[] }>("/api/comfy/models").then((x) => { if (alive.current && x.ok && x.data.loras) setLoraNames(x.data.loras); }); return; }
     if (t !== "motion") { setLib(null); void requestJson<{ items: LibItem[] }>("/api/comfy/items").then((x) => { if (alive.current) setLib(x.ok ? x.data.items : []); }); }
   };
   const setMode = (mode: Mode) => {
@@ -100,6 +104,7 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
       </div>
       <div role="group" aria-label="Video tools" className="flex gap-2">
         <button type="button" aria-pressed={open && tool === "motion"} onClick={() => openTool("motion")} className={btn(open && tool === "motion")}>Motion · {r.seconds} s</button>
+        <button type="button" aria-pressed={open && tool === "lora"} onClick={() => openTool("lora")} className={btn(open && tool === "lora")}>{r.loras.length ? `LoRA · ${r.loras.length}` : "LoRA"}</button>
       </div>
       {r.mode !== "t2v" && (
         <div role="group" aria-label="Start frame" className="flex items-center gap-2">
@@ -121,6 +126,7 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
         action={busy ? "Working…" : r.mode === "t2v" ? "Make clip" : "Animate"} onAction={() => void generate()} disabled={busy || needStart || (r.mode === "t2v" && !r.prompt.trim())}
         progress={job?.status === "running" ? job.progress : null} note={note}>
         {tool === "motion" ? <MotionSheet r={r} onChange={patch} onPickEnd={() => openTool("end")} endSet={r.end != null} />
+          : tool === "lora" ? <LoraStack loras={r.loras} available={loraNames} onChange={(loras) => patch({ loras })} />
           : lib === null ? <p className="text-muted text-sm">Loading Library…</p>
           : shown.length === 0 ? <p className="text-muted text-sm">{tool === "start" && r.mode === "extend" ? "No clips yet." : "No photos yet."}</p>
           : (

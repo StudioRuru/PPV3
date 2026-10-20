@@ -108,7 +108,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const poseOn = (pose.kind === "pose" && !!pose.kp) || (pose.kind !== "pose" && !!pose.extracted);
   const qwen = isQwen(r.model);
   const chips = ([["model", r.model ? short(r.model) : "Model"], ["lora", r.loras.length ? `LoRA · ${r.loras.length}` : "LoRA"], ["pose", poseOn ? "Pose ✓" : "Pose"], ["tune", "Tune"]] as [Tool, string][])
-    .filter(([t]) => !qwen || (t !== "lora" && t !== "pose"));
+    .filter(([t]) => !qwen || t !== "pose");
   const note = job ? (job.status === "queued" ? "Queued — GPU warming" : `Rendering ${Math.round(job.progress * 100)}%`) : error ?? `≈ ${est.seconds}s${view ? ` · $${est.usd.toFixed(2)}` : ""}`;
 
   return (
@@ -137,7 +137,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
             </div>
           ) : <p className="text-muted text-sm">Waiting for GPU…</p>
         )}
-        {tool === "lora" && !qwen && <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} />}
+        {tool === "lora" && <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} />}
         {tool === "pose" && !qwen && <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />}
         {tool === "tune" && <TuneSheet r={r} samplers={models?.samplers ?? []} schedulers={models?.schedulers ?? []} onChange={patch} />}
       </Drawer>

@@ -64,7 +64,6 @@ export function validatePhoto(r: unknown, models?: { checkpoints: string[]; lora
   if (models && !models.checkpoints.includes(model)) missing("Model", model);
   const qwen = isQwen(model);
   if (qwen && o.pose != null) fail("Pose isn't available for Qwen models");
-  if (qwen && Array.isArray(o.loras) && o.loras.length) fail("LoRAs aren't available for Qwen models");
   let pose: PoseRef | null = null;
   if (o.pose != null) {
     const p = obj(o.pose, "pose");
@@ -141,7 +140,9 @@ const load = (wf: object): Graph => {
 };
 
 // Qwen Image 2.1 (Noct Q): UNET + 2.1 encoder; EmptyLatentImage is converted by KSampler's fix_empty_latent_channels.
+// LoRAs are model-only: the Qwen text encoder takes none.
 function qwenGraph(r: PhotoRecipe): Graph {
+  let model: Link = ["unet", 0];
   const g: Graph = {
     unet: { class_type: "UNETLoader", inputs: { unet_name: r.model, weight_dtype: "default" } },
     clip: { class_type: "CLIPLoader", inputs: { clip_name: "qwen_image_2.1_text_encoder.safetensors", type: "qwen_image", device: "default" } },
@@ -150,11 +151,17 @@ function qwenGraph(r: PhotoRecipe): Graph {
     latent: { class_type: "EmptyLatentImage", inputs: { width: r.width, height: r.height, batch_size: 1 } },
     sampler: {
       class_type: "KSampler",
-      inputs: { model: ["unet", 0], positive: ["enc", 0], negative: ["enc", 1], latent_image: ["latent", 0], seed: r.seed, steps: r.steps, cfg: r.cfg, sampler_name: r.sampler, scheduler: r.scheduler, denoise: 1 },
+      inputs: { model, positive: ["enc", 0], negative: ["enc", 1], latent_image: ["latent", 0], seed: r.seed, steps: r.steps, cfg: r.cfg, sampler_name: r.sampler, scheduler: r.scheduler, denoise: 1 },
     },
     decode: { class_type: "VAEDecode", inputs: { samples: ["sampler", 0], vae: ["vae", 0] } },
     save: { class_type: "SaveImage", inputs: { images: ["decode", 0], filename_prefix: "studio" } },
   };
+  r.loras.forEach((l, i) => {
+    const id = `lora${i + 1}`;
+    g[id] = { class_type: "LoraLoaderModelOnly", inputs: { model, lora_name: l.name, strength_model: l.strength } };
+    model = [id, 0];
+  });
+  g.sampler.inputs.model = model;
   return hires(g, r);
 }
 

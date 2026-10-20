@@ -203,9 +203,18 @@ test("Qwen models build a UNETLoader + TextEncodeQwenImage21 graph, no checkpoin
   assert.deepEqual(h.decode.inputs.samples, ["hires_sampler", 0]);
 });
 
-test("validatePhoto refuses pose and LoRAs on a Qwen model", () => {
+test("validatePhoto refuses pose on a Qwen model but keeps LoRAs", () => {
   const base = { ...qwen, seed: 1 };
   assert.throws(() => validatePhoto({ ...base, pose: { kind: "pose", image: "pose.png", strength: 1 } }), /Pose isn't available for Qwen models/);
-  assert.throws(() => validatePhoto({ ...base, loras: [{ name: "x", strength: 1 }] }), /LoRAs aren't available for Qwen models/);
+  assert.deepEqual(validatePhoto({ ...base, loras: [{ name: "x", strength: 1 }] }).loras, [{ name: "x", strength: 1 }]);
   assert.equal(validatePhoto(base).model, qwen.model);
+});
+
+test("qwen photo graph chains model-only LoRAs between the UNET and every sampler", () => {
+  const g = photoGraph({ ...qwen, loras: [{ name: "a.safetensors", strength: 0.8 }, { name: "b.safetensors", strength: -0.5 }], hires: { scale: 1.5, denoise: 0.4 } }) as G;
+  assert.deepEqual(g.lora1.inputs, { model: ["unet", 0], lora_name: "a.safetensors", strength_model: 0.8 });
+  assert.deepEqual(g.lora2.inputs, { model: ["lora1", 0], lora_name: "b.safetensors", strength_model: -0.5 });
+  assert.equal(byClass(g, "LoraLoader").length, 0);
+  for (const [, s] of byClass(g, "KSampler")) assert.deepEqual(s.inputs.model, ["lora2", 0]);
+  assert.deepEqual((photoGraph(qwen) as G).sampler.inputs.model, ["unet", 0]);
 });
