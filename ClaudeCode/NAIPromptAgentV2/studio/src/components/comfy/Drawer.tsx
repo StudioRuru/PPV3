@@ -55,7 +55,7 @@ export function Drawer({ prompt, onPrompt, placeholder, children, action, onActi
       <div className="space-y-3 px-3">
         <textarea value={prompt} onChange={(e) => onPrompt(e.target.value)} placeholder={placeholder} rows={open ? 4 : 2} aria-label="Prompt"
           className="bg-bg border-border w-full resize-none rounded-md border px-3 py-2 text-base" />
-        {open && <div>{children}</div>}
+        {open && <div className="max-h-[45dvh] overflow-y-auto overscroll-contain">{children}</div>} {/* tall tools (Tune) scroll here so the handle stays on screen */}
         {note && <p role="status" className="text-muted text-center font-mono text-xs">{note}</p>}
         {progress != null && (
           <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)} className="bg-bg h-1.5 overflow-hidden rounded-full">
