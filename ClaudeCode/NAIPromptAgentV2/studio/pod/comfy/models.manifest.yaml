@@ -132,3 +132,19 @@
     - https://civitai.red/api/download/models/3354396?fileId=3241805
   licence: "Qwen Research License / civitai model page terms"
   cards: [main]
+- kind: loras
+  filename: lenovo_qwen21.safetensors
+  sha256: 7f1e95c3ec1e9c7cea197f7b6f80f601af8e6b479f6ead78ab16df542f447c0e
+  size: 79743896
+  urls:
+    - https://civitai.red/api/download/models/3349565?fileId=3236680
+  licence: "Civitai model page terms (Lenovo UltraReal, Qwen 2.1)"
+  cards: [main]
+- kind: loras
+  filename: bfs_head_v1.1_qwen_2.1.safetensors
+  sha256: d1d748d5601077f3b6d05766f6823510e901970d916afa404a97e85dc92fa88e
+  size: 260096144
+  urls:
+    - https://civitai.red/api/download/models/3356102?fileId=3248321
+  licence: "Civitai model page terms (BFS Best Face Swap, Qwen 2.1 Head Swap v1.1)"
+  cards: [main]
