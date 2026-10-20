@@ -131,3 +131,16 @@ export async function fetchOutput(base: string, file: OutFile, f: typeof fetch =
   if (!res.ok) throw new Error(`ComfyUI /view failed for ${file.filename}: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
+
+/** listModels for the routes, cached 60 s per pod. drainQueue always asks fresh. */
+type Models = Awaited<ReturnType<typeof listModels>>;
+const modelCache = new Map<string, { at: number; m: Models }>();
+/** After a model sync: the next route call asks the pod fresh. */
+export const dropModels = () => modelCache.clear();
+export async function cachedModels(base: string, now = Date.now()): Promise<Models> {
+  const hit = modelCache.get(base);
+  if (hit && now - hit.at < 60_000) return hit.m;
+  const m = await listModels(base);
+  modelCache.set(base, { at: now, m });
+  return m;
+}

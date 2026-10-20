@@ -2,8 +2,8 @@ import type Database from "better-sqlite3";
 import { type Card, type VmRow, comfyDb, getVm, putVm, dropVm, openRun, closeRun, runs, readSettings, getState, setState } from "./store";
 import { type Hyperstack, type Offer, NoCapacity, hyperstack } from "./hyperstack";
 import { canStart, clampKeepWarm, dayStart, runCost, spentSince, stopReason } from "./spend";
-import { COMFY_PORT, modelsVolume, podHost, renderCloudInit, tailnetIp } from "./pod";
-import { ping } from "./client";
+import { COMFY_PORT, modelsVolume, podHost, renderCloudInit, syncModels, tailnetIp } from "./pod";
+import { dropModels, ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
 
 export type EngineView = {
@@ -12,7 +12,7 @@ export type EngineView = {
   /** A hibernated VM holds the downloaded models (storage-only cost) until flushed. */
   kept: boolean;
 };
-export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null> };
+export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null>; sync?: (card: Card) => Promise<unknown> };
 /** warm() refused by the spend policy; `message` is the user-facing sentence. */
 export class Refused extends Error {}
 
@@ -29,6 +29,7 @@ export function engine(d: Deps) {
   const locks = new Map<Card, Promise<void>>(); // stops are serialized per card
   const orphans = new Set<string>(); // labelled VMs the db doesn't know whose remove failed
   const hibSince = new Map<Card, number>(); // when a hibernate was accepted but not yet confirmed
+  const synced = new Set<Card>(); // manifest pushed to this card's live pod since it came up (restore never re-runs cloud-init)
   let reconciled = false;
   let tickN = 0;
   const addr = new Map<Card, string>(); // the live pod's tailnet IP, refreshed each tick while ACTIVE
@@ -201,6 +202,8 @@ export function engine(d: Deps) {
         }
         if (next === "ready" && vm.status !== "ready") setState(db, { lastActivity: now }); // idle counts from ready, not from the warm click
         if (next !== vm.status) { setStatus(vm, next); vm = { ...vm, status: next }; }
+        if (next === "ready" && d.sync && !synced.has(card)) { synced.add(card); void d.sync(card).catch((e) => console.error(`[comfy] model sync failed on ${card}:`, e)); } // retried on the next boot
+        if (next !== "ready") synced.delete(card);
       } catch { if (isStopping(vm)) continue; /* status flaked: still evaluate the stop policy below */ }
       // A cold boot downloads ~80 GB: booting counts as busy for up to WARM_MAX_MS, then idle may stop a pod that never came up.
       const run = runs(db).find((r) => r.card === card && r.stoppedAt === null);
@@ -261,5 +264,5 @@ export function engine(d: Deps) {
 type Engine = ReturnType<typeof engine>;
 export function getEngine(): Engine {
   const g = globalThis as { __comfyEngine?: Engine };
-  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h) }));
+  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h), sync: (c) => syncModels(c).then(dropModels) }));
 }

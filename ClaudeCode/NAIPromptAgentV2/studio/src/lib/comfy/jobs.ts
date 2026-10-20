@@ -252,12 +252,3 @@ function writeAtomic(file: string, buf: Buffer): void {
   fs.renameSync(tmp, file);
 }
 
-/** listModels for the routes, cached 60 s per pod. drainQueue always asks fresh. */
-const modelCache = new Map<string, { at: number; m: Models }>();
-export async function cachedModels(base: string, now = Date.now()): Promise<Models> {
-  const hit = modelCache.get(base);
-  if (hit && now - hit.at < 60_000) return hit.m;
-  const m = await listModels(base);
-  modelCache.set(base, { at: now, m });
-  return m;
-}

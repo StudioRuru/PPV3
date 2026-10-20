@@ -11,7 +11,7 @@ const main: Offer = { env: "e", region: "r", flavor: "f48", gpu: "L40", vramGb: 
 const h100: Offer = { env: "e", region: "r", flavor: "fh", gpu: "H100-80G-PCIe", vramGb: 80, usdHr: 2 };
 const a100: Offer = { env: "e", region: "r", flavor: "fa", gpu: "A100-80G-PCIe", vramGb: 80, usdHr: 1.5 };
 
-function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>) {
+function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>, sync?: (card: string) => Promise<unknown>) {
   const db = new Database(":memory:");
   migrate(db);
   let now = T0;
@@ -33,7 +33,7 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
     listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
   } as unknown as Hyperstack;
   const pinged: string[] = [];
-  const e = engine({ db, hs, ping: async (b) => { pinged.push(b); return o.pingOk; }, now: () => now, resolve });
+  const e = engine({ db, hs, ping: async (b) => { pinged.push(b); return o.pingOk; }, now: () => now, resolve, sync });
   return { db, e, vms, log, o, pinged, tick: (ms: number) => { now += ms; }, at: () => now };
 }
 
@@ -170,6 +170,22 @@ test("phase goes starting -> warming -> ready across ticks", async () => {
   s.o.pingOk = true;
   await s.e.tick();
   assert.equal(s.e.view().main.phase, "ready");
+});
+
+test("a pod that comes up syncs its model manifest once, and again after a reboot", async () => {
+  const synced: string[] = [];
+  const s = setup(undefined, undefined, async (c) => { synced.push(c); throw new Error("ssh"); });
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.o.pingOk = true;
+  await s.e.tick();
+  await s.e.tick();
+  assert.deepEqual(synced, ["main"], "once per boot, even when it fails");
+  s.o.pingOk = false;
+  await s.e.tick();
+  s.o.pingOk = true;
+  await s.e.tick();
+  assert.deepEqual(synced, ["main", "main"]);
 });
 
 test("idle tick hibernates and closes the run with reason idle", async () => {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEngine } from "@/lib/comfy/engine";
-import { cachedModels } from "@/lib/comfy/jobs";
+import { cachedModels } from "@/lib/comfy/client";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

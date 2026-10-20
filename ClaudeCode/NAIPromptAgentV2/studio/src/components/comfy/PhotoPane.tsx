@@ -115,7 +115,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     <>
       <div className="flex gap-2 overflow-x-auto" role="group" aria-label="Photo tools">
         {chips.map(([t, label]) => (
-          <button key={t} type="button" aria-pressed={open && tool === t} onClick={() => { setTool(t); setOpen(true); }}
+          <button key={t} type="button" aria-pressed={open && tool === t} onClick={() => { setTool(t); setOpen(true); if (t === "lora") void requestJson<Models | { pending: true }>("/api/comfy/models").then((res) => { if (res.ok && !("pending" in res.data)) setModels(res.data); }); }}
             className={`min-h-11 max-w-44 shrink-0 truncate rounded-full border px-4 text-sm ${open && tool === t ? "bg-accent text-accent-fg border-accent font-semibold" : "border-border text-muted"}`}>{label}</button>
         ))}
       </div>
