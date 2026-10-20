@@ -153,6 +153,7 @@ async function build(d: Deps, j: Job, base: string): Promise<object> {
   if (j.kind === "photo") {
     const r = validatePhoto(j.recipe, models);
     if (r.pose) r.pose = { ...r.pose, image: await put(r.pose.image) };
+    if (r.swap) r.swap = { base: await put(r.swap.base), head: await put(r.swap.head) };
     return photoGraph(r);
   }
   const r = validateVideo(j.recipe, models);

@@ -7,7 +7,7 @@ test("wanFrames allows sub-second sprite clips", () => { assert.equal(wanFrames(
 test("editGraph wires base image and vae into TextEncodeQwenImage21", () => {
   const g = editGraph({ preset: "noct", base: 1, prompt: "smiling", seed: 5, width: 768, height: 1344, target: { takeId: 1 } }, "b.png") as Record<string, any>;
   const enc = Object.values(g).find((n: any) => n.class_type === "TextEncodeQwenImage21");
-  assert.ok(Array.isArray(enc.inputs.image_1) && Array.isArray(enc.inputs.vae));
+  assert.ok(Array.isArray(enc.inputs["images.image_1"]) && Array.isArray(enc.inputs.vae));
   assert.equal(Object.values(g).find((n: any) => n.class_type === "LoadImage").inputs.image, "b.png");
 });
 test("turbo preset uses ManualSigmas + CFGGuider 1", () => {

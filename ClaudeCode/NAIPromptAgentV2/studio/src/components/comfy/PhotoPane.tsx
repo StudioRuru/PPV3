@@ -9,14 +9,15 @@ import { requestJson } from "@/lib/net";
 import { Drawer, type JobView, useJob } from "./Drawer";
 import { LoraStack } from "./LoraStack";
 import { EMPTY_POSE, PoseOverlay, PoseTool, type PoseState, renderSkeleton } from "./PoseEditor";
+import { EMPTY_SWAP, type SwapState, SwapTool } from "./SwapTool";
 import { TuneSheet } from "./TuneSheet";
 
 type Models = { checkpoints: string[]; loras: string[]; samplers: string[]; schedulers: string[] };
-type Tool = "model" | "lora" | "pose" | "tune";
+type Tool = "model" | "lora" | "pose" | "swap" | "tune";
 const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const short = (n: string) => n.replace(/\.safetensors$/, "");
 
-/** Photo sub-tab: canvas, tool chips (Model · LoRA · Pose · Tune) and the drawer that hosts them. */
+/** Photo sub-tab: canvas, tool chips (Model · LoRA · Pose or Swap · Tune) and the drawer that hosts them. */
 export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { active: boolean; view: EngineView | null; prompt: string; onPrompt: (v: string) => void; onShot?: (item: { id: number; file: string }) => void; load?: { recipe: PhotoRecipe; nonce: number } }) {
   const [r, setR] = useState<PhotoRecipe>(() => defaultPhoto([]));
   const [ready, setReady] = useState(false);
@@ -24,6 +25,8 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const [tool, setTool] = useState<Tool>("model");
   const [open, setOpen] = useState(false);
   const [pose, setPoseState] = useState<PoseState>(EMPTY_POSE);
+  const [swap, setSwapState] = useState<SwapState>(EMPTY_SWAP);
+  const setSwap = (p: Partial<SwapState>) => setSwapState((s) => ({ ...s, ...p }));
   const [job, setJob] = useState<JobView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +94,11 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     let poseImage: string | undefined;
     if (pose.kind === "pose" && pose.kp) { poseRef = { kind: "pose", image: "pose.png", strength: pose.strength }; poseImage = renderSkeleton(pose.kp, r.width, r.height); }
     else if (pose.kind !== "pose" && pose.extracted) poseRef = { kind: pose.kind, image: pose.extracted, strength: pose.strength };
-    const res = await requestJson<{ id: number }>("/api/comfy/jobs", post({ kind: "photo", recipe: { ...r, prompt, pose: poseRef }, poseImage }));
+    // Library picks travel as names in recipe.swap; uploads as swapImages, which the route saves and names.
+    const sw = swapOn && swap.base && swap.head ? { base: swap.base, head: swap.head } : null;
+    const name = (s: NonNullable<SwapState["base"]>) => ("file" in s ? s.file : "upload.png");
+    const swapImages = sw && { base: "data" in sw.base ? sw.base.data : undefined, head: "data" in sw.head ? sw.head.data : undefined };
+    const res = await requestJson<{ id: number }>("/api/comfy/jobs", post({ kind: "photo", recipe: { ...r, prompt, pose: poseRef, swap: sw && { base: name(sw.base), head: name(sw.head) } }, poseImage, swapImages }));
     if (!res.ok) { setJob(null); setBusy(false); return setError(res.error); }
     const j = await poll(res.data.id, setJob);
     if (!alive.current) return;
@@ -107,8 +114,10 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const est = estimate({ ...r, prompt, pose: null }, view?.gpu ?? "", view?.usdHr ?? 0);
   const poseOn = (pose.kind === "pose" && !!pose.kp) || (pose.kind !== "pose" && !!pose.extracted);
   const qwen = isQwen(r.model);
-  const chips = ([["model", r.model ? short(r.model) : "Model"], ["lora", r.loras.length ? `LoRA · ${r.loras.length}` : "LoRA"], ["pose", poseOn ? "Pose ✓" : "Pose"], ["tune", "Tune"]] as [Tool, string][])
-    .filter(([t]) => !qwen || t !== "pose");
+  const swapOn = qwen && swap.on;
+  const swapReady = swapOn && !!swap.base && !!swap.head;
+  const chips = ([["model", r.model ? short(r.model) : "Model"], ["lora", r.loras.length ? `LoRA · ${r.loras.length}` : "LoRA"], ["pose", poseOn ? "Pose ✓" : "Pose"], ["swap", swapReady ? "Swap ✓" : "Swap head"], ["tune", "Tune"]] as [Tool, string][])
+    .filter(([t]) => (qwen ? t !== "pose" : t !== "swap"));
   const note = job ? (job.status === "queued" ? "Queued — GPU warming" : `Rendering ${Math.round(job.progress * 100)}%`) : error ?? `≈ ${est.seconds}s${view ? ` · $${est.usd.toFixed(2)}` : ""}`;
 
   return (
@@ -126,7 +135,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
         {!shot && pose.kind === "pose" && pose.kp && <PoseOverlay kp={pose.kp} onMove={(i, x, y) => setPoseState((s) => (s.kp ? { ...s, kp: moveJoint(s.kp, i, x, y) } : s))} />}
       </div>
       <Drawer open={open} onOpenChange={setOpen} prompt={prompt} onPrompt={onPrompt} placeholder="Describe the picture…" action={busy ? "Working…" : "Make photo"}
-        onAction={() => void generate()} disabled={busy || !prompt.trim() || !r.model} progress={job?.status === "running" ? job.progress : null} note={note}>
+        onAction={() => void generate()} disabled={busy || !r.model || (swapOn ? !swapReady : !prompt.trim())} progress={job?.status === "running" ? job.progress : null} note={note}>
         {tool === "model" && (
           models ? (
             <div className="flex flex-wrap gap-2">
@@ -139,6 +148,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
         )}
         {tool === "lora" && <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} />}
         {tool === "pose" && !qwen && <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />}
+        {tool === "swap" && qwen && <SwapTool st={swap} set={setSwap} />}
         {tool === "tune" && <TuneSheet r={r} samplers={models?.samplers ?? []} schedulers={models?.schedulers ?? []} onChange={patch} />}
       </Drawer>
     </>

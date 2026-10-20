@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  photoGraph, poseGraph, videoGraph, validatePhoto, validateVideo, wanFrames, isQwen,
+  photoGraph, poseGraph, videoGraph, validatePhoto, validateVideo, wanFrames, isQwen, BFS_LORA, BFS_PROMPT,
   DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, type PhotoRecipe, type VideoRecipe,
 } from "./recipe";
 import { estimate } from "./estimate";
@@ -217,4 +217,31 @@ test("qwen photo graph chains model-only LoRAs between the UNET and every sample
   assert.equal(byClass(g, "LoraLoader").length, 0);
   for (const [, s] of byClass(g, "KSampler")) assert.deepEqual(s.inputs.model, ["lora2", 0]);
   assert.deepEqual((photoGraph(qwen) as G).sampler.inputs.model, ["unet", 0]);
+});
+
+test("head swap feeds body + head as images.image_1/2, samples the encoder latent, and adds the BFS LoRA once", () => {
+  const sw = { ...qwen, prompt: "smiling", swap: { base: "b.png", head: "h.png" }, loras: [{ name: "a.safetensors", strength: 0.5 }], hires: { scale: 1.5, denoise: 0.4 } };
+  const g = photoGraph(sw) as G;
+  const e = g.enc.inputs;
+  assert.deepEqual([e["images.image_1"], e["images.image_2"], e.vae], [["body", 0], ["head", 0], ["vae", 0]]);
+  assert.equal(e.image_1, undefined);
+  assert.deepEqual([g.body.inputs.image, g.head.inputs.image], ["b.png", "h.png"]);
+  assert.equal(e.prompt, `${BFS_PROMPT}, smiling`);
+  assert.equal(g.latent, undefined);
+  assert.deepEqual([g.sampler.inputs.latent_image, g.hires_sampler.inputs.latent_image], [["enc", 2], ["hires_up", 0]]);
+  assert.deepEqual(g.lora_bfs.inputs, { model: ["lora1", 0], lora_name: BFS_LORA, strength_model: 1 });
+  assert.deepEqual([g.sampler.inputs.model, g.hires_sampler.inputs.model], [["lora_bfs", 0], ["lora_bfs", 0]]);
+  const picked = photoGraph({ ...sw, loras: [{ name: BFS_LORA, strength: 0.8 }] }) as G;
+  assert.equal(picked.lora_bfs, undefined, "a BFS LoRA the owner picked keeps its strength");
+  assert.equal((photoGraph({ ...sw, prompt: " " }) as G).enc.inputs.prompt, BFS_PROMPT);
+});
+
+test("validatePhoto: swap needs Qwen, uploaded image names, and the BFS LoRA on the GPU", () => {
+  const base = { ...qwen, seed: 1, swap: { base: "b.png", head: "h.png" } };
+  assert.deepEqual(validatePhoto(base).swap, { base: "b.png", head: "h.png" });
+  assert.equal("swap" in validatePhoto({ ...base, swap: null }), false);
+  assert.throws(() => validatePhoto({ ...base, model: photo.model }), /Head swap needs a Qwen model/);
+  assert.throws(() => validatePhoto({ ...base, swap: { base: "../x.png", head: "h.png" } }), /body image/);
+  assert.throws(() => validatePhoto(base, { checkpoints: [qwen.model], loras: [] }), /isn't on the GPU/);
+  assert.ok(validatePhoto(base, { checkpoints: [qwen.model], loras: [BFS_LORA] }).swap);
 });

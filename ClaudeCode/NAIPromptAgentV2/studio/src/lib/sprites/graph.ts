@@ -28,7 +28,7 @@ export function editGraph(j: EditJob, image: string): object {
     clip: { class_type: "CLIPLoader", inputs: { clip_name: p.clip, type: "qwen_image", device: "default" } },
     vae: { class_type: "VAELoader", inputs: { vae_name: "qwen_image_2.1_vae_bf16.safetensors" } },
     img: { class_type: "LoadImage", inputs: { image } },
-    enc: { class_type: "TextEncodeQwenImage21", inputs: { clip: ["clip", 0], prompt: j.prompt, negative_prompt: EDIT_NEGATIVE, resolution: 1024, image_1: ["img", 0], vae: ["vae", 0] } },
+    enc: { class_type: "TextEncodeQwenImage21", inputs: { clip: ["clip", 0], prompt: j.prompt, negative_prompt: EDIT_NEGATIVE, resolution: 1024, "images.image_1": ["img", 0], vae: ["vae", 0] } },
     latent: { class_type: "EmptyLatentImage", inputs: { width: j.width, height: j.height, batch_size: 1 } },
     decode: { class_type: "VAEDecode", inputs: { samples: ["sampler", 0], vae: ["vae", 0] } },
     save: { class_type: "SaveImage", inputs: { images: ["decode", 0], filename_prefix: "studio-edit" } },

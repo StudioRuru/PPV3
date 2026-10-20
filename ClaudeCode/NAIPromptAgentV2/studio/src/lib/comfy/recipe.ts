@@ -10,6 +10,8 @@ export type PoseRef = { kind: "pose" | "depth" | "lineart"; image: string; stren
 export type PhotoRecipe = {
   mode: "photo"; model: string; prompt: string; negative: string; loras: Lora[]; pose: PoseRef | null;
   seed: number; steps: number; cfg: number; sampler: string; scheduler: string; width: number; height: number; hires: { scale: number; denoise: number } | null;
+  /** Qwen only: BFS head swap. `base` is the body photo, `head` the face; both are image names in COMFY_DIR. */
+  swap?: { base: string; head: string } | null;
 };
 export type VideoRecipe = {
   mode: "animate" | "t2v" | "extend" | "loop"; prompt: string; negative: string; loras: Lora[]; start: number | null /* item id */;
@@ -22,6 +24,9 @@ export type PoseJob = { kind: PoseRef["kind"]; image: string; result?: { image: 
 
 export const DEFAULT_PHOTO_NEGATIVE = "worst quality, low quality, lowres, bad anatomy, bad hands, missing fingers, extra digits, jpeg artifacts, blurry, watermark, signature, text, username";
 export const DEFAULT_VIDEO_NEGATIVE = "static, still image, blurry, low quality, worst quality, jpeg artifacts, deformed, distorted, extra limbs, bad hands, flickering, watermark, subtitles, text";
+export const BFS_LORA = "bfs_head_v1.1_qwen_2.1.safetensors";
+// The LoRA's trained trigger, verbatim; <image1> is the body, <image2> the head.
+export const BFS_PROMPT = "head_swap: start with <image1> as the base image, keeping its lighting, environment, and background. remove the head from <image1> completely and replace it with the head from <image2>, strictly preserving the hair, eye color, nose structure from <image2>. copy the direction of the eye, head rotation, micro expressions from <image1>, high quality, sharp details, 4k";
 export const UNION_CONTROLNET = "diffusion_pytorch_model_promax.safetensors";
 const UNION_TYPE: Record<PoseRef["kind"], string> = { pose: "openpose", depth: "depth", lineart: "canny/lineart/anime_lineart/mlsd" };
 // ponytail: motion is a prompt phrase only; retune after the live run (Task 13)
@@ -69,6 +74,13 @@ export function validatePhoto(r: unknown, models?: { checkpoints: string[]; lora
     const p = obj(o.pose, "pose");
     pose = { kind: oneOf(p.kind, "pose kind", ["pose", "depth", "lineart"] as const), image: file(p.image, "pose image"), strength: num(p.strength, "pose strength", 0, 2) };
   }
+  let swap: PhotoRecipe["swap"] = null;
+  if (o.swap != null) {
+    if (!qwen) fail("Head swap needs a Qwen model");
+    const w = obj(o.swap, "swap");
+    swap = { base: file(w.base, "body image"), head: file(w.head, "head image") };
+    if (models && !models.loras.includes(BFS_LORA)) missing("LoRA", BFS_LORA);
+  }
   let hires: PhotoRecipe["hires"] = null;
   if (o.hires != null) {
     const h = obj(o.hires, "hires");
@@ -80,7 +92,7 @@ export function validatePhoto(r: unknown, models?: { checkpoints: string[]; lora
     loras: loras(o.loras ?? [], models?.loras), pose, seed: seed(o.seed), steps: num(o.steps, "steps", 1, 150, true), cfg: num(o.cfg, "CFG", 0, 30),
     sampler: name.test(String(o.sampler)) ? String(o.sampler) : fail("sampler is invalid"),
     scheduler: name.test(String(o.scheduler)) ? String(o.scheduler) : fail("scheduler is invalid"),
-    width: dim(o.width, "width"), height: dim(o.height, "height"), hires,
+    width: dim(o.width, "width"), height: dim(o.height, "height"), hires, ...(swap ? { swap } : {}),
   };
 }
 
@@ -162,7 +174,23 @@ function qwenGraph(r: PhotoRecipe): Graph {
     model = [id, 0];
   });
   g.sampler.inputs.model = model;
+  if (r.swap) swap(g, r.swap, r.prompt);
   return hires(g, r);
+}
+
+// Head swap: body + head go into the encoder (autogrow keys must be "images.image_N"); its latent is sized to the body.
+function swap(g: Graph, w: { base: string; head: string }, prompt: string): void {
+  g.body = { class_type: "LoadImage", inputs: { image: w.base } };
+  g.head = { class_type: "LoadImage", inputs: { image: w.head } };
+  Object.assign(g.enc.inputs, { prompt: [BFS_PROMPT, prompt.trim()].filter(Boolean).join(", "), "images.image_1": ["body", 0], "images.image_2": ["head", 0], vae: ["vae", 0] });
+  delete g.latent;
+  g.sampler.inputs.latent_image = ["enc", 2];
+  let id = Object.keys(g).find((k) => k.startsWith("lora") && g[k].inputs.lora_name === BFS_LORA);
+  if (!id) {
+    id = "lora_bfs";
+    g[id] = { class_type: "LoraLoaderModelOnly", inputs: { model: g.sampler.inputs.model, lora_name: BFS_LORA, strength_model: 1 } };
+    g.sampler.inputs.model = [id, 0];
+  }
 }
 
 function hires(g: Graph, r: PhotoRecipe): Graph {

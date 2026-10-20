@@ -32,7 +32,7 @@ async function decode(b64: unknown): Promise<Buffer> {
 
 /** {kind, recipe, image?, poseImage?} → {id}. Validates names against the pod when it's ready, otherwise drainQueue does. */
 export async function POST(req: Request) {
-  const b = (await req.json().catch(() => null)) as { kind?: JobKind; recipe?: unknown; image?: unknown; poseImage?: unknown } | null;
+  const b = (await req.json().catch(() => null)) as { kind?: JobKind; recipe?: unknown; image?: unknown; poseImage?: unknown; swapImages?: { base?: unknown; head?: unknown } } | null;
   if (!b || !["photo", "video", "pose"].includes(b.kind as string)) return bad("kind must be photo, video or pose");
   if (!b.recipe || typeof b.recipe !== "object" || Array.isArray(b.recipe)) return bad("recipe must be an object");
   const kind = b.kind as JobKind;
@@ -52,6 +52,17 @@ export async function POST(req: Request) {
       const name = `pose-${stamp}.png`;
       files.push([name, await decode(b.poseImage)]);
       recipe.pose = { ...(recipe.pose as object), image: name };
+    }
+    if (b.swapImages != null) { // uploaded swap photos; Library picks arrive as names in recipe.swap
+      if (kind !== "photo" || !recipe.swap || typeof recipe.swap !== "object") return bad("swapImages needs a photo recipe with a swap");
+      const sw = { ...(recipe.swap as Record<string, unknown>) };
+      for (const k of ["base", "head"] as const) {
+        if (b.swapImages[k] == null) continue;
+        const name = `swap-${k}-${stamp}.png`;
+        files.push([name, await decode(b.swapImages[k])]);
+        sw[k] = name;
+      }
+      recipe.swap = sw;
     }
   } catch (e) {
     return bad((e as Error).message);
