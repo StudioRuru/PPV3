@@ -144,3 +144,8 @@ export async function cachedModels(base: string, now = Date.now()): Promise<Mode
   modelCache.set(base, { at: now, m });
   return m;
 }
+
+/** Unloads every model from ComfyUI's VRAM (before a training run takes the GPU). */
+export async function freeVram(base: string): Promise<void> {
+  await fetch(`${base}/free`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ unload_models: true, free_memory: true }), signal: AbortSignal.timeout(30_000) });
+}

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { Lora } from "@/lib/comfy/recipe";
+import { TrainLora } from "./TrainLora";
 
 /** Uploads one LoRA with progress (XHR: fetch can't report upload progress). */
 function upload(f: File, onPct: (n: number) => void): Promise<{ name: string; pushed: boolean }> {
@@ -63,6 +64,7 @@ export function LoraStack({ loras, available, onChange }: { loras: Lora[]; avail
         <input type="file" className="sr-only" disabled={pct !== null} onChange={(e) => { const f = e.target.files?.[0]; if (f) void importFile(f); e.target.value = ""; }} />
       </label>
       {note && <p className="text-muted text-xs" role="status">{note}</p>}
+      <TrainLora />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { pushLoras } from "./loras";
 import { COMFY_PORT, modelsVolume, podHost, renderCloudInit, syncModels, tailnetIp } from "./pod";
 import { dropModels, ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
+import { trainStatus, training } from "./train";
 
 export type EngineView = {
   card: Card; phase: "off" | "starting" | "warming" | "ready" | "stopping" | "unavailable"; gpu: string | null; since: number | null;
@@ -209,7 +210,8 @@ export function engine(d: Deps) {
       // A cold boot downloads ~80 GB: booting counts as busy for up to WARM_MAX_MS, then idle may stop a pod that never came up.
       const run = runs(db).find((r) => r.card === card && r.stoppedAt === null);
       const booting = vm.status !== "ready" && !!run && now - run.startedAt < WARM_MAX_MS;
-      const busyJob = booting || !!db.prepare("SELECT 1 FROM comfy_jobs WHERE status = 'running' AND card = ?").get(card);
+      if (card === "main" && vm.status === "ready" && training()) await trainStatus().catch((e) => console.error("[comfy] train status failed:", e)); // ends the run even with the app closed
+      const busyJob = booting || (card === "main" && training()) || !!db.prepare("SELECT 1 FROM comfy_jobs WHERE status = 'running' AND card = ?").get(card);
       const st = getState(db);
       const why = stopReason({ runs: runs(db), s: readSettings(db), lastActivity: st.lastActivity, keepWarmUntil: st.keepWarmUntil, busy: busyJob, deadline: readDeadline(card), now });
       if (why) await stop(card, why);

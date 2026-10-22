@@ -30,6 +30,7 @@ AUX_SHA=a587a4c1594524c1d2de5cd1a86cd868ff448e1c
 FI_SHA=26545cc2dd95bc3d27f056016300673bdeee78f5
 IMPACT_SHA=429d0159ad429e64d2b3916e6e7be9c22d025c3c
 SUBPACK_SHA=50c7b71a6a224734cc9b21963c6d1926816a97f1
+TOOLKIT_SHA=14f8f95090689b585093e5aaf48bc1e2e0a67ea4
 
 pin() { # url sha dir
   mkdir -p "$3"   # /opt/comfy already holds fetch-models.sh, so init+fetch instead of clone
@@ -66,6 +67,14 @@ impact() {
   for d in ComfyUI-Impact-Pack ComfyUI-Impact-Subpack; do "$ROOT/venv/bin/pip" install -q -r "$n/$d/requirements.txt"; done
 }
 
+# LoRA trainer (ostris/ai-toolkit CLI) in its own venv so ComfyUI's torch and deps stay untouched. Main pod only.
+trainer() {
+  pin https://github.com/ostris/ai-toolkit "$TOOLKIT_SHA" /opt/ai-toolkit
+  python3 -m venv /opt/ai-toolkit/venv
+  /opt/ai-toolkit/venv/bin/pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+  /opt/ai-toolkit/venv/bin/pip install -q -r /opt/ai-toolkit/requirements.txt
+}
+
 step apt apt_deps
 step tailscale tailscale_install
 # Every boot, no marker: re-join the tailnet (ephemeral key; node may be gone).
@@ -78,4 +87,5 @@ step comfy comfy_clone
 step venv venv_torch
 step nodes nodes
 step impact impact
+[ "$TS_HOSTNAME" = nai-comfy-main ] && step trainer trainer
 echo "comfy install ok"

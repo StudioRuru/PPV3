@@ -10,6 +10,7 @@ import { editGraph, spriteRecipe } from "@/lib/sprites/graph";
 import { canStart } from "./spend";
 import { type PoseJob, photoGraph, poseGraph, validateEdit, validatePhoto, validatePose, validateSprite, validateVideo, videoGraph } from "./recipe";
 import { COMFY_DIR } from "@/lib/env";
+import { training } from "./train";
 
 type Db = Database.Database;
 type Models = Awaited<ReturnType<typeof listModels>>;
@@ -100,6 +101,7 @@ async function drainOnce(d: Deps, st: QState): Promise<void> {
     return;
   }
   if (phase !== "ready") return;
+  if (card === "main" && training()) return; // a LoRA run has the GPU; the queue resumes when it ends
 
   const j: Job = { ...q, card };
   const ok = canStart({ runs: runs(db), s: readSettings(db), now }); // a warm VM skips warm()'s check: enforce cap/budget per job
