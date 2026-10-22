@@ -100,6 +100,11 @@ export function listItems(db: Db, before?: number, limit = 50): Item[] {
     : db.prepare("SELECT * FROM comfy_items WHERE id < ? ORDER BY id DESC LIMIT ?").all(before, limit);
   return parsed(rows as ItemSql[], toItem, "item");
 }
+/** The Library copy of NovelAI generation `generation`, if it was imported already. */
+export function findImported(db: Db, generation: number): Item | null {
+  const r = db.prepare("SELECT * FROM comfy_items WHERE json_extract(recipe, '$.source') = 'nai' AND json_extract(recipe, '$.generation') = ? LIMIT 1").get(generation) as ItemSql | undefined;
+  return r ? parsed([r], toItem, "item")[0] ?? null : null;
+}
 export function deleteItem(db: Db, id: number): Item | null {
   const r = db.prepare("SELECT * FROM comfy_items WHERE id = ?").get(id) as ItemSql | undefined;
   if (!r) return null;

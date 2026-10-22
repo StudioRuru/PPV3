@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
-import { migrate, readSettings, writeSettings, openRun, closeRun, runs, addJob, nextQueued, updateJob, readJob, getState, setState } from "./store";
+import { migrate, readSettings, writeSettings, openRun, closeRun, runs, addJob, nextQueued, updateJob, readJob, getState, setState, addItem, findImported } from "./store";
 
 const mk = () => { const db = new Database(":memory:"); migrate(db); return db; };
 
@@ -71,4 +71,13 @@ test("a corrupt stored row is skipped, not thrown", () => {
     assert.equal(readJob(db, bad), null);
     assert.equal(nextQueued(db)?.id, good);
   } finally { console.warn = warn; }
+});
+
+test("findImported finds the Library copy of a NovelAI image", () => {
+  const db = mk();
+  const it = { kind: "photo" as const, poster: null, seed: 7, cost: 0, createdAt: 1 };
+  addItem(db, { ...it, file: "a.png", recipe: { source: "import" } });
+  const id = addItem(db, { ...it, file: "b.png", recipe: { source: "nai", generation: 42 } });
+  assert.equal(findImported(db, 42)?.id, id);
+  assert.equal(findImported(db, 41), null);
 });

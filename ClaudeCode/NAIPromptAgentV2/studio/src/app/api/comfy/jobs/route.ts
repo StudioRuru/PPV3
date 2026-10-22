@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import sharp from "sharp";
 import { NextResponse } from "next/server";
 import { getEngine, Refused } from "@/lib/comfy/engine";
 import { drainQueue } from "@/lib/comfy/jobs";
 import { cachedModels } from "@/lib/comfy/client";
+import { decode } from "@/lib/comfy/decode";
 import { canStart } from "@/lib/comfy/spend";
 import { validatePhoto, validatePose, validateVideo } from "@/lib/comfy/recipe";
 import { type Card, type JobKind, addJob, comfyDb, readSettings, runs } from "@/lib/comfy/store";
@@ -13,22 +13,7 @@ import { COMFY_DIR } from "@/lib/env";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MAX_BYTES = 20 * 1024 * 1024;
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
-
-/** base64 (or data URL) → PNG at most 1536 px on the long side. Throws a user-facing message. */
-async function decode(b64: unknown): Promise<Buffer> {
-  if (typeof b64 !== "string") throw new Error("Images must be base64 text.");
-  const s = b64.replace(/^data:[^,]*,/, "");
-  if (s.length > Math.ceil(MAX_BYTES / 3) * 4 + 4) throw new Error("That image is too large (20 MB max).");
-  const buf = Buffer.from(s, "base64");
-  if (!buf.length || buf.length > MAX_BYTES) throw new Error(buf.length ? "That image is too large (20 MB max)." : "The image is empty.");
-  try {
-    return await sharp(buf).rotate().resize({ width: 1536, height: 1536, fit: "inside", withoutEnlargement: true }).png().toBuffer();
-  } catch {
-    throw new Error("That file isn't an image.");
-  }
-}
 
 /** {kind, recipe, image?, poseImage?} → {id}. Validates names against the pod when it's ready, otherwise drainQueue does. */
 export async function POST(req: Request) {
