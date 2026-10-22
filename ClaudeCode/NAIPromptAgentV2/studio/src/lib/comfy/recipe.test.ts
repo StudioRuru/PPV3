@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  photoGraph, poseGraph, videoGraph, validatePhoto, validateVideo, wanFrames, isQwen, BFS_LORA, BFS_PROMPT,
+  photoGraph, poseGraph, videoGraph, validatePhoto, validateVideo, wanFrames, isQwen, BFS_LORA, BFS_PROMPT, FACE_DETECTOR,
   DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, type PhotoRecipe, type VideoRecipe,
 } from "./recipe";
 import { estimate } from "./estimate";
@@ -262,4 +262,19 @@ test("validatePhoto: swap needs Qwen, uploaded image names, and the BFS LoRA on 
   assert.throws(() => validatePhoto({ ...base, swap: { base: "../x.png", head: "h.png" } }), /body image/);
   assert.throws(() => validatePhoto(base, { checkpoints: [qwen.model], loras: [] }), /isn't on the GPU/);
   assert.ok(validatePhoto(base, { checkpoints: [qwen.model], loras: [BFS_LORA] }).swap);
+});
+
+test("faceFix runs FaceDetailer on the decode and saves its output, with plain prompt conditioning", () => {
+  assert.equal(byClass(photoGraph(photo) as G, "FaceDetailer").length, 0);
+  const pose = { ...photo, faceFix: true, pose: { kind: "pose" as const, image: "p.png", strength: 1 } };
+  const g = photoGraph(pose) as G;
+  const [id, fd] = one(g, "FaceDetailer");
+  assert.deepEqual(fd.inputs.image, ["decode", 0]);
+  assert.deepEqual([fd.inputs.positive, fd.inputs.negative, fd.inputs.vae], [["pos", 0], ["neg", 0], ["ckpt", 2]]);
+  assert.equal(one(g, "UltralyticsDetectorProvider")[1].inputs.model_name, FACE_DETECTOR);
+  assert.deepEqual(one(g, "SaveImage")[1].inputs.images, [id, 0]);
+  const q = one(photoGraph({ ...qwen, faceFix: true, swap: { base: "b.png", head: "h.png" } }) as G, "FaceDetailer")[1];
+  assert.deepEqual([q.inputs.positive, q.inputs.clip, q.inputs.guide_size], [["enc", 0], ["clip", 0], 1024]);
+  assert.equal(validatePhoto({ ...photo, seed: 1, faceFix: true }).faceFix, true);
+  assert.equal("faceFix" in validatePhoto({ ...photo, seed: 1, faceFix: "yes" }), false);
 });

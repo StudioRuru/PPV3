@@ -8,7 +8,7 @@ export const COMFY_PORT = 8188;
 export type ManifestEntry = { kind: string; filename: string; sha256: string; size: number; urls: string[]; licence: string; cards: Card[] };
 
 const POD_DIR = path.join(process.cwd(), "pod", "comfy");
-const KINDS = new Set(["checkpoints", "controlnet", "diffusion_models", "vae", "text_encoders", "loras", "dwpose", "depth", "rife"]);
+const KINDS = new Set(["checkpoints", "controlnet", "diffusion_models", "vae", "text_encoders", "loras", "dwpose", "depth", "rife", "ultralytics/bbox"]);
 const b64 = (s: string) => Buffer.from(s).toString("base64");
 
 export const podHost = (card: Card) => `nai-comfy-${card}`;

@@ -12,6 +12,8 @@ export type PhotoRecipe = {
   seed: number; steps: number; cfg: number; sampler: string; scheduler: string; width: number; height: number; hires: { scale: number; denoise: number } | null;
   /** Qwen only: BFS head swap. `base` is the body photo, `head` the face; both are image names in COMFY_DIR. */
   swap?: { base: string; head: string } | null;
+  /** Re-render each detected face at higher resolution (Impact Pack FaceDetailer). */
+  faceFix?: boolean;
 };
 export type VideoRecipe = {
   mode: "animate" | "t2v" | "extend" | "loop"; prompt: string; negative: string; loras: Lora[]; start: number | null /* item id */;
@@ -27,6 +29,7 @@ export const DEFAULT_VIDEO_NEGATIVE = "static, still image, blurry, low quality,
 export const BFS_LORA = "bfs_head_v1.1_qwen_2.1.safetensors";
 // The LoRA's trained trigger, verbatim; <image1> is the body, <image2> the head.
 export const BFS_PROMPT = "head_swap: start with <image1> as the base image, keeping its lighting, environment, and background. remove the head from <image1> completely and replace it with the head from <image2>, strictly preserving the hair, eye color, nose structure from <image2>. copy the direction of the eye, head rotation, micro expressions from <image1>, high quality, sharp details, 4k";
+export const FACE_DETECTOR = "bbox/face_yolov8m.pt";
 export const UNION_CONTROLNET = "diffusion_pytorch_model_promax.safetensors";
 const UNION_TYPE: Record<PoseRef["kind"], string> = { pose: "openpose", depth: "depth", lineart: "canny/lineart/anime_lineart/mlsd" };
 // ponytail: motion is a prompt phrase only; retune after the live run (Task 13)
@@ -92,7 +95,7 @@ export function validatePhoto(r: unknown, models?: { checkpoints: string[]; lora
     loras: loras(o.loras ?? [], models?.loras), pose, seed: seed(o.seed), steps: num(o.steps, "steps", 1, 150, true), cfg: num(o.cfg, "CFG", 0, 30),
     sampler: name.test(String(o.sampler)) ? String(o.sampler) : fail("sampler is invalid"),
     scheduler: name.test(String(o.scheduler)) ? String(o.scheduler) : fail("scheduler is invalid"),
-    width: dim(o.width, "width"), height: dim(o.height, "height"), hires, ...(swap ? { swap } : {}),
+    width: dim(o.width, "width"), height: dim(o.height, "height"), hires, ...(swap ? { swap } : {}), ...(o.faceFix === true ? { faceFix: true } : {}),
   };
 }
 
@@ -175,6 +178,7 @@ function qwenGraph(r: PhotoRecipe): Graph {
   });
   g.sampler.inputs.model = model;
   if (r.swap) swap(g, r.swap, r.prompt);
+  face(g, r, ["clip", 0], ["vae", 0], ["enc", 0], ["enc", 1]);
   return hires(g, r);
 }
 
@@ -191,6 +195,25 @@ function swap(g: Graph, w: { base: string; head: string }, prompt: string): void
     g[id] = { class_type: "LoraLoaderModelOnly", inputs: { model: g.sampler.inputs.model, lora_name: BFS_LORA, strength_model: 1 } };
     g.sampler.inputs.model = [id, 0];
   }
+}
+
+// Detect faces on the decoded image, re-sample each crop with the same model and prompt, paste back.
+// Plain prompt conditioning (not ControlNet's), since that hint is for the whole frame.
+function face(g: Graph, r: PhotoRecipe, clip: Link, vae: Link, positive: Link, negative: Link): void {
+  if (!r.faceFix) return;
+  g.face_det = { class_type: "UltralyticsDetectorProvider", inputs: { model_name: FACE_DETECTOR } };
+  g.face = {
+    class_type: "FaceDetailer",
+    inputs: {
+      image: ["decode", 0], model: g.sampler.inputs.model, clip, vae, positive, negative, bbox_detector: ["face_det", 0],
+      guide_size: isQwen(r.model) ? 1024 : 512, guide_size_for: true, max_size: isQwen(r.model) ? 1536 : 1024,
+      seed: r.seed, steps: r.steps, cfg: r.cfg, sampler_name: r.sampler, scheduler: r.scheduler, denoise: 0.4,
+      feather: 5, noise_mask: true, force_inpaint: true, bbox_threshold: 0.5, bbox_dilation: 10, bbox_crop_factor: 3,
+      sam_detection_hint: "center-1", sam_dilation: 0, sam_threshold: 0.93, sam_bbox_expansion: 0, sam_mask_hint_threshold: 0.7, sam_mask_hint_use_negative: "False",
+      drop_size: 10, wildcard: "", cycle: 1,
+    },
+  };
+  g.save.inputs.images = ["face", 0];
 }
 
 function hires(g: Graph, r: PhotoRecipe): Graph {
@@ -226,6 +249,7 @@ export function photoGraph(r: PhotoRecipe): object {
     };
     Object.assign(g.sampler.inputs, { positive: ["cn_apply", 0], negative: ["cn_apply", 1] });
   }
+  face(g, r, clip, ["ckpt", 2], ["pos", 0], ["neg", 0]);
   return hires(g, r);
 }
 

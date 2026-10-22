@@ -148,3 +148,11 @@
     - https://civitai.red/api/download/models/3356102?fileId=3248321
   licence: "Civitai model page terms (BFS Best Face Swap, Qwen 2.1 Head Swap v1.1)"
   cards: [main]
+- kind: ultralytics/bbox
+  filename: face_yolov8m.pt
+  sha256: 717923c19b3f4bbf5250b728f1fa6b2cb72a33aed1d236ea9caf0e21ad943e5f
+  size: 52026019
+  urls:
+    - https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt
+  licence: "apache-2.0 (Bingsu/adetailer)"
+  cards: [main, boost]

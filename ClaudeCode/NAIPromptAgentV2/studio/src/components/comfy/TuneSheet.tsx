@@ -61,6 +61,10 @@ export function TuneSheet({ r, samplers, schedulers, onChange }: {
         <input type="checkbox" className="accent-accent size-5" checked={!!r.hires} onChange={(e) => onChange({ hires: e.target.checked ? { scale: 1.5, denoise: 0.4 } : null })} />
         Hi-res pass
       </label>
+      <label className="flex min-h-11 items-center gap-2">
+        <input type="checkbox" className="accent-accent size-5" checked={!!r.faceFix} onChange={(e) => onChange({ faceFix: e.target.checked })} />
+        Fix faces <span className="text-faint text-xs">· re-draws each face sharper; helps head swaps match</span>
+      </label>
       {r.hires && (
         <div className="flex gap-2">
           <label className="flex-1">Scale {r.hires.scale}

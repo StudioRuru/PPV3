@@ -28,6 +28,8 @@ COMFY_SHA=ce1e922d8623bb507180e32a0c01a7d0e29edef7
 VHS_SHA=4d907bee61e92c2e65af3bd6383a4e4d356126d1
 AUX_SHA=a587a4c1594524c1d2de5cd1a86cd868ff448e1c
 FI_SHA=26545cc2dd95bc3d27f056016300673bdeee78f5
+IMPACT_SHA=429d0159ad429e64d2b3916e6e7be9c22d025c3c
+SUBPACK_SHA=50c7b71a6a224734cc9b21963c6d1926816a97f1
 
 pin() { # url sha dir
   mkdir -p "$3"   # /opt/comfy already holds fetch-models.sh, so init+fetch instead of clone
@@ -55,6 +57,15 @@ nodes() {
   ln -sfn "$ROOT/models/rife" "$n/ComfyUI-Frame-Interpolation/ckpts/rife"
 }
 
+# FaceDetailer + its YOLO detector provider; detector weights come from the manifest (ultralytics/bbox).
+# Own step, so pods that already ran `nodes` pick it up too.
+impact() {
+  local n="$ROOT/custom_nodes"
+  pin https://github.com/ltdrdata/ComfyUI-Impact-Pack "$IMPACT_SHA" "$n/ComfyUI-Impact-Pack"
+  pin https://github.com/ltdrdata/ComfyUI-Impact-Subpack "$SUBPACK_SHA" "$n/ComfyUI-Impact-Subpack"
+  for d in ComfyUI-Impact-Pack ComfyUI-Impact-Subpack; do "$ROOT/venv/bin/pip" install -q -r "$n/$d/requirements.txt"; done
+}
+
 step apt apt_deps
 step tailscale tailscale_install
 # Every boot, no marker: re-join the tailnet (ephemeral key; node may be gone).
@@ -66,4 +77,5 @@ done
 step comfy comfy_clone
 step venv venv_torch
 step nodes nodes
+step impact impact
 echo "comfy install ok"

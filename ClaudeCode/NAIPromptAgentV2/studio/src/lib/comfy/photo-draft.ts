@@ -24,6 +24,7 @@ export function loadPhoto(): PhotoRecipe | null {
     }
     const h = o.hires;
     if (h && Number.isFinite(h.scale) && Number.isFinite(h.denoise)) out.hires = { scale: h.scale, denoise: h.denoise };
+    if (o.faceFix === true) out.faceFix = true;
     if (Array.isArray(o.loras)) out.loras = o.loras.filter((l: { name?: unknown; strength?: unknown }) => typeof l?.name === "string" && typeof l.strength === "number" && Number.isFinite(l.strength)).map((l: { name: string; strength: number }) => ({ name: l.name, strength: l.strength }));
     return out as PhotoRecipe;
   } catch { return null; }
