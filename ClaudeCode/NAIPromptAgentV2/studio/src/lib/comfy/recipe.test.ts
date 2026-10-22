@@ -144,6 +144,24 @@ test("16 fps bypasses RIFE; 30 fps doubles; animate without end uses WanImageToV
   assert.equal(g30[one(g30, "WanFirstLastFrameToVideo")[1].inputs.end_image[0]].inputs.image, "e.png");
 });
 
+test("i2v past 5 s chains ≤81-frame segments, each starting on the last frame of the one before", () => {
+  const g = videoGraph({ ...video, seconds: 10, end: 2, fps: 30 }, { start: "s.png", end: "e.png" }) as G;
+  const segs = [...byClass(g, "WanImageToVideo"), ...byClass(g, "WanFirstLastFrameToVideo")];
+  assert.equal(segs.length, 2);
+  assert.ok(segs.every(([, n]) => n.inputs.length === 81)); // never past Wan's training window
+  const [, last] = one(g, "WanFirstLastFrameToVideo"); // the end frame only pins the final segment
+  assert.equal(g[last.inputs.end_image[0]].inputs.image, "e.png");
+  const tail = g[last.inputs.start_image[0]];
+  assert.equal(tail.class_type, "ImageFromBatch");
+  assert.equal(tail.inputs.batch_index, 80);
+  assert.equal(byClass(g, "KSamplerAdvanced").length, 4);
+  const [joinId] = one(g, "ImageBatch");
+  assert.deepEqual(one(g, "RIFE VFI")[1].inputs.frames, [joinId, 0]);
+  const poster = byClass(g, "ImageFromBatch").find(([, n]) => n.inputs.image[0] === joinId)![1];
+  assert.equal(poster.inputs.batch_index, 81 + 80 - 1); // the seam frame is dropped once
+  assert.equal(byClass(videoGraph({ ...video, seconds: 5 }, { start: "s.png" }) as G, "ImageBatch").length, 0);
+});
+
 test("t2v uses the TI2V 5B workflow and portrait swaps the size", () => {
   const g = videoGraph({ ...video, mode: "t2v", start: null, size: "720p" }, {}) as G;
   assert.equal(one(g, "UNETLoader")[1].inputs.unet_name, "wan2.2_ti2v_5B_fp16.safetensors");

@@ -241,7 +241,9 @@ export function poseGraph(image: string, kind: PoseRef["kind"]): object {
 export function videoGraph(r: VideoRecipe, frames: { start?: string; end?: string; portrait?: boolean }): object {
   const t2v = r.mode === "t2v";
   const g = load(t2v ? t2vWf : i2vWf);
-  const length = wanFrames(r.seconds);
+  // Wan blurs past its 81-frame training window, so long i2v clips are chained ≤5 s segments.
+  const segs = t2v ? 1 : Math.ceil(r.seconds / 5);
+  const length = wanFrames(r.seconds / segs);
   const [w, h] = (t2v ? T2V_SIZE : I2V_SIZE)[r.size];
   const [width, height] = frames.portrait ? [h, w] : [w, h];
   g.pos.inputs.text = [r.prompt.trim(), MOTION[r.motion]].filter(Boolean).join(", ");
@@ -267,20 +269,37 @@ export function videoGraph(r: VideoRecipe, frames: { start?: string; end?: strin
     const end = r.mode === "loop" ? start : r.mode === "animate" ? frames.end : undefined;
     g.start.inputs.image = start;
     Object.assign(g.i2v.inputs, { width, height, length });
-    if (end) {
-      g.end = { class_type: "LoadImage", inputs: { image: end } };
-      g.i2v.class_type = "WanFirstLastFrameToVideo";
-      g.i2v.inputs.end_image = ["end", 0];
-    }
     const half = Math.ceil(r.steps / 2);
     Object.assign(g.ks_high.inputs, { noise_seed: r.seed, steps: r.steps, cfg: r.cfg, end_at_step: half });
     Object.assign(g.ks_low.inputs, { noise_seed: r.seed, steps: r.steps, cfg: r.cfg, start_at_step: half });
+    let i2v = "i2v", joined: Link = ["decode", 0], decoded = "decode";
+    for (let k = 2; k <= segs; k++) {
+      const c = (id: string) => structuredClone(g[id]);
+      g[`tail${k}`] = { class_type: "ImageFromBatch", inputs: { image: [decoded, 0], batch_index: length - 1, length: 1 } };
+      g[`i2v${k}`] = { ...c("i2v"), inputs: { ...c("i2v").inputs, start_image: [`tail${k}`, 0] } };
+      g[`ks_high${k}`] = c("ks_high");
+      Object.assign(g[`ks_high${k}`].inputs, { positive: [`i2v${k}`, 0], negative: [`i2v${k}`, 1], latent_image: [`i2v${k}`, 2], noise_seed: (r.seed + k - 1) % 2 ** 32 });
+      g[`ks_low${k}`] = c("ks_low");
+      Object.assign(g[`ks_low${k}`].inputs, { positive: [`i2v${k}`, 0], negative: [`i2v${k}`, 1], latent_image: [`ks_high${k}`, 0], noise_seed: (r.seed + k - 1) % 2 ** 32 });
+      g[`decode${k}`] = { class_type: "VAEDecode", inputs: { samples: [`ks_low${k}`, 0], vae: ["vae", 0] } };
+      // frame 0 repeats the previous segment's last frame: drop it at the seam
+      g[`rest${k}`] = { class_type: "ImageFromBatch", inputs: { image: [`decode${k}`, 0], batch_index: 1, length: length - 1 } };
+      g[`join${k}`] = { class_type: "ImageBatch", inputs: { image1: joined, image2: [`rest${k}`, 0] } };
+      [i2v, decoded, joined] = [`i2v${k}`, `decode${k}`, [`join${k}`, 0]];
+    }
+    if (end) {
+      g.end = { class_type: "LoadImage", inputs: { image: end } };
+      g[i2v].class_type = "WanFirstLastFrameToVideo";
+      g[i2v].inputs.end_image = ["end", 0];
+    }
+    g.rife.inputs.frames = joined;
+    g.last.inputs.image = joined;
   }
-  g.last.inputs.batch_index = length - 1;
+  g.last.inputs.batch_index = length + (segs - 1) * (length - 1) - 1;
   g.combine.inputs.frame_rate = r.fps;
   if (RIFE[r.fps] === 1) {
+    g.combine.inputs.images = g.rife.inputs.frames;
     delete g.rife;
-    g.combine.inputs.images = ["decode", 0];
   } else g.rife.inputs.multiplier = RIFE[r.fps];
   return g;
 }
