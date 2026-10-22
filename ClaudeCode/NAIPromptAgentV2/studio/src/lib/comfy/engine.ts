@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import { type Card, type VmRow, comfyDb, getVm, putVm, dropVm, openRun, closeRun, runs, readSettings, getState, setState } from "./store";
 import { type Hyperstack, type Offer, NoCapacity, hyperstack } from "./hyperstack";
 import { canStart, clampKeepWarm, dayStart, runCost, spentSince, stopReason } from "./spend";
+import { pushLoras } from "./loras";
 import { COMFY_PORT, modelsVolume, podHost, renderCloudInit, syncModels, tailnetIp } from "./pod";
 import { dropModels, ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
@@ -264,5 +265,5 @@ export function engine(d: Deps) {
 type Engine = ReturnType<typeof engine>;
 export function getEngine(): Engine {
   const g = globalThis as { __comfyEngine?: Engine };
-  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h), sync: (c) => syncModels(c).then(dropModels) }));
+  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h), sync: (c) => syncModels(c).then(() => (c === "main" ? pushLoras() : null)).then(dropModels) }));
 }
