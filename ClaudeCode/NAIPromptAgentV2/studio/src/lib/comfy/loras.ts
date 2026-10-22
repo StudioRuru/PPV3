@@ -50,7 +50,7 @@ export async function saveLora(name: string, body: ReadableStream<Uint8Array>, d
   }
 }
 
-function ssh(host: string, cmd: string, stdin?: Readable): Promise<string> {
+export function ssh(host: string, cmd: string, stdin?: Readable): Promise<string> {
   return new Promise((resolve, reject) => {
     const p = spawn("ssh", ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", `root@${host}`, cmd]);
     let out = "";
@@ -76,4 +76,28 @@ export async function pushLoras(host = podHost("main"), dir = LORA_DIR): Promise
     sent.push(name);
   }
   return sent;
+}
+
+/** Wan LoRAs touch `blocks.N.self_attn|cross_attn|ffn`; Qwen (`transformer_blocks`) and SDXL (`down_blocks`) never do. */
+export const isWanLora = (keys: string[]): boolean => keys.some((k) => /(^|[._])blocks[._]\d+[._](self_attn|cross_attn|ffn)/.test(k) && !/transformer_blocks|down_blocks|up_blocks|mid_block/.test(k));
+
+const KEYS_PY = `import json,struct,glob,os
+o={}
+for f in glob.glob("${REMOTE}/**/*.safetensors",recursive=True):
+  try:
+    with open(f,"rb") as h: n=struct.unpack("<Q",h.read(8))[0]; o[os.path.relpath(f,"${REMOTE}")]=sorted(json.loads(h.read(n)))[:40]
+  except Exception: pass
+print(json.dumps(o))`;
+const wan = new Map<string, boolean>();
+
+/** Of the pod's LoRAs, the ones a Wan video can use (unreadable files are kept, image LoRAs dropped). A Qwen LoRA on Wan silently loads nothing. */
+export async function videoLoras(names: string[], host = podHost("main")): Promise<string[]> {
+  if (names.some((n) => !wan.has(n))) {
+    try {
+      const keys = JSON.parse((await ssh(host, "python3 -", Readable.from([KEYS_PY]))).trim().split("\n").pop() ?? "{}") as Record<string, string[]>;
+      for (const [n, k] of Object.entries(keys)) wan.set(n, isWanLora(k));
+      for (const n of names) if (!wan.has(n)) wan.set(n, true);
+    } catch { /* pod unreachable: show everything */ }
+  }
+  return names.filter((n) => wan.get(n) !== false);
 }

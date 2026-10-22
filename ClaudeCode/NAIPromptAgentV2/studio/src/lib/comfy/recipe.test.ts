@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  photoGraph, poseGraph, videoGraph, validatePhoto, validateVideo, wanFrames, isQwen, BFS_LORA, BFS_PROMPT, FACE_DETECTOR,
+  photoGraph, poseGraph, videoGraph, beats, validatePhoto, validateVideo, wanFrames, isQwen, BFS_LORA, BFS_PROMPT, FACE_DETECTOR,
   DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, type PhotoRecipe, type VideoRecipe,
 } from "./recipe";
 import { estimate } from "./estimate";
@@ -160,6 +160,19 @@ test("i2v past 5 s chains ≤81-frame segments, each starting on the last frame 
   const poster = byClass(g, "ImageFromBatch").find(([, n]) => n.inputs.image[0] === joinId)![1];
   assert.equal(poster.inputs.batch_index, 81 + 80 - 1); // the seam frame is dropped once
   assert.equal(byClass(videoGraph({ ...video, seconds: 5 }, { start: "s.png" }) as G, "ImageBatch").length, 0);
+});
+
+test("beats hands each chained segment its own sentences", () => {
+  assert.deepEqual(beats("She waves. She turns. She sits. She smiles.", 2), ["She waves. She turns.", "She sits. She smiles."]);
+  assert.deepEqual(beats("She waves at the camera", 2), ["She waves at the camera", "She waves at the camera"]);
+  assert.deepEqual(beats("She waves! Then turns.", 3), ["She waves!", "She waves!", "Then turns."]);
+  assert.deepEqual(beats("  A. B.  ", 1), ["A. B."]);
+});
+
+test("a 10 s i2v gives each segment its own beat of the prompt", () => {
+  const g = videoGraph({ ...video, seconds: 10, motion: "low", prompt: "She looks down. She covers up." }, { start: "s.png" }) as G;
+  const texts = byClass(g, "WanImageToVideo").map(([, n]) => g[n.inputs.positive[0]].inputs.text);
+  assert.deepEqual(texts, ["She looks down., subtle gentle movement", "She covers up., subtle gentle movement"]);
 });
 
 test("t2v uses the TI2V 5B workflow and portrait swaps the size", () => {

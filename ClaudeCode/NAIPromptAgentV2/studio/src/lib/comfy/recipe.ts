@@ -128,6 +128,16 @@ export function wanFrames(seconds: number): number {
   return 4 * Math.round((16 * s) / 4) + 1;
 }
 
+/** Splits the prompt by sentence across `n` chained segments: Wan manages about one action per 5 s segment. */
+export function beats(prompt: string, n: number): string[] {
+  const s = prompt.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (s.length <= 1) return Array(n).fill(prompt.trim());
+  return Array.from({ length: n }, (_, k) => {
+    const a = Math.floor((k * s.length) / n);
+    return s.slice(a, Math.max(a + 1, Math.floor(((k + 1) * s.length) / n))).join(" ");
+  });
+}
+
 export function validateEdit(r: unknown): EditJob {
   const o = obj(r, "recipe");
   return {
@@ -270,7 +280,8 @@ export function videoGraph(r: VideoRecipe, frames: { start?: string; end?: strin
   const length = wanFrames(r.seconds / segs);
   const [w, h] = (t2v ? T2V_SIZE : I2V_SIZE)[r.size];
   const [width, height] = frames.portrait ? [h, w] : [w, h];
-  g.pos.inputs.text = [r.prompt.trim(), MOTION[r.motion]].filter(Boolean).join(", ");
+  const text = beats(r.prompt, segs).map((b) => [b, MOTION[r.motion]].filter(Boolean).join(", "));
+  g.pos.inputs.text = text[0];
   g.neg.inputs.text = r.negative;
   // ponytail: each LoRA goes on every Wan model in the graph; split high/low LoRA pairs if quality needs it
   const chain = (unet: string, shift: string) => {
@@ -300,7 +311,8 @@ export function videoGraph(r: VideoRecipe, frames: { start?: string; end?: strin
     for (let k = 2; k <= segs; k++) {
       const c = (id: string) => structuredClone(g[id]);
       g[`tail${k}`] = { class_type: "ImageFromBatch", inputs: { image: [decoded, 0], batch_index: length - 1, length: 1 } };
-      g[`i2v${k}`] = { ...c("i2v"), inputs: { ...c("i2v").inputs, start_image: [`tail${k}`, 0] } };
+      g[`pos${k}`] = { ...c("pos"), inputs: { ...c("pos").inputs, text: text[k - 1] } };
+      g[`i2v${k}`] = { ...c("i2v"), inputs: { ...c("i2v").inputs, positive: [`pos${k}`, 0], start_image: [`tail${k}`, 0] } };
       g[`ks_high${k}`] = c("ks_high");
       Object.assign(g[`ks_high${k}`].inputs, { positive: [`i2v${k}`, 0], negative: [`i2v${k}`, 1], latent_image: [`i2v${k}`, 2], noise_seed: (r.seed + k - 1) % 2 ** 32 });
       g[`ks_low${k}`] = c("ks_low");

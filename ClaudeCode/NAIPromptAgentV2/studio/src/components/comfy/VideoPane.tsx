@@ -52,7 +52,7 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
     setTool(t);
     setOpen(true);
     // ponytail: one fetch per open; a cold GPU shows "Waiting for GPU…" until the LoRA tool is reopened
-    if (t === "lora") { void requestJson<{ loras?: string[] }>("/api/comfy/models").then((x) => { if (alive.current && x.ok && x.data.loras) setLoraNames(x.data.loras); }); return; }
+    if (t === "lora") { void requestJson<{ loras?: string[]; videoLoras?: string[] }>("/api/comfy/models").then((x) => { const l = x.ok ? x.data.videoLoras ?? x.data.loras : undefined; if (alive.current && l) setLoraNames(l); }); return; }
     if (t !== "motion") { setLib(null); void requestJson<{ items: LibItem[] }>("/api/comfy/items").then((x) => { if (alive.current) setLib(x.ok ? x.data.items : []); }); }
   };
   const setMode = (mode: Mode) => {
@@ -122,7 +122,7 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
         {clip ? <video key={clip} src={`/api/comfy/file/${clip}`} playsInline loop muted autoPlay controls className="size-full object-contain" />
           : <div className="text-muted grid size-full place-items-center p-6 text-center text-sm">Your clip appears here.</div>}
       </div>
-      <Drawer open={open} onOpenChange={setOpen} prompt={r.prompt} onPrompt={(prompt) => patch({ prompt })} placeholder={r.mode === "t2v" ? "Describe the scene…" : "Describe the motion…"}
+      <Drawer open={open} onOpenChange={setOpen} prompt={r.prompt} onPrompt={(prompt) => patch({ prompt })} placeholder={r.mode === "t2v" ? "Describe the scene…" : "One sentence per 5 s — move what's already in the frame…"}
         action={busy ? "Working…" : r.mode === "t2v" ? "Make clip" : "Animate"} onAction={() => void generate()} disabled={busy || needStart || (r.mode === "t2v" && !r.prompt.trim())}
         progress={job?.status === "running" ? job.progress : null} note={note}>
         {tool === "motion" ? <MotionSheet r={r} onChange={patch} onPickEnd={() => openTool("end")} endSet={r.end != null} />
