@@ -1,6 +1,7 @@
 // Client-safe: pure string helpers for LoRA trigger words in the prompt.
 const tokens = (prompt: string) => prompt.split(",").map((t) => t.trim()).filter(Boolean);
-const key = (s: string) => s.trim().toLowerCase();
+// Weighting ignored: "(word:1.2)", "{word}", "[word]" all count as "word".
+const key = (s: string) => s.trim().replace(/^[({[]+/, "").replace(/[)}\]]+$/, "").replace(/:\s*-?\d+(\.\d+)?$/, "").trim().toLowerCase();
 
 /** Prepends the words the prompt doesn't already have (whole-token, case-insensitive). Returns what it inserted. */
 export function addTriggers(prompt: string, words: string[]): { prompt: string; inserted: string[] } {
@@ -16,12 +17,17 @@ export function addTriggers(prompt: string, words: string[]): { prompt: string; 
   return { prompt: [...inserted, ...(rest ? [rest] : [])].join(", "), inserted };
 }
 
-/** Removes one token per inserted word, then tidies commas and spaces. Owner-typed words are never in `inserted`, so they stay. */
+/** Removes the first matching comma segment per inserted word, in place: the owner's other text keeps its exact spacing. Owner-typed words are never in `inserted`, so they stay. */
 export function removeTriggers(prompt: string, inserted: string[]): string {
-  const list = tokens(prompt);
+  const segs = prompt.split(",");
+  let changed = false;
   for (const w of inserted) {
-    const i = list.findIndex((t) => key(t) === key(w));
-    if (i >= 0) list.splice(i, 1);
+    if (!key(w)) continue;
+    const i = segs.findIndex((s) => key(s) === key(w));
+    if (i < 0) continue;
+    segs.splice(i, 1); // joining with one "," eats exactly one separator
+    if (i === 0 && segs.length) segs[0] = segs[0].trimStart();
+    changed = true;
   }
-  return list.join(", ");
+  return changed ? segs.join(",") : prompt;
 }
