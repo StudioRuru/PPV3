@@ -202,7 +202,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     const panel = "border-border space-y-2 rounded-lg border p-3";
     const label = "text-faint text-xs font-semibold uppercase tracking-wide";
     return (
-      <div className="grid h-[calc(100dvh-14rem)] min-h-[32rem] gap-4" style={{ gridTemplateColumns: "320px 96px 1fr 300px" }}>
+      <div className="grid h-[calc(100dvh-16rem)] min-h-[32rem] gap-4" style={{ gridTemplateColumns: "320px 96px 1fr 300px" }}>
         <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
           <div className={panel}><p className={label}>Model</p>{modelEl}</div>
           <div className={panel}><p className={label}>LoRA</p>{loraEl}</div>
