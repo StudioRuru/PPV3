@@ -100,22 +100,6 @@
     - https://civitai.red/api/download/models/2513186?fileId=2460676
   licence: "Civitai model page terms (Smooth Mix Wan 2.2)"
   cards: [main, boost]
-- kind: diffusion_models
-  filename: noctQAnime_v10_fp8.safetensors
-  sha256: cb9473d830100e10132d5d4495af85e68ef50c86b5dde61e3db09780526d2a67
-  size: 7250959200
-  urls:
-    - https://civitai.red/api/download/models/3362444?fileId=3250303
-  licence: "Qwen Research License / civitai model page terms"
-  cards: [main]
-- kind: diffusion_models
-  filename: noctQRealism_v40Base_fp8.safetensors
-  sha256: f5f7f191e09c6000181a676f5340c583be890a956a457d50f4225c3795655daa
-  size: 7250959200
-  urls:
-    - https://civitai.red/api/download/models/3372040?fileId=3260146
-  licence: "Qwen Research License / civitai model page terms"
-  cards: [main]
 - kind: text_encoders
   filename: qwen_image_2.1_text_encoder.safetensors
   sha256: 8bfd0f6e12abf2d2d697ecc888e5e90b0d6741d6708f05799f53afa560452e8f
