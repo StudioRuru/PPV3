@@ -34,7 +34,8 @@ test("clip reuse clears start and end frames", () => {
 
 test("restoreTake keeps seed, swap and depth pose", () => {
   const t = restoreTake(item("photo", { ...defaultPhoto(["q.safetensors"]), swap: { base: "b.png", head: "h.png" }, pose: { kind: "depth", image: "d.png", strength: 0.7 } }, 42));
-  assert.equal(t.recipe.seed, 42); assert.deepEqual(t.swap, { base: "b.png", head: "h.png" });
+  assert.ok(t); assert.equal(t.recipe.seed, 42); assert.deepEqual(t.swap, { base: "b.png", head: "h.png" });
   assert.deepEqual(t.pose, { kind: "depth", image: "d.png", strength: 0.7 }); assert.equal(t.recipe.pose, null);
 });
-test("restoreTake drops skeleton poses", () => assert.equal(restoreTake(item("photo", { ...defaultPhoto(["m"]), pose: { kind: "pose", image: "p.png", strength: 1 } })).pose, null));
+test("restoreTake drops skeleton poses", () => assert.equal(restoreTake(item("photo", { ...defaultPhoto(["m"]), pose: { kind: "pose", image: "p.png", strength: 1 } }))?.pose, null));
+test("restoreTake returns null for imported photos", () => assert.equal(restoreTake(item("photo", { source: "import" })), null));

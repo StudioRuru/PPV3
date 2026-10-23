@@ -40,6 +40,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const wide = useWide();
   const [takes, setTakes] = useState<Item[]>([]);
   const [compare, setCompare] = useState<string | null>(null);
+  useEffect(() => { if (!wide) setCompare(null); }, [wide]);
   const { poll, alive } = useJob();
   const kindRef = useRef<PoseRef["kind"]>(pose.kind);
   kindRef.current = pose.kind;
@@ -81,8 +82,8 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     });
   }, [wide]);
   const restore = (it: Item) => {
-    if (!Array.isArray((it.recipe as PhotoRecipe)?.loras)) return; // imported photos carry no recipe
     const t = restoreTake(it);
+    if (!t) return;
     setR(t.recipe); onPrompt(t.recipe.prompt); setShot(it.file); setError(null);
     setPoseState(t.pose ? { ...EMPTY_POSE, kind: t.pose.kind, extracted: t.pose.image, strength: t.pose.strength } : EMPTY_POSE);
     setSwapState(t.swap ? { on: true, base: { file: t.swap.base }, head: { file: t.swap.head } } : EMPTY_SWAP);
@@ -171,7 +172,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const swapReady = swapOn && !!swap.base && !!swap.head;
   const chips = ([["model", r.model ? short(r.model) : "Model"], ["lora", r.loras.length ? `LoRA · ${r.loras.length}` : "LoRA"], ["pose", poseOn ? "Pose ✓" : "Pose"], ["swap", swapReady ? "Swap ✓" : "Swap head"], ["tune", "Tune"]] as [Tool, string][])
     .filter(([t]) => (t === "pose" ? !dit : t === "swap" ? qwen : true));
-  const note = job ? (job.status === "queued" ? "Queued — GPU warming" : `Rendering ${Math.round(job.progress * 100)}%`) : error ?? `≈ ${est.seconds}s${view ? ` · $${est.usd.toFixed(2)}` : ""}`;
+  const note = job ? (job.status === "queued" ? "Queued — GPU warming" : `Rendering ${Math.round(job.progress * 100)}%`) : error ?? (models && r.model && !models.checkpoints.includes(r.model) ? "Model no longer on the GPU" : null) ?? `≈ ${est.seconds}s${view ? ` · $${est.usd.toFixed(2)}` : ""}`;
 
   const modelEl = models ? (
     <div className="flex flex-wrap gap-2">
@@ -185,15 +186,16 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const poseEl = <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />;
   const swapEl = <SwapTool st={swap} set={setSwap} />;
   const tuneEl = <TuneSheet r={r} samplers={models?.samplers ?? []} schedulers={models?.schedulers ?? []} onChange={patch} />;
-  const canvasInner = (
+  const canvasInner = (fit: "fill" | "contain") => (
     <>
-      {shot ? <img src={`/api/comfy/file/${shot}`} alt="Latest photo" className="size-full object-contain" />
+      {shot ? <img src={`/api/comfy/file/${shot}`} alt="Latest photo" className={`size-full ${fit === "contain" ? "object-contain" : "object-fill"}`} />
         : pose.refUrl && pose.kp ? <img src={pose.refUrl} alt="" className="size-full object-fill opacity-40" />
         : <div className="text-muted grid size-full place-items-center p-6 text-center text-sm">Your photo appears here.</div>}
       {!shot && pose.kind === "pose" && pose.kp && <PoseOverlay kp={pose.kp} onMove={(i, x, y) => setPoseState((s) => (s.kp ? { ...s, kp: moveJoint(s.kp, i, x, y) } : s))} />}
     </>
   );
-  const disabled = busy || !r.model || (swapOn ? !swapReady : !prompt.trim());
+  const modelGone = !!models && !!r.model && !models.checkpoints.includes(r.model);
+  const disabled = busy || !r.model || modelGone || (swapOn ? !swapReady : !prompt.trim());
 
   if (wide) {
     const panel = "border-border space-y-2 rounded-lg border p-3";
@@ -214,7 +216,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
         <TakeStrip takes={takes} current={shot} onRestore={restore} onCompare={setCompare} />
         <div className="grid min-h-0 min-w-0 place-items-center">
           {compare ? <img src={`/api/comfy/file/${compare}`} alt="Compared take" className="max-h-full max-w-full object-contain" />
-            : <div className="bg-surface border-border relative overflow-hidden rounded-lg border" style={{ aspectRatio: `${r.width}/${r.height}`, maxHeight: "100%", maxWidth: "100%", height: "100%" }}>{canvasInner}</div>}
+            : <div className="bg-surface border-border relative overflow-hidden rounded-lg border" style={{ aspectRatio: `${r.width}/${r.height}`, maxHeight: "100%", maxWidth: "100%", height: "100%" }}>{canvasInner("contain")}</div>}
         </div>
         <aside aria-label="Miyabi" className="min-h-0" />
       </div>
@@ -230,7 +232,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
         ))}
       </div>
       <div className="bg-surface border-border relative mx-auto overflow-hidden rounded-lg border" style={{ aspectRatio: `${r.width}/${r.height}`, width: `min(100%, ${(50 * r.width) / r.height}vh)` }}>
-        {canvasInner}
+        {canvasInner("fill")}
       </div>
       <Drawer open={open} onOpenChange={setOpen} prompt={prompt} onPrompt={onPrompt} placeholder="Describe the picture…" action={busy ? "Working…" : "Make photo"}
         onAction={() => void generate()} disabled={disabled} progress={job?.status === "running" ? job.progress : null} note={note}>
