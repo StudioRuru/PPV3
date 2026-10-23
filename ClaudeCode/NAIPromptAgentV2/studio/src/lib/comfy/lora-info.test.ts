@@ -81,3 +81,13 @@ test("header info on a Mac file wins; civitai fills gaps", async () => {
   const i = await resolveInfo(["m.safetensors"], { db, manifestSha: new Map(), dir, fetch: ok({ baseModel: "Qwen", trainedWords: ["zz"] }) });
   assert.deepEqual(i["m.safetensors"], { family: "sdxl", words: ["zz"], weight: null });
 });
+
+test("cleanWords splits commas, dedupes, caps at 10", async () => {
+  const { cleanWords } = await import("./lora-info");
+  const { addTriggers } = await import("./triggers");
+  const c = fromCivitai({ trainedWords: ["lenovo woman, blonde hair"] }).words;
+  assert.deepEqual(c, ["lenovo woman", "blonde hair"]);
+  assert.deepEqual(addTriggers("lenovo woman, blonde hair, cafe", c), { prompt: "lenovo woman, blonde hair, cafe", inserted: [] });
+  assert.deepEqual(cleanWords(["A, a", "x".repeat(81), " "]), ["A"]);
+  assert.equal(cleanWords(Array.from({ length: 15 }, (_, i) => `w${i}`)).length, 10);
+});

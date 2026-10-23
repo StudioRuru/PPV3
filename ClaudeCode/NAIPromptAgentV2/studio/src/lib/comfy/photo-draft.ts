@@ -33,7 +33,7 @@ export function loadPhoto(): PhotoRecipe | null {
     const h = o.hires;
     if (h && Number.isFinite(h.scale) && Number.isFinite(h.denoise)) out.hires = { scale: h.scale, denoise: h.denoise };
     if (o.faceFix === true) out.faceFix = true;
-    if (Array.isArray(o.loras)) out.loras = o.loras.filter((l: { name?: unknown; strength?: unknown }) => typeof l?.name === "string" && typeof l.strength === "number" && Number.isFinite(l.strength)).map((l: { name: string; strength: number }) => ({ name: l.name, strength: l.strength }));
+    if (Array.isArray(o.loras)) out.loras = o.loras.filter((l: { name?: unknown; strength?: unknown }) => typeof l?.name === "string" && typeof l.strength === "number" && Number.isFinite(l.strength)).map((l: { name: string; strength: number; words?: unknown }) => ({ name: l.name, strength: l.strength, ...(Array.isArray(l.words) && l.words.length <= 10 && l.words.every((w) => typeof w === "string" && w.length <= 80) ? { words: l.words as string[] } : {}) }));
     return out as PhotoRecipe;
   } catch { return null; }
 }
@@ -69,7 +69,7 @@ export function loadVideo(): VideoRecipe | null {
       else if (typeof w === "string") { if (typeof v === "string") out[k] = v; }
     }
     for (const k of ["start", "end"] as const) if (Number.isInteger(o[k]) && o[k] > 0) out[k] = o[k];
-    if (Array.isArray(o.loras)) out.loras = o.loras.filter((l: { name?: unknown; strength?: unknown }) => typeof l?.name === "string" && typeof l.strength === "number" && Number.isFinite(l.strength)).map((l: { name: string; strength: number }) => ({ name: l.name, strength: l.strength }));
+    if (Array.isArray(o.loras)) out.loras = o.loras.filter((l: { name?: unknown; strength?: unknown }) => typeof l?.name === "string" && typeof l.strength === "number" && Number.isFinite(l.strength)).map((l: { name: string; strength: number; words?: unknown }) => ({ name: l.name, strength: l.strength, ...(Array.isArray(l.words) && l.words.length <= 10 && l.words.every((w) => typeof w === "string" && w.length <= 80) ? { words: l.words as string[] } : {}) }));
     return out as VideoRecipe;
   } catch { return null; }
 }

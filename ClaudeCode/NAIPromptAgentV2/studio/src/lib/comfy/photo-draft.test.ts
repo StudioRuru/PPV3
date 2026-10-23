@@ -87,3 +87,11 @@ test("photoTune per family; defaultPhoto follows the first model", () => {
   const q = defaultPhoto(["noctQRealism_v40Base_fp8.safetensors"]);
   assert.deepEqual([q.steps, q.cfg, q.sampler, q.scheduler], [25, 3, "euler", "simple"]);
 });
+
+test("loadPhoto keeps LoRA trigger words", () => {
+  const store: Record<string, string> = {};
+  (globalThis as any).localStorage = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; } };
+  savePhoto({ ...defaultPhoto([]), loras: [{ name: "a.safetensors", strength: 0.8, words: ["lenovo woman"] }, { name: "b.safetensors", strength: 1 }] });
+  assert.deepEqual(loadPhoto()?.loras, [{ name: "a.safetensors", strength: 0.8, words: ["lenovo woman"] }, { name: "b.safetensors", strength: 1 }]);
+  delete (globalThis as any).localStorage;
+});

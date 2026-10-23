@@ -23,6 +23,17 @@ export function familyOf(base: string): Family | null {
 
 const clean = (w: unknown) => (typeof w === "string" ? w.trim().replace(/^,+|,+$/g, "").trim() : "");
 
+/** Splits comma-joined entries, trims, drops empties and over-long entries, dedupes case-insensitively (first wins), keeps at most 10. */
+export function cleanWords(words: unknown[]): string[] {
+  const seen = new Set<string>(), out: string[] = [];
+  for (const e of words) for (const part of typeof e === "string" ? e.split(",") : []) {
+    const w = clean(part);
+    if (!w || w.length > 80 || seen.has(w.toLowerCase())) continue;
+    seen.add(w.toLowerCase()); out.push(w);
+  }
+  return out.slice(0, 10);
+}
+
 /** Kohya headers: base model plus tag frequencies. Words = top 3 tags (longer than 1 char) with at least a quarter of the top count. */
 export function fromHeader(meta: Record<string, string>): LoraInfo {
   const counts = new Map<string, number>();
@@ -31,12 +42,12 @@ export function fromHeader(meta: Record<string, string>): LoraInfo {
       for (const [t, n] of Object.entries(ds)) if (t.trim().length > 1) counts.set(t.trim(), (counts.get(t.trim()) ?? 0) + n);
   } catch { /* unreadable tag frequency: no words */ }
   const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 3);
-  return { family: familyOf(meta.ss_base_model_version || meta["modelspec.architecture"] || ""), words: top.filter(([, n]) => n >= top[0][1] / 4).map(([t]) => t), weight: null };
+  return { family: familyOf(meta.ss_base_model_version || meta["modelspec.architecture"] || ""), words: cleanWords(top.filter(([, n]) => n >= top[0][1] / 4).map(([t]) => t)), weight: null };
 }
 
 export function fromCivitai(json: unknown): LoraInfo {
   const j = (json ?? {}) as { baseModel?: unknown; trainedWords?: unknown };
-  const words = Array.isArray(j.trainedWords) ? j.trainedWords.map(clean).filter(Boolean) : [];
+  const words = Array.isArray(j.trainedWords) ? cleanWords(j.trainedWords) : [];
   return { family: typeof j.baseModel === "string" ? familyOf(j.baseModel) : null, words, weight: null };
 }
 
@@ -89,5 +100,6 @@ export async function resolveInfo(names: string[], deps: { db: Db; manifestSha: 
     if (settled) db.prepare("INSERT OR REPLACE INTO comfy_lora_info (name, info, sha) VALUES (?,?,?)").run(name, JSON.stringify(info), row?.sha ?? null);
     out[name] = info;
   }
+  for (const i of Object.values(out)) i.words = cleanWords(Array.isArray(i.words) ? i.words : []); // single exit: also fixes rows cached before normalising
   return out;
 }
