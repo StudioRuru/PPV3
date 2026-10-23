@@ -4,7 +4,8 @@ import type { EngineView } from "@/lib/comfy/engine";
 import { estimate } from "@/lib/comfy/estimate";
 import { defaultPhoto, loadPhoto, photoTune, savePhoto } from "@/lib/comfy/photo-draft";
 import { fromOpenPose, moveJoint } from "@/lib/comfy/pose";
-import { family, isDit, isQwen, type PhotoRecipe, type PoseRef } from "@/lib/comfy/recipe";
+import { family, isDit, isQwen, type Lora, type LoraInfo, type PhotoRecipe, type PoseRef } from "@/lib/comfy/recipe";
+import { addTriggers, removeTriggers } from "@/lib/comfy/triggers";
 import { requestJson } from "@/lib/net";
 import { Drawer, type JobView, useJob } from "./Drawer";
 import { LoraStack } from "./LoraStack";
@@ -22,6 +23,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const [r, setR] = useState<PhotoRecipe>(() => defaultPhoto([]));
   const [ready, setReady] = useState(false);
   const [models, setModels] = useState<Models | null>(null);
+  const [loraInfo, setLoraInfo] = useState<Record<string, LoraInfo>>({});
   const [tool, setTool] = useState<Tool>("model");
   const [open, setOpen] = useState(false);
   const [pose, setPoseState] = useState<PoseState>(EMPTY_POSE);
@@ -40,8 +42,26 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   // LoRAs and poses don't carry across models; a family change also resets the tune.
   const pickModel = (model: string) => {
     if (model === r.model) return;
+    const inserted = r.loras.flatMap((l) => l.words ?? []);
+    if (inserted.length) onPrompt(removeTriggers(prompt, inserted));
     patch({ model, loras: [], ...(family(model) !== family(r.model) ? photoTune(model) : {}) });
     setPoseState(EMPTY_POSE);
+  };
+
+  const holds = (ls: Lora[], w: string) => ls.some((l) => l.words?.some((x) => x.toLowerCase() === w.toLowerCase()));
+  const addLora = (name: string) => {
+    const info = loraInfo[name];
+    const { prompt: p, inserted } = addTriggers(prompt, info?.words ?? []);
+    // Words another LoRA already inserted are recorded here too, so they stay if that LoRA goes first.
+    const shared = (info?.words ?? []).filter((w) => !inserted.includes(w) && holds(r.loras, w));
+    if (inserted.length) onPrompt(p);
+    patch({ loras: [...r.loras, { name, strength: info?.weight ?? 0.8, words: [...inserted, ...shared] }] });
+  };
+  const removeLora = (i: number) => {
+    const rest = r.loras.filter((_, j) => j !== i);
+    const gone = (r.loras[i].words ?? []).filter((w) => !holds(rest, w));
+    if (gone.length) onPrompt(removeTriggers(prompt, gone));
+    patch({ loras: rest });
   };
 
   useEffect(() => {
@@ -70,6 +90,15 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     const t = setInterval(go, 4000);
     return () => { stop = true; clearInterval(t); };
   }, [active, models]);
+
+  // Family and trigger words per pod LoRA; a failed lookup leaves the list unfiltered.
+  const loraKey = models?.loras.join(",") ?? "";
+  useEffect(() => {
+    if (!loraKey) return;
+    let stop = false;
+    void requestJson<{ info: Record<string, LoraInfo> }>(`/api/comfy/lora-info?names=${encodeURIComponent(loraKey)}`).then((res) => { if (!stop && res.ok) setLoraInfo(res.data.info); });
+    return () => { stop = true; };
+  }, [loraKey]);
 
   const extract = async () => {
     if (!pose.refUrl) return;
@@ -146,7 +175,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
             </div>
           ) : <p className="text-muted text-sm">Waiting for GPU…</p>
         )}
-        {tool === "lora" && <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} />}
+        {tool === "lora" && <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} info={loraInfo} fit={family(r.model)} onAdd={addLora} onRemove={removeLora} />}
         {tool === "pose" && !dit && <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />}
         {tool === "swap" && qwen && <SwapTool st={swap} set={setSwap} />}
         {tool === "tune" && <TuneSheet r={r} samplers={models?.samplers ?? []} schedulers={models?.schedulers ?? []} onChange={patch} />}

@@ -5,10 +5,10 @@ import crypto from "node:crypto";
 import type Database from "better-sqlite3";
 import { CIVITAI_TOKEN } from "../env";
 import { LORA_DIR } from "./loras";
-import type { Family } from "./recipe";
+import { fits, type Family, type LoraInfo } from "./recipe";
 
-export type { Family };
-export type LoraInfo = { family: Family | null; words: string[]; weight: number | null };
+export { fits };
+export type { Family, LoraInfo };
 type Db = Database.Database;
 const UNKNOWN: LoraInfo = { family: null, words: [], weight: null };
 
@@ -40,8 +40,6 @@ export function fromCivitai(json: unknown): LoraInfo {
   return { family: typeof j.baseModel === "string" ? familyOf(j.baseModel) : null, words, weight: null };
 }
 
-/** Unknown (no info) fits every model. */
-export const fits = (info: LoraInfo | undefined, f: Family): boolean => !info || info.family === null || info.family === f;
 
 async function headerMeta(file: string): Promise<Record<string, string> | null> {
   try {

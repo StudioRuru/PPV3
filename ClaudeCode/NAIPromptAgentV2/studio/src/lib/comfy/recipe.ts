@@ -52,6 +52,9 @@ const seed = (v: unknown) => (v === -1 ? Math.floor(Math.random() * 2 ** 32) : n
 const dim = (v: unknown, name: string) => (num(v, name, 512, 2048, true) % 64 ? fail(`${name} must be a multiple of 64`) : (v as number));
 export type Family = "sdxl" | "qwen" | "krea2" | "moss";
 export const family = (model: string): Family => (/krea/i.test(model) ? "krea2" : /moss/i.test(model) ? "moss" : /qwen|noctq/i.test(model) ? "qwen" : "sdxl");
+export type LoraInfo = { family: Family | null; words: string[]; weight: number | null };
+/** Unknown (no info) fits every model. */
+export const fits = (info: LoraInfo | undefined, f: Family): boolean => !info || info.family === null || info.family === f;
 export const isQwen = (model: string) => family(model) === "qwen";
 /** Diffusion-only models: UNETLoader plus a separate text encoder and VAE. */
 export const isDit = (model: string) => family(model) !== "sdxl";
