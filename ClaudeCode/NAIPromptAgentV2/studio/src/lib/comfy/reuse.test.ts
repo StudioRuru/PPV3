@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Item } from "./store";
 import { defaultPhoto, defaultVideo } from "./photo-draft";
-import { asStartFrame, reuseTarget } from "./reuse";
+import { asStartFrame, restoreTake, reuseTarget } from "./reuse";
 
 const item = (kind: Item["kind"], recipe: unknown, seed = 777): Item => ({ id: 5, kind, file: "a.png", poster: null, recipe, seed, cost: 0, createdAt: 1 });
 
@@ -31,3 +31,10 @@ test("clip reuse clears start and end frames", () => {
   assert.equal(t.pane, "video");
   assert.deepEqual([t.recipe.start, (t.recipe as { end: number | null }).end], [null, null]);
 });
+
+test("restoreTake keeps seed, swap and depth pose", () => {
+  const t = restoreTake(item("photo", { ...defaultPhoto(["q.safetensors"]), swap: { base: "b.png", head: "h.png" }, pose: { kind: "depth", image: "d.png", strength: 0.7 } }, 42));
+  assert.equal(t.recipe.seed, 42); assert.deepEqual(t.swap, { base: "b.png", head: "h.png" });
+  assert.deepEqual(t.pose, { kind: "depth", image: "d.png", strength: 0.7 }); assert.equal(t.recipe.pose, null);
+});
+test("restoreTake drops skeleton poses", () => assert.equal(restoreTake(item("photo", { ...defaultPhoto(["m"]), pose: { kind: "pose", image: "p.png", strength: 1 } })).pose, null));

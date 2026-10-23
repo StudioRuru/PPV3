@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import type { EngineView } from "@/lib/comfy/engine";
 import { estimate } from "@/lib/comfy/estimate";
 import { defaultPhoto, loadPhoto, photoTune, savePhoto } from "@/lib/comfy/photo-draft";
+import { restoreTake } from "@/lib/comfy/reuse";
+import type { Item } from "@/lib/comfy/store";
 import { fromOpenPose, moveJoint } from "@/lib/comfy/pose";
 import { family, isDit, isQwen, type Lora, type LoraInfo, type PhotoRecipe, type PoseRef } from "@/lib/comfy/recipe";
 import { addTriggers, removeTriggers } from "@/lib/comfy/triggers";
@@ -11,7 +13,9 @@ import { Drawer, type JobView, useJob } from "./Drawer";
 import { LoraStack } from "./LoraStack";
 import { EMPTY_POSE, PoseOverlay, PoseTool, type PoseState, renderSkeleton } from "./PoseEditor";
 import { EMPTY_SWAP, type SwapState, SwapTool } from "./SwapTool";
+import { TakeStrip } from "./TakeStrip";
 import { TuneSheet } from "./TuneSheet";
+import { useWide } from "./useWide";
 
 type Models = { checkpoints: string[]; loras: string[]; samplers: string[]; schedulers: string[] };
 type Tool = "model" | "lora" | "pose" | "swap" | "tune";
@@ -33,6 +37,9 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shot, setShot] = useState<string | null>(null);
+  const wide = useWide();
+  const [takes, setTakes] = useState<Item[]>([]);
+  const [compare, setCompare] = useState<string | null>(null);
   const { poll, alive } = useJob();
   const kindRef = useRef<PoseRef["kind"]>(pose.kind);
   kindRef.current = pose.kind;
@@ -62,6 +69,23 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     const gone = (r.loras[i].words ?? []).filter((w) => !holds(rest, w));
     if (gone.length) onPrompt(removeTriggers(prompt, gone));
     patch({ loras: rest });
+  };
+
+  // Desktop takes strip: newest 30 photos, read once when the wide layout first shows. A failed fetch leaves it empty.
+  const takesLoaded = useRef(false);
+  useEffect(() => {
+    if (!wide || takesLoaded.current) return;
+    takesLoaded.current = true;
+    void requestJson<{ items: Item[] }>("/api/comfy/items").then((res) => {
+      if (res.ok && Array.isArray(res.data.items)) setTakes((t) => { const have = new Set(t.map((x) => x.id)); return [...t, ...res.data.items.filter((i) => i.kind === "photo" && !have.has(i.id))].sort((a, b) => b.id - a.id).slice(0, 30); });
+    });
+  }, [wide]);
+  const restore = (it: Item) => {
+    if (!Array.isArray((it.recipe as PhotoRecipe)?.loras)) return; // imported photos carry no recipe
+    const t = restoreTake(it);
+    setR(t.recipe); onPrompt(t.recipe.prompt); setShot(it.file); setError(null);
+    setPoseState(t.pose ? { ...EMPTY_POSE, kind: t.pose.kind, extracted: t.pose.image, strength: t.pose.strength } : EMPTY_POSE);
+    setSwapState(t.swap ? { on: true, base: { file: t.swap.base }, head: { file: t.swap.head } } : EMPTY_SWAP);
   };
 
   useEffect(() => {
@@ -133,10 +157,10 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     if (!alive.current) return;
     setBusy(false);
     if (j.status === "error" || j.itemId == null) { setJob(null); return setError(j.error ?? "Generation failed."); }
-    const items = await requestJson<{ items: { id: number; file: string }[] }>("/api/comfy/items");
+    const items = await requestJson<{ items: Item[] }>("/api/comfy/items");
     const it = items.ok ? items.data.items.find((i) => i.id === j.itemId) : undefined;
     setJob(null);
-    if (it) { setShot(it.file); onShot?.(it); }
+    if (it) { setShot(it.file); onShot?.(it); setTakes((t) => [it, ...t.filter((x) => x.id !== it.id)].slice(0, 30)); }
     else setError("Done — it's in the Library.");
   };
 
@@ -149,6 +173,54 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
     .filter(([t]) => (t === "pose" ? !dit : t === "swap" ? qwen : true));
   const note = job ? (job.status === "queued" ? "Queued — GPU warming" : `Rendering ${Math.round(job.progress * 100)}%`) : error ?? `≈ ${est.seconds}s${view ? ` · $${est.usd.toFixed(2)}` : ""}`;
 
+  const modelEl = models ? (
+    <div className="flex flex-wrap gap-2">
+      {models.checkpoints.map((m) => (
+        <button key={m} type="button" aria-pressed={r.model === m} onClick={() => pickModel(m)}
+          className={`min-h-11 rounded-full border px-3 text-xs ${r.model === m ? "bg-accent text-accent-fg border-accent" : "border-border text-muted"}`}>{short(m)}</button>
+      ))}
+    </div>
+  ) : <p className="text-muted text-sm">Waiting for GPU…</p>;
+  const loraEl = <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} info={loraInfo} fit={family(r.model)} onAdd={addLora} onRemove={removeLora} />;
+  const poseEl = <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />;
+  const swapEl = <SwapTool st={swap} set={setSwap} />;
+  const tuneEl = <TuneSheet r={r} samplers={models?.samplers ?? []} schedulers={models?.schedulers ?? []} onChange={patch} />;
+  const canvasInner = (
+    <>
+      {shot ? <img src={`/api/comfy/file/${shot}`} alt="Latest photo" className="size-full object-contain" />
+        : pose.refUrl && pose.kp ? <img src={pose.refUrl} alt="" className="size-full object-fill opacity-40" />
+        : <div className="text-muted grid size-full place-items-center p-6 text-center text-sm">Your photo appears here.</div>}
+      {!shot && pose.kind === "pose" && pose.kp && <PoseOverlay kp={pose.kp} onMove={(i, x, y) => setPoseState((s) => (s.kp ? { ...s, kp: moveJoint(s.kp, i, x, y) } : s))} />}
+    </>
+  );
+  const disabled = busy || !r.model || (swapOn ? !swapReady : !prompt.trim());
+
+  if (wide) {
+    const panel = "border-border space-y-2 rounded-lg border p-3";
+    const label = "text-faint text-xs font-semibold uppercase tracking-wide";
+    return (
+      <div className="grid h-[calc(100dvh-14rem)] min-h-[32rem] gap-4" style={{ gridTemplateColumns: "320px 96px 1fr 300px" }}>
+        <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
+          <div className={panel}><p className={label}>Model</p>{modelEl}</div>
+          <div className={panel}><p className={label}>LoRA</p>{loraEl}</div>
+          <textarea value={prompt} onChange={(e) => onPrompt(e.target.value)} placeholder="Describe the picture…" rows={5} aria-label="Prompt"
+            className="bg-surface border-border w-full rounded-lg border p-3 text-sm" />
+          {!dit && <div className={panel}><p className={label}>Pose</p>{poseEl}</div>}
+          {qwen && <div className={panel}><p className={label}>Swap head</p>{swapEl}</div>}
+          <div className={panel}><p className={label}>Tune</p>{tuneEl}</div>
+          <button type="button" onClick={() => void generate()} disabled={disabled} className="bg-accent text-accent-fg min-h-11 w-full rounded-full font-semibold disabled:opacity-50">{busy ? "Working…" : "Make photo"}</button>
+          <p className="text-muted text-center text-xs">{note}</p>
+        </div>
+        <TakeStrip takes={takes} current={shot} onRestore={restore} onCompare={setCompare} />
+        <div className="grid min-h-0 min-w-0 place-items-center">
+          {compare ? <img src={`/api/comfy/file/${compare}`} alt="Compared take" className="max-h-full max-w-full object-contain" />
+            : <div className="bg-surface border-border relative overflow-hidden rounded-lg border" style={{ aspectRatio: `${r.width}/${r.height}`, maxHeight: "100%", maxWidth: "100%", height: "100%" }}>{canvasInner}</div>}
+        </div>
+        <aside aria-label="Miyabi" className="min-h-0" />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="flex gap-2 overflow-x-auto" role="group" aria-label="Photo tools">
@@ -158,27 +230,15 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
         ))}
       </div>
       <div className="bg-surface border-border relative mx-auto overflow-hidden rounded-lg border" style={{ aspectRatio: `${r.width}/${r.height}`, width: `min(100%, ${(50 * r.width) / r.height}vh)` }}>
-        {shot ? <img src={`/api/comfy/file/${shot}`} alt="Latest photo" className="size-full object-fill" />
-          : pose.refUrl && pose.kp ? <img src={pose.refUrl} alt="" className="size-full object-fill opacity-40" />
-          : <div className="text-muted grid size-full place-items-center p-6 text-center text-sm">Your photo appears here.</div>}
-        {!shot && pose.kind === "pose" && pose.kp && <PoseOverlay kp={pose.kp} onMove={(i, x, y) => setPoseState((s) => (s.kp ? { ...s, kp: moveJoint(s.kp, i, x, y) } : s))} />}
+        {canvasInner}
       </div>
       <Drawer open={open} onOpenChange={setOpen} prompt={prompt} onPrompt={onPrompt} placeholder="Describe the picture…" action={busy ? "Working…" : "Make photo"}
-        onAction={() => void generate()} disabled={busy || !r.model || (swapOn ? !swapReady : !prompt.trim())} progress={job?.status === "running" ? job.progress : null} note={note}>
-        {tool === "model" && (
-          models ? (
-            <div className="flex flex-wrap gap-2">
-              {models.checkpoints.map((m) => (
-                <button key={m} type="button" aria-pressed={r.model === m} onClick={() => pickModel(m)}
-                  className={`min-h-11 rounded-full border px-3 text-xs ${r.model === m ? "bg-accent text-accent-fg border-accent" : "border-border text-muted"}`}>{short(m)}</button>
-              ))}
-            </div>
-          ) : <p className="text-muted text-sm">Waiting for GPU…</p>
-        )}
-        {tool === "lora" && <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} info={loraInfo} fit={family(r.model)} onAdd={addLora} onRemove={removeLora} />}
-        {tool === "pose" && !dit && <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />}
-        {tool === "swap" && qwen && <SwapTool st={swap} set={setSwap} />}
-        {tool === "tune" && <TuneSheet r={r} samplers={models?.samplers ?? []} schedulers={models?.schedulers ?? []} onChange={patch} />}
+        onAction={() => void generate()} disabled={disabled} progress={job?.status === "running" ? job.progress : null} note={note}>
+        {tool === "model" && modelEl}
+        {tool === "lora" && loraEl}
+        {tool === "pose" && !dit && poseEl}
+        {tool === "swap" && qwen && swapEl}
+        {tool === "tune" && tuneEl}
       </Drawer>
     </>
   );

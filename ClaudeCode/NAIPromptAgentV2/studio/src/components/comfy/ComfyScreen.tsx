@@ -6,6 +6,7 @@ import type { PhotoRecipe, VideoRecipe } from "@/lib/comfy/recipe";
 import { asStartFrame, reuseTarget } from "@/lib/comfy/reuse";
 import type { Item } from "@/lib/comfy/store";
 import { requestJson } from "@/lib/net";
+import { useWide } from "./useWide";
 import { PhotoPane } from "./PhotoPane";
 import { LibraryPane } from "./LibraryPane";
 import { VideoPane } from "./VideoPane";
@@ -28,6 +29,8 @@ export function ComfyScreen({ active }: { active: boolean }) {
   const [loadPhoto, setLoadPhoto] = useState<{ recipe: PhotoRecipe; nonce: number }>();
   const [loadVideo, setLoadVideo] = useState<{ recipe: VideoRecipe; nonce: number; thumb?: string }>();
   const warmed = useRef(false);
+  const wide = useWide();
+  const bleed = wide && sub === "photo"; // desktop Photo uses the full window, not the 6xl column
   // Library actions: push the recipe into the (mounted) pane, then switch to it.
   const reuse = (it: Item) => {
     const t = reuseTarget(it);
@@ -70,7 +73,7 @@ export function ComfyScreen({ active }: { active: boolean }) {
   });
 
   return (
-    <section className="space-y-3 pb-[calc(env(safe-area-inset-bottom)+14rem)]">
+    <section className={`space-y-3 ${bleed ? "relative left-1/2 w-[calc(100vw-2rem)] -translate-x-1/2 pb-4" : "pb-[calc(env(safe-area-inset-bottom)+14rem)]"}`}>
       <h1 className="text-[15px] font-semibold tracking-wide">ComfyUI</h1>
       <GpuLine view={view} boostView={boostView} now={now} onAction={act} error={error} />
       <div role="tablist" aria-label="ComfyUI sections" className="flex gap-2">
