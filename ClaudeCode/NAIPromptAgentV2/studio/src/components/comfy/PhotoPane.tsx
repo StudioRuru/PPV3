@@ -9,6 +9,7 @@ import { fromOpenPose, moveJoint } from "@/lib/comfy/pose";
 import { family, isDit, isQwen, type Lora, type LoraInfo, type PhotoRecipe, type PoseRef } from "@/lib/comfy/recipe";
 import { addTriggers, removeTriggers } from "@/lib/comfy/triggers";
 import { requestJson } from "@/lib/net";
+import { CopilotPanel } from "./CopilotPanel";
 import { Drawer, type JobView, useJob } from "./Drawer";
 import { LoraStack } from "./LoraStack";
 import { EMPTY_POSE, PoseOverlay, PoseTool, type PoseState, renderSkeleton } from "./PoseEditor";
@@ -218,7 +219,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
           {compare ? <img src={`/api/comfy/file/${compare}`} alt="Compared take" className="max-h-full max-w-full object-contain" />
             : <div className="bg-surface border-border relative overflow-hidden rounded-lg border" style={{ aspectRatio: `${r.width}/${r.height}`, maxHeight: "100%", maxWidth: "100%", height: "100%" }}>{canvasInner("contain")}</div>}
         </div>
-        <aside aria-label="Miyabi" className="min-h-0" />
+        <aside aria-label="Miyabi" className="min-h-0"><CopilotPanel recipe={{ ...r, prompt }} onApply={({ prompt: p, ...rest }) => { if (p !== undefined) onPrompt(p); patch(rest); }} /></aside>
       </div>
     );
   }
