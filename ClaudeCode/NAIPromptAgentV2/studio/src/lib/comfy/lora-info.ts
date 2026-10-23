@@ -48,11 +48,11 @@ async function headerMeta(file: string): Promise<Record<string, string> | null> 
     const fd = await fsp.open(file);
     try {
       const head = Buffer.alloc(8);
-      await fd.read(head, 0, 8, 0);
+      if ((await fd.read(head, 0, 8, 0)).bytesRead !== 8) return null;
       const n = Number(head.readBigUInt64LE(0));
       if (n < 2 || n > 100_000_000) return null;
       const buf = Buffer.alloc(n);
-      await fd.read(buf, 0, n, 8);
+      if ((await fd.read(buf, 0, n, 8)).bytesRead !== n) return null;
       return (JSON.parse(buf.toString("utf8")) as { __metadata__?: Record<string, string> }).__metadata__ ?? {};
     } finally { await fd.close(); }
   } catch { return null; }
@@ -67,22 +67,28 @@ export async function resolveInfo(names: string[], deps: { db: Db; manifestSha: 
   const { db, manifestSha, dir = LORA_DIR, fetch: doFetch = fetch } = deps;
   const out: Record<string, LoraInfo> = {};
   for (const name of names) { // one after another: civitai gets polite sequential lookups
-    const row = db.prepare("SELECT info FROM comfy_lora_info WHERE name = ?").get(name) as { info: string } | undefined;
-    if (row) { try { out[name] = JSON.parse(row.info) as LoraInfo; continue; } catch { /* bad row: recompute */ } }
+    const row = db.prepare("SELECT info, sha FROM comfy_lora_info WHERE name = ?").get(name) as { info: string | null; sha: string | null } | undefined;
+    if (row?.info) { try { out[name] = JSON.parse(row.info) as LoraInfo; continue; } catch { /* bad row: recompute */ } }
     const file = path.join(dir, name);
     const local = fs.existsSync(file);
     const meta = local ? await headerMeta(file) : null;
     let info = meta ? fromHeader(meta) : { ...UNKNOWN };
-    if (!info.family || !info.words.length) {
+    let settled = !!info.family && info.words.length > 0; // nothing left to ask civitai
+    if (!settled) {
       try {
-        const sha = manifestSha.get(name) ?? (local ? await sha256(file) : null);
+        let sha = manifestSha.get(name) ?? row?.sha ?? null;
+        if (!sha && local) {
+          sha = await sha256(file); // multi-GB read: keep it so a retry after a network error skips it
+          db.prepare("INSERT OR REPLACE INTO comfy_lora_info (name, info, sha) VALUES (?,NULL,?)").run(name, sha);
+        }
         if (sha) {
           const r = await doFetch(`https://civitai.red/api/v1/model-versions/by-hash/${sha}`, { headers: { Authorization: `Bearer ${CIVITAI_TOKEN}` }, signal: AbortSignal.timeout(5000) });
-          if (r.ok) { const c = fromCivitai(await r.json()); info = { family: info.family ?? c.family, words: info.words.length ? info.words : c.words, weight: info.weight ?? c.weight }; }
+          if (r.ok) { const c = fromCivitai(await r.json()); info = { family: info.family ?? c.family, words: info.words.length ? info.words : c.words, weight: info.weight ?? c.weight }; settled = true; }
+          else if (r.status === 404) settled = true; // civitai definitively doesn't know it
         }
-      } catch { /* offline or timed out: keep what the header gave */ }
+      } catch { /* offline or timed out: answer from the header, cache nothing */ }
     }
-    if (info.family || info.words.length) db.prepare("INSERT OR REPLACE INTO comfy_lora_info (name, info) VALUES (?,?)").run(name, JSON.stringify(info));
+    if (settled) db.prepare("INSERT OR REPLACE INTO comfy_lora_info (name, info, sha) VALUES (?,?,?)").run(name, JSON.stringify(info), row?.sha ?? null);
     out[name] = info;
   }
   return out;

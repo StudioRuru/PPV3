@@ -26,7 +26,7 @@ test("fits treats unknown as fitting everything", () => {
 });
 
 const mk = () => { const db = new Database(":memory:"); migrate(db); return db; };
-const rows = (db: Database.Database) => (db.prepare("SELECT count(*) c FROM comfy_lora_info").get() as { c: number }).c;
+const rows = (db: Database.Database) => (db.prepare("SELECT count(*) c FROM comfy_lora_info WHERE info IS NOT NULL").get() as { c: number }).c;
 const ok = (body: unknown) => (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
 
 test("resolveInfo caches civitai answers by name", async () => {
@@ -45,8 +45,33 @@ test("lookup failure caches nothing and reports unknown", async () => {
   const db = mk(); const unknown = { family: null, words: [], weight: null };
   const deps = { db, manifestSha: new Map([["a.safetensors", "abc"]]), dir: "/nonexistent" };
   assert.deepEqual(await resolveInfo(["a.safetensors"], { ...deps, fetch: (async () => { throw new Error("down"); }) as typeof fetch }), { "a.safetensors": unknown });
-  assert.deepEqual(await resolveInfo(["a.safetensors"], { ...deps, fetch: (async () => new Response("no", { status: 404 })) as typeof fetch }), { "a.safetensors": unknown });
+  assert.deepEqual(await resolveInfo(["a.safetensors"], { ...deps, fetch: (async () => new Response("no", { status: 500 })) as typeof fetch }), { "a.safetensors": unknown });
   assert.equal(rows(db), 0);
+});
+test("a 404 is cached as unknown; the second resolve makes no fetch", async () => {
+  const db = mk(); let calls = 0;
+  const f = (async () => { calls++; return new Response("no", { status: 404 }); }) as typeof fetch;
+  const deps = { db, manifestSha: new Map([["a.safetensors", "abc"]]), dir: "/nonexistent", fetch: f };
+  const unknown = { family: null, words: [], weight: null };
+  assert.deepEqual(await resolveInfo(["a.safetensors"], deps), { "a.safetensors": unknown });
+  assert.deepEqual(await resolveInfo(["a.safetensors"], deps), { "a.safetensors": unknown });
+  assert.equal(calls, 1);
+});
+test("a local file's sha is kept after a network error, and not re-hashed", async () => {
+  const db = mk(); const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lora-"));
+  const hdr = Buffer.from("{}"); const len = Buffer.alloc(8); len.writeBigUInt64LE(BigInt(hdr.length));
+  fs.writeFileSync(path.join(dir, "m.safetensors"), Buffer.concat([len, hdr]));
+  const deps = { db, manifestSha: new Map<string, string>(), dir };
+  await resolveInfo(["m.safetensors"], { ...deps, fetch: (async () => { throw new Error("down"); }) as typeof fetch });
+  const sha = (db.prepare("SELECT sha FROM comfy_lora_info WHERE name = 'm.safetensors'").get() as { sha: string }).sha;
+  assert.match(sha, /^[0-9a-f]{64}$/);
+  fs.rmSync(path.join(dir, "m.safetensors")); // gone: only the stored sha can still be looked up
+  let url = "";
+  await resolveInfo(["m.safetensors"], { ...deps, fetch: (async (u: string) => { url = u; return new Response("no", { status: 404 }); }) as typeof fetch });
+  assert.ok(url.endsWith(sha));
+});
+test("fromHeader of an empty header is unknown", () => {
+  assert.deepEqual(fromHeader({}), { family: null, words: [], weight: null });
 });
 test("header info on a Mac file wins; civitai fills gaps", async () => {
   const db = mk(); const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lora-"));
