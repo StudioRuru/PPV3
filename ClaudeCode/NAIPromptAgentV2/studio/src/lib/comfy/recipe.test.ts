@@ -76,6 +76,13 @@ test("hires adds a second sampler at the set denoise", () => {
   assert.equal(one(plain, "KSampler")[1].inputs.denoise, 1);
 });
 
+test("validatePhoto keeps LoRA trigger words and rejects too many or too long", () => {
+  const r = validatePhoto({ ...photo, loras: [{ name: "a.safetensors", strength: 0.8, words: ["x"] }] }, models);
+  assert.deepEqual(r.loras, [{ name: "a.safetensors", strength: 0.8, words: ["x"] }]);
+  assert.throws(() => validatePhoto({ ...photo, loras: [{ name: "a.safetensors", strength: 1, words: Array(11).fill("x") }] }, models), /words/);
+  assert.throws(() => validatePhoto({ ...photo, loras: [{ name: "a.safetensors", strength: 1, words: ["x".repeat(81)] }] }, models), /up to 80 characters/);
+});
+
 test("validatePhoto rejects a LoRA not on the GPU, naming it", () => {
   assert.throws(() => validatePhoto({ ...photo, loras: [{ name: "gone.safetensors", strength: 1 }] }, models), /LoRA “gone\.safetensors” isn't on the GPU any more/);
   assert.throws(() => validatePhoto({ ...photo, model: "old.safetensors" }, models), /“old\.safetensors”/);

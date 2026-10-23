@@ -5,7 +5,7 @@ import type { EditJob, SpriteJob } from "../sprites/graph";
 import i2vWf from "./workflows/video-i2v.json";
 import t2vWf from "./workflows/video-t2v.json";
 
-export type Lora = { name: string; strength: number };
+export type Lora = { name: string; strength: number; /** Trigger words the studio inserted into the prompt for this LoRA. */ words?: string[] };
 export type PoseRef = { kind: "pose" | "depth" | "lineart"; image: string; strength: number };
 export type PhotoRecipe = {
   mode: "photo"; model: string; prompt: string; negative: string; loras: Lora[]; pose: PoseRef | null;
@@ -64,7 +64,8 @@ function loras(v: unknown, have?: string[]): Lora[] {
     const name = str(o.name, "LoRA name", 255);
     if (!name) fail("LoRA name is empty");
     if (have && !have.includes(name)) missing("LoRA", name);
-    return { name, strength: num(o.strength, "LoRA strength", -2, 2) };
+    const words = o.words == null ? undefined : Array.isArray(o.words) && o.words.length <= 10 ? o.words.map((w) => str(w, "LoRA trigger word", 80)) : fail("LoRA words must be a list of up to 10");
+    return { name, strength: num(o.strength, "LoRA strength", -2, 2), ...(words ? { words } : {}) };
   });
 }
 
