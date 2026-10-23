@@ -39,3 +39,4 @@ test("restoreTake keeps seed, swap and depth pose", () => {
 });
 test("restoreTake drops skeleton poses", () => assert.equal(restoreTake(item("photo", { ...defaultPhoto(["m"]), pose: { kind: "pose", image: "p.png", strength: 1 } }))?.pose, null));
 test("restoreTake returns null for imported photos", () => assert.equal(restoreTake(item("photo", { source: "import" })), null));
+test("restoreTake skips rows without a recipe", () => { assert.equal(restoreTake(item("photo", null)), null); assert.equal(restoreTake(item("photo", {})), null); });

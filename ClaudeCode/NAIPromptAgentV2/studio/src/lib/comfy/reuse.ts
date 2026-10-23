@@ -18,7 +18,7 @@ export function asStartFrame(it: Item, v: VideoRecipe): VideoRecipe {
 /** Restore a photo take (null for imported photos, which have no recipe) into the Photo pane: recipe (stored seed), head-swap picks and depth/outline pose. */
 export function restoreTake(it: Item): null | { recipe: PhotoRecipe; swap: { base: string; head: string } | null; pose: { kind: "depth" | "lineart"; image: string; strength: number } | null } {
   const stored = it.recipe as PhotoRecipe & { source?: string };
-  if (stored?.source === "import") return null; // imported photos carry no recipe
+  if (stored?.source === "import" || !Array.isArray(stored?.loras)) return null; // imports (and odd rows) carry no recipe
   const p = stored.pose;
   // ponytail: skeleton keypoints aren't stored; restore pose-kind when keypoints are saved with the item.
   return { recipe: { ...stored, seed: it.seed, pose: null }, swap: stored.swap ?? null, pose: p && p.kind !== "pose" ? { kind: p.kind, image: p.image, strength: p.strength } : null };
