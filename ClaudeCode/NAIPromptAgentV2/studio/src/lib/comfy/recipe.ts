@@ -50,7 +50,11 @@ const file = (v: unknown, name: string) => (typeof v === "string" && FILE.test(v
 const itemId = (v: unknown, name: string) => (v == null ? null : num(v, name, 1, Number.MAX_SAFE_INTEGER, true));
 const seed = (v: unknown) => (v === -1 ? Math.floor(Math.random() * 2 ** 32) : num(v, "seed", 0, 0xffffffff, true));
 const dim = (v: unknown, name: string) => (num(v, name, 512, 2048, true) % 64 ? fail(`${name} must be a multiple of 64`) : (v as number));
-export const isQwen = (model: string) => /qwen|noctq/i.test(model);
+export type Family = "sdxl" | "qwen" | "krea2" | "moss";
+export const family = (model: string): Family => (/krea/i.test(model) ? "krea2" : /moss/i.test(model) ? "moss" : /qwen|noctq/i.test(model) ? "qwen" : "sdxl");
+export const isQwen = (model: string) => family(model) === "qwen";
+/** Diffusion-only models: UNETLoader plus a separate text encoder and VAE. */
+export const isDit = (model: string) => family(model) !== "sdxl";
 const missing = (what: string, name: string) => fail(`${what} “${name}” isn't on the GPU any more`);
 
 function loras(v: unknown, have?: string[]): Lora[] {
@@ -71,7 +75,7 @@ export function validatePhoto(r: unknown, models?: { checkpoints: string[]; lora
   if (!model) fail("Pick a model");
   if (models && !models.checkpoints.includes(model)) missing("Model", model);
   const qwen = isQwen(model);
-  if (qwen && o.pose != null) fail("Pose isn't available for Qwen models");
+  if (isDit(model) && o.pose != null) fail("Pose isn't available for Qwen, Krea or MOSS models");
   let pose: PoseRef | null = null;
   if (o.pose != null) {
     const p = obj(o.pose, "pose");
@@ -164,19 +168,30 @@ const load = (wf: object): Graph => {
   return g as Graph;
 };
 
-// Qwen Image 2.1 (Noct Q): UNET + 2.1 encoder; EmptyLatentImage is converted by KSampler's fix_empty_latent_channels.
-// LoRAs are model-only: the Qwen text encoder takes none.
-function qwenGraph(r: PhotoRecipe): Graph {
+// Encoder/VAE per diffusion-only family, from the Comfy-Org templates (Krea 2 turbo, MOSS-Image t2i).
+// EmptyLatentImage is converted by KSampler's fix_empty_latent_channels.
+const DIT: Record<Exclude<Family, "sdxl">, { clip: string; type: string; vae: string; latent: string }> = {
+  qwen: { clip: "qwen_image_2.1_text_encoder.safetensors", type: "qwen_image", vae: "qwen_image_2.1_vae_bf16.safetensors", latent: "EmptyLatentImage" },
+  krea2: { clip: "qwen3vl_4b_fp8_scaled.safetensors", type: "krea2", vae: "qwen_image_vae.safetensors", latent: "EmptyLatentImage" },
+  moss: { clip: "qwen3.5_9b_int8_convrot.safetensors", type: "moss_image", vae: "flux2-vae.safetensors", latent: "EmptyFlux2LatentImage" },
+};
+
+// Qwen Image 2.1, Krea 2, MOSS: UNET + family encoder. LoRAs are model-only: these text encoders take none.
+function ditGraph(r: PhotoRecipe): Graph {
+  const fam = family(r.model) as Exclude<Family, "sdxl">, f = DIT[fam];
   let model: Link = ["unet", 0];
+  const [pos, neg]: Link[] = fam === "qwen" ? [["enc", 0], ["enc", 1]] : [["pos", 0], ["neg", 0]];
   const g: Graph = {
     unet: { class_type: "UNETLoader", inputs: { unet_name: r.model, weight_dtype: "default" } },
-    clip: { class_type: "CLIPLoader", inputs: { clip_name: "qwen_image_2.1_text_encoder.safetensors", type: "qwen_image", device: "default" } },
-    vae: { class_type: "VAELoader", inputs: { vae_name: "qwen_image_2.1_vae_bf16.safetensors" } },
-    enc: { class_type: "TextEncodeQwenImage21", inputs: { clip: ["clip", 0], prompt: r.prompt, negative_prompt: r.negative, resolution: 1024 } },
-    latent: { class_type: "EmptyLatentImage", inputs: { width: r.width, height: r.height, batch_size: 1 } },
+    clip: { class_type: "CLIPLoader", inputs: { clip_name: f.clip, type: f.type, device: "default" } },
+    vae: { class_type: "VAELoader", inputs: { vae_name: f.vae } },
+    ...(fam === "qwen"
+      ? { enc: { class_type: "TextEncodeQwenImage21", inputs: { clip: ["clip", 0], prompt: r.prompt, negative_prompt: r.negative, resolution: 1024 } } }
+      : { pos: { class_type: "CLIPTextEncode", inputs: { clip: ["clip", 0], text: r.prompt } }, neg: { class_type: "CLIPTextEncode", inputs: { clip: ["clip", 0], text: r.negative } } }),
+    latent: { class_type: f.latent, inputs: { width: r.width, height: r.height, batch_size: 1 } },
     sampler: {
       class_type: "KSampler",
-      inputs: { model, positive: ["enc", 0], negative: ["enc", 1], latent_image: ["latent", 0], seed: r.seed, steps: r.steps, cfg: r.cfg, sampler_name: r.sampler, scheduler: r.scheduler, denoise: 1 },
+      inputs: { model, positive: pos, negative: neg, latent_image: ["latent", 0], seed: r.seed, steps: r.steps, cfg: r.cfg, sampler_name: r.sampler, scheduler: r.scheduler, denoise: 1 },
     },
     decode: { class_type: "VAEDecode", inputs: { samples: ["sampler", 0], vae: ["vae", 0] } },
     save: { class_type: "SaveImage", inputs: { images: ["decode", 0], filename_prefix: "studio" } },
@@ -188,7 +203,7 @@ function qwenGraph(r: PhotoRecipe): Graph {
   });
   g.sampler.inputs.model = model;
   if (r.swap) swap(g, r.swap, r.prompt);
-  face(g, r, ["clip", 0], ["vae", 0], ["enc", 0], ["enc", 1]);
+  face(g, r, ["clip", 0], ["vae", 0], pos, neg);
   return hires(g, r);
 }
 
@@ -216,7 +231,7 @@ function face(g: Graph, r: PhotoRecipe, clip: Link, vae: Link, positive: Link, n
     class_type: "FaceDetailer",
     inputs: {
       image: ["decode", 0], model: g.sampler.inputs.model, clip, vae, positive, negative, bbox_detector: ["face_det", 0],
-      guide_size: isQwen(r.model) ? 1024 : 512, guide_size_for: true, max_size: isQwen(r.model) ? 1536 : 1024,
+      guide_size: isDit(r.model) ? 1024 : 512, guide_size_for: true, max_size: isDit(r.model) ? 1536 : 1024,
       seed: r.seed, steps: r.steps, cfg: r.cfg, sampler_name: r.sampler, scheduler: r.scheduler, denoise: 0.4,
       feather: 5, noise_mask: true, force_inpaint: true, bbox_threshold: 0.5, bbox_dilation: 10, bbox_crop_factor: 3,
       sam_detection_hint: "center-1", sam_dilation: 0, sam_threshold: 0.93, sam_bbox_expansion: 0, sam_mask_hint_threshold: 0.7, sam_mask_hint_use_negative: "False",
@@ -235,7 +250,7 @@ function hires(g: Graph, r: PhotoRecipe): Graph {
 }
 
 export function photoGraph(r: PhotoRecipe): object {
-  if (isQwen(r.model)) return qwenGraph(r);
+  if (isDit(r.model)) return ditGraph(r);
   const g = load(photoWf);
   g.ckpt.inputs.ckpt_name = r.model;
   let model: Link = ["ckpt", 0], clip: Link = ["ckpt", 1];

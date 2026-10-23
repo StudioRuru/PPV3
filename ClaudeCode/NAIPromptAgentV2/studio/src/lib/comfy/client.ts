@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isQwen } from "./recipe";
+import { isDit } from "./recipe";
 
 export type OutFile = { filename: string; subfolder: string; type: string };
 export const CLIENT_ID = randomUUID();
@@ -26,7 +26,7 @@ export async function listModels(base: string, f: typeof fetch = fetch) {
     if (v?.[0] === "COMBO" && Array.isArray(v[1]?.options)) return v[1].options;
     return [];
   };
-  return { checkpoints: [...list(ck, "ckpt_name"), ...list(un, "unet_name").filter(isQwen)], loras: list(lo, "lora_name"), samplers: list(ks, "sampler_name"), schedulers: list(ks, "scheduler") };
+  return { checkpoints: [...list(ck, "ckpt_name"), ...list(un, "unet_name").filter(isDit)], loras: list(lo, "lora_name"), samplers: list(ks, "sampler_name"), schedulers: list(ks, "scheduler") };
 }
 
 export async function upload(base: string, name: string, png: Buffer, f: typeof fetch = fetch): Promise<string> {

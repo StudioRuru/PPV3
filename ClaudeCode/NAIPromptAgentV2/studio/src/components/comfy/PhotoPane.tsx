@@ -4,7 +4,7 @@ import type { EngineView } from "@/lib/comfy/engine";
 import { estimate } from "@/lib/comfy/estimate";
 import { defaultPhoto, loadPhoto, photoTune, savePhoto } from "@/lib/comfy/photo-draft";
 import { fromOpenPose, moveJoint } from "@/lib/comfy/pose";
-import { isQwen, type PhotoRecipe, type PoseRef } from "@/lib/comfy/recipe";
+import { family, isDit, isQwen, type PhotoRecipe, type PoseRef } from "@/lib/comfy/recipe";
 import { requestJson } from "@/lib/net";
 import { Drawer, type JobView, useJob } from "./Drawer";
 import { LoraStack } from "./LoraStack";
@@ -40,7 +40,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
   // LoRAs and poses don't carry across models; a family change also resets the tune.
   const pickModel = (model: string) => {
     if (model === r.model) return;
-    patch({ model, loras: [], ...(isQwen(model) !== isQwen(r.model) ? photoTune(model) : {}) });
+    patch({ model, loras: [], ...(family(model) !== family(r.model) ? photoTune(model) : {}) });
     setPoseState(EMPTY_POSE);
   };
 
@@ -113,11 +113,11 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
 
   const est = estimate({ ...r, prompt, pose: null }, view?.gpu ?? "", view?.usdHr ?? 0);
   const poseOn = (pose.kind === "pose" && !!pose.kp) || (pose.kind !== "pose" && !!pose.extracted);
-  const qwen = isQwen(r.model);
+  const qwen = isQwen(r.model), dit = isDit(r.model);
   const swapOn = qwen && swap.on;
   const swapReady = swapOn && !!swap.base && !!swap.head;
   const chips = ([["model", r.model ? short(r.model) : "Model"], ["lora", r.loras.length ? `LoRA · ${r.loras.length}` : "LoRA"], ["pose", poseOn ? "Pose ✓" : "Pose"], ["swap", swapReady ? "Swap ✓" : "Swap head"], ["tune", "Tune"]] as [Tool, string][])
-    .filter(([t]) => (qwen ? t !== "pose" : t !== "swap"));
+    .filter(([t]) => (t === "pose" ? !dit : t === "swap" ? qwen : true));
   const note = job ? (job.status === "queued" ? "Queued — GPU warming" : `Rendering ${Math.round(job.progress * 100)}%`) : error ?? `≈ ${est.seconds}s${view ? ` · $${est.usd.toFixed(2)}` : ""}`;
 
   return (
@@ -147,7 +147,7 @@ export function PhotoPane({ active, view, prompt, onPrompt, onShot, load }: { ac
           ) : <p className="text-muted text-sm">Waiting for GPU…</p>
         )}
         {tool === "lora" && <LoraStack loras={r.loras} available={models?.loras ?? null} onChange={(loras) => patch({ loras })} />}
-        {tool === "pose" && !qwen && <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />}
+        {tool === "pose" && !dit && <PoseTool st={pose} set={setPose} onExtract={() => void extract()} onClear={() => setPoseState(EMPTY_POSE)} />}
         {tool === "swap" && qwen && <SwapTool st={swap} set={setSwap} />}
         {tool === "tune" && <TuneSheet r={r} samplers={models?.samplers ?? []} schedulers={models?.schedulers ?? []} onChange={patch} />}
       </Drawer>

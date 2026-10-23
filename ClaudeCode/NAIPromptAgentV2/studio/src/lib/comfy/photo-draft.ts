@@ -1,9 +1,17 @@
-import { DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, isQwen, type PhotoRecipe, type VideoRecipe } from "./recipe";
+import { DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, family, type Family, type PhotoRecipe, type VideoRecipe } from "./recipe";
 
 export const PHOTO_DRAFT_KEY = "studio-comfy-photo-v1";
 
+// Krea 2: turbo template (8 steps, CFG 1). MOSS: Comfy-Org SFT template.
+const TUNE: Record<Family, Pick<PhotoRecipe, "steps" | "cfg" | "sampler" | "scheduler">> = {
+  sdxl: { steps: 28, cfg: 5.5, sampler: "euler_ancestral", scheduler: "normal" },
+  qwen: { steps: 25, cfg: 3, sampler: "euler", scheduler: "simple" },
+  krea2: { steps: 8, cfg: 1, sampler: "euler", scheduler: "simple" },
+  moss: { steps: 25, cfg: 2.5, sampler: "er_sde", scheduler: "simple" },
+};
+
 export function photoTune(model: string): Pick<PhotoRecipe, "steps" | "cfg" | "sampler" | "scheduler"> {
-  return isQwen(model) ? { steps: 25, cfg: 3, sampler: "euler", scheduler: "simple" } : { steps: 28, cfg: 5.5, sampler: "euler_ancestral", scheduler: "normal" };
+  return TUNE[family(model)];
 }
 
 export function defaultPhoto(models: string[]): PhotoRecipe {

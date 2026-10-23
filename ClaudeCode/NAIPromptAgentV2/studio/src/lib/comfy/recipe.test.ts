@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  photoGraph, poseGraph, videoGraph, beats, validatePhoto, validateVideo, wanFrames, isQwen, BFS_LORA, BFS_PROMPT, FACE_DETECTOR,
+  photoGraph, poseGraph, videoGraph, beats, validatePhoto, validateVideo, wanFrames, isQwen, family, BFS_LORA, BFS_PROMPT, FACE_DETECTOR,
   DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, type PhotoRecipe, type VideoRecipe,
 } from "./recipe";
 import { estimate } from "./estimate";
@@ -234,9 +234,26 @@ test("Qwen models build a UNETLoader + TextEncodeQwenImage21 graph, no checkpoin
   assert.deepEqual(h.decode.inputs.samples, ["hires_sampler", 0]);
 });
 
+test("Krea 2 and MOSS checkpoints get their own encoder, VAE and latent, with plain CLIPTextEncode", () => {
+  assert.deepEqual(["BSSDesirexKrea2_x3.safetensors", "pornmasterMoss_v1.safetensors", qwen.model, photo.model].map(family), ["krea2", "moss", "qwen", "sdxl"]);
+  for (const [model, clip, type, vae, latent] of [
+    ["krea2Softrealism_v10.safetensors", "qwen3vl_4b_fp8_scaled.safetensors", "krea2", "qwen_image_vae.safetensors", "EmptyLatentImage"],
+    ["miaomiaoHaremMOSS_baseV10_3316568.safetensors", "qwen3.5_9b_int8_convrot.safetensors", "moss_image", "flux2-vae.safetensors", "EmptyFlux2LatentImage"],
+  ]) {
+    const g = photoGraph({ ...photo, model, negative: "bad", faceFix: true, loras: [{ name: "a.safetensors", strength: 1 }] }) as G;
+    assert.equal(byClass(g, "CheckpointLoaderSimple").length + byClass(g, "TextEncodeQwenImage21").length, 0);
+    assert.deepEqual(one(g, "CLIPLoader")[1].inputs, { clip_name: clip, type, device: "default" });
+    assert.equal(one(g, "VAELoader")[1].inputs.vae_name, vae);
+    assert.equal(g.latent.class_type, latent);
+    assert.deepEqual([g.pos.inputs.text, g.neg.inputs.text, g.sampler.inputs.positive, g.sampler.inputs.negative], [photo.prompt, "bad", ["pos", 0], ["neg", 0]]);
+    assert.deepEqual([g.sampler.inputs.model, g.face.inputs.positive, g.face.inputs.guide_size], [["lora1", 0], ["pos", 0], 1024]);
+  }
+  assert.throws(() => validatePhoto({ ...photo, model: "krea2Softrealism_v10.safetensors", swap: { base: "a.png", head: "b.png" } }), /Head swap needs a Qwen model/);
+});
+
 test("validatePhoto refuses pose on a Qwen model but keeps LoRAs", () => {
   const base = { ...qwen, seed: 1 };
-  assert.throws(() => validatePhoto({ ...base, pose: { kind: "pose", image: "pose.png", strength: 1 } }), /Pose isn't available for Qwen models/);
+  assert.throws(() => validatePhoto({ ...base, pose: { kind: "pose", image: "pose.png", strength: 1 } }), /Pose isn't available for Qwen, Krea or MOSS models/);
   assert.deepEqual(validatePhoto({ ...base, loras: [{ name: "x", strength: 1 }] }).loras, [{ name: "x", strength: 1 }]);
   assert.equal(validatePhoto(base).model, qwen.model);
 });

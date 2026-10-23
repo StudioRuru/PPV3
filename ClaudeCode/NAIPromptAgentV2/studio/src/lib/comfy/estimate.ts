@@ -1,6 +1,6 @@
 // Client-safe: imported by components.
 import type { EditJob } from "../sprites/graph";
-import { isQwen, type PhotoRecipe, type VideoRecipe, wanFrames } from "./recipe";
+import { isDit, type PhotoRecipe, type VideoRecipe, wanFrames } from "./recipe";
 
 type Kind = "photo" | "i2v" | "t2v";
 type Cls = "48gb" | "h100";
@@ -22,7 +22,7 @@ export function estimate(r: PhotoRecipe | VideoRecipe | EditJob, gpu: string, us
   } else if (r.mode === "photo") {
     const mp = (r.width * r.height) / 1024 ** 2;
     const hires = r.hires ? 1 + r.hires.scale ** 2 * r.hires.denoise : 1;
-    seconds = OVERHEAD.photo + r.steps * PER_STEP.photo[cls][isQwen(r.model) ? "qwen" : "1mp"] * mp * hires;
+    seconds = OVERHEAD.photo + r.steps * PER_STEP.photo[cls][isDit(r.model) ? "qwen" : "1mp"] * mp * hires;
   } else {
     const kind: Kind = r.mode === "t2v" ? "t2v" : "i2v";
     seconds = OVERHEAD[kind] + r.steps * PER_STEP[kind][cls][r.size] * (wanFrames(r.seconds) / 81);
