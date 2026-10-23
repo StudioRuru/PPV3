@@ -29,7 +29,7 @@ export function rulePatch(id: RuleId, r: PhotoRecipe): { patch: Partial<PhotoRec
       return { patch: { cfg, prompt: addTriggers(r.prompt, ["natural skin texture", "film grain"]).prompt }, change: `lower cfg to ${cfg} and add natural skin texture, film grain to the prompt` };
     }
     case "hands": return { patch: { steps: more(r.steps) }, change: `raise steps to ${more(r.steps)}` };
-    case "strong": return { patch: { loras: r.loras.map((l) => ({ ...l, strength: q(l.strength * 0.75) })) }, change: "turn every LoRA down by a quarter" };
+    case "strong": return { patch: { loras: r.loras.map((l) => ({ ...l, strength: Math.max(0.05, q(l.strength * 0.75)) })) }, change: "turn every LoRA down by a quarter" };
     case "pose": return { patch: { seed: -1 }, change: "roll a fresh seed" };
     case "blurry": {
       const patch: Partial<PhotoRecipe> = { steps: more(r.steps) };
@@ -39,18 +39,24 @@ export function rulePatch(id: RuleId, r: PhotoRecipe): { patch: Partial<PhotoRec
   }
 }
 
-/** Only allowed fields, never `model`; LoRAs: strength of names already in the stack, nothing added or removed. */
+const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+const fin = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+/** Only allowed fields, never `model`; numbers finite and clamped to the recipe validator's bounds; LoRAs: strength of names already in the stack, nothing added or removed. */
 export function safePatch(r: PhotoRecipe, p: Partial<PhotoRecipe>): Partial<PhotoRecipe> {
   const out: Record<string, unknown> = {};
   const src = p as Record<string, unknown>;
-  for (const k of ["steps", "cfg", "seed", "width", "height"]) if (typeof src[k] === "number") out[k] = src[k];
+  if (fin(src.steps)) out.steps = clamp(Math.round(src.steps), 1, 60);
+  if (fin(src.cfg)) out.cfg = clamp(src.cfg, 1, 30);
+  if (fin(src.seed)) out.seed = src.seed === -1 ? -1 : clamp(Math.round(src.seed), 0, 0xffffffff);
+  for (const k of ["width", "height"]) if (fin(src[k])) out[k] = clamp(Math.round((src[k] as number) / 64) * 64, 512, 2048);
   for (const k of ["prompt", "sampler", "scheduler"]) if (typeof src[k] === "string") out[k] = src[k];
   if (typeof src.faceFix === "boolean") out.faceFix = src.faceFix;
   const h = src.hires as { scale?: unknown; denoise?: unknown } | null | undefined;
-  if (h === null || (h && typeof h.scale === "number" && typeof h.denoise === "number")) out.hires = h;
+  if (h === null) out.hires = null;
+  else if (h && fin(h.scale) && fin(h.denoise)) out.hires = { scale: clamp(h.scale, 1, 2), denoise: clamp(h.denoise, 0, 1) };
   if (Array.isArray(p.loras)) {
     const by = new Map(p.loras.map((l) => [l?.name, l?.strength]));
-    out.loras = r.loras.map((l) => { const s = by.get(l.name); return typeof s === "number" ? { ...l, strength: s } : l; });
+    out.loras = r.loras.map((l) => { const s = by.get(l.name); return fin(s) ? { ...l, strength: clamp(s, 0.05, 2) } : l; });
   }
   return out as Partial<PhotoRecipe>;
 }

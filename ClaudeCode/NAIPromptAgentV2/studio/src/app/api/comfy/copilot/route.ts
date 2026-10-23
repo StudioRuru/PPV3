@@ -7,6 +7,7 @@ import { chatStream } from "@/lib/llm";
 import { activeIdentity } from "@/lib/mascot/quip";
 import { splitExpressionTag } from "@/lib/mascot/talk";
 import { tierModel } from "@/lib/tiers";
+import { validatePhoto } from "@/lib/comfy/recipe";
 import { CHIPS, suggest, type RuleId } from "@/lib/comfy/tuning";
 
 export const runtime = "nodejs";
@@ -29,10 +30,11 @@ async function complete(ask: string, user: string): Promise<string> {
 export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(() => null);
-    if (!b || typeof b.recipe !== "object" || !b.recipe || !Array.isArray(b.recipe.loras) || typeof b.recipe.model !== "string") return NextResponse.json({ error: "Send the current recipe." }, { status: 400 });
+    let recipe;
+    try { recipe = validatePhoto(b?.recipe); } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : "Send the current recipe." }, { status: 400 }); }
     const chip = CHIPS.some((c) => c.id === b.chip) ? (b.chip as RuleId) : undefined;
     const text = typeof b.text === "string" ? b.text.slice(0, 500) : undefined;
-    return NextResponse.json(await suggest({ chip, text, recipe: b.recipe }, { complete }));
+    return NextResponse.json(await suggest({ chip, text, recipe }, { complete }));
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Copilot failed." }, { status: 500 });
   }

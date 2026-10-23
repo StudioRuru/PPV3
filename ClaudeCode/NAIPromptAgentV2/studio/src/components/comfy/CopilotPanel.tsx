@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { PhotoRecipe } from "@/lib/comfy/recipe";
-import { CHIPS, safePatch, type Suggestion } from "@/lib/comfy/tuning";
+import { CHIPS, rulePatch, safePatch, type Suggestion } from "@/lib/comfy/tuning";
 import { requestJson } from "@/lib/net";
 
 type Turn = { said: string } & Suggestion;
@@ -11,12 +11,14 @@ export function CopilotPanel({ recipe, onApply }: { recipe: PhotoRecipe; onApply
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function ask(body: { chip?: string; text?: string }, said: string) {
     setBusy(true); setErr(null);
     const res = await requestJson<Suggestion>("/api/comfy/copilot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, recipe }) });
     setBusy(false);
+    setTimeout(() => input.current?.focus(), 0);
     if (!res.ok) return setErr(res.error);
     setTurns((t) => [...t, { said, ...res.data }].slice(-6));
   }
@@ -29,7 +31,7 @@ export function CopilotPanel({ recipe, onApply }: { recipe: PhotoRecipe; onApply
           <button key={c.id} type="button" disabled={busy} onClick={() => void ask({ chip: c.id }, c.label)} className="border-border text-muted min-h-9 rounded-full border px-3 text-xs disabled:opacity-50">{c.label}</button>
         ))}
       </div>
-      <input value={text} onChange={(e) => setText(e.target.value)} disabled={busy} placeholder="Tell Miyabi what's off…" aria-label="Tell Miyabi what's off"
+      <input ref={input} value={text} onChange={(e) => setText(e.target.value)} disabled={busy} placeholder="Tell Miyabi what's off…" aria-label="Tell Miyabi what's off"
         onKeyDown={(e) => { if (e.key === "Enter" && text.trim() && !busy) { const t = text.trim(); setText(""); void ask({ text: t }, t); } }}
         className="bg-surface border-border w-full rounded-lg border p-2 text-sm" />
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto" aria-live="polite">
@@ -41,7 +43,7 @@ export function CopilotPanel({ recipe, onApply }: { recipe: PhotoRecipe; onApply
             <p className="text-faint text-xs">{last.said}</p>
             <p>{last.say}</p>
             {Object.keys(last.patch).length > 0 && (
-              <button type="button" onClick={() => onApply(safePatch(recipe, last.patch))} className="bg-accent text-accent-fg min-h-9 rounded-full px-4 text-sm font-semibold">Apply</button>
+              <button type="button" onClick={() => onApply(safePatch(recipe, last.rule ? rulePatch(last.rule, recipe).patch : last.patch))} className="bg-accent text-accent-fg min-h-9 rounded-full px-4 text-sm font-semibold">Apply</button>
             )}
           </div>
         )}

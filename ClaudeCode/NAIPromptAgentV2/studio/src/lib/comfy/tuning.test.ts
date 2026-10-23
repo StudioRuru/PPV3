@@ -16,3 +16,16 @@ test("offline model falls back to canned line", async () => {
   assert.match(s.say, /^Hmph, my brain's napping~/);
   assert.ok(s.patch.loras);
 });
+
+test("rulePatch on an edited recipe is based on the new strengths", () => assert.deepEqual(rulePatch("strong", { ...r, loras: [{ name: "a", strength: 0.4 }] }).patch.loras, [{ name: "a", strength: 0.3 }]));
+test("strong floors at 0.05", () => assert.equal(rulePatch("strong", { ...r, loras: [{ name: "a", strength: 0.05 }] }).patch.loras?.[0].strength, 0.05));
+test("safePatch rejects NaN, extra keys and model, clamps", () => {
+  const bad = { model: "x", evil: 1, steps: NaN, cfg: 999, loras: [{ name: "a", strength: NaN }, { name: "b", strength: 9 }] } as never;
+  assert.deepEqual(safePatch(r, bad), { cfg: 30, loras: [{ name: "a", strength: 0.9 }, { name: "b", strength: 2 }] });
+});
+test("plastic lowers cfg and adds triggers once", () => {
+  const p = rulePatch("plastic", r).patch;
+  assert.equal(p.cfg, 4);
+  assert.match(p.prompt!, /natural skin texture/);
+  assert.equal(rulePatch("plastic", { ...r, prompt: p.prompt! }).patch.prompt, p.prompt);
+});
