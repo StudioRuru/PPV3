@@ -15,6 +15,7 @@ export function CopilotPanel({ recipe, onApply }: { recipe: PhotoRecipe; onApply
   const [err, setErr] = useState<string | null>(null);
 
   async function ask(body: { chip?: string; text?: string }, said: string) {
+    if (!recipe.model) return setErr("Start the GPU first~ I can't tune a photo without a model.");
     setBusy(true); setErr(null);
     const res = await requestJson<Suggestion>("/api/comfy/copilot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, recipe }) });
     setBusy(false);

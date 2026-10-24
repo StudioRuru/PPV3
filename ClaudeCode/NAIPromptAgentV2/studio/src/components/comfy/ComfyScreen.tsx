@@ -18,7 +18,7 @@ const SUBS: { id: Sub; label: string }[] = [{ id: "photo", label: "Photo" }, { i
 const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** ComfyUI tab: GPU status line + sub-tabs. Opening the tab pre-warms the GPU once; the prompt and drawer work whatever the GPU is doing. */
-export function ComfyScreen({ active }: { active: boolean }) {
+export function ComfyScreen({ active, onDesk }: { active: boolean; onDesk?: (on: boolean) => void }) {
   const [sub, setSub] = useState<Sub>("photo");
   const [view, setView] = useState<EngineView | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -31,6 +31,7 @@ export function ComfyScreen({ active }: { active: boolean }) {
   const warmed = useRef(false);
   const wide = useWide();
   const bleed = wide && sub === "photo"; // desktop Photo uses the full window, not the 6xl column
+  useEffect(() => onDesk?.(active && bleed), [active, bleed, onDesk]); // Miyabi sits in the copilot column there
   // Library actions: push the recipe into the (mounted) pane, then switch to it.
   const reuse = (it: Item) => {
     const t = reuseTarget(it);

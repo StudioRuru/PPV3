@@ -44,6 +44,7 @@ export default function Studio() {
   const [params, setParams] = useState<NaiParams>(DEFAULT_PARAMS);
   const [history, setHistory] = useState<Generation[]>([]);
   const [current, setCurrent] = useState<Generation | null>(null);
+  const [desk, setDesk] = useState(false); // wide ComfyUI Photo: Miyabi is in its copilot column
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Saving before the draft has loaded would overwrite it with the empty initial state.
@@ -349,7 +350,7 @@ export default function Studio() {
         <CameraRoll active={tab === "roll"} onOpen={(items, id) => { setViewerItems(items); setViewing(id); }} onChanged={() => loadHistory().then((items) => setCurrent((c) => items.find((g) => g.id === c?.id) ?? items[0] ?? null))} />
       </div>
       <div className={tab === "comfy" ? "lg:col-span-2" : "hidden"}>
-        <ComfyScreen active={tab === "comfy"} />
+        <ComfyScreen active={tab === "comfy"} onDesk={setDesk} />
       </div>
       <div className={tab === "chat" ? "lg:col-span-2" : "hidden"}>
         <ChatScreen active={tab === "chat"} state={state} seed={seed} onApply={(ops) => setState((s) => applyOps(s, ops))} />
@@ -385,7 +386,7 @@ export default function Studio() {
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <LiquidIsland tab={tab} onTab={setTab} onSettings={() => setSettings(true)} />
-      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat"} spy={tab === "rp"} onTap={() => setTab("chat")} onTab={setTab} onSettings={() => setSettings(true)} />
+      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat" || desk} spy={tab === "rp"} onTap={() => setTab("chat")} onTab={setTab} onSettings={() => setSettings(true)} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
