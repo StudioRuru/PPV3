@@ -6,18 +6,19 @@ import { DEFAULT_PARAMS } from "@/lib/nai-body";
 import { generateImage, measured, NovelAIError } from "@/lib/novelai";
 import { getMascotSettings } from "@/lib/mascot/settings-db";
 import { newSeed } from "@/lib/mascot/sprites";
-import { TRAINSET_DIR, addSpent, idx, nextIndex, readPicks, readSpent, trainsetRenders, writePicks } from "@/lib/sprites/trainset";
+import { TRAINSET_DIR, addSpent, idx, nextIndex, readPer, readPicks, readSpent, renderRefusal, trainsetRenders, writePicks } from "@/lib/sprites/trainset";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+let rendering = false; // one loop at a time: two would race on indexes and spend
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 
 export async function GET() {
   const files = await fsp.readdir(TRAINSET_DIR).catch(() => [] as string[]);
   const picked = new Set(await readPicks());
   const renders = files.filter((f) => /^\d+\.png$/.test(f)).map((f) => parseInt(f, 10)).sort((a, b) => a - b).map((i) => ({ i, picked: picked.has(i) }));
-  return NextResponse.json({ renders, spent: await readSpent() });
+  return NextResponse.json({ renders, spent: await readSpent(), per: await readPer() });
 }
 
 export async function POST(req: NextRequest) {
@@ -31,8 +32,14 @@ export async function POST(req: NextRequest) {
   }
   if (!b || !Number.isInteger(b.n) || (b.n as number) < 1) return bad("Say how many to render.");
   if (!NOVELAI_TOKEN) return bad("NOVELAI_TOKEN is not set on the server.", 500);
+  if (rendering) return bad("Already rendering", 409);
+  rendering = true;
+  try {
   const n = Math.min(100, b.n as number);
-  const start = nextIndex(await fsp.readdir(TRAINSET_DIR));
+  const files = await fsp.readdir(TRAINSET_DIR);
+  const start = nextIndex(files);
+  const refusal = await renderRefusal(n, files.filter((f) => /^\d+\.png$/.test(f)).length);
+  if (refusal) return bad(refusal.error, refusal.status);
   let made = 0, error: string | undefined;
   for (const r of trainsetRenders(getMascotSettings(), start, n)) {
     try {
@@ -40,7 +47,7 @@ export async function POST(req: NextRequest) {
       const { result, cost } = await measured(NOVELAI_TOKEN, () => generateImage(compiled, { ...DEFAULT_PARAMS, seed: newSeed() }, NOVELAI_TOKEN));
       await fsp.writeFile(path.join(TRAINSET_DIR, `${idx(r.i)}.txt`), r.caption);
       await fsp.writeFile(path.join(TRAINSET_DIR, `${idx(r.i)}.png`), result.png); // png last: it is what marks a render as done
-      await addSpent(cost ?? 0);
+      await addSpent(cost);
       made++;
     } catch (e) {
       error = e instanceof Error ? e.message : "Render failed.";
@@ -49,5 +56,6 @@ export async function POST(req: NextRequest) {
     }
   }
   if (!made && error) return bad(error, 502);
-  return NextResponse.json({ made, spent: await readSpent(), error });
+  return NextResponse.json({ made, spent: await readSpent(), per: await readPer(), error });
+  } finally { rendering = false; }
 }

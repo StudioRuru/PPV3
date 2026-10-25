@@ -5,12 +5,11 @@ import { requestJson } from "@/lib/net";
 // "moss" = POSE_FAMILY (train.ts is server-only, so not imported here)
 const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const btn = "border-border h-11 rounded-full border px-4 text-sm disabled:opacity-50";
-type Data = { renders: { i: number; picked: boolean }[]; spent: number };
+type Data = { renders: { i: number; picked: boolean }[]; spent: number; per: number | null };
 
 /** Sprites → Training set: render NovelAI shots of Miyabi, tap 5–40, train the pose + Wan LoRAs from them. */
 export function TrainSet() {
-  const [d, setD] = useState<Data>({ renders: [], spent: 0 });
-  const [per, setPer] = useState<number | null>(null); // measured Anlas per render, from the price check
+  const [d, setD] = useState<Data>({ renders: [], spent: 0, per: null });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -25,10 +24,9 @@ export function TrainSet() {
 
   const render = async (n: number) => {
     setBusy(true); setMsg(null);
-    const r = await requestJson<{ made: number; spent: number; error?: string }>("/api/sprites/trainset", post({ n }));
+    const r = await requestJson<{ made: number; spent: number; per: number | null; error?: string }>("/api/sprites/trainset", post({ n }));
     if (!r.ok) setMsg(r.error);
     else {
-      if (per == null && r.data.made) setPer(r.data.spent - d.spent);
       setMsg(r.data.error ?? `Rendered ${r.data.made}.`);
     }
     setBusy(false); await load();
@@ -43,14 +41,15 @@ export function TrainSet() {
     setMsg(r.ok ? `Training ${name} started.` : r.error);
     setBusy(false);
   };
+  const per = d.per;
   const picks = d.renders.filter((r) => r.picked).length;
   const canTrain = !busy && ready && picks >= 5 && picks <= 40;
   return (
     <div className="border-border bg-surface space-y-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={busy} onClick={() => render(1)} className={btn}>Render 1 (price check)</button>
-        <button type="button" disabled={busy || per == null} onClick={() => render(89)} className={btn}>Render the rest</button>
-        <span className="text-muted text-sm">{per == null ? "Run the price check first." : `${per} Anlas each, about ${Math.round(per * 90)} for 90.`} Spent {d.spent}.</span>
+        <button type="button" disabled={busy || !(per != null && per > 0)} onClick={() => render(89)} className={btn}>Render the rest</button>
+        <span className="text-muted text-sm">{per == null ? (d.renders.length ? "Cost unknown, can't verify price." : "Run the price check first.") : `${per} Anlas each, about ${Math.round(per * 90)} for 90.`} Spent {d.spent}.</span>
       </div>
       <div className="grid grid-cols-4 gap-1 sm:grid-cols-6 lg:grid-cols-10">
         {d.renders.map((r) => (

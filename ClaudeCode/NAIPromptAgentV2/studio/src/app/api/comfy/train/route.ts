@@ -60,7 +60,7 @@ async function trainset(req: NextRequest) {
   const b = (await req.json().catch(() => null)) as { trainset?: unknown; name?: unknown; arch?: unknown; kind?: unknown } | null;
   const name = trainName(String(b?.name ?? ""));
   if (!b || b.trainset !== true) return bad("Send the photos as a form.");
-  if (!name) return bad("Name: 3–40 lowercase letters, numbers or _ , starting with a letter.");
+  if (name !== "miyabi_sprite_img" && name !== "miyabi_sprite_wan") return bad("Name must be miyabi_sprite_img or miyabi_sprite_wan.");
   if (b.arch !== POSE_FAMILY && b.arch !== "wan22") return bad("Pick the image or Wan model.");
   const kind: TrainKind = "face"; // both sprite LoRAs learn a character
   let payload;

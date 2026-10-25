@@ -27,11 +27,25 @@ export function trainsetRenders(s: MascotSettings, start: number, n: number): Tr
 export const nextIndex = (files: string[]) => files.reduce((m, f) => (/^\d+\.png$/.test(f) ? Math.max(m, parseInt(f, 10) + 1) : m), 0);
 export const idx = (i: number) => String(i).padStart(3, "0");
 
-const readJson = async <T>(f: string, d: T): Promise<T> => JSON.parse(await fsp.readFile(f, "utf8").catch(() => "null")) ?? d;
+const readJson = async <T>(f: string, d: T): Promise<T> => { try { return JSON.parse(await fsp.readFile(f, "utf8")) ?? d; } catch { return d; } };
 export const readPicks = (dir = TRAINSET_DIR) => readJson<number[]>(path.join(dir, "picked.json"), []);
 export const writePicks = (picks: number[], dir = TRAINSET_DIR) => fsp.writeFile(path.join(dir, "picked.json"), JSON.stringify(picks));
-export const readSpent = async (dir = TRAINSET_DIR) => (await readJson<{ spent: number }>(path.join(dir, "spent.json"), { spent: 0 })).spent;
-export const addSpent = async (n: number, dir = TRAINSET_DIR) => fsp.writeFile(path.join(dir, "spent.json"), JSON.stringify({ spent: (await readSpent(dir)) + n }));
+const readCost = (dir: string) => readJson<{ spent: number; per?: number }>(path.join(dir, "spent.json"), { spent: 0 });
+export const readSpent = async (dir = TRAINSET_DIR) => (await readCost(dir)).spent;
+export const readPer = async (dir = TRAINSET_DIR) => (await readCost(dir)).per ?? null;
+/** A null cost (balance lookup failed) is never counted or trusted as a price. */
+export async function addSpent(cost: number | null, dir = TRAINSET_DIR) {
+  if (cost == null) return;
+  const c = await readCost(dir);
+  await fsp.writeFile(path.join(dir, "spent.json"), JSON.stringify({ spent: c.spent + cost, ...(cost > 0 ? { per: cost } : c.per ? { per: c.per } : {}) }));
+}
+
+/** Why a render request must be refused, or null. Batches need a verified price; the set caps at 100. */
+export async function renderRefusal(n: number, existing: number, dir = TRAINSET_DIR): Promise<{ error: string; status: number } | null> {
+  if (existing + n > 100) return { error: "The set is capped at 100 renders.", status: 400 };
+  if (n > 1 && !((await readPer(dir)) ?? 0)) return { error: "Render 1 first to check the price", status: 409 };
+  return null;
+}
 
 /** The picked renders + their captions, ready for startTrain. Throws the range message before anything is read. */
 export async function picksPayload(dir = TRAINSET_DIR): Promise<{ images: Buffer[]; captions: string[] }> {
