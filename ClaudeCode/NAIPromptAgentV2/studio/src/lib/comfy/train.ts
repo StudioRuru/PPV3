@@ -42,7 +42,7 @@ export function captionFiles(images: string[], captions: string[]): [string, str
 }
 
 /** Final LoRAs only: AI-Toolkit step saves look like NAME_000005000.safetensors. */
-export const finalLoras = (files: string[]): string[] => files.filter((f) => f.endsWith(".safetensors") && !/_\d+\.safetensors$/.test(f));
+export const finalLoras = (files: string[]): string[] => files.filter((f) => f.endsWith(".safetensors") && !/_\d{9}\.safetensors$/.test(f));
 
 const MODEL = (a: Arch): object =>
   a === "sdxl" ? { name_or_path: BASE.sdxl, arch: "sdxl" }
@@ -75,6 +75,7 @@ export function buildConfig(r: { id: string; name: string; arch: Arch; steps: nu
           ...(r.arch === "qwen" ? { cache_text_embeddings: true } : {}),
         },
         model: MODEL(r.arch),
+        // ponytail: wan22 sample uses the first training image as ctrl_img (i2v needs a first frame); sampling is off anyway (sample_every > steps)
         sample: { sampler: r.arch === "sdxl" ? "ddpm" : "flowmatch", sample_every: r.steps + 1, width: 1024, height: 1024, ...(wan ? { samples: [{ prompt: r.name, ctrl_img: `${dir}/data/0.png` }] } : { prompts: [r.name] }), neg: "", seed: 42, walk_seed: false, guidance_scale: 4, sample_steps: 20 },
       }],
     },
@@ -120,12 +121,11 @@ export async function startTrain(o: { name: string; arch: Arch; kind: TrainKind;
   const dir = `/opt/train/${run.id}`;
   const out = `${dir}/out/${run.name}`;
   await ssh(host, `systemd-run --unit train-${run.id} -p WorkingDirectory=${TOOLKIT} -p StandardOutput=file:${dir}/log -p StandardError=file:${dir}/log ` +
-    `sh -c '${TOOLKIT}/venv/bin/python run.py ${dir}/config.yaml && find ${out} -name "*.safetensors" ! -regex ".*_[0-9]+\\.safetensors" -exec cp {} ${LORAS}/ \\;'`);
+    `sh -c '${TOOLKIT}/venv/bin/python run.py ${dir}/config.yaml && find ${out} -name "*.safetensors" ! -regex ".*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\\.safetensors" -exec cp {} ${LORAS}/ \\;'`);
   writeRun(run);
   return run;
 }
 
-// ponytail: wan22 sample uses the first training image as ctrl_img (i2v needs a first frame); sampling is off anyway (sample_every > steps)
 /** Polls the pod; when the run ends, copies the LoRA back to the Mac so pushLoras restores it on a fresh pod. */
 export async function trainStatus(host = podHost("main")): Promise<(Run & { progress: number }) | null> {
   const run = readRun();

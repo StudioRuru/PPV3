@@ -25,7 +25,7 @@ export function editGraph(j: EditJob, image: string): object {
     pos: { class_type: "CLIPTextEncode", inputs: { clip: ["clip", 0], text: `${SPRITE_LORAS.trigger}, ${j.prompt}` } },
     neg: { class_type: "CLIPTextEncode", inputs: { clip: ["clip", 0], text: EDIT_NEGATIVE } },
     img: { class_type: "LoadImage", inputs: { image } },
-    scale: { class_type: "ImageScale", inputs: { image: ["img", 0], upscale_method: "lanczos", width: j.width, height: j.height, crop: "disabled" } },
+    scale: { class_type: "ImageScale", inputs: { image: ["img", 0], upscale_method: "lanczos", width: j.width, height: j.height, crop: "center" } },
     latent: { class_type: "VAEEncode", inputs: { pixels: ["scale", 0], vae: ["vae", 0] } },
     sampler: {
       class_type: "KSampler",

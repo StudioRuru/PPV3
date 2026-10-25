@@ -50,6 +50,6 @@ test("pose arches use their AIT arch and local MOSS files", () => {
 test("per-image captions must match image count", () => assert.throws(() => captionFiles(["a.png", "b.png"], ["x"]), /caption/));
 test("per-image captions pair by index", () => assert.deepEqual(captionFiles(["a.png", "b.png"], ["x", "y"]), [["a.txt", "x"], ["b.txt", "y"]]));
 test("final loras: step checkpoints are skipped", () => {
-  assert.deepEqual(finalLoras(["m_000500.safetensors", "m_high_noise.safetensors", "m_low_noise.safetensors", "m.yaml"]), ["m_high_noise.safetensors", "m_low_noise.safetensors"]);
+  assert.deepEqual(finalLoras(["m_000000500.safetensors", "maya_2.safetensors", "m_high_noise.safetensors", "m_low_noise.safetensors", "m.yaml"]), ["maya_2.safetensors", "m_high_noise.safetensors", "m_low_noise.safetensors"]);
   assert.deepEqual(finalLoras(["miyabi_sprite_img_000005000.safetensors", "miyabi_sprite_img.safetensors"]), ["miyabi_sprite_img.safetensors"]);
 });
