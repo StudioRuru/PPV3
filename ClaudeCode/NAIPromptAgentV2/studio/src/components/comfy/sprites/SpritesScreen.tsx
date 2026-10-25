@@ -6,6 +6,7 @@ import { BasesView } from "./BasesView";
 import { BulkBar } from "./BulkBar";
 import { GridView } from "./GridView";
 import { PoseGraphView } from "./PoseGraphView";
+import { TrainSet } from "./TrainSet";
 import { ReducedCtx, useReducedMotion } from "./TakesSheet";
 import type { CellView } from "./grid";
 
@@ -96,6 +97,10 @@ export function SpritesScreen({ active }: { active: boolean }) {
       {view === "grid" && <GridView surface={surface} outfit={outfit} inv={inv} onAct={act} ensure={ensure} />}
       {view === "pose" && surface === "stage" && <PoseGraphView outfit={outfit} inv={inv} run={run} onAct={act} ensure={ensure} onChange={load} />}
       {view === "size" && <p className="border-border bg-surface rounded-lg border p-4 text-sm">Sprite library: {mb} MB on disk.</p>}
+      <details className="border-border rounded-lg border">
+        <summary className="h-11 cursor-pointer px-3 py-3 text-sm">Training set</summary>
+        <div className="p-2"><TrainSet /></div>
+      </details>
     </div>
     </ReducedCtx.Provider>
   );

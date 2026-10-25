@@ -3,7 +3,8 @@ import sharp from "sharp";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import { getEngine } from "@/lib/comfy/engine";
 import { dropModels, freeVram } from "@/lib/comfy/client";
-import { type Arch, type TrainKind, MAX_IMAGES, MIN_IMAGES, startTrain, trainName, trainStatus } from "@/lib/comfy/train";
+import { picksPayload } from "@/lib/sprites/trainset";
+import { POSE_FAMILY, type Arch, type TrainKind, MAX_IMAGES, MIN_IMAGES, startTrain, trainName, trainStatus } from "@/lib/comfy/train";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
 /** multipart: name, arch (sdxl|qwen), kind (face|scene), images (5–40 files). */
 export async function POST(req: NextRequest) {
   if (await denied(req)) return bad("Unauthorized", 401);
+  if (req.headers.get("content-type")?.includes("application/json")) return trainset(req);
   const f = await req.formData().catch(() => null);
   if (!f) return bad("Send the photos as a form.");
   const name = trainName(String(f.get("name") ?? ""));
@@ -48,6 +50,25 @@ export async function POST(req: NextRequest) {
   try {
     await freeVram(getEngine().base("main")).catch(() => {}); // the trainer needs the VRAM
     return NextResponse.json({ run: await startTrain({ name, arch, kind, images }) });
+  } catch (e) {
+    return bad(e instanceof Error ? e.message : "Couldn't start training.", 409);
+  }
+}
+
+/** json: { trainset: true, name, arch (POSE_FAMILY|wan22), kind } trains on the picked Sprites training-set renders. */
+async function trainset(req: NextRequest) {
+  const b = (await req.json().catch(() => null)) as { trainset?: unknown; name?: unknown; arch?: unknown; kind?: unknown } | null;
+  const name = trainName(String(b?.name ?? ""));
+  if (!b || b.trainset !== true) return bad("Send the photos as a form.");
+  if (!name) return bad("Name: 3–40 lowercase letters, numbers or _ , starting with a letter.");
+  if (b.arch !== POSE_FAMILY && b.arch !== "wan22") return bad("Pick the image or Wan model.");
+  const kind: TrainKind = "face"; // both sprite LoRAs learn a character
+  let payload;
+  try { payload = await picksPayload(); } catch (e) { return bad(e instanceof Error ? e.message : "Couldn't read the picks."); }
+  if (getEngine().view().main.phase !== "ready") return bad("Start the GPU first.", 409);
+  try {
+    await freeVram(getEngine().base("main")).catch(() => {});
+    return NextResponse.json({ run: await startTrain({ name, arch: b.arch, kind, ...payload }) });
   } catch (e) {
     return bad(e instanceof Error ? e.message : "Couldn't start training.", 409);
   }
