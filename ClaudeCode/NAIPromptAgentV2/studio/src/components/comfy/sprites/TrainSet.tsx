@@ -48,7 +48,7 @@ export function TrainSet() {
     <div className="border-border bg-surface space-y-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={busy} onClick={() => render(1)} className={btn}>Render 1 (price check)</button>
-        <button type="button" disabled={busy || !(per != null && per > 0)} onClick={() => render(89)} className={btn}>Render the rest</button>
+        <button type="button" disabled={busy || !(per != null && per > 0) || d.renders.length >= 90} onClick={() => render(90 - d.renders.length)} className={btn}>Render the rest</button>
         <span className="text-muted text-sm">{per == null ? (d.renders.length ? "Cost unknown, can't verify price." : "Run the price check first.") : `${per} Anlas each, about ${Math.round(per * 90)} for 90.`} Spent {d.spent}.</span>
       </div>
       <div className="grid grid-cols-4 gap-1 sm:grid-cols-6 lg:grid-cols-10">
