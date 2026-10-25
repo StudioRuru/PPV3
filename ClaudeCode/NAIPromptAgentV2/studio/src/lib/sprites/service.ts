@@ -58,7 +58,7 @@ function enqueue(db: Db, c: Cell, s: Spec, n: number, now: number, drain: () => 
   return ids;
 }
 
-export function generate(db: Db, cellId: number, n = 3, now = Date.now(), drain = kick, preset: EditPreset = "noct"): number[] {
+export function generate(db: Db, cellId: number, n = 3, now = Date.now(), drain = kick, preset: EditPreset = "pose"): number[] {
   const c = cellById(db, cellId);
   return enqueue(db, c, spec(db, c, preset), n, now, drain);
 }
@@ -77,7 +77,7 @@ export function setBase(db: Db, surface: Surface, outfit: string, itemId: number
   approve(db, c.id, t);
 }
 
-export function deriveBase(db: Db, surface: Surface, outfit: string, fromSurface: Surface, fromOutfit: string, prompt: string, n = 3, now = Date.now(), drain = kick, preset: EditPreset = "noct"): number[] {
+export function deriveBase(db: Db, surface: Surface, outfit: string, fromSurface: Surface, fromOutfit: string, prompt: string, n = 3, now = Date.now(), drain = kick, preset: EditPreset = "pose"): number[] {
   const from = baseItem(db, fromSurface, fromOutfit);
   if (from == null) throw new Error("Approve the source base first.");
   return enqueue(db, cell(db, surface, outfit, BASE, ""), { kind: "edit", recipe: edit(from, prompt, preset) }, n, now, drain);
@@ -138,7 +138,7 @@ export function bulkEstimate(db: Db, surface: Surface, outfit: string, scope: Sc
   const r = rate ?? liveRate();
   let seconds = 0, usd = 0;
   for (const c of cells) {
-    const s = spec(db, c, "noct");
+    const s = spec(db, c, "pose");
     const e = estimate(s.kind === "edit" ? (s.recipe as EditJob) : spriteRecipe(s.recipe as SpriteJob), r.gpu, r.usdHr);
     seconds += e.seconds * takes; usd += e.usd * takes;
   }
@@ -148,7 +148,7 @@ export function bulkEstimate(db: Db, surface: Surface, outfit: string, scope: Sc
 /** Enqueues `takes` jobs for every missing cell; returns the job count. */
 export function bulkStart(db: Db, surface: Surface, outfit: string, scope: Scope, takesEach = 3, now = Date.now(), drain = kick, only?: string): number {
   const cells = missing(db, surface, outfit, scope, only);
-  const n = cells.reduce((sum, c) => sum + enqueue(db, c, spec(db, c, "noct"), takesEach, now, () => {}).length, 0);
+  const n = cells.reduce((sum, c) => sum + enqueue(db, c, spec(db, c, "pose"), takesEach, now, () => {}).length, 0);
   drain();
   return n;
 }

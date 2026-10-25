@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { loraGate } from "../gate";
 import { bulkCancel, bulkEstimate, bulkStart } from "@/lib/sprites/service";
 import { listKeys, listOutfits, spritesDb } from "@/lib/sprites/store";
 
@@ -22,6 +23,8 @@ export async function POST(req: NextRequest) {
     }
     const est = bulkEstimate(db, b.surface, b.outfit, b.scope, 3, undefined, only);
     if (b.confirm !== true) return NextResponse.json(est);
+    const g = await loraGate();
+    if (g) return g;
     return NextResponse.json({ ...est, started: bulkStart(db, b.surface, b.outfit, b.scope, 3, undefined, undefined, only) });
   } catch (e) {
     return bad(e instanceof Error ? e.message : "Failed.");

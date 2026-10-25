@@ -1,5 +1,5 @@
 // Client-safe: imported by components.
-import type { EditJob } from "../sprites/graph";
+import { POSE, type EditJob } from "../sprites/graph";
 import { isDit, type PhotoRecipe, type VideoRecipe, wanFrames } from "./recipe";
 
 type Kind = "photo" | "i2v" | "t2v";
@@ -17,7 +17,7 @@ export function estimate(r: PhotoRecipe | VideoRecipe | EditJob, gpu: string, us
   const cls: Cls = /H100/i.test(gpu) ? "h100" : "48gb";
   let seconds: number;
   if ("preset" in r) {
-    const steps = r.preset === "turbo" ? 8 : 25;
+    const steps = POSE.steps;
     seconds = OVERHEAD.photo + steps * PER_STEP.photo[cls].qwen * ((r.width * r.height) / 1024 ** 2);
   } else if (r.mode === "photo") {
     const mp = (r.width * r.height) / 1024 ** 2;

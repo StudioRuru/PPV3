@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { loraGate } from "../gate";
 import { readItem } from "@/lib/comfy/store";
 import { deriveBase, setBase } from "@/lib/sprites/service";
 import { listOutfits, spritesDb } from "@/lib/sprites/store";
@@ -24,6 +25,8 @@ export async function POST(req: NextRequest) {
     }
     const d = b.derive, from = surf(d?.surface);
     if (!d || !from || typeof d.outfit !== "string" || !outfits.includes(d.outfit) || typeof d.prompt !== "string" || !d.prompt.trim()) return bad("Need itemId, or derive { surface, outfit, prompt }.");
+    const g = await loraGate();
+    if (g) return g;
     return NextResponse.json({ jobs: deriveBase(db, surface, b.outfit, from, d.outfit, d.prompt.trim()) });
   } catch (e) {
     return bad(e instanceof Error ? e.message : "Failed.");

@@ -149,7 +149,7 @@ export function beats(prompt: string, n: number): string[] {
 export function validateEdit(r: unknown): EditJob {
   const o = obj(r, "recipe");
   return {
-    preset: oneOf(o.preset, "preset", ["noct", "turbo"] as const), base: num(o.base, "base", 1, Number.MAX_SAFE_INTEGER, true), prompt: str(o.prompt, "prompt"),
+    preset: oneOf(o.preset, "preset", ["pose"] as const), base: num(o.base, "base", 1, Number.MAX_SAFE_INTEGER, true), prompt: str(o.prompt, "prompt"),
     seed: seed(o.seed), width: 768, height: 1344, target: { takeId: num(obj(o.target, "target").takeId, "take", 1, Number.MAX_SAFE_INTEGER, true) },
   };
 }
@@ -174,7 +174,7 @@ const load = (wf: object): Graph => {
 
 // Encoder/VAE per diffusion-only family, from the Comfy-Org templates (Krea 2 turbo, MOSS-Image t2i).
 // EmptyLatentImage is converted by KSampler's fix_empty_latent_channels.
-const DIT: Record<Exclude<Family, "sdxl">, { clip: string; type: string; vae: string; latent: string }> = {
+export const DIT: Record<Exclude<Family, "sdxl">, { clip: string; type: string; vae: string; latent: string }> = {
   qwen: { clip: "qwen_image_2.1_text_encoder.safetensors", type: "qwen_image", vae: "qwen_image_2.1_vae_bf16.safetensors", latent: "EmptyLatentImage" },
   krea2: { clip: "qwen3vl_4b_fp8_scaled.safetensors", type: "krea2", vae: "qwen_image_vae.safetensors", latent: "EmptyLatentImage" },
   moss: { clip: "qwen3.5_9b_int8_convrot.safetensors", type: "moss_image", vae: "flux2-vae.safetensors", latent: "EmptyFlux2LatentImage" },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { loraGate } from "../../gate";
 import { cutQueue } from "@/lib/sprites/cutout";
 import { decide, generate } from "@/lib/sprites/service";
 import { spritesDb } from "@/lib/sprites/store";
@@ -18,6 +19,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (b.op === "generate") {
       const n = b.n == null ? 3 : Number(b.n);
       if (!Number.isInteger(n) || n < 1 || n > 8) return bad("n must be 1-8.");
+      const g = await loraGate();
+      if (g) return g;
       return NextResponse.json({ jobs: generate(db, id, n) });
     }
     if (b.op === "approve") {

@@ -276,7 +276,7 @@ test("edit job saves an image item and links its take", async () => {
   const base = await seedFrame(s, "base.png");
   const c = cell(s.db, "chat", "day", "neutral", "happy");
   const takeId = addTake(s.db, c.id, null, 7, {});
-  const id = addJob(s.db, "edit", { preset: "noct", base, prompt: "smiling", seed: 7, width: 768, height: 1344, target: { takeId } }, "main", 1);
+  const id = addJob(s.db, "edit", { preset: "pose", base, prompt: "smiling", seed: 7, width: 768, height: 1344, target: { takeId } }, "main", 1);
   s.o.watch = async () => ({ files: [out("studio-edit_00001_.png")] });
   await drainQueue(s.d);
   await s.until(() => readJob(s.db, id)!.status === "done");
