@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildConfig, caption, parseProgress, trainName } from "./train";
+import { AIT_ARCH, POSE_FAMILY, STEPS, buildConfig, caption, captionFiles, finalLoras, parseProgress, trainName } from "./train";
 
 test("trainName takes plain lowercase names only", () => {
   assert.equal(trainName("maya_face"), "maya_face");
@@ -28,4 +28,28 @@ test("parseProgress reads the last tqdm step of the training bar", () => {
   const log = "Caching latents 10/10 [00:02]\nmaya:  12%|█ | 240/2000 [01:00<07:00]\rmaya:  13%|█ | 260/2000 [01:05<07:00]";
   assert.equal(parseProgress(log, 2000), 0.13);
   assert.equal(parseProgress("loading…", 2000), 0);
+});
+
+const proc = (arch: "sdxl" | "qwen" | "moss" | "wan22") => JSON.parse(buildConfig({ id: "9", name: "miyabi_sprite_wan", arch, steps: STEPS[arch] })).config.process[0];
+test("wan22 config: rank 32, 512-768, single-frame, control image", () => {
+  const p = proc("wan22");
+  assert.equal(p.network.linear, 32);
+  assert.deepEqual(p.datasets[0].resolution, [512, 768]);
+  assert.equal(p.datasets[0].num_frames, 1);
+  assert.equal(p.model.arch, AIT_ARCH.wan22);
+  assert.equal(p.model.name_or_path, "ai-toolkit/Wan2.2-I2V-A14B-Diffusers-bf16");
+  assert.deepEqual(p.model.model_kwargs, { train_high_noise: true, train_low_noise: true });
+  assert.equal(p.sample.samples[0].ctrl_img, "/opt/train/9/data/0.png");
+});
+test("pose arches use their AIT arch and local MOSS files", () => {
+  assert.equal(POSE_FAMILY, "moss");
+  for (const a of ["moss"] as const) assert.equal(proc(a).model.arch, AIT_ARCH[a]);
+  assert.match(proc("moss").model.name_or_path, /pornmasterMoss_v1\.safetensors$/);
+  assert.equal(proc("sdxl").network.linear, 16);
+});
+test("per-image captions must match image count", () => assert.throws(() => captionFiles(["a.png", "b.png"], ["x"]), /caption/));
+test("per-image captions pair by index", () => assert.deepEqual(captionFiles(["a.png", "b.png"], ["x", "y"]), [["a.txt", "x"], ["b.txt", "y"]]));
+test("final loras: step checkpoints are skipped", () => {
+  assert.deepEqual(finalLoras(["m_000500.safetensors", "m_high_noise.safetensors", "m_low_noise.safetensors", "m.yaml"]), ["m_high_noise.safetensors", "m_low_noise.safetensors"]);
+  assert.deepEqual(finalLoras(["miyabi_sprite_img_000005000.safetensors", "miyabi_sprite_img.safetensors"]), ["miyabi_sprite_img.safetensors"]);
 });
