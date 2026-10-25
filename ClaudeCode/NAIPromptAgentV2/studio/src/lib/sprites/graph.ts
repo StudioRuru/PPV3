@@ -41,8 +41,8 @@ export function editGraph(j: EditJob, image: string): object {
 export function spriteRecipe(j: SpriteJob): VideoRecipe {
   const idle = j.start === j.end;
   return {
-    mode: idle ? "loop" : "animate", prompt: j.prompt, negative: CLIP_NEGATIVE, loras: [], start: j.start, end: idle ? null : j.end,
-    seconds: j.seconds, motion: "low", fps: 30, size: "480p", seed: j.seed, steps: 8, cfg: 1,
+    mode: idle ? "loop" : "animate", prompt: j.prompt, negative: CLIP_NEGATIVE, loras: SPRITE_LORAS.wan, start: j.start, end: idle ? null : j.end,
+    seconds: j.seconds, motion: "low", fps: 30, size: "720p", seed: j.seed, steps: 8, cfg: 1,
   };
 }
 

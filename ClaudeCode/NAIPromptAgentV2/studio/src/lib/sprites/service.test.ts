@@ -6,7 +6,8 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { migrate, addJob, readJob, addItem, readItem, updateJob } from "../comfy/store";
 import { cell, listKeys, migrateSprites, takes, addTake, linkTakeItem, approve, edges } from "./store";
-import type { SpriteJob } from "./graph";
+import { type SpriteJob, spriteRecipe } from "./graph";
+import { estimate } from "../comfy/estimate";
 import { generate, setBase, deriveBase, decide, missing, bulkEstimate, bulkStart, bulkCancel } from "./service";
 
 let db: Database.Database;
@@ -89,6 +90,14 @@ test("bulkEstimate sums per-take estimates without queuing", () => {
   assert.equal(e.jobs, (28 + 8) * 3); assert.ok(e.usd > 0); assert.ok(e.seconds > 0);
   assert.equal((db.prepare("SELECT COUNT(*) n FROM comfy_jobs").get() as { n: number }).n, 0);
   assert.equal(bulkStart(db, "chat", "day", "basic", 3, 0, noop), 36 * 3);
+});
+test("clip prompts start with the trigger and bulkEstimate prices 720p", () => {
+  approveEndpoint("happy", 10); approveEndpoint("sad", 11);
+  const ids = generate(db, cell(db, "chat", "day", "happy", "sad").id, 1, 0, noop);
+  assert.ok((readJob(db, ids[0])!.recipe as SpriteJob).prompt.startsWith("miyabi_sprite, "));
+  const rate = { gpu: "A6000", usdHr: 1 };
+  const r = { ...spriteRecipe({ surface: "chat", start: 1, end: 2, prompt: "", seconds: 0.75, seed: 1, target: { takeId: 1 } }) };
+  assert.ok(estimate(r, rate.gpu, rate.usdHr).seconds > estimate({ ...r, size: "480p" }, rate.gpu, rate.usdHr).seconds);
 });
 test("approve deletes dropped take files", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sprites-svc-")); dirs.push(dir);

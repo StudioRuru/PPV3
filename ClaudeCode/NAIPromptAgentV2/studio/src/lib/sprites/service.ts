@@ -5,6 +5,7 @@ import { estimate } from "../comfy/estimate";
 import { drainQueue } from "../comfy/jobs";
 import { type EditPreset, type EditJob, type SpriteJob, secondsFor, spriteRecipe } from "./graph";
 import { addJob, deleteItem, readJob } from "../comfy/store";
+import { SPRITE_LORAS } from "./loras";
 import { COMFY_DIR } from "../env";
 import { type Cell, type Surface, addTake, allowedKeys, approve, cell, cellStatus, edges, listKeys, reject, takes } from "./store";
 
@@ -37,11 +38,11 @@ function spec(db: Db, c: Cell, preset: EditPreset): Spec {
   const [start, end] = [endpointItem(db, c.surface, c.outfit, c.from), endpointItem(db, c.surface, c.outfit, c.to)];
   if (start == null || end == null) throw new Error("Approve both endpoints first.");
   const idle = c.from === c.to;
-  const prompt = idle
+  const prompt = SPRITE_LORAS.trigger + ", " + (idle
     ? "subtle idle motion, breathing, a natural blink, slight sway, same pose, plain white background"
     : c.surface === "chat"
       ? `she changes expression from ${label(c.from)} to ${label(c.to)}, smooth natural motion, same character, plain white background`
-      : `she moves from ${label(c.from)} to ${label(c.to)}, smooth natural body motion, confident teasing attitude, plain white background`;
+      : `she moves from ${label(c.from)} to ${label(c.to)}, smooth natural body motion, confident teasing attitude, plain white background`);
   return { kind: "sprite", recipe: { surface: c.surface, start, end, prompt, seconds: secondsFor(c.surface, idle), seed: 0, target: { takeId: 0 } } };
 }
 

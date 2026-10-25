@@ -5,7 +5,7 @@ import type { EditJob, SpriteJob } from "../sprites/graph";
 import i2vWf from "./workflows/video-i2v.json";
 import t2vWf from "./workflows/video-t2v.json";
 
-export type Lora = { name: string; strength: number; /** Trigger words the studio inserted into the prompt for this LoRA. */ words?: string[] };
+export type Lora = { name: string; strength: number; /** Wan 2.2 expert this LoRA belongs to; unset = both. */ expert?: "high" | "low"; /** Trigger words the studio inserted into the prompt for this LoRA. */ words?: string[] };
 export type PoseRef = { kind: "pose" | "depth" | "lineart"; image: string; strength: number };
 export type PhotoRecipe = {
   mode: "photo"; model: string; prompt: string; negative: string; loras: Lora[]; pose: PoseRef | null;
@@ -302,10 +302,10 @@ export function videoGraph(r: VideoRecipe, frames: { start?: string; end?: strin
   const text = beats(r.prompt, segs).map((b) => [b, MOTION[r.motion]].filter(Boolean).join(", "));
   g.pos.inputs.text = text[0];
   g.neg.inputs.text = r.negative;
-  // ponytail: each LoRA goes on every Wan model in the graph; split high/low LoRA pairs if quality needs it
-  const chain = (unet: string, shift: string) => {
+  // a LoRA with an expert goes on that unet only; without one, on every Wan model
+  const chain = (unet: string, shift: string, expert?: "high" | "low") => {
     let model: Link = [unet, 0];
-    r.loras.forEach((l, i) => {
+    r.loras.filter((l) => !l.expert || l.expert === expert).forEach((l, i) => {
       const id = `${shift}_lora${i + 1}`;
       g[id] = { class_type: "LoraLoaderModelOnly", inputs: { model, lora_name: l.name, strength_model: l.strength } };
       model = [id, 0];
@@ -317,8 +317,8 @@ export function videoGraph(r: VideoRecipe, frames: { start?: string; end?: strin
     Object.assign(g.latent.inputs, { width, height, length });
     Object.assign(g.sampler.inputs, { seed: r.seed, steps: r.steps, cfg: r.cfg });
   } else {
-    chain("unet_high", "shift_high");
-    chain("unet_low", "shift_low");
+    chain("unet_high", "shift_high", "high");
+    chain("unet_low", "shift_low", "low");
     const start = frames.start ?? fail("A start frame is needed");
     const end = r.mode === "loop" ? start : r.mode === "animate" ? frames.end : undefined;
     g.start.inputs.image = start;

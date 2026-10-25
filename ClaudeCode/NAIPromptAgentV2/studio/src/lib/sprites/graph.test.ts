@@ -22,6 +22,9 @@ test("missing LoRA is named", () => {
 test("spriteRecipe: idle loops, transitions animate, 30fps portrait", () => {
   assert.equal(spriteRecipe({ surface: "chat", start: 3, end: 3, prompt: "", seconds: 2.5, seed: 1, target: { takeId: 1 } }).mode, "loop");
   const t = spriteRecipe({ surface: "chat", start: 3, end: 4, prompt: "", seconds: 0.75, seed: 1, target: { takeId: 1 } });
-  assert.deepEqual([t.mode, t.fps, t.size, t.steps, t.cfg], ["animate", 30, "480p", 8, 1]);
+  assert.deepEqual([t.mode, t.fps, t.size, t.steps, t.cfg], ["animate", 30, "720p", 8, 1]);
+});
+test("sprite clips carry her Wan LoRA", () => {
+  assert.deepEqual(spriteRecipe({ surface: "chat", start: 3, end: 4, prompt: "x", seconds: 0.75, seed: 1, target: { takeId: 1 } }).loras, SPRITE_LORAS.wan);
 });
 test("secondsFor", () => { assert.equal(secondsFor("chat", false), 0.75); assert.equal(secondsFor("chat", true), 2.5); assert.equal(secondsFor("stage", false), 2.5); });

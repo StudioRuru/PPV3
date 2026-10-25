@@ -315,3 +315,9 @@ test("faceFix runs FaceDetailer on the decode and saves its output, with plain p
   assert.equal(validatePhoto({ ...photo, seed: 1, faceFix: true }).faceFix, true);
   assert.equal("faceFix" in validatePhoto({ ...photo, seed: 1, faceFix: "yes" }), false);
 });
+
+test("expert LoRA lands on one unet only; unscoped on both", () => {
+  const n = (loras: VideoRecipe["loras"]) => (Object.values(videoGraph({ ...video, loras }, { start: "s.png", end: "e.png" })) as { class_type: string }[]).filter((x) => x.class_type === "LoraLoaderModelOnly").length;
+  assert.equal(n([{ name: "h.safetensors", strength: 1, expert: "high" }]), 1);
+  assert.equal(n([{ name: "a.safetensors", strength: 1 }]), 2);
+});
