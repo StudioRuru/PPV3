@@ -8,7 +8,10 @@ import { migrate, addJob, readJob, addItem, readItem, updateJob } from "../comfy
 import { cell, listKeys, migrateSprites, takes, addTake, linkTakeItem, approve, edges } from "./store";
 import { type SpriteJob, spriteRecipe } from "./graph";
 import { estimate } from "../comfy/estimate";
-import { generate, setBase, deriveBase, decide, missing, bulkEstimate, bulkStart, bulkCancel } from "./service";
+import { DEFAULT_MASCOT_SETTINGS as S } from "../mascot/settings";
+import { generate, setBase, deriveBase, decide, missing, bulkEstimate, bulkStart, bulkCancel, outfitTags } from "./service";
+
+outfitTags.of = (o) => S.layerTags[o as "day"] ?? ""; // never read the real settings db
 
 let db: Database.Database;
 const noop = () => {};
@@ -145,4 +148,29 @@ test("approving a generated take never deletes an adopted library base", () => {
   decide(db, c.id, { approve: t }, dir);
   assert.ok(readItem(db, lib)); assert.ok(fs.existsSync(path.join(dir, "lib.png")));
   assert.equal(cell(db, "chat", "day", "@base", "").approvedTake, t);
+});
+
+test("pose jobs name the outfit's layer tags, not 'same outfit'", () => {
+  setBase(db, "chat", "night", 3);
+  const ids = generate(db, cell(db, "chat", "night", "happy", "").id, 1, 0, noop);
+  const prompt = (readJob(db, ids[0])!.recipe as { prompt: string }).prompt;
+  assert.ok(S.layerTags.night.length > 0 && prompt.includes(S.layerTags.night));
+  assert.doesNotMatch(prompt, /same (character|outfit)/);
+  assert.match(prompt, /bright happy smile/);
+});
+test("a re-approved base makes old-base dependents bulk-eligible again, without deleting files", () => {
+  approveEndpoint("happy", 10); approveEndpoint("sad", 11);
+  const rate = { gpu: "x", usdHr: 1 };
+  const before = bulkEstimate(db, "chat", "day", "basic", 1, rate).jobs;
+  assert.ok(before > 0);
+  const base = cell(db, "chat", "day", "@base", "");
+  // each endpoint gets a take, then the base is replaced
+  for (const k of ["happy", "sad"]) { const c = cell(db, "chat", "day", k, ""); assert.equal(takes(db, c.id).length, 1); }
+  const t = addTake(db, base.id, null, 0, {}); linkTakeItem(db, t, 2); approve(db, base.id, t);
+  assert.equal(cell(db, "chat", "day", "happy", "").approvedTake, null);
+  const got = missing(db, "chat", "day", "basic").map((c) => c.from);
+  assert.ok(got.includes("happy") && got.includes("sad"));
+  assert.ok(bulkEstimate(db, "chat", "day", "basic", 1, rate).jobs > 0);
+  assert.ok(bulkStart(db, "chat", "day", "basic", 1, 0, noop) > 0);
+  assert.ok(takes(db, cell(db, "chat", "day", "happy", "").id).some((t) => t.itemId === 10)); // old take and file stay
 });

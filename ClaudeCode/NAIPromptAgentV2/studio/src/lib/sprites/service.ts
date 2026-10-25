@@ -21,6 +21,16 @@ const itemOf = (db: Db, c: Cell): number | null =>
 const endpointItem = (db: Db, surface: Surface, outfit: string, key: string) => itemOf(db, cell(db, surface, outfit, key, ""));
 const baseItem = (db: Db, surface: Surface, outfit: string) => itemOf(db, cell(db, surface, outfit, BASE, ""));
 
+/** Outfit layer tags for pose prompts (same source as the training captions). Tests replace `.of`. */
+export const outfitTags = {
+  of: (outfit: string): string => {
+    // lazy: settings-db is server-only and opens the real db, which unit tests must not load
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const m = (require("../mascot/settings-db") as typeof import("../mascot/settings-db")).getMascotSettings();
+    return m.layerTags[outfit as keyof typeof m.layerTags] ?? "";
+  },
+};
+
 function edit(base: number, prompt: string, preset: EditPreset): EditJob {
   return { preset, base, prompt, seed: 0, width: 768, height: 1344, target: { takeId: 0 } };
 }
@@ -33,7 +43,9 @@ function spec(db: Db, c: Cell, preset: EditPreset): Spec {
   if (c.to === "") {
     const base = baseItem(db, c.surface, c.outfit);
     if (base == null) throw new Error("Approve the base first.");
-    return { kind: "edit", recipe: edit(base, keys.find((k) => k.key === c.from)?.prompt ?? c.from, preset) };
+    // MOSS has no reference conditioning, so the outfit is named in tags instead of "same outfit"
+    const desc = (keys.find((k) => k.key === c.from)?.prompt ?? c.from).replace(/^same character, same outfit,? /, "");
+    return { kind: "edit", recipe: edit(base, [outfitTags.of(c.outfit).trim(), desc].filter(Boolean).join(", "), preset) };
   }
   const [start, end] = [endpointItem(db, c.surface, c.outfit, c.from), endpointItem(db, c.surface, c.outfit, c.to)];
   if (start == null || end == null) throw new Error("Approve both endpoints first.");
@@ -112,8 +124,11 @@ export function missing(db: Db, surface: Surface, outfit: string, scope: Scope, 
   if (baseItem(db, surface, outfit) == null) return [];
   const keys = allowedKeys(listKeys(db, surface), scope === "basic" ? "tame" : "lewd", outfit).map((k) => k.key);
   const ok = (k: string) => endpointItem(db, surface, outfit, k) != null;
+  // after a new base is approved, dependents sit in "review" with takes made from the old base
+  const newest = cell(db, surface, outfit, BASE, "").approvedTake ?? 0;
+  const stale = (c: Cell) => !takes(db, c.id).some((t) => t.id > newest);
   const out: Cell[] = keys.filter((k) => !ok(k) && (only === undefined || k === only)).map((k) => cell(db, surface, outfit, k, ""))
-    .filter((c) => !["approved", "queued", "generating", "review"].includes(status(db, c)));
+    .filter((c) => { const s = status(db, c); return s === "review" ? stale(c) : !["approved", "queued", "generating"].includes(s); });
   const pairs: [string, string][] = surface === "chat"
     ? keys.flatMap((a) => keys.map((b): [string, string] => [a, b]))
     : [...edges(db).filter(([a, b]) => keys.includes(a) && keys.includes(b)).flatMap(([a, b]): [string, string][] => [[a, b], [b, a]]), ...keys.map((k): [string, string] => [k, k])];
@@ -121,7 +136,8 @@ export function missing(db: Db, surface: Surface, outfit: string, scope: Scope, 
     if (only !== undefined && a !== only && b !== only) continue;
     if (!ok(a) || !ok(b)) continue;
     const c = cell(db, surface, outfit, a, b);
-    if (!c.reverse && status(db, c) === "empty") out.push(c);
+    const s = status(db, c);
+    if (!c.reverse && (s === "empty" || (s === "review" && stale(c)))) out.push(c);
   }
   return out;
 }

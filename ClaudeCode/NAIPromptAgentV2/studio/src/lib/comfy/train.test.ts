@@ -41,6 +41,14 @@ test("wan22 config: rank 32, 512-768, single-frame, control image", () => {
   assert.deepEqual(p.model.model_kwargs, { train_high_noise: true, train_low_noise: true });
   assert.equal(p.sample.samples[0].ctrl_img, "/opt/train/9/data/0.png");
 });
+test("wan22 config: step saves every 500 keeping 2; moss and wan22 disable sampling", () => {
+  assert.equal(proc("wan22").save.save_every, 500);
+  assert.equal(proc("wan22").save.max_step_saves_to_keep, 2);
+  assert.equal(proc("moss").save.save_every, STEPS.moss);
+  assert.equal(proc("moss").train.disable_sampling, true);
+  assert.equal(proc("wan22").train.disable_sampling, true);
+  assert.equal(proc("sdxl").train.disable_sampling, undefined);
+});
 test("pose arches use their AIT arch and local MOSS files", () => {
   assert.equal(POSE_FAMILY, "moss");
   for (const a of ["moss"] as const) assert.equal(proc(a).model.arch, AIT_ARCH[a]);
@@ -51,5 +59,6 @@ test("per-image captions must match image count", () => assert.throws(() => capt
 test("per-image captions pair by index", () => assert.deepEqual(captionFiles(["a.png", "b.png"], ["x", "y"]), [["a.txt", "x"], ["b.txt", "y"]]));
 test("final loras: step checkpoints are skipped", () => {
   assert.deepEqual(finalLoras(["m_000000500.safetensors", "maya_2.safetensors", "m_high_noise.safetensors", "m_low_noise.safetensors", "m.yaml"]), ["maya_2.safetensors", "m_high_noise.safetensors", "m_low_noise.safetensors"]);
+  assert.deepEqual(finalLoras(["m_000000500_high_noise.safetensors", "m_000000500_low_noise.safetensors", "m_high_noise.safetensors", "maya_2.safetensors"]), ["m_high_noise.safetensors", "maya_2.safetensors"]);
   assert.deepEqual(finalLoras(["miyabi_sprite_img_000005000.safetensors", "miyabi_sprite_img.safetensors"]), ["miyabi_sprite_img.safetensors"]);
 });

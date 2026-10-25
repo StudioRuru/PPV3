@@ -62,6 +62,8 @@ async function trainset(req: NextRequest) {
   if (!b || b.trainset !== true) return bad("Send the photos as a form.");
   if (name !== "miyabi_sprite_img" && name !== "miyabi_sprite_wan") return bad("Name must be miyabi_sprite_img or miyabi_sprite_wan.");
   if (b.arch !== POSE_FAMILY && b.arch !== "wan22") return bad("Pick the image or Wan model.");
+  if ((name === "miyabi_sprite_img") !== (b.arch === POSE_FAMILY)) return bad("miyabi_sprite_img trains the image model and miyabi_sprite_wan the Wan model.");
+  if (b.arch === "wan22" && process.env.SPRITE_WAN_BASE_READY !== "1") return bad("The Wan base (~57 GB) isn't approved yet — set SPRITE_WAN_BASE_READY=1 after the disk decision", 409);
   const kind: TrainKind = "face"; // both sprite LoRAs learn a character
   let payload;
   try { payload = await picksPayload(); } catch (e) { return bad(e instanceof Error ? e.message : "Couldn't read the picks."); }

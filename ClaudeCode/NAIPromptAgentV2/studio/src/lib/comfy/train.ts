@@ -26,7 +26,8 @@ const BASE: Record<"sdxl" | "qwen", string> = {
 // ponytail: moss/wan22 step counts are first guesses; tune from the first run
 export const STEPS: Record<Arch, number> = { sdxl: 2000, qwen: 1500, moss: 1500, wan22: 2000 };
 export const MIN_IMAGES = 5, MAX_IMAGES = 40;
-const MAX_MS = 4 * 3600_000;
+/** Wan trains for hours (first run also downloads the base), so it gets a longer cap. */
+const maxMs = (a: Arch) => (a === "wan22" ? 8 : 4) * 3600_000;
 
 /** Plain lowercase name (also the LoRA's file name and trigger word). */
 export const trainName = (n: string): string | null => (/^[a-z][a-z0-9_]{2,40}$/.test(n) ? n : null);
@@ -41,8 +42,8 @@ export function captionFiles(images: string[], captions: string[]): [string, str
   return images.map((f, i) => [f.replace(/\.[^.]+$/, ".txt"), captions[i]]);
 }
 
-/** Final LoRAs only: AI-Toolkit step saves look like NAME_000005000.safetensors. */
-export const finalLoras = (files: string[]): string[] => files.filter((f) => f.endsWith(".safetensors") && !/_\d{9}\.safetensors$/.test(f));
+/** Final LoRAs only: AI-Toolkit step saves look like NAME_000005000.safetensors (Wan: NAME_000005000_high_noise.safetensors). */
+export const finalLoras = (files: string[]): string[] => files.filter((f) => f.endsWith(".safetensors") && !/_\d{9}(_(high|low)_noise)?\.safetensors$/.test(f));
 
 const MODEL = (a: Arch): object =>
   a === "sdxl" ? { name_or_path: BASE.sdxl, arch: "sdxl" }
@@ -67,15 +68,16 @@ export function buildConfig(r: { id: string; name: string; arch: Arch; steps: nu
         device: "cuda:0",
         trigger_word: r.name,
         network: { type: "lora", linear: wan ? 32 : 16, linear_alpha: wan ? 32 : 16 },
-        save: { dtype: "float16", save_every: r.steps, max_step_saves_to_keep: 1 },
+        save: { dtype: "float16", save_every: wan ? 500 : r.steps, max_step_saves_to_keep: wan ? 2 : 1 },
         datasets: [{ folder_path: `${dir}/data`, caption_ext: "txt", caption_dropout_rate: 0.05, cache_latents_to_disk: true, ...(wan ? { resolution: [512, 768], num_frames: 1 } : { resolution: [512, 768, 1024] }) }],
         train: {
           batch_size: 1, steps: r.steps, gradient_accumulation_steps: 1, train_unet: true, train_text_encoder: false,
           gradient_checkpointing: true, noise_scheduler: r.arch === "sdxl" ? "ddpm" : "flowmatch", optimizer: "adamw8bit", lr: 1e-4, dtype: "bf16",
           ...(r.arch === "qwen" ? { cache_text_embeddings: true } : {}),
+          ...(r.arch === POSE_FAMILY || wan ? { disable_sampling: true } : {}),
         },
         model: MODEL(r.arch),
-        // ponytail: wan22 sample uses the first training image as ctrl_img (i2v needs a first frame); sampling is off anyway (sample_every > steps)
+        // ponytail: wan22 sample uses the first training image as ctrl_img (i2v needs a first frame); sampling is disabled via train.disable_sampling (sample_every > steps is the fallback)
         sample: { sampler: r.arch === "sdxl" ? "ddpm" : "flowmatch", sample_every: r.steps + 1, width: 1024, height: 1024, ...(wan ? { samples: [{ prompt: r.name, ctrl_img: `${dir}/data/0.png` }] } : { prompts: [r.name] }), neg: "", seed: 42, walk_seed: false, guidance_scale: 4, sample_steps: 20 },
       }],
     },
@@ -121,7 +123,7 @@ export async function startTrain(o: { name: string; arch: Arch; kind: TrainKind;
   const dir = `/opt/train/${run.id}`;
   const out = `${dir}/out/${run.name}`;
   await ssh(host, `systemd-run --unit train-${run.id} -p WorkingDirectory=${TOOLKIT} -p StandardOutput=file:${dir}/log -p StandardError=file:${dir}/log ` +
-    `sh -c '${TOOLKIT}/venv/bin/python run.py ${dir}/config.yaml && find ${out} -name "*.safetensors" ! -regex ".*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\\.safetensors" -exec cp {} ${LORAS}/ \\;'`);
+    `sh -c '${TOOLKIT}/venv/bin/python run.py ${dir}/config.yaml && find ${out} -regextype posix-extended -name "*.safetensors" ! -regex ".*_[0-9]{9}(_(high|low)_noise)?\\.safetensors" -exec cp {} ${LORAS}/ \\;'`);
   writeRun(run);
   return run;
 }
@@ -132,10 +134,10 @@ export async function trainStatus(host = podHost("main")): Promise<(Run & { prog
   if (!run || run.done || run.error) return run && { ...run, progress: run.done ? 1 : 0 };
   const out = await ssh(host, `systemctl is-active train-${run.id} || true; echo ---; tail -c 6000 /opt/train/${run.id}/log 2>/dev/null || true`);
   const [state, log] = out.split("\n---\n");
-  if (Date.now() - run.startedAt > MAX_MS && state.trim() === "active") {
-    // ponytail: hard 4 h cap so a hung run can't keep the GPU billing; make it per-arch if real runs get close
+  if (Date.now() - run.startedAt > maxMs(run.arch) && state.trim() === "active") {
+    // ponytail: hard cap (4 h, 8 h for Wan) so a hung run can't keep the GPU billing; tune from real run times
     await ssh(host, `systemctl stop train-${run.id} || true`);
-    run.error = "Training ran over 4 hours and was stopped.";
+    run.error = `Training ran over ${maxMs(run.arch) / 3600_000} hours and was stopped.`;
     writeRun(run);
     return { ...run, progress: 0 };
   }

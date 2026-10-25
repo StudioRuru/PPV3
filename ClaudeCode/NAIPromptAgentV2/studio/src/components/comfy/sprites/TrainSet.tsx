@@ -23,6 +23,7 @@ export function TrainSet() {
   }, [load]);
 
   const render = async (n: number) => {
+    if (n > 1 && !window.confirm(`Render ${n} more at about ${d.per} Anlas each (~${Math.round((d.per ?? 0) * n)} Anlas)?`)) return;
     setBusy(true); setMsg(null);
     const r = await requestJson<{ made: number; spent: number; per: number | null; error?: string }>("/api/sprites/trainset", post({ n }));
     if (!r.ok) setMsg(r.error);
@@ -36,6 +37,7 @@ export function TrainSet() {
     await requestJson("/api/sprites/trainset", post({ pick: i, on }));
   };
   const train = async (name: string, arch: string) => {
+    if (arch === "wan22" && !window.confirm("First Wan run downloads ~57 GB to the pod and trains for hours. Start?")) return;
     setBusy(true); setMsg(null);
     const r = await requestJson("/api/comfy/train", post({ trainset: true, name, arch, kind: "face" }));
     setMsg(r.ok ? `Training ${name} started.` : r.error);
