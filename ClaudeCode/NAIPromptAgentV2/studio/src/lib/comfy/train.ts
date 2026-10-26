@@ -128,8 +128,17 @@ export async function startTrain(o: { name: string; arch: Arch; kind: TrainKind;
   return run;
 }
 
-/** Polls the pod; when the run ends, copies the LoRA back to the Mac so pushLoras restores it on a fresh pod. */
-export async function trainStatus(host = podHost("main")): Promise<(Run & { progress: number }) | null> {
+/** Concurrent callers share the call already running instead of starting their own. */
+export function singleFlight<T>(fn: () => Promise<T>): () => Promise<T> {
+  let p: Promise<T> | null = null;
+  return () => (p ??= fn().finally(() => { p = null; }));
+}
+
+/** Polls the pod; when the run ends, copies the LoRA back to the Mac so pushLoras restores it on a fresh pod.
+ *  Single-flight: two overlapping polls (panel + another tab) would both copy into the same .part file, and the loser's failed rename overwrote done with an error. */
+export const trainStatus = singleFlight(() => checkTrain(podHost("main")));
+
+async function checkTrain(host: string): Promise<(Run & { progress: number }) | null> {
   const run = readRun();
   if (!run || run.done || run.error) return run && { ...run, progress: run.done ? 1 : 0 };
   const out = await ssh(host, `systemctl is-active train-${run.id} || true; echo ---; tail -c 6000 /opt/train/${run.id}/log 2>/dev/null || true`);

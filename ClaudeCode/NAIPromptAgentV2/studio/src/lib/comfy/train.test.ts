@@ -62,3 +62,10 @@ test("final loras: step checkpoints are skipped", () => {
   assert.deepEqual(finalLoras(["m_000000500_high_noise.safetensors", "m_000000500_low_noise.safetensors", "m_high_noise.safetensors", "maya_2.safetensors"]), ["m_high_noise.safetensors", "maya_2.safetensors"]);
   assert.deepEqual(finalLoras(["miyabi_sprite_img_000005000.safetensors", "miyabi_sprite_img.safetensors"]), ["miyabi_sprite_img.safetensors"]);
 });
+test("singleFlight shares one in-flight call, then allows the next", async () => {
+  const { singleFlight } = await import("./train");
+  let calls = 0;
+  const f = singleFlight(async () => { calls++; await new Promise((r) => setTimeout(r, 5)); return calls; });
+  assert.deepEqual(await Promise.all([f(), f()]), [1, 1]);
+  assert.equal(await f(), 2);
+});
