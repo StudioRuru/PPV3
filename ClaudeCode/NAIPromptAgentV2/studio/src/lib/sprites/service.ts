@@ -45,7 +45,7 @@ function spec(db: Db, c: Cell, preset: EditPreset): Spec {
     if (base == null) throw new Error("Approve the base first.");
     // MOSS has no reference conditioning, so the outfit is named in tags instead of "same outfit"
     const desc = (keys.find((k) => k.key === c.from)?.prompt ?? c.from).replace(/^same character, same outfit,? /, "");
-    return { kind: "edit", recipe: edit(base, [outfitTags.of(c.outfit).trim(), desc].filter(Boolean).join(", "), preset) };
+    return { kind: "edit", recipe: edit(base, [outfitTags.of(c.outfit).trim(), desc].filter(Boolean).join(", "), c.surface === "chat" ? "face" : preset) };
   }
   const [start, end] = [endpointItem(db, c.surface, c.outfit, c.from), endpointItem(db, c.surface, c.outfit, c.to)];
   if (start == null || end == null) throw new Error("Approve both endpoints first.");

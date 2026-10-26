@@ -15,6 +15,10 @@ test("pose graph loads her LoRA, img2img from the base", () => {
   assert.equal(nodes.find((n) => n.class_type === "LoadImage").inputs.image, "b.png");
   assert.ok(nodes.some((n) => n.class_type === "CLIPTextEncode" && n.inputs.text.startsWith("miyabi_sprite, ")));
 });
+test("face preset denoises less than pose, so the stance survives", () => {
+  const d = (preset: "pose" | "face") => (Object.values(editGraph({ preset, base: 1, prompt: "smug", seed: 1, width: 768, height: 1344, target: { takeId: 1 } }, "b.png")) as any[]).find((n) => n.class_type === "KSampler").inputs.denoise;
+  assert.ok(d("face") < d("pose"));
+});
 test("missing LoRA is named; the image LoRA alone unlocks Sprites", () => {
   assert.deepEqual(missingSpriteLoras([]), [SPRITE_LORAS.image.name]);
   assert.deepEqual(missingSpriteLoras([SPRITE_LORAS.image.name]), []);

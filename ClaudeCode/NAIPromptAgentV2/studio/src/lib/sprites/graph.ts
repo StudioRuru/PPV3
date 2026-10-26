@@ -4,9 +4,12 @@ import { photoTune } from "../comfy/photo-draft";
 import { SPRITE_LORAS } from "./loras";
 import type { Surface } from "./core";
 
-export type EditPreset = "pose";
+export type EditPreset = "pose" | "face";
 const MOSS_UNET = "pornmasterMoss_v1.safetensors"; // POSE_FAMILY = moss (train.ts)
-export const POSE = { unet: MOSS_UNET, ...DIT.moss, ...photoTune(MOSS_UNET), denoise: 0.85 };
+export const POSE = { unet: MOSS_UNET, ...DIT.moss, ...photoTune(MOSS_UNET) };
+/** face (chat) keeps the base stance so chat transitions only animate the face; pose re-rolls the body. */
+// ponytail: face 0.65 is a G7 first guess; raise it if expressions come out too faint
+export const DENOISE: Record<EditPreset, number> = { pose: 0.85, face: 0.65 };
 export type EditJob = { preset: EditPreset; base: number /* comfy item id */; prompt: string; seed: number; width: 768; height: 1344; target: { takeId: number } };
 export type SpriteJob = { surface: Surface; start: number; end: number /* item ids; equal for idle */; prompt: string; seconds: number; seed: number; target: { takeId: number } };
 
@@ -29,8 +32,7 @@ export function editGraph(j: EditJob, image: string): object {
     latent: { class_type: "VAEEncode", inputs: { pixels: ["scale", 0], vae: ["vae", 0] } },
     sampler: {
       class_type: "KSampler",
-      // ponytail: tune at G7; 1.0 = pure t2i
-      inputs: { model: ["lora", 0], positive: ["pos", 0], negative: ["neg", 0], latent_image: ["latent", 0], seed: j.seed, steps: POSE.steps, cfg: POSE.cfg, sampler_name: POSE.sampler, scheduler: POSE.scheduler, denoise: POSE.denoise },
+      inputs: { model: ["lora", 0], positive: ["pos", 0], negative: ["neg", 0], latent_image: ["latent", 0], seed: j.seed, steps: POSE.steps, cfg: POSE.cfg, sampler_name: POSE.sampler, scheduler: POSE.scheduler, denoise: DENOISE[j.preset] },
     },
     decode: { class_type: "VAEDecode", inputs: { samples: ["sampler", 0], vae: ["vae", 0] } },
     save: { class_type: "SaveImage", inputs: { images: ["decode", 0], filename_prefix: "studio-edit" } },

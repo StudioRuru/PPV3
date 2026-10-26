@@ -51,7 +51,10 @@ test("endpoint generate queues edit jobs from the approved base", () => {
   const j = readJob(db, ids[0])!;
   assert.equal(j.kind, "edit");
   assert.equal((j.recipe as { base: number; preset: string }).base, 77);
-  assert.equal((j.recipe as { preset: string }).preset, "pose");
+  assert.equal((j.recipe as { preset: string }).preset, "face"); // chat keeps the base stance so transitions are face-only
+  setBase(db, "stage", "day", 78);
+  const st = readJob(db, generate(db, cell(db, "stage", "day", "happy", "").id, 1, 0, noop)[0])!;
+  assert.equal((st.recipe as { preset: string }).preset, "pose");
   assert.throws(() => generate(db, cell(db, "chat", "night", "happy", "").id, 1, 0, noop), /base/i);
 });
 test("deriveBase edits the target base from another approved base", () => {
