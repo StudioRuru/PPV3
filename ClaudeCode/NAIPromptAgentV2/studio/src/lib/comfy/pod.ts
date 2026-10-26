@@ -5,6 +5,8 @@ import YAML from "yaml";
 import type { Card } from "./store";
 
 export const COMFY_PORT = 8188;
+/** Pods are rebuilt with new host keys; LogLevel=ERROR keeps the "Permanently added" warning out of captured output. */
+export const SSH_OPTS = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR"];
 export type ManifestEntry = { kind: string; filename: string; sha256: string; size: number; urls: string[]; licence: string; cards: Card[] };
 
 const POD_DIR = path.join(process.cwd(), "pod", "comfy");
@@ -69,5 +71,5 @@ const sshRun: Run = (cmd, args, stdin) =>
 
 /** Pushes the card's manifest to the pod over Tailscale SSH and downloads any missing models. */
 export function syncModels(card: Card, run: Run = sshRun): Promise<string> {
-  return run("ssh", ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", `root@${podHost(card)}`, "bash", "/opt/comfy/fetch-models.sh"], forCard(card));
+  return run("ssh", [...SSH_OPTS, `root@${podHost(card)}`, "bash", "/opt/comfy/fetch-models.sh"], forCard(card));
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { DATA_DIR } from "../env";
 import { LORA_DIR, ssh } from "./loras";
-import { podHost } from "./pod";
+import { SSH_OPTS, podHost } from "./pod";
 
 /** One LoRA training run at a time, on the main pod, with ostris/ai-toolkit (installed by pod/comfy/install.sh). */
 export type Arch = "sdxl" | "qwen" | "moss" | "wan22";
@@ -150,7 +150,7 @@ export async function trainStatus(host = podHost("main")): Promise<(Run & { prog
     for (const f of files) {
       const part = path.join(LORA_DIR, `.${f}.part`);
       await new Promise<void>((resolve, reject) => {
-        const p = spawn("ssh", ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", `root@${host}`, `cat '${LORAS}/${f}'`]);
+        const p = spawn("ssh", [...SSH_OPTS, `root@${host}`, `cat '${LORAS}/${f}'`]);
         p.stdout.pipe(fs.createWriteStream(part));
         p.on("error", reject);
         p.on("close", (c) => (c === 0 ? resolve() : reject(new Error("no LoRA"))));

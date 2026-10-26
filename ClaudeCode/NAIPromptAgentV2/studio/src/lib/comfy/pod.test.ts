@@ -68,3 +68,7 @@ test("tailnetIp picks the online node by requested HostName, not the stale bare 
   assert.equal(await tailnetIp("nai-comfy-main", async () => json), "100.0.0.2");
   assert.equal(await tailnetIp("nai-comfy-x", async () => json), null);
 });
+test("ssh options keep known-host warnings out of command output", async () => {
+  const { SSH_OPTS } = await import("./pod");
+  assert.ok(SSH_OPTS.join(" ").includes("LogLevel=ERROR"));
+});

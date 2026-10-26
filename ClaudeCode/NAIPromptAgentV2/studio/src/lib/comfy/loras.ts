@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { DATA_DIR } from "../env";
-import { podHost } from "./pod";
+import { SSH_OPTS, podHost } from "./pod";
 
 /** LoRAs imported from the phone. Kept on the Mac; copied to the main pod's persistent models volume. */
 export const LORA_DIR = path.join(DATA_DIR, "comfy-loras");
@@ -52,7 +52,7 @@ export async function saveLora(name: string, body: ReadableStream<Uint8Array>, d
 
 export function ssh(host: string, cmd: string, stdin?: Readable): Promise<string> {
   return new Promise((resolve, reject) => {
-    const p = spawn("ssh", ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", `root@${host}`, cmd]);
+    const p = spawn("ssh", [...SSH_OPTS, `root@${host}`, cmd]);
     let out = "";
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (out += d));
