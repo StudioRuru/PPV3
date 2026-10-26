@@ -149,7 +149,7 @@ export function beats(prompt: string, n: number): string[] {
 export function validateEdit(r: unknown): EditJob {
   const o = obj(r, "recipe");
   return {
-    preset: oneOf(o.preset, "preset", ["pose"] as const), base: num(o.base, "base", 1, Number.MAX_SAFE_INTEGER, true), prompt: str(o.prompt, "prompt"),
+    preset: oneOf(o.preset, "preset", ["pose", "face"] as const), base: num(o.base, "base", 1, Number.MAX_SAFE_INTEGER, true), prompt: str(o.prompt, "prompt"),
     seed: seed(o.seed), width: 768, height: 1344, target: { takeId: num(obj(o.target, "target").takeId, "take", 1, Number.MAX_SAFE_INTEGER, true) },
   };
 }

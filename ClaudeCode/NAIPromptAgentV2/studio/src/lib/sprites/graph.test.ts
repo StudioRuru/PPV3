@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { wanFrames } from "../comfy/recipe";
 import { SPRITE_LORAS, missingSpriteLoras } from "./loras";
+import { validateEdit } from "../comfy/recipe";
 import { editGraph, secondsFor, spriteRecipe } from "./graph";
 
 test("wanFrames allows sub-second sprite clips", () => { assert.equal(wanFrames(0.75), 13); assert.equal(wanFrames(2.5), 41); assert.equal(wanFrames(0.1), 9); });
@@ -18,6 +19,7 @@ test("pose graph loads her LoRA, img2img from the base", () => {
 test("face preset denoises less than pose, so the stance survives", () => {
   const d = (preset: "pose" | "face") => (Object.values(editGraph({ preset, base: 1, prompt: "smug", seed: 1, width: 768, height: 1344, target: { takeId: 1 } }, "b.png")) as any[]).find((n) => n.class_type === "KSampler").inputs.denoise;
   assert.ok(d("face") < d("pose"));
+  assert.equal(validateEdit({ preset: "face", base: 1, prompt: "smug", seed: 1, target: { takeId: 1 } }).preset, "face");
 });
 test("missing LoRA is named; the image LoRA alone unlocks Sprites", () => {
   assert.deepEqual(missingSpriteLoras([]), [SPRITE_LORAS.image.name]);
