@@ -11,7 +11,7 @@ export const TRAINSET_DIR = path.join(DATA_DIR, "trainset", "miyabi");
 
 export type TrainRender = { i: number; outfit: Outfit; tags: string; caption: string };
 
-const join = (...p: string[]) => p.map((x) => x.trim()).filter(Boolean).join(", ");
+const join = (...p: string[]) => p.flatMap((x) => x.split(",")).map((x) => x.trim()).filter(Boolean).join(", ");
 
 /** charTags are left out so the LoRA learns the look itself from the trigger word. */
 export const captionFor = (s: MascotSettings, outfit: Outfit, expr: Expression, shot: string, angle: string) =>

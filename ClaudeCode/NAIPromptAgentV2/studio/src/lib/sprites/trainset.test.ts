@@ -12,6 +12,9 @@ test("caption drops identity, keeps expression's own fang", () => {
   assert.ok(!c.includes("hoshimi miyabi") && !c.includes("red eyes"));
   assert.ok(c.includes("smirk") && c.includes("fang"));
 });
+test("caption has no empty tags from trailing commas", () => {
+  assert.ok(!captionFor({ ...S, constantTags: "teal tie, cameltoe," }, "day", "smug", "portrait", "straight-on").includes(",,"));
+});
 test("renders cover all outfits and expressions in 90", () => {
   const r = trainsetRenders(S, 0, 90);
   assert.equal(new Set(r.map((x) => x.outfit)).size, 3);
