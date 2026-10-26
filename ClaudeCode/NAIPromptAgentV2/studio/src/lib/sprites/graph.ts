@@ -48,5 +48,5 @@ export function spriteRecipe(j: SpriteJob): VideoRecipe {
   };
 }
 
-/** Chat transitions are 0.75 s; idles and Stage clips 2.5 s. */
-export const secondsFor = (surface: Surface, idle: boolean): number => (surface === "chat" && !idle ? 0.75 : 2.5);
+/** Chat transitions are 1 s (0.75 s left too few frames: the face dissolved instead of moving); idles and Stage clips 2.5 s. */
+export const secondsFor = (surface: Surface, idle: boolean): number => (surface === "chat" && !idle ? 1 : 2.5);

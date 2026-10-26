@@ -38,7 +38,7 @@ test("generate queues n sprite jobs with distinct seeds and take rows", () => {
   const ids = generate(db, c.id, 3, 0, noop);
   assert.equal(ids.length, 3);
   const r = ids.map((id) => readJob(db, id)!.recipe as SpriteJob);
-  assert.deepEqual(r.map((x) => [x.start, x.end, x.seconds]), Array(3).fill([10, 11, 0.75]));
+  assert.deepEqual(r.map((x) => [x.start, x.end, x.seconds]), Array(3).fill([10, 11, 1]));
   assert.equal(new Set(r.map((x) => x.seed)).size, 3);
   const ts = takes(db, c.id);
   assert.equal(ts.length, 3);
