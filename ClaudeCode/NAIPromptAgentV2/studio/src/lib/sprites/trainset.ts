@@ -15,7 +15,9 @@ const join = (...p: string[]) => p.flatMap((x) => x.split(",")).map((x) => x.tri
 
 /** charTags are left out so the LoRA learns the look itself from the trigger word. */
 export const captionFor = (s: MascotSettings, outfit: Outfit, expr: Expression, shot: string, angle: string) =>
-  `miyabi_sprite, ${join(s.constantTags, s.layerTags[outfit], s.exprTags[expr], shot, angle)}`;
+  `miyabi_sprite, ${join(outfitPrompt(s, outfit), s.exprTags[expr], shot, angle)}`;
+/** Everything she wears in an outfit, in caption order, so pose prompts name what the LoRA learned. */
+export const outfitPrompt = (s: MascotSettings, outfit: string) => join(s.constantTags, s.layerTags[outfit as Outfit] ?? "");
 
 export function trainsetRenders(s: MascotSettings, start: number, n: number): TrainRender[] {
   return Array.from({ length: n }, (_, k) => {

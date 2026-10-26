@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DEFAULT_MASCOT_SETTINGS as S } from "../mascot/settings";
-import { ANGLES, SHOTS, captionFor, nextIndex, picksPayload, trainsetRenders } from "./trainset";
+import { ANGLES, SHOTS, captionFor, nextIndex, outfitPrompt, picksPayload, trainsetRenders } from "./trainset";
 
 test("caption drops identity, keeps expression's own fang", () => {
   const c = captionFor(S, "day", "smug", "portrait", "straight-on");
@@ -14,6 +14,10 @@ test("caption drops identity, keeps expression's own fang", () => {
 });
 test("caption has no empty tags from trailing commas", () => {
   assert.ok(!captionFor({ ...S, constantTags: "teal tie, cameltoe," }, "day", "smug", "portrait", "straight-on").includes(",,"));
+});
+test("outfit prompt names the constant pieces too, no empty tags", () => {
+  const p = outfitPrompt({ ...S, constantTags: "teal tie, heart thigh strap," }, "day");
+  assert.ok(p.startsWith("teal tie, heart thigh strap, ") && p.includes(S.layerTags.day) && !p.includes(",,"));
 });
 test("renders cover all outfits and expressions in 90", () => {
   const r = trainsetRenders(S, 0, 90);

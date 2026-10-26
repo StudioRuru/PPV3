@@ -6,6 +6,7 @@ import { drainQueue } from "../comfy/jobs";
 import { type EditPreset, type EditJob, type SpriteJob, secondsFor, spriteRecipe } from "./graph";
 import { addJob, deleteItem, readJob } from "../comfy/store";
 import { SPRITE_LORAS } from "./loras";
+import { outfitPrompt } from "./trainset";
 import { COMFY_DIR } from "../env";
 import { type Cell, type Surface, addTake, allowedKeys, approve, cell, cellStatus, edges, listKeys, reject, takes } from "./store";
 
@@ -21,13 +22,12 @@ const itemOf = (db: Db, c: Cell): number | null =>
 const endpointItem = (db: Db, surface: Surface, outfit: string, key: string) => itemOf(db, cell(db, surface, outfit, key, ""));
 const baseItem = (db: Db, surface: Surface, outfit: string) => itemOf(db, cell(db, surface, outfit, BASE, ""));
 
-/** Outfit layer tags for pose prompts (same source as the training captions). Tests replace `.of`. */
+/** Constant + layer tags for pose prompts (same source as the training captions). Tests replace `.of`. */
 export const outfitTags = {
   of: (outfit: string): string => {
     // lazy: settings-db is server-only and opens the real db, which unit tests must not load
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const m = (require("../mascot/settings-db") as typeof import("../mascot/settings-db")).getMascotSettings();
-    return m.layerTags[outfit as keyof typeof m.layerTags] ?? "";
+    return outfitPrompt((require("../mascot/settings-db") as typeof import("../mascot/settings-db")).getMascotSettings(), outfit);
   },
 };
 
