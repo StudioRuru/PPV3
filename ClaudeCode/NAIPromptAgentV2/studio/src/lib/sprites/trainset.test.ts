@@ -30,7 +30,7 @@ test("picksPayload refuses 4 picks, reads 5 with captions", async () => {
   assert.deepEqual(p.captions, ["cap0", "cap1", "cap2", "cap3", "cap4"]);
   assert.equal(p.images.length, 5);
 });
-test("null cost adds nothing and keeps the price gate closed; real cost opens it", async () => {
+test("null cost adds nothing and keeps the price gate closed; a measured cost, even 0, opens it", async () => {
   const { addSpent, readPer, readSpent, renderRefusal } = await import("./trainset");
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "ts-"));
   await addSpent(null, d);
@@ -38,8 +38,10 @@ test("null cost adds nothing and keeps the price gate closed; real cost opens it
   assert.equal(await readPer(d), null);
   assert.equal((await renderRefusal(89, 1, d))?.status, 409);
   await addSpent(0, d);
-  assert.equal((await renderRefusal(89, 1, d))?.status, 409);
+  assert.equal(await readPer(d), 0);
+  assert.equal(await renderRefusal(89, 1, d), null);
   await addSpent(7, d);
+  assert.equal(await readPer(d), 7);
   assert.equal(await renderRefusal(89, 1, d), null);
   assert.equal(await renderRefusal(1, 0, d), null);
   assert.equal((await renderRefusal(50, 60, d))?.status, 400);

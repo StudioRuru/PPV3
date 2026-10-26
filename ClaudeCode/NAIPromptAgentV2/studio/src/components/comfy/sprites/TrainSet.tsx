@@ -23,7 +23,7 @@ export function TrainSet() {
   }, [load]);
 
   const render = async (n: number) => {
-    if (n > 1 && !window.confirm(`Render ${n} more at about ${d.per} Anlas each (~${Math.round((d.per ?? 0) * n)} Anlas)?`)) return;
+    if (n > 1 && !window.confirm(d.per ? `Render ${n} more at about ${d.per} Anlas each (~${Math.round(d.per * n)} Anlas)?` : `Render ${n} more (free on your plan)?`)) return;
     setBusy(true); setMsg(null);
     const r = await requestJson<{ made: number; spent: number; per: number | null; error?: string }>("/api/sprites/trainset", post({ n }));
     if (!r.ok) setMsg(r.error);
@@ -50,8 +50,8 @@ export function TrainSet() {
     <div className="border-border bg-surface space-y-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={busy} onClick={() => render(1)} className={btn}>Render 1 (price check)</button>
-        <button type="button" disabled={busy || !(per != null && per > 0) || d.renders.length >= 90} onClick={() => render(90 - d.renders.length)} className={btn}>Render the rest</button>
-        <span className="text-muted text-sm">{per == null ? (d.renders.length ? "Cost unknown, can't verify price." : "Run the price check first.") : `${per} Anlas each, about ${Math.round(per * 90)} for 90.`} Spent {d.spent}.</span>
+        <button type="button" disabled={busy || per == null || d.renders.length >= 90} onClick={() => render(90 - d.renders.length)} className={btn}>Render the rest</button>
+        <span className="text-muted text-sm">{per == null ? (d.renders.length ? "Cost unknown, can't verify price." : "Run the price check first.") : per === 0 ? "Free on your plan." : `${per} Anlas each, about ${Math.round(per * 90)} for 90.`} Spent {d.spent}.</span>
       </div>
       <div className="grid grid-cols-4 gap-1 sm:grid-cols-6 lg:grid-cols-10">
         {d.renders.map((r) => (

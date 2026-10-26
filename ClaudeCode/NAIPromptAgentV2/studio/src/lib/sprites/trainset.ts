@@ -33,17 +33,17 @@ export const writePicks = (picks: number[], dir = TRAINSET_DIR) => fsp.writeFile
 const readCost = (dir: string) => readJson<{ spent: number; per?: number }>(path.join(dir, "spent.json"), { spent: 0 });
 export const readSpent = async (dir = TRAINSET_DIR) => (await readCost(dir)).spent;
 export const readPer = async (dir = TRAINSET_DIR) => (await readCost(dir)).per ?? null;
-/** A null cost (balance lookup failed) is never counted or trusted as a price. */
+/** A null cost (balance lookup failed) is never counted or trusted as a price; 0 is a real price (free on the plan). */
 export async function addSpent(cost: number | null, dir = TRAINSET_DIR) {
   if (cost == null) return;
   const c = await readCost(dir);
-  await fsp.writeFile(path.join(dir, "spent.json"), JSON.stringify({ spent: c.spent + cost, ...(cost > 0 ? { per: cost } : c.per ? { per: c.per } : {}) }));
+  await fsp.writeFile(path.join(dir, "spent.json"), JSON.stringify({ spent: c.spent + cost, per: cost }));
 }
 
 /** Why a render request must be refused, or null. Batches need a verified price; the set caps at 100. */
 export async function renderRefusal(n: number, existing: number, dir = TRAINSET_DIR): Promise<{ error: string; status: number } | null> {
   if (existing + n > 100) return { error: "The set is capped at 100 renders.", status: 400 };
-  if (n > 1 && !((await readPer(dir)) ?? 0)) return { error: "Render 1 first to check the price", status: 409 };
+  if (n > 1 && (await readPer(dir)) == null) return { error: "Render 1 first to check the price", status: 409 };
   return null;
 }
 
