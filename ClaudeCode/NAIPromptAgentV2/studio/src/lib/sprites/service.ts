@@ -129,8 +129,9 @@ export function missing(db: Db, surface: Surface, outfit: string, scope: Scope, 
   const stale = (c: Cell) => !takes(db, c.id).some((t) => t.id > newest);
   const out: Cell[] = keys.filter((k) => !ok(k) && (only === undefined || k === only)).map((k) => cell(db, surface, outfit, k, ""))
     .filter((c) => { const s = status(db, c); return s === "review" ? stale(c) : !["approved", "queued", "generating"].includes(s); });
+  // chat: idles only; stock Wan dissolves between two face-only stills, so the player crossfades instead (G7)
   const pairs: [string, string][] = surface === "chat"
-    ? keys.flatMap((a) => keys.map((b): [string, string] => [a, b]))
+    ? keys.map((k): [string, string] => [k, k])
     : [...edges(db).filter(([a, b]) => keys.includes(a) && keys.includes(b)).flatMap(([a, b]): [string, string][] => [[a, b], [b, a]]), ...keys.map((k): [string, string] => [k, k])];
   for (const [a, b] of pairs) {
     if (only !== undefined && a !== only && b !== only) continue;

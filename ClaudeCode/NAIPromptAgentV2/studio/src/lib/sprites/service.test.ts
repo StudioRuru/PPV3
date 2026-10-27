@@ -64,10 +64,10 @@ test("deriveBase edits the target base from another approved base", () => {
   assert.equal((readJob(db, ids[0])!.recipe as { base: number }).base, 5);
   assert.equal(takes(db, cell(db, "stage", "day", "@base", "").id).length, 2);
 });
-test("missing chat set skips reverse pairs and counts idles", () => {
+test("missing chat set is idles only: the player crossfades between expressions", () => {
   assert.equal(BASIC.length, 8);
   BASIC.forEach((k, i) => approveEndpoint(k, 100 + i));
-  assert.equal(missing(db, "chat", "day", "basic").length, 8 * 7 / 2 + 8);
+  assert.deepEqual(missing(db, "chat", "day", "basic").map((c) => c.from === c.to), Array(8).fill(true));
 });
 test("missing stage set = both directions of each edge + idles", () => {
   STAGE14.forEach((k, i) => approveEndpoint(k, 200 + i, "stage"));
@@ -93,9 +93,9 @@ test("missing endpoints need an approved base", () => {
 test("bulkEstimate sums per-take estimates without queuing", () => {
   BASIC.forEach((k, i) => approveEndpoint(k, 100 + i));
   const e = bulkEstimate(db, "chat", "day", "basic", 3, { gpu: "A6000", usdHr: 1 });
-  assert.equal(e.jobs, (28 + 8) * 3); assert.ok(e.usd > 0); assert.ok(e.seconds > 0);
+  assert.equal(e.jobs, 8 * 3); assert.ok(e.usd > 0); assert.ok(e.seconds > 0);
   assert.equal((db.prepare("SELECT COUNT(*) n FROM comfy_jobs").get() as { n: number }).n, 0);
-  assert.equal(bulkStart(db, "chat", "day", "basic", 3, 0, noop), 36 * 3);
+  assert.equal(bulkStart(db, "chat", "day", "basic", 3, 0, noop), 8 * 3);
 });
 test("clip prompts start with the trigger and bulkEstimate prices 720p", () => {
   approveEndpoint("happy", 10); approveEndpoint("sad", 11);
