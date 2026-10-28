@@ -77,9 +77,10 @@ trainer() {
 
 step apt apt_deps
 step tailscale tailscale_install
-# Every boot, no marker: re-join the tailnet (ephemeral key; node may be gone).
+# Every boot, no marker: re-join the tailnet. The key is ephemeral, so a hibernated pod's node gets deleted;
+# --force-reauth registers a fresh node instead of reusing the dead one's saved state.
 for i in 1 2 3 4 5; do
-  tailscale up --authkey="$TS_AUTHKEY" --hostname="$TS_HOSTNAME" --ssh --advertise-tags="$TS_TAGS" && break
+  tailscale up --force-reauth --authkey="$TS_AUTHKEY" --hostname="$TS_HOSTNAME" --ssh --advertise-tags="$TS_TAGS" && break
   [ "$i" = 5 ] && exit 1
   sleep 10
 done
