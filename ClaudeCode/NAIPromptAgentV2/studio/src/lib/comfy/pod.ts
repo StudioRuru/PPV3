@@ -74,7 +74,7 @@ export function syncModels(card: Card, run: Run = sshRun): Promise<string> {
   return run("ssh", [...SSH_OPTS, `root@${podHost(card)}`, "bash", "/opt/comfy/fetch-models.sh"], forCard(card));
 }
 
-/** Stops comfy and unmounts the models volume so hibernate's detach doesn't yank a mounted filesystem. */
+/** Stops comfy, kills anything else on the volume (an in-flight model sync) and unmounts it so hibernate's detach doesn't yank a mounted filesystem. */
 export function releaseModels(card: Card, run: Run = sshRun): Promise<string> {
-  return run("ssh", [...SSH_OPTS, "-o", "ConnectTimeout=15", `root@${podHost(card)}`, "systemctl stop comfy; sync; umount /opt/comfy/models"], "");
+  return run("ssh", [...SSH_OPTS, "-o", "ConnectTimeout=15", `root@${podHost(card)}`, "systemctl stop comfy; fuser -km /opt/comfy/models; sync; umount /opt/comfy/models"], "");
 }

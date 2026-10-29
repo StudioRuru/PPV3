@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import YAML from "yaml";
-import { readManifest, renderCloudInit, podHost, syncModels, tailnetIp, COMFY_PORT } from "./pod";
+import { readManifest, renderCloudInit, podHost, releaseModels, syncModels, tailnetIp, COMFY_PORT } from "./pod";
 
 const secrets = { tsAuthKey: "tskey-test", hfToken: "hf_test", civitaiToken: "civ_test" };
 
@@ -36,6 +36,12 @@ test("boost cloud-init only carries boost models", () => {
   assert.ok(entries.length > 0);
   assert.ok(entries.every((e) => e.cards.includes("boost")));
   assert.ok(entries.length < readManifest().length);
+});
+
+test("releaseModels kills whatever holds the models mount (e.g. an in-flight sync's sha256sum) before unmounting", async () => {
+  let cmd = "";
+  await releaseModels("main", async (_c, args) => { cmd = args.at(-1)!; return ""; });
+  assert.ok(cmd.indexOf("fuser -km /opt/comfy/models") >= 0 && cmd.indexOf("fuser") < cmd.indexOf("umount"), cmd);
 });
 
 test("syncModels sends the manifest on stdin to the right host", async () => {
