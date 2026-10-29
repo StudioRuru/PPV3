@@ -3,7 +3,7 @@ import { type Card, type VmRow, comfyDb, getVm, putVm, dropVm, openRun, closeRun
 import { type Hyperstack, type Offer, NoCapacity, hyperstack } from "./hyperstack";
 import { canStart, clampKeepWarm, dayStart, runCost, spentSince, stopReason } from "./spend";
 import { pushLoras } from "./loras";
-import { COMFY_PORT, modelsVolume, podHost, renderCloudInit, syncModels, tailnetIp } from "./pod";
+import { COMFY_PORT, modelsVolume, podHost, releaseModels, renderCloudInit, syncModels, tailnetIp } from "./pod";
 import { dropModels, ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
 import { trainStatus, training } from "./train";
@@ -14,7 +14,7 @@ export type EngineView = {
   /** A hibernated VM holds the downloaded models (storage-only cost) until flushed. */
   kept: boolean;
 };
-export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null>; sync?: (card: Card) => Promise<unknown> };
+export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null>; sync?: (card: Card) => Promise<unknown>; release?: (card: Card) => Promise<unknown> };
 /** warm() refused by the spend policy; `message` is the user-facing sentence. */
 export class Refused extends Error {}
 
@@ -165,6 +165,8 @@ export function engine(d: Deps) {
       else if (del) { await hs.remove(vm.vmId); finish(false); }
       else if (s === "HIBERNATED") finish(true);
       else {
+        // hibernate detaches the models volume: unmount it first or ext4 aborts its journal mid-write. Unreachable pod: hibernate anyway, billing wins.
+        if (modelsVolume(card) && d.release) await d.release(card).catch((e) => console.warn("comfy models unmount failed:", e instanceof Error ? e.message : "unknown"));
         await hs.hibernate(vm.vmId, modelsVolume(card)?.name);
         if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else { if (!isStopping(vm)) hibSince.set(card, d.now()); setStatus(vm, `${isStopping(vm) ? "stopping" : "hibernating"}:${reason}`); } // tick confirms; a retry that is still unconfirmed keeps the alarm
       }
@@ -267,5 +269,5 @@ export function engine(d: Deps) {
 type Engine = ReturnType<typeof engine>;
 export function getEngine(): Engine {
   const g = globalThis as { __comfyEngine?: Engine };
-  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h), sync: (c) => syncModels(c).then(() => (c === "main" ? pushLoras() : null)).then(dropModels) }));
+  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h), sync: (c) => syncModels(c).then(() => (c === "main" ? pushLoras() : null)).then(dropModels), release: (c) => releaseModels(c) }));
 }

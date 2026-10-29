@@ -11,7 +11,7 @@ const main: Offer = { env: "e", region: "r", flavor: "f48", gpu: "L40", vramGb: 
 const h100: Offer = { env: "e", region: "r", flavor: "fh", gpu: "H100-80G-PCIe", vramGb: 80, usdHr: 2 };
 const a100: Offer = { env: "e", region: "r", flavor: "fa", gpu: "A100-80G-PCIe", vramGb: 80, usdHr: 1.5 };
 
-function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>, sync?: (card: string) => Promise<unknown>) {
+function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>, sync?: (card: string) => Promise<unknown>, release?: (card: string) => Promise<unknown>) {
   const db = new Database(":memory:");
   migrate(db);
   let now = T0;
@@ -33,7 +33,7 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
     listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
   } as unknown as Hyperstack;
   const pinged: string[] = [];
-  const e = engine({ db, hs, ping: async (b) => { pinged.push(b); return o.pingOk; }, now: () => now, resolve, sync });
+  const e = engine({ db, hs, ping: async (b) => { pinged.push(b); return o.pingOk; }, now: () => now, resolve, sync, release });
   return { db, e, vms, log, o, pinged, tick: (ms: number) => { now += ms; }, at: () => now };
 }
 
@@ -145,6 +145,22 @@ test("restore re-attaches the models volume detached at hibernate", async () => 
   s.o.vols.length = 0;
   await s.e.warm();
   assert.deepEqual(s.o.vols, ["attach vm1 nai-comfy-main-models"]);
+});
+
+test("hibernate unmounts the models volume before Hyperstack detaches it; an unreachable pod still hibernates", async () => {
+  const order: string[] = [];
+  const s = setup(undefined, undefined, undefined, async (c) => { order.push(`release ${c}`); });
+  await s.e.warm();
+  s.log.length = 0;
+  await s.e.stop("main", "manual");
+  assert.deepEqual([...order, ...s.log], ["release main", "hibernate vm1"]);
+  await s.e.setBoost(true);
+  await s.e.stop("boost", "manual");
+  assert.deepEqual(order, ["release main"]); // boost has no volume
+  const u = setup(undefined, undefined, undefined, async () => { throw new Error("ssh"); });
+  await u.e.warm();
+  await u.e.stop("main", "manual");
+  assert.equal(u.vms.get("vm1"), "HIBERNATED");
 });
 
 test("hibernated card out of stock with nothing else in stock stays kept and unavailable", async () => {
