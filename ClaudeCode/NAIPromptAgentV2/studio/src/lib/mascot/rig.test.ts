@@ -74,3 +74,10 @@ test("handMask grabs the hand only", () => {
 test("handMask on a blank image is empty", () => {
   assert.equal(handMask(new Uint8ClampedArray(W * H * 4), rig).reduce((a, v) => a + v, 0), 0);
 });
+
+test("handMask finds the hand in the shipped wave still", async () => {
+  const sharp = (await import("sharp")).default;
+  const { data } = await sharp("public/rig/day/wave.png").ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const n = handMask(new Uint8ClampedArray(data), rig).reduce((a, v) => a + (v ? 1 : 0), 0);
+  assert.ok(n > 500, `got ${n}`); // the seed sits on line art, as in the spike
+});

@@ -85,15 +85,16 @@ export function handMask(px: Uint8ClampedArray, rig: Rig): Uint8Array {
     const X = (i % W) - P[0], Y = ((i / W) | 0) - P[1], al = X * D[0] + Y * D[1], pe = Math.abs(-X * D[1] + Y * D[0]);
     return al > -6 && al < 130 && pe < 70 && px[i * 4 + 3] > 128 && px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2] > 450;
   };
-  const seed = rig.seed[0] + rig.seed[1] * W;
-  if (!ok(seed)) return m;
+  const seed = rig.seed[0] + rig.seed[1] * W; // may sit on line art: it is taken as is, like the spike
   const st = [seed];
   m[seed] = 1;
+  let filled = 0;
   const nb = (i: number) => {
     const x = i % W;
     return [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W].filter((n) => n >= 0 && n < W * H);
   };
-  while (st.length) for (const n of nb(st.pop()!)) if (!m[n] && ok(n)) { m[n] = 1; st.push(n); }
+  while (st.length) for (const n of nb(st.pop()!)) if (!m[n] && ok(n)) { m[n] = 1; st.push(n); filled++; }
+  if (!filled) return new Uint8Array(W * H);
   let g = m;
   for (let k = 0; k < 2; k++) {
     const n = g.slice();

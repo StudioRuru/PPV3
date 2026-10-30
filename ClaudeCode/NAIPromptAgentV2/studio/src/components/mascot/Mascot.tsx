@@ -4,6 +4,7 @@ import { emitMascot } from "@/lib/mascot/bus";
 import { cannedLine, outfitFromSettings, pickSprite, readMs, shouldSpeak, type Expression, type MascotEvent, type Outfit } from "@/lib/mascot/core";
 import type { Clips } from "@/lib/mascot/play";
 import { stageSprite } from "@/lib/mascot/poses";
+import { RIGS } from "@/lib/mascot/rig";
 import { DATA_RECEIVED } from "@/lib/mascot/slime";
 import { composerBottom, nearestCorner, type Corner } from "@/lib/mascot/ui";
 import { requestJson } from "@/lib/net";
@@ -230,7 +231,7 @@ export function Mascot({ rating, prompt, away = false, spy = false, onTap = () =
     if (next !== corner) save({ corner: next });
   }
 
-  if (stageSprite(have, "stand", outfit, "smug")) {
+  if ((RIGS[outfit] && !empty) || stageSprite(have, "stand", outfit, "smug")) { // a rigged outfit needs no pose sprites
     const close = () => setMenu(false), go = (f: () => void) => () => { close(); f(); };
     const bubbles: Bubble[] = [
       { label: "Talk", onSelect: go(() => onTap(outfit)) },

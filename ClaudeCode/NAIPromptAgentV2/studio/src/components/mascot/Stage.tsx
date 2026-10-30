@@ -4,6 +4,7 @@ import { hopPath, WARP } from "@/lib/mascot/anim";
 import type { Expression } from "@/lib/mascot/core";
 import { clipsFor, clipUrl, clipUrls, reactionFor, type Clips, type ReactEvent } from "@/lib/mascot/play";
 import { POSE_SPEC, stageSprite, type Pose } from "@/lib/mascot/poses";
+import { RIGS } from "@/lib/mascot/rig";
 import {
   blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, TAP_MAX_MOVE,
   type PointerSample, type Rect, type Spot, type StageEvent,
@@ -12,7 +13,8 @@ import type { Boldness, Library } from "@/lib/sprites/core";
 import { init, step, type Act, type Ev } from "@/lib/sprites/behaviour";
 import { withStageIdles } from "@/lib/sprites/player";
 import { ClipPortrait } from "./ClipPortrait";
-import { SpriteCanvas, useClip, type SpriteHandle } from "./SpriteCanvas";
+import { RigCanvas, type RigHandle } from "./RigCanvas";
+import { SpriteCanvas, useClip } from "./SpriteCanvas";
 
 export const FIELD = "textarea, [contenteditable]:not([contenteditable=false]), input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=file],[type=color])";
 export const isTyping = () => !!(document.activeElement as HTMLElement | null)?.matches?.(FIELD);
@@ -50,6 +52,7 @@ export function Stage(p: Props) {
   const { sprites, outfit, mischief, hidden, typing, lib } = p;
   const startPose = lib?.clips.find((c) => c.surface === "stage" && c.outfit === outfit && c.from === c.to && c.from === "stand")?.from ?? lib?.clips.find((c) => c.surface === "stage" && c.outfit === outfit && c.from === c.to)?.from ?? null;
   const eng = startPose !== null; // an approved Stage idle exists for this outfit
+  const rig = !p.empty ? RIGS[outfit as keyof typeof RIGS] ?? null : null; // a live rig stands in one box and outranks clips
   const [bpose, setBpose] = useState(startPose ?? "stand");
   const bs = useRef<ReturnType<typeof init> | null>(null);
   bs.current ??= init(bpose, Date.now(), Math.random);
@@ -68,15 +71,17 @@ export function Stage(p: Props) {
   const inner = useRef<HTMLDivElement>(null);
   const sway = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
-  const canvas = useRef<SpriteHandle>(null);
+  const canvas = useRef<RigHandle>(null); // SpriteCanvas fills it without wave: check "wave" in it
+  const mounted = useRef(false);
   const hop = useRef<Animation | null>(null);
   const prevHome = useRef<{ x: number; y: number } | null>(null);
   const blinkOff = useRef<ReturnType<typeof setTimeout>>(undefined);
   const exit = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { vw, vh } = view, baseH = view.stableH * SIZE_VH[p.size];
-  const dims = (pose: Pose) => { const sp = POSE_SPEC[pose], h = baseH * (sp.height / 1216); return { w: (h * sp.width) / sp.height, h }; };
-  const fits = (pose: Pose) => eng || stageSprite(have, pose, outfit, "smug") !== null;
+  const dims = (pose: Pose) => { const sp = rig ? { width: rig.w, height: rig.h } : POSE_SPEC[pose], h = baseH * (sp.height / 1216); return { w: (h * sp.width) / sp.height, h }; };
+  const fits = (pose: Pose) => (rig ? pose === "stand" : eng || stageSprite(have, pose, outfit, "smug") !== null);
+  const wave = () => { const c = canvas.current; if (c && "wave" in c) c.wave(); }; // refs only: safe from long-lived listeners
   /** Measured only when choosing a spot: composers, the island and a focused field are off limits; [data-mascot-target] cards are fair game. */
   const collect = () => {
     const q = (s: string) => [...document.querySelectorAll(s)].map(rectOf);
@@ -88,7 +93,7 @@ export function Stage(p: Props) {
     let s = chooseSpot(ctx);
     for (let i = 0; i < 12 && !fits(s.pose); i++) s = chooseSpot(ctx);
     if (!fits(s.pose)) s = chooseSpot({ ...ctx, mischief: 0 }); // stand/peek: always drawable (stand exists)
-    if (act.current.eng) s = { ...s, pose: "stand" }; // engine poses are clips in one box; position logic only
+    if (act.current.eng || rig) s = { ...s, pose: "stand" }; // engine poses are clips in one box; position logic only
     setMotion(reduced() ? MOVE : HOP); setGone(null); setSpot(s); setMood(idleMood(Math.random, event === "bored"));
   }
   // Latest closures for long-lived listeners.
@@ -117,6 +122,7 @@ export function Stage(p: Props) {
       if (k === "idle" && a.mischief > 0 && !a.typing) a.move("bored"); // mischief 0 = parked
       else if ((k === "generated" || k === "upscaled" || k === "error") && a.spot?.pose === "back") { setMotion(MOVE); setSpot({ ...a.spot, pose: "stand" }); } // turn round to judge it
       else if (k === "generated" || k === "upscaled") a.react(k);
+      if (k === "generated") wave();
     };
     const onReact = (e: Event) => { const d = (e as CustomEvent<{ profile: string; event: ReactEvent }>).detail; if (d?.profile === "miyabi" && !act.current.hidden) act.current.react(d.event); };
     const release = () => { const pr = press.current; if (!pr) return; press.current = null; clearTimeout(pr.timer); setDrag(null); setMotion(MOVE); };
@@ -163,7 +169,12 @@ export function Stage(p: Props) {
   useEffect(() => { if (eng && typing && !hidden) act.current.run({ type: "typing" }); }, [typing]); // eslint-disable-line react-hooks/exhaustive-deps
   // On stage at mount and on summon; hiding drops any gesture in progress.
   useEffect(() => {
-    if (!hidden) { act.current.move(); return; }
+    if (!hidden) {
+      act.current.move();
+      if (!mounted.current) { mounted.current = true; return; }
+      const t = setTimeout(wave, 600); // after the hop-in lands
+      return () => clearTimeout(t);
+    }
     prevHome.current = null; // a summon appears at her new spot instead of hopping in from the old one
     clearTimeout(press.current?.timer); press.current = null; setDrag(null);
   }, [hidden]);
@@ -195,12 +206,12 @@ export function Stage(p: Props) {
   }, [reaction]);
 
   const expr: Expression = drag ? "shocked" : reaction?.e ?? p.expression ?? mood;
-  const key = spot && (eng ? "engine" : stageSprite(have, spot.pose, outfit, expr));
+  const key = spot && (rig ? "rig" : eng ? "engine" : stageSprite(have, spot.pose, outfit, expr));
   const clip = useClip(p.empty);
-  const clips = useMemo(() => clipsFor(p.clips, eng ? null : key), [p.clips, key, eng]);
+  const clips = useMemo(() => clipsFor(p.clips, eng || rig ? null : key), [p.clips, key, eng, rig]);
   const sleepy = spot && !eng && !p.empty && spot.pose !== "back" ? stageSprite(have, spot.pose, outfit, "sleepy") : null;
   const sleepyBlink = !clips.blink && !!sleepy && sleepy.endsWith("/sleepy") && sleepy !== key; // no blink clip: flash the sleepy sprite
-  const canBlink = !hidden && !p.empty && spot?.pose !== "back" && (!!clips.blink || sleepyBlink);
+  const canBlink = !rig && !hidden && !p.empty && spot?.pose !== "back" && (!!clips.blink || sleepyBlink);
   act.current.react = (ev, m = expr) => { const k = reactionFor(ev, m, Math.random); if (clips[k] && !reduced()) clip.play(k, key, clips); };
   act.current.blink = () => { if (clips.blink) clip.play("blink", key, clips); else { setBlink(true); clearTimeout(blinkOff.current); blinkOff.current = setTimeout(() => setBlink(false), BLINK_MS); } };
   useEffect(() => {
@@ -277,7 +288,7 @@ export function Stage(p: Props) {
     lastTap.current = g === "menu" || g === "pat" || g === "poke" ? e.timeStamp : null;
     setDrag(null);
     if (g === "menu" || g === "longpress") p.onMenu();
-    else if (g === "pat") { const r = any<Expression>(["flirty", "laughing"]); act.current.react("pat"); if (eng) act.current.run({ type: "poke" }); setReaction({ e: r, ms: 1800 }); squish("pat"); }
+    else if (g === "pat") { const r = any<Expression>(["flirty", "laughing"]); act.current.react("pat"); if (eng) act.current.run({ type: "poke" }); setReaction({ e: r, ms: 1800 }); squish("pat"); wave(); }
     else if (g === "poke") {
       const r = any<Expression>(["shocked", "annoyed", "laughing"]);
       p.onCloseMenu(); act.current.react("poke", r); setReaction({ e: r, ms: 1500 }); squish("poke");
@@ -325,7 +336,8 @@ export function Stage(p: Props) {
             <div ref={inner} className={`relative h-full w-full origin-bottom transition-[filter,opacity] duration-500 ${drag ? "mascot-flail" : ""} ${p.empty ? "opacity-70" : ""}`}>
               {/* contact shadow: a static gradient, no filter (a filter on the repainting canvas would cost every frame) */}
               <div aria-hidden="true" className="absolute -bottom-[1.5%] left-1/2 h-[4%] w-[55%] -translate-x-1/2" style={{ background: "radial-gradient(closest-side, rgb(0 0 0 / 0.22), transparent)" }} />
-              {eng && lib ? <ClipPortrait key={outfit} surface="stage" lib={lib} outfit={outfit} expression={bpose} className="h-full w-full" />
+              {rig ? <RigCanvas ref={canvas} rig={rig} className="h-full w-full" style={{ transform: flip }} />
+                : eng && lib ? <ClipPortrait key={outfit} surface="stage" lib={lib} outfit={outfit} expression={bpose} className="h-full w-full" />
                 : <SpriteCanvas ref={canvas} src={frame} cut={playing?.kind === "blink" || (blink && sleepyBlink)} pose={spot.pose} empty={p.empty} bleed className="h-full w-full" style={{ transform: flip }} />}
               {p.hushed && <span aria-hidden="true" className="text-muted absolute top-[6%] right-[22%] font-mono text-xs">zzz</span>}
             </div>
