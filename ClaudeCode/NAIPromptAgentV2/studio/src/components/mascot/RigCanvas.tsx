@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import type { Spring } from "@/lib/mascot/anim";
-import { cancelWave, handMask, idleUniforms, newWave, spring, startWave, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
+import { cancelWave, hairMask, handMask, idleUniforms, newWave, spring, startWave, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
 import type { SpriteHandle } from "./SpriteCanvas";
 
 export type RigHandle = SpriteHandle & { wave(): void };
@@ -15,10 +15,10 @@ void main() { uv = vec2(p.x * .5 + .5, .5 - p.y * .5); gl_Position = vec4(p, 0, 
 const fs = (w: number, h: number) => `#version 300 es
 precision highp float;
 in vec2 uv; out vec4 o;
-uniform sampler2D img, img2, hmask;
+uniform sampler2D img, img2, hmask, hairm;
 uniform float mixT, hA;
 uniform vec2 hP;
-uniform float breath, sway, tilt, earL, earR, hair, blink;
+uniform float breath, dip, sway, tilt, earL, earR, hair, blink;
 const vec2 SZ = vec2(${w}., ${h}.);
 vec2 rot(vec2 p, vec2 piv, float a) { float c = cos(a), s = sin(a); p -= piv; return piv + vec2(c*p.x - s*p.y, s*p.x + c*p.y); }
 void main() {
@@ -28,15 +28,19 @@ void main() {
   q = mix(q, rot(q, vec2(372., 150.), -earL), wl);
   float wr = smoothstep(165., 110., q.y) * smoothstep(400., 425., q.x);
   q = mix(q, rot(q, vec2(450., 160.), earR), wr);
-  // head tilt about the neck, fading out down the neck
-  float wh = smoothstep(340., 270., q.y) * smoothstep(250., 310., q.x);
+  // head tilt about the neck: a soft oval over head and ears, so shoulders and arms stay put
+  float wh = smoothstep(1.25, .95, length((q - vec2(395., 185.)) / vec2(140., 175.)));
   q = mix(q, rot(q, vec2(405., 300.), -tilt), wh);
-  // upper body: breathing lift + weight shift, feet stay planted
-  q.y += breath * 3.5 * smoothstep(660., 300., q.y);
-  q.x -= sway * 5. * smoothstep(1250., 350., q.y);
-  // hanging hair on her left: swings more toward the tips
-  float wy = smoothstep(260., 950., p.y), wx = smoothstep(365., 320., p.x);
-  q.x -= hair * 9. * wy * wy * wx;
+  // breathing lifts the chest only; the arm hangs outside the oval
+  q.y += breath * 3. * smoothstep(1., .5, length((q - vec2(400., 420.)) / vec2(100., 130.)));
+  // weight shift: the upper body rocks rigidly about the hips, legs and skirt hem stay straight
+  q = mix(q, rot(q, vec2(380., 700.), -sway * .012), smoothstep(760., 640., q.y));
+  // knee dip: everything above the knees drops together, the shins take the squash, feet planted
+  q.y += dip * 8. * smoothstep(1150., 900., q.y);
+  // hanging hair on her left swings more toward the tips; only hair pixels move and only onto hair or empty space
+  float wy = smoothstep(260., 950., q.y), hm = texture(hairm, q / SZ).r;
+  vec2 qs = q - vec2(hair * 6. * wy * wy, 0.);
+  q = mix(q, qs, hm * texture(hairm, qs / SZ).r);
   // wave: the hand is its own cut-out layer swung rigidly at the wrist; the gap it leaves shows her untouched hair from the rest still
   vec2 qh = rot(q, hP, -hA);
   float mB = texture(hmask, q / SZ).r, mH = texture(hmask, qh / SZ).r;
@@ -131,8 +135,8 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
     x.bufferData(x.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), x.STATIC_DRAW);
     x.enableVertexAttribArray(0); x.vertexAttribPointer(0, 2, x.FLOAT, false, 0, 0);
     const U = (n: string) => x.getUniformLocation(pr, n);
-    const uni = Object.fromEntries(["mixT", "hA", "hP", "breath", "sway", "tilt", "earL", "earR", "hair", "blink"].map((n) => [n, U(n)]));
-    x.uniform1i(U("img"), 0); x.uniform1i(U("img2"), 1); x.uniform1i(U("hmask"), 2);
+    const uni = Object.fromEntries(["mixT", "hA", "hP", "breath", "dip", "sway", "tilt", "earL", "earR", "hair", "blink"].map((n) => [n, U(n)]));
+    x.uniform1i(U("img"), 0); x.uniform1i(U("img2"), 1); x.uniform1i(U("hmask"), 2); x.uniform1i(U("hairm"), 3);
     x.uniform2f(uni.hP, ...rig.P);
 
     const upload = (unit: number, set: () => void) => {
@@ -140,8 +144,9 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       x.activeTexture(x.TEXTURE0 + unit); x.bindTexture(x.TEXTURE_2D, t); set();
       x.texParameteri(x.TEXTURE_2D, x.TEXTURE_WRAP_S, x.CLAMP_TO_EDGE); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_WRAP_T, x.CLAMP_TO_EDGE);
     };
-    // Empty mask until the wave still is in: the shader then shows the rest still only.
-    upload(2, () => { x.pixelStorei(x.UNPACK_ALIGNMENT, 1); x.texImage2D(x.TEXTURE_2D, 0, x.R8, 1, 1, 0, x.RED, x.UNSIGNED_BYTE, new Uint8Array(1)); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_MIN_FILTER, x.LINEAR); });
+    const r8 = (unit: number, w: number, h: number, m: Uint8Array) => upload(unit, () => { x.pixelStorei(x.UNPACK_ALIGNMENT, 1); x.texImage2D(x.TEXTURE_2D, 0, x.R8, w, h, 0, x.RED, x.UNSIGNED_BYTE, m); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_MIN_FILTER, x.LINEAR); });
+    // Empty masks until the stills are in: no wave layer, no hair swing.
+    r8(2, 1, 1, new Uint8Array(1)); r8(3, 1, 1, new Uint8Array(1));
     [rig.rest, rig.wave].forEach((src, unit) => {
       const im = new Image();
       im.onload = () => {
@@ -152,11 +157,15 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
           x.pixelStorei(x.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
           x.generateMipmap(x.TEXTURE_2D); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_MIN_FILTER, x.LINEAR_MIPMAP_LINEAR);
         });
-        if (unit === 1 && im.naturalWidth === W && im.naturalHeight === H) {
+        if (im.naturalWidth === W && im.naturalHeight === H) {
           const c2 = new OffscreenCanvas(W, H).getContext("2d")!; c2.drawImage(im, 0, 0);
-          const m = handMask(c2.getImageData(0, 0, W, H).data, rig);
-          masked = m.some((v) => v > 0);
-          if (masked) upload(2, () => { x.pixelStorei(x.UNPACK_ALIGNMENT, 1); x.texImage2D(x.TEXTURE_2D, 0, x.R8, W, H, 0, x.RED, x.UNSIGNED_BYTE, m); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_MIN_FILTER, x.LINEAR); });
+          const px = c2.getImageData(0, 0, W, H).data;
+          if (unit === 0) r8(3, W, H, hairMask(px, rig));
+          else {
+            const m = handMask(px, rig);
+            masked = m.some((v) => v > 0);
+            if (masked) r8(2, W, H, m);
+          }
         }
         if (++loaded === 2) go();
       };
@@ -177,7 +186,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       if (t > nextQuirk) { q[IDLE[(Math.random() * IDLE.length) | 0]] = t; nextQuirk = t + 4 + Math.random() * 6; }
       spring(bounce, 0, 3, 0.35, dt); spring(lag, 0, 2, 0.5, dt);
       const u = idleUniforms(t, q, w);
-      u.breath -= bounce.x * 12; u.hair += lag.x * 1.5;
+      u.dip -= bounce.x * 5; u.hair += lag.x * 1.5;
       for (const [k, v] of Object.entries(u)) x.uniform1f(uni[k], v);
       x.uniform1f(uni.mixT, w.mixT); x.uniform1f(uni.hA, w.hA);
       x.viewport(0, 0, el.width, el.height);

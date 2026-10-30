@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cancelWave, END, handMask, idleUniforms, newWave, RIGS, startWave, waveStep, type Quirks } from "./rig";
+import { cancelWave, END, hairMask, handMask, idleUniforms, newWave, RIGS, startWave, waveStep, type Quirks } from "./rig";
 
 const rig = RIGS.day!;
 const run = (from: number, to: number, s = newWave(), dt = 1 / 60) => {
@@ -91,4 +91,24 @@ test("cancelWave drops a half-done wave so the next frame is at rest", () => {
   assert.equal(w.mixT, 0);
   assert.ok(Math.abs(w.hA) < 1e-9);
   assert.equal(startWave(s, 2.6), true);
+});
+
+test("hairMask takes dark hair beside the arm, never skin or the arm's line art", () => {
+  const px = new Uint8ClampedArray(W * H * 4);
+  const put = (x: number, y: number, c: number[]) => px.set(c, (y * W + x) * 4);
+  for (let y = 400; y < 500; y++) for (let x = 150; x < 280; x++) put(x, y, x < 240 ? [90, 90, 100, 255] : x === 240 ? [36, 31, 62, 255] : [251, 192, 191, 255]);
+  const m = hairMask(px, rig);
+  assert.equal(m[450 * W + 200], 255); // hair
+  assert.equal(m[450 * W + 260], 0); // skin
+  assert.equal(m[450 * W + 240], 0); // arm outline next to skin
+  assert.ok(m[450 * W + 135] > 0); // grown into the empty background so tips can swing out
+  assert.equal(m[450 * W + 600], 0); // outside the hair region
+});
+
+test("idle breath leaves the knee dip to its own channel", () => {
+  const q: Quirks = { blink: -Infinity, ear: -Infinity, tilt: -Infinity, flick: -Infinity, sway: -Infinity };
+  const w = { mixT: 0, hA: 0, bob: -1, act: 0, lag: 0, earKick: false, flick: null };
+  const u = idleUniforms(0, q, w), r = idleUniforms(0, q, { ...w, bob: 0 });
+  assert.equal(u.breath, r.breath);
+  assert.equal(u.dip, -1);
 });

@@ -74,7 +74,8 @@ export function idleUniforms(t: number, q: Quirks, w: WaveFrame) {
   const e = (k: keyof Quirks) => (t - q[k]) / QUIRK_LEN[k];
   const ear = e("ear"), flick = e("flick"), blink = e("blink"), inside = (x: number) => x > 0 && x < 1;
   return {
-    breath: Math.sin((t * 2 * Math.PI) / 3.6) + w.bob * 2.2 - w.act * Math.abs(w.lag) * 2.5,
+    breath: Math.sin((t * 2 * Math.PI) / 3.6) - w.act * Math.abs(w.lag) * 2.5,
+    dip: w.bob,
     sway: Math.sin(t * 0.7) * 0.25 + ease(e("sway")) * 0.9 + w.act * w.lag * 2.2,
     tilt: Math.sin(t * 0.45) * 0.012 + ease(e("tilt")) * 0.1 + w.act * 0.07 + w.lag * 0.05,
     earL: inside(ear) ? Math.sin(ear * Math.PI * 4) * 0.12 * (1 - ear) : 0,
@@ -109,4 +110,34 @@ export function handMask(px: Uint8ClampedArray, rig: Rig): Uint8Array {
   }
   for (let i = 0; i < g.length; i++) g[i] *= 255;
   return g;
+}
+
+/** Hanging hair on her left: dark pixels in the hair strip that are not skin or the arm's outline, grown 20px into the empty
+ *  background so the tips have room to swing. Day still only (Sprites base 114); the box is in its pixels. */
+export function hairMask(px: Uint8ClampedArray, rig: Rig): Uint8Array {
+  const W = rig.w, X1 = 300, Y0 = 240, Y1 = 900, GROW = 20;
+  const inBox = (x: number, y: number) => y >= Y0 && y < Y1 && x < (y > 680 ? 282 : X1);
+  const a = (i: number) => px[i * 4 + 3];
+  let body = new Uint8Array(W * rig.h);
+  for (let y = Y0 - 4; y < Y1 + 4; y++) for (let x = 0; x < X1 + 4; x++) {
+    const i = y * W + x;
+    if (a(i) > 128 && px[i * 4] > 200 && px[i * 4] > px[i * 4 + 2]) body[i] = 1;
+  }
+  const grow = (g: Uint8Array, ok: (x: number, y: number, i: number) => boolean) => {
+    const n = g.slice();
+    for (let y = Y0; y < Y1; y++) for (let x = 1; x < X1 + 3; x++) {
+      const i = y * W + x;
+      if (!g[i] && ok(x, y, i) && (g[i - 1] || g[i + 1] || g[i - W] || g[i + W])) n[i] = 1;
+    }
+    return n;
+  };
+  for (let k = 0; k < 3; k++) body = grow(body, () => true); // take the arm's line art with the skin
+  let m = new Uint8Array(W * rig.h);
+  for (let y = Y0; y < Y1; y++) for (let x = 0; x < X1; x++) {
+    const i = y * W + x;
+    if (inBox(x, y) && a(i) > 40 && !body[i]) m[i] = 1;
+  }
+  for (let k = 0; k < GROW; k++) m = grow(m, (x, y, i) => inBox(x, y) && a(i) === 0);
+  for (let i = 0; i < m.length; i++) m[i] *= 255;
+  return m;
 }
