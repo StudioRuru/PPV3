@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import type { Spring } from "@/lib/mascot/anim";
-import { handMask, idleUniforms, newWave, spring, startWave, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
+import { cancelWave, handMask, idleUniforms, newWave, spring, startWave, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
 import type { SpriteHandle } from "./SpriteCanvas";
 
 export type RigHandle = SpriteHandle & { wave(): void };
@@ -160,7 +160,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
         }
         if (++loaded === 2) go();
       };
-      im.onerror = () => { if (unit === 0 && !dead) setFailed(true); }; // no wave still = no wave; no rest still = nothing to rig
+      im.onerror = () => { if (dead) return; if (unit === 0) setFailed(true); else if (++loaded === 2) go(); }; // no wave still = idle without the wave; no rest still = nothing to rig
       im.src = src;
     });
 
@@ -191,7 +191,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       last = now();
       raf = requestAnimationFrame((ms) => { frame(ms); setDrawn(true); });
     };
-    const stop = () => { cancelAnimationFrame(raf); raf = 0; };
+    const stop = () => { cancelAnimationFrame(raf); raf = 0; cancelWave(wave); };
     const onVis = () => (document.hidden ? stop() : go());
     const ro = new ResizeObserver(([e]) => {
       const d = Math.min(DPR_MAX, window.devicePixelRatio || 1);
@@ -206,7 +206,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
     g.current = {
       kick: (i) => { bounce.v += i; },
       drag: (vx) => { lag.x = Math.max(-1, Math.min(1, vx)); },
-      wave: () => { if (masked && startWave(wave, now())) q.ear = -Infinity; },
+      wave: () => { if (masked && raf && startWave(wave, now())) q.ear = -Infinity; },
     };
     return () => {
       dead = true; stop(); g.current = null; ro.disconnect();

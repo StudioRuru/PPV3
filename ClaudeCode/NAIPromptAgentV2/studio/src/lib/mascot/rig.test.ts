@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { END, handMask, idleUniforms, newWave, RIGS, startWave, waveStep, type Quirks } from "./rig";
+import { cancelWave, END, handMask, idleUniforms, newWave, RIGS, startWave, waveStep, type Quirks } from "./rig";
 
 const rig = RIGS.day!;
 const run = (from: number, to: number, s = newWave(), dt = 1 / 60) => {
@@ -80,4 +80,15 @@ test("handMask finds the hand in the shipped wave still", async () => {
   const { data } = await sharp("public/rig/day/wave.png").ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const n = handMask(new Uint8ClampedArray(data), rig).reduce((a, v) => a + (v ? 1 : 0), 0);
   assert.ok(n > 500, `got ${n}`); // the seed sits on line art, as in the spike
+});
+
+test("cancelWave drops a half-done wave so the next frame is at rest", () => {
+  const s = newWave();
+  startWave(s, 0);
+  run(0, 1, s);
+  cancelWave(s);
+  const w = waveStep(s, 2.5, 1 / 60, rig);
+  assert.equal(w.mixT, 0);
+  assert.ok(Math.abs(w.hA) < 1e-9);
+  assert.equal(startWave(s, 2.6), true);
 });

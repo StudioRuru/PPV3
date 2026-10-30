@@ -37,6 +37,12 @@ export function startWave(s: WaveState, now: number): boolean {
   return true;
 }
 
+/** A hidden tab cancels the wave: its clock is wall time, so resuming would land mid-pose with no dip to hide the swap. */
+export function cancelWave(s: WaveState): void {
+  s.at = null;
+  s.hand.x = s.hand.v = s.lag.x = s.lag.v = 0;
+}
+
 export type WaveFrame = { mixT: number; hA: number; bob: number; act: number; lag: number; earKick: boolean; flick: [number, number] | null };
 
 /** Knee dip, dissolve to the wave still at its bottom, spring-driven wrist wag, dip again to dissolve out. */
