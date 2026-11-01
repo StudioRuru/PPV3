@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { hopPath, WARP } from "@/lib/mascot/anim";
+import { hopPath, walkPlan, WARP } from "@/lib/mascot/anim";
 import type { Expression } from "@/lib/mascot/core";
 import { clipsFor, clipUrl, clipUrls, reactionFor, type Clips, type ReactEvent } from "@/lib/mascot/play";
 import { POSE_SPEC, stageSprite, type Pose } from "@/lib/mascot/poses";
-import { RIGS } from "@/lib/mascot/rig";
+import { RIGS, walkSpeed } from "@/lib/mascot/rig";
 import {
   blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, TAP_MAX_MOVE,
   type PointerSample, type Rect, type Spot, type StageEvent,
@@ -29,6 +29,7 @@ const HOP_MS = 300; // per hop
 const KICK = { poke: 2.5, pat: 1, drop: 3, land: 2 }; // squash impulses
 const DRAG_PX_MS = 1.5; // pointer speed that maxes the hair lag
 const EXIT_MS = 350;
+const THINK_MAX_MS = 90_000; // a render that never reports back still ends the think pose
 const rectOf = (el: Element): Rect => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
 const any = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -74,6 +75,10 @@ export function Stage(p: Props) {
   const canvas = useRef<RigHandle>(null); // SpriteCanvas fills it without wave: check "wave" in it
   const mounted = useRef(false);
   const hop = useRef<Animation | null>(null);
+  const walkA = useRef<Animation | null>(null); // the running walk, if hop.current is one
+  const [walking, setWalking] = useState<{ left: boolean } | null>(null);
+  const thinking = useRef(false);
+  const thinkT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prevHome = useRef<{ x: number; y: number } | null>(null);
   const blinkOff = useRef<ReturnType<typeof setTimeout>>(undefined);
   const exit = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -82,6 +87,12 @@ export function Stage(p: Props) {
   const dims = (pose: Pose) => { const sp = rig ? { width: rig.w, height: rig.h } : POSE_SPEC[pose], h = baseH * (sp.height / 1216); return { w: (h * sp.width) / sp.height, h }; };
   const fits = (pose: Pose) => (rig ? pose === "stand" : eng || stageSprite(have, pose, outfit, "smug") !== null);
   const wave = () => { const c = canvas.current; if (c && "wave" in c) c.wave(); }; // refs only: safe from long-lived listeners
+  const think = (on: boolean) => {
+    thinking.current = on; clearTimeout(thinkT.current);
+    if (on) thinkT.current = setTimeout(() => think(false), THINK_MAX_MS);
+    const c = canvas.current; if (c && "think" in c) c.think(on);
+  };
+  const endWalk = () => { if (!walkA.current) return; walkA.current = null; canvas.current?.walk?.(false); setWalking(null); };
   /** Measured only when choosing a spot: composers, the island and a focused field are off limits; [data-mascot-target] cards are fair game. */
   const collect = () => {
     const q = (s: string) => [...document.querySelectorAll(s)].map(rectOf);
@@ -115,9 +126,15 @@ export function Stage(p: Props) {
       setView((v) => ({ vw, vh, stableH: vw === v.vw ? Math.max(v.stableH, vh) : vh }));
       clearTimeout(t); t = setTimeout(refit, 250);
     };
-    const onStage = (e: Event) => { if (!act.current.hidden) act.current.move((e as CustomEvent<StageEvent>).detail); };
+    const onStage = (e: Event) => {
+      const d = (e as CustomEvent<StageEvent>).detail;
+      if (act.current.hidden) return;
+      if (d === "generate") think(true); // a rig poses until the render reports back; others ignore it
+      act.current.move(d);
+    };
     const onBus = (e: Event) => {
       const a = act.current, k = (e as CustomEvent<{ kind: string }>).detail?.kind;
+      if (k === "generated" || k === "upscaled" || k === "error") think(false); // before the wave: the rig holds it until the think pose is out
       if (a.hidden) return;
       if (k === "idle" && a.mischief > 0 && !a.typing) a.move("bored"); // mischief 0 = parked
       else if ((k === "generated" || k === "upscaled" || k === "error") && a.spot?.pose === "back") { setMotion(MOVE); setSpot({ ...a.spot, pose: "stand" }); } // turn round to judge it
@@ -147,7 +164,7 @@ export function Stage(p: Props) {
     window.addEventListener("blur", release);
     document.addEventListener("scroll", onScroll, { passive: true, capture: true });
     return () => {
-      clearTimeout(t); clearTimeout(still); clearTimeout(exit.current); cancelAnimationFrame(raf); clearTimeout(press.current?.timer);
+      clearTimeout(t); clearTimeout(still); clearTimeout(exit.current); clearTimeout(thinkT.current); cancelAnimationFrame(raf); clearTimeout(press.current?.timer);
       window.removeEventListener("resize", onResize); window.removeEventListener("mascot:stage", onStage); window.removeEventListener("mascot", onBus); window.removeEventListener("mascot:react", onReact);
       window.removeEventListener("blur", release); document.removeEventListener("scroll", onScroll, { capture: true });
     };
@@ -196,7 +213,9 @@ export function Stage(p: Props) {
     if (hidden || typing || drag || !spot) return;
     const d = nextMoveDelay(mischief, Math.random);
     if (!Number.isFinite(d)) return;
-    const t = setTimeout(() => act.current.move(), d);
+    let t: ReturnType<typeof setTimeout>;
+    const go = () => { if (thinking.current) t = setTimeout(go, 2000); else act.current.move(); }; // she stays put while thinking
+    t = setTimeout(go, d);
     return () => clearTimeout(t);
   }, [spot, mischief, hidden, typing, !!drag]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -230,6 +249,16 @@ export function Stage(p: Props) {
     const from = prevHome.current;
     prevHome.current = home;
     hop.current?.cancel(); hop.current = null; // any spot change ends a running hop (a stale one would land her at the old spot)
+    // A flat move on the rig walks: linear glide at the cycle's planted-feet speed, frames from RigCanvas. Climbs and short steps hop.
+    const plan = rig && home && from && motion === HOP && box.current ? walkPlan(from, home, walkSpeed(rig, dims(spot!.pose).h)) : null;
+    if (plan && from && home && box.current && canvas.current?.walk?.(true)) {
+      const a = box.current.animate([{ transform: `translate(${from.x}px, ${from.y}px)` }, { transform: `translate(${home.x}px, ${home.y}px)` }], { duration: plan.ms, easing: "linear" });
+      hop.current = walkA.current = a; setWalking({ left: plan.left });
+      a.onfinish = () => { if (walkA.current === a) { hop.current = null; endWalk(); } };
+      a.oncancel = () => { if (walkA.current === a) endWalk(); }; // drag or a hidden stage; a newer walk has already taken walkA
+      return;
+    }
+    endWalk();
     if (!home || !from || motion !== HOP || !box.current || (from.x === home.x && from.y === home.y)) return;
     const path = hopPath(from, home);
     if (path.length < 2) return;
@@ -317,7 +346,7 @@ export function Stage(p: Props) {
       {!drag && !typing && p.overlay}
     </div>
   );
-  const flip = spot.flip ? "scaleX(-1)" : undefined;
+  const flip = (walking ? walking.left : spot.flip) ? "scaleX(-1)" : undefined; // the stills face right
   const src = (k: string) => `/api/mascot/sprites/${k}?v=${sprites[k]}`;
   const playing = clip.show();
   const frame = eng ? "" : (playing && clipUrl(p.clips, playing.key, playing.kind, playing.frame)) || src(blink && sleepyBlink ? sleepy! : key!);
