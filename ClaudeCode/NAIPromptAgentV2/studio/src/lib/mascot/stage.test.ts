@@ -4,7 +4,7 @@ import { POSES } from "./poses";
 import { EXPRESSIONS } from "./core";
 import {
   FLICK_SPEED, TAP_MAX_MOVE, LONGPRESS_MS, POKE_WINDOW_MS, blinkSchedule, chooseSpot, classifyBodyGesture, idleMood,
-  nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, type Rect,
+  nextMoveDelay, wanderStep, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, type Rect,
 } from "./stage";
 
 /** Deterministic, well-mixed mulberry32 in [0,1). */
@@ -195,4 +195,11 @@ test("refitSpot: resize keeps her spot, nudges her back on-screen, null only whe
   const peek = { pose: "peek" as const, x: 30, y: 700, flip: false, scale: 1 };
   assert.equal(refitSpot(peek, baseH, VW, VH, []), peek, "peek keeps its off-edge x");
   assert.equal(refitSpot({ ...s, y: 800 }, baseH, VW, VH, avoid), null, "over the composer: re-pick");
+});
+
+test("wanderStep waits out a render, then rests a full delay before moving", () => {
+  assert.equal(wanderStep(true, false), "wait");
+  assert.equal(wanderStep(true, true), "wait");
+  assert.equal(wanderStep(false, true), "rest"); // just finished thinking: let her wave first
+  assert.equal(wanderStep(false, false), "move");
 });

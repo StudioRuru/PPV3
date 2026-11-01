@@ -106,6 +106,9 @@ export function nextMoveDelay(mischief: number, rand: () => number): number {
   return (20 + rand() * 70) * 1000 * (1.5 - 0.1 * clamp(mischief, 0, 10));
 }
 
+/** Wander tick: wait (retry soon) while she thinks, rest a fresh delay right after so the wave plays, else move. */
+export const wanderStep = (thinking: boolean, waited: boolean): "wait" | "rest" | "move" => (thinking ? "wait" : waited ? "rest" : "move");
+
 /** Ms until the next blink (2.5-6 s). */
 export const blinkSchedule = (rand: () => number): number => 2500 + rand() * 3500;
 

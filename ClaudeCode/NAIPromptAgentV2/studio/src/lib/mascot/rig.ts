@@ -172,6 +172,9 @@ export function cancelThink(s: ThinkState): void {
   s.at = s.outAt = null;
 }
 
+/** A queued wave may start: no walk, no think pose on screen and none wanted. */
+export const waveReady = (walking: boolean, s: ThinkState): boolean => !walking && s.at === null && !s.want;
+
 /** Dissolves in on a knee dip like the wave, sways and tilts while thinking, dissolves out on a second dip. */
 export function thinkStep(s: ThinkState, now: number) {
   const none = { mixT: 0, bob: 0, sway: 0, tilt: 0, dots: 0 as 0 | 1 | 2 | 3, done: false };

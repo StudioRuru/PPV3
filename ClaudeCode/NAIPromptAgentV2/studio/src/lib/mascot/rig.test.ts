@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cancelThink, cancelWave, END, hairMask, handMask, idleUniforms, newThink, newWave, RIGS, startThink, startWave, stopThink, THINK_MIN, thinkStep, WALK_FPS, walkBob, walkFrame, walkSpeed, waveStep, type Quirks } from "./rig";
+import { cancelThink, cancelWave, END, waveReady, hairMask, handMask, idleUniforms, newThink, newWave, RIGS, startThink, startWave, stopThink, THINK_MIN, thinkStep, WALK_FPS, walkBob, walkFrame, walkSpeed, waveStep, type Quirks } from "./rig";
 
 const rig = RIGS.day!;
 const run = (from: number, to: number, s = newWave(), dt = 1 / 60) => {
@@ -196,4 +196,16 @@ test("startThink while thinking does not restart", () => {
   startThink(s, 0);
   startThink(s, 0.5);
   assert.equal(s.at, 0);
+});
+
+test("waveReady holds a wave through a walk or think and frees it after", () => {
+  const s = newThink();
+  assert.equal(waveReady(true, s), false); // mid-walk: queue, never drop
+  startThink(s, 0);
+  assert.equal(waveReady(false, s), false);
+  stopThink(s, 0.1);
+  for (let t = 0; t < 3; t += 1 / 60) thinkStep(s, t);
+  assert.equal(waveReady(false, s), true);
+  s.want = true; // a new render queued: its think goes first
+  assert.equal(waveReady(false, s), false);
 });

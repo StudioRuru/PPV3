@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import type { Spring } from "@/lib/mascot/anim";
-import { cancelThink, cancelWave, hairMask, handMask, idleUniforms, newThink, newWave, spring, startThink, startWave, stopThink, thinkStep, walkBob, walkFrame, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
+import { cancelThink, cancelWave, hairMask, handMask, idleUniforms, newThink, newWave, spring, startThink, startWave, stopThink, thinkStep, waveReady, walkBob, walkFrame, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
 import type { SpriteHandle } from "./SpriteCanvas";
 
 export type RigHandle = SpriteHandle & { wave(): void; walk(on: boolean): boolean; think(on: boolean): void };
@@ -209,7 +209,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       // think waits for any wave and walk to finish; a cancelled think (walk, hidden tab) resumes here while still wanted
       if (!walking && think.want && think.at === null && wave.at === null && thinkTex) startThink(think, t);
       const th = thinkStep(think, t), thinking = think.at !== null;
-      if (th.done && pendingWave) { pendingWave = false; if (startWave(wave, t)) q.ear = -Infinity; }
+      if (pendingWave && waveReady(walking, think)) { pendingWave = false; if (startWave(wave, t)) q.ear = -Infinity; }
       const w = waveStep(wave, t, dt, rig);
       if (w.earKick) q.ear = t;
       if (w.flick) spawn(parts, w.flick, 1 + +(Math.random() < 0.4));
@@ -260,8 +260,8 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       kick: (i) => { bounce.v += i; },
       drag: (vx) => { lag.x = Math.max(-1, Math.min(1, vx)); },
       wave: () => {
-        if (!masked || !raf || walkAt !== null) return;
-        if (think.at !== null) pendingWave = true;
+        if (!masked || !raf) return;
+        if (!waveReady(walkAt !== null, think)) pendingWave = true; // played once the walk or think is over
         else if (startWave(wave, now())) q.ear = -Infinity;
       },
       walk: (on) => {
@@ -271,7 +271,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
         }
         if (walkTex.some((t) => !t)) return false;
         if (walkAt === null) walkAt = now();
-        cancelWave(wave); cancelThink(think); pendingWave = false; parts.length = 0;
+        cancelWave(wave); cancelThink(think); parts.length = 0; // a queued wave survives the walk
         return true;
       },
       think: (on) => {

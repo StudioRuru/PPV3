@@ -6,7 +6,7 @@ import { clipsFor, clipUrl, clipUrls, reactionFor, type Clips, type ReactEvent }
 import { POSE_SPEC, stageSprite, type Pose } from "@/lib/mascot/poses";
 import { RIGS, walkSpeed } from "@/lib/mascot/rig";
 import {
-  blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, TAP_MAX_MOVE,
+  blinkSchedule, chooseSpot, classifyBodyGesture, idleMood, LONGPRESS_MS, nextMoveDelay, wanderStep, onScreen, rectsIntersect, refitSpot, settleSpot, spotBox, TAP_MAX_MOVE,
   type PointerSample, type Rect, type Spot, type StageEvent,
 } from "@/lib/mascot/stage";
 import type { Boldness, Library } from "@/lib/sprites/core";
@@ -214,7 +214,13 @@ export function Stage(p: Props) {
     const d = nextMoveDelay(mischief, Math.random);
     if (!Number.isFinite(d)) return;
     let t: ReturnType<typeof setTimeout>;
-    const go = () => { if (thinking.current) t = setTimeout(go, 2000); else act.current.move(); }; // she stays put while thinking
+    let waited = false;
+    const go = () => {
+      const s = wanderStep(thinking.current, waited);
+      if (s === "move") return act.current.move();
+      t = setTimeout(go, s === "wait" ? 2000 : nextMoveDelay(mischief, Math.random)); // stays put while thinking, then waves before wandering
+      waited = s === "wait";
+    };
     t = setTimeout(go, d);
     return () => clearTimeout(t);
   }, [spot, mischief, hidden, typing, !!drag]); // eslint-disable-line react-hooks/exhaustive-deps
