@@ -112,3 +112,18 @@ test("idle breath leaves the knee dip to its own channel", () => {
   assert.equal(u.breath, r.breath);
   assert.equal(u.dip, -1);
 });
+
+test("shipped walk and think stills are keyed like rest", async () => {
+  const sharp = (await import("sharp")).default;
+  for (const f of ["walk1", "walk2", "walk3", "walk4", "think"]) {
+    const { data, info } = await sharp(`public/rig/day/${f}.png`).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.equal(info.width, 768, f);
+    assert.equal(info.height, 1344, f);
+    const a = (x: number, y: number) => data[(y * 768 + x) * 4 + 3];
+    assert.equal(a(2, 2) + a(765, 2) + a(2, 1341), 0, `${f} corners`);
+    let n = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 128) n++;
+    const frac = n / (768 * 1344);
+    assert.ok(frac > 0.15 && frac < 0.35, `${f} opaque ${frac}`);
+  }
+});
