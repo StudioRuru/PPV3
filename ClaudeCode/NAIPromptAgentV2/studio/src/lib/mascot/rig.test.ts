@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cancelWave, END, hairMask, handMask, idleUniforms, newWave, RIGS, startWave, waveStep, type Quirks } from "./rig";
+import { cancelThink, cancelWave, END, hairMask, handMask, idleUniforms, newThink, newWave, RIGS, startThink, startWave, stopThink, THINK_MIN, thinkStep, WALK_FPS, walkBob, walkFrame, walkSpeed, waveStep, type Quirks } from "./rig";
 
 const rig = RIGS.day!;
 const run = (from: number, to: number, s = newWave(), dt = 1 / 60) => {
@@ -126,4 +126,74 @@ test("shipped walk and think stills are keyed like rest", async () => {
     const frac = n / (768 * 1344);
     assert.ok(frac > 0.15 && frac < 0.35, `${f} opaque ${frac}`);
   }
+});
+
+test("walkFrame cycles at WALK_FPS", () => {
+  assert.equal(walkFrame(0), 0);
+  assert.equal(walkFrame(1.01 / WALK_FPS), 1);
+  assert.equal(walkFrame(3.5 / WALK_FPS), 3);
+  assert.equal(walkFrame(4.2 / WALK_FPS), 0);
+  assert.equal(walkFrame(-1), 0);
+});
+
+test("walkBob peaks on passing frames", () => {
+  assert.ok(Math.abs(walkBob(1.5 / WALK_FPS) - 0.35) < 1e-9);
+  assert.ok(Math.abs(walkBob(3.5 / WALK_FPS) - 0.35) < 1e-9);
+  assert.ok(Math.abs(walkBob(0.5 / WALK_FPS) + 0.35) < 1e-9);
+  for (let t = 0; t <= 3; t += 0.01) assert.ok(Math.abs(walkBob(t)) <= 0.35 + 1e-9);
+});
+
+test("walkSpeed keeps feet planted", () => {
+  assert.equal(walkSpeed(rig, 336), (130 * 7 * 336) / 1344);
+});
+
+const FADE = 0.14, IN = 0.12;
+const steps = (s: ReturnType<typeof newThink>, from: number, to: number) => {
+  const out = [];
+  for (let t = from; t <= to + 1e-9; t += 1 / 60) out.push({ t, ...thinkStep(s, t) });
+  return out;
+};
+
+test("think dissolves in, holds with dots, then out", () => {
+  const s = newThink();
+  startThink(s, 0);
+  const a = steps(s, 0, 0.5);
+  assert.equal(a.find((f) => f.t >= 0.05)!.mixT, 0);
+  const last = a[a.length - 1];
+  assert.ok(last.mixT > 0.99);
+  assert.ok(last.dots >= 1 && last.dots <= 3);
+  steps(s, 0.5, 2);
+  stopThink(s, 2);
+  const b = steps(s, 2, 2 + FADE + 0.5);
+  assert.equal(b.find((f) => f.t >= 2 + FADE + 0.01)!.mixT, 0);
+  assert.equal(b.filter((f) => f.done).length, 1);
+  assert.equal(s.at, null);
+});
+
+test("stopThink before the minimum hold waits", () => {
+  const s = newThink();
+  startThink(s, 0);
+  steps(s, 0, 0.1);
+  stopThink(s, 0.1);
+  assert.ok(thinkStep(s, IN + FADE + THINK_MIN - 0.05).mixT > 0.99);
+  assert.equal(thinkStep(s, IN + 2 * FADE + THINK_MIN + 0.01).mixT, 0);
+});
+
+test("cancelThink drops the pose but keeps want", () => {
+  const s = newThink();
+  startThink(s, 0);
+  steps(s, 0, 0.5);
+  cancelThink(s);
+  assert.equal(thinkStep(s, 0.52).mixT, 0);
+  assert.equal(s.want, true);
+  startThink(s, 1);
+  assert.equal(thinkStep(s, 1.05).mixT, 0);
+  assert.equal(s.at, 1);
+});
+
+test("startThink while thinking does not restart", () => {
+  const s = newThink();
+  startThink(s, 0);
+  startThink(s, 0.5);
+  assert.equal(s.at, 0);
 });

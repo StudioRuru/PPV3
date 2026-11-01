@@ -6,11 +6,14 @@ export type Rig = {
   w: number; h: number; rest: string; wave: string;
   P: [number, number]; D: [number, number]; tip: [number, number]; seed: [number, number];
   amp: number; hz: number;
+  /** Walk cycle stills (contact, passing, contact, passing) and the think still; stride = still px the feet travel per frame. */
+  walk: string[]; think: string; stride: number;
 };
 
 /** Only the day standing still (Sprites base 114) is rigged; other outfits keep SpriteCanvas. */
 export const RIGS: Partial<Record<Outfit, Rig>> = {
-  day: { w: 768, h: 1344, rest: "/rig/day/rest.png", wave: "/rig/day/wave.png", P: [268, 342], D: [-0.35, -0.94], tip: [238, 252], seed: [248, 300], amp: 0.22, hz: 2.1 },
+  day: { w: 768, h: 1344, rest: "/rig/day/rest.png", wave: "/rig/day/wave.png", P: [268, 342], D: [-0.35, -0.94], tip: [238, 252], seed: [248, 300], amp: 0.22, hz: 2.1,
+    walk: ["/rig/day/walk1.png", "/rig/day/walk2.png", "/rig/day/walk3.png", "/rig/day/walk4.png"], think: "/rig/day/think.png", stride: 130 },
 };
 
 const HOLD = 2.6, FADE = 0.14, IN = 0.12;
@@ -140,4 +143,49 @@ export function hairMask(px: Uint8ClampedArray, rig: Rig): Uint8Array {
   for (let k = 0; k < GROW; k++) m = grow(m, (x, y, i) => inBox(x, y) && a(i) === 0);
   for (let i = 0; i < m.length; i++) m[i] *= 255;
   return m;
+}
+
+export const WALK_FPS = 7;
+export const walkFrame = (t: number) => (Math.floor(Math.max(t, 0) * WALK_FPS) % 4) as 0 | 1 | 2 | 3;
+/** Up on the passing frames (1, 3), down on contact; fed through dip only. */
+export const walkBob = (t: number) => 0.35 * Math.cos(Math.PI * WALK_FPS * (t - 1.5 / WALK_FPS));
+/** Screen px/s that keeps the planted foot still: one stride per frame, scaled to the displayed height. */
+export const walkSpeed = (rig: Rig, displayH: number) => (rig.stride * WALK_FPS * displayH) / rig.h;
+
+export const THINK_MIN = 0.8;
+export type ThinkState = { want: boolean; at: number | null; outAt: number | null };
+export const newThink = (): ThinkState => ({ want: false, at: null, outAt: null });
+
+export function startThink(s: ThinkState, now: number): void {
+  s.want = true;
+  if (s.at === null) s.at = now;
+}
+
+/** Leaving waits out the minimum hold so a quick render never flashes the pose. */
+export function stopThink(s: ThinkState, now: number): void {
+  s.want = false;
+  if (s.at !== null && s.outAt === null) s.outAt = Math.max(now, s.at + IN + FADE + THINK_MIN);
+}
+
+/** Drops the pose at once (walk, hidden tab) but keeps want so it can resume. */
+export function cancelThink(s: ThinkState): void {
+  s.at = s.outAt = null;
+}
+
+/** Dissolves in on a knee dip like the wave, sways and tilts while thinking, dissolves out on a second dip. */
+export function thinkStep(s: ThinkState, now: number) {
+  const none = { mixT: 0, bob: 0, sway: 0, tilt: 0, dots: 0 as 0 | 1 | 2 | 3, done: false };
+  if (s.at === null) return none;
+  if (s.outAt !== null && now >= s.outAt + FADE + 0.45) {
+    s.at = s.outAt = null;
+    return { ...none, done: true };
+  }
+  const pt = now - s.at;
+  let mixT = sm((pt - IN) / FADE), bob = dip(pt - IN - FADE / 2 + 0.125);
+  if (s.outAt !== null) {
+    mixT *= sm((s.outAt + FADE - now) / FADE);
+    bob += dip(now - s.outAt - FADE / 2 + 0.125);
+  }
+  const dots = (mixT > 0.9 && s.outAt === null ? 1 + (Math.floor(pt / 0.4) % 3) : 0) as 0 | 1 | 2 | 3;
+  return { mixT, bob, sway: Math.sin(now * 1.6) * 0.6 * mixT, tilt: (0.06 + Math.sin(now * 0.8) * 0.02) * mixT, dots, done: false };
 }
