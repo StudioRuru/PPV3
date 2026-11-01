@@ -72,6 +72,13 @@ export function stepSpring(sp: Spring, dt: number): Spring {
 export type Hop = { t: number; x: number; y: number; squash: number; tilt: number };
 const HOP_PX = 120, HOP_SQUASH = 0.15, HOP_STRETCH = -0.08, HOP_TILT = 0.08;
 
+/** A flat move walks at the feet-planted speed; anything with a real climb or too short to step hops (null). */
+export function walkPlan(from: { x: number; y: number }, to: { x: number; y: number }, speed: number): { ms: number; left: boolean } | null {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  if (![dx, dy, speed].every(Number.isFinite) || speed <= 0 || Math.abs(dy) > 24 || Math.abs(dx) < 4) return null;
+  return { ms: (Math.abs(dx) / speed) * 1000, left: dx < 0 };
+}
+
 /** 2–4 hops from→to (count by distance, default hypot); keyframes at take-off/apex/landing, endpoints exact, y up = negative. A non-finite endpoint gives fewer than 2 points: callers treat length < 2 as "no motion". */
 export function hopPath(from: { x: number; y: number }, to: { x: number; y: number }, dist = Math.hypot(to.x - from.x, to.y - from.y)): Hop[] {
   const ok = (p: { x: number; y: number }) => Number.isFinite(p.x) && Number.isFinite(p.y);

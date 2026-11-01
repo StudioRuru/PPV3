@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandFor, hopPath, idleWave, kick, stepSpring, vertexOffset, WARP, type WarpState } from "./anim";
+import { bandFor, hopPath, walkPlan, idleWave, kick, stepSpring, vertexOffset, WARP, type WarpState } from "./anim";
 
 const calm = (o: Partial<WarpState> = {}): WarpState => ({ t: 0, sway: 0, breathe: 0, squash: { x: 0, v: 0 }, drag: { vx: 0, vy: 0 }, ...o });
 
@@ -91,4 +91,12 @@ test("fix2: hopPath guards non-finite endpoints", () => {
   assert.deepEqual(hopPath(bad, f).map((q) => [q.x, q.y]), [[1, 2]]);
   assert.deepEqual(hopPath(bad, bad), []);
   assert.ok(hopPath(f, { x: 400, y: Infinity }).length === 1);
+});
+
+test("walkPlan walks flat moves and hops the rest", () => {
+  assert.deepEqual(walkPlan({ x: 0, y: 0 }, { x: -227.5, y: 10 }, 227.5), { ms: 1000, left: true });
+  assert.equal(walkPlan({ x: 0, y: 0 }, { x: 100, y: 40 }, 200), null);
+  assert.equal(walkPlan({ x: 0, y: 0 }, { x: 2, y: 0 }, 200), null);
+  assert.equal(walkPlan({ x: 0, y: 0 }, { x: NaN, y: 0 }, 200), null);
+  assert.equal(walkPlan({ x: 0, y: 0 }, { x: 100, y: 0 }, 0), null);
 });
