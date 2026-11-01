@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import type { Spring } from "@/lib/mascot/anim";
-import { cancelThink, cancelWave, hairMask, handMask, idleUniforms, newThink, newWave, spring, startThink, startWave, stopThink, thinkStep, waveReady, walkBob, walkFrame, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
+import { cancelThink, cancelWave, hairMask, handMask, idleUniforms, newThink, newWave, spring, startThink, startWave, stopThink, thinkStep, queuedWave, waveReady, walkBob, walkSettle, WAVE_QUEUE_S, walkFrame, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
 import type { SpriteHandle } from "./SpriteCanvas";
 
-export type RigHandle = SpriteHandle & { wave(): void; walk(on: boolean): boolean; think(on: boolean): void };
+export type RigHandle = SpriteHandle & { wave(hold?: boolean): void; walk(on: boolean): boolean; think(on: boolean): boolean };
 type Props = { rig: Rig; className?: string; style?: CSSProperties; ref?: Ref<RigHandle> };
 
 const DOT: [number, number] = [525, 140], DPR_MAX = 2, IDLE: (keyof Quirks)[] = ["ear", "tilt", "flick", "sway", "ear"];
@@ -103,7 +103,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
   const [failed, setFailed] = useState(false);
   const [drawn, setDrawn] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null), fx = useRef<HTMLCanvasElement>(null);
-  const g = useRef<{ kick(i: number): void; drag(vx: number): void; wave(): void; walk(on: boolean): boolean; think(on: boolean): void } | null>(null);
+  const g = useRef<{ kick(i: number): void; drag(vx: number): void; wave(hold?: boolean): void; walk(on: boolean): boolean; think(on: boolean): boolean } | null>(null);
   const live = !reduced && !failed;
 
   useEffect(() => {
@@ -115,9 +115,9 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
   useImperativeHandle(ref, () => ({
     kick: (i) => (g.current ? (g.current.kick(i), true) : false),
     drag: (vx) => g.current?.drag(vx),
-    wave: () => g.current?.wave(),
+    wave: (hold) => g.current?.wave(hold),
     walk: (on) => g.current?.walk(on) ?? false,
-    think: (on) => g.current?.think(on),
+    think: (on) => g.current?.think(on) ?? false,
   }), []);
 
   useEffect(() => {
@@ -187,7 +187,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
     });
     // Walk and think stills load behind the idle and never block it; a missing one just leaves that action off. Unit 4 is scratch.
     const walkTex: (WebGLTexture | null)[] = rig.walk.map(() => null);
-    let thinkTex: WebGLTexture | null = null;
+    let thinkTex: WebGLTexture | null = null, thinkOk = true;
     [...rig.walk, rig.think].forEach((src, i) => {
       const im = new Image();
       im.onload = () => {
@@ -195,12 +195,13 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
         const t = rgba(4, im);
         if (i < rig.walk.length) walkTex[i] = t; else thinkTex = t;
       };
+      if (i === rig.walk.length) im.onerror = () => { thinkOk = false; think.want = false; }; // no pose: don't hold the wander or a wave for it
       im.src = src;
     });
 
     const wave = newWave(), think = newThink(), q: Quirks = { blink: -Infinity, ear: -Infinity, tilt: -Infinity, flick: -Infinity, sway: -Infinity };
     const bounce: Spring = { x: 0, v: 0 }, lag: Spring = { x: 0, v: 0 }, parts: Part[] = [];
-    let walkAt: number | null = null, pendingWave = false;
+    let walkAt: number | null = null, waveUntil: number | null = null, settle = { at: 0, dip: 0 };
     const now = () => performance.now() / 1000;
     const frame = (ms: number) => {
       const t = ms / 1000, dt = Math.min(Math.max(t - last, 0), 1 / 30);
@@ -209,7 +210,10 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       // think waits for any wave and walk to finish; a cancelled think (walk, hidden tab) resumes here while still wanted
       if (!walking && think.want && think.at === null && wave.at === null && thinkTex) startThink(think, t);
       const th = thinkStep(think, t), thinking = think.at !== null;
-      if (pendingWave && waveReady(walking, think)) { pendingWave = false; if (startWave(wave, t)) q.ear = -Infinity; }
+      if (waveUntil !== null) {
+        const v = queuedWave(waveUntil, t, walking, think);
+        if (v !== "keep") { waveUntil = null; if (v === "play" && startWave(wave, t)) q.ear = -Infinity; }
+      }
       const w = waveStep(wave, t, dt, rig);
       if (w.earKick) q.ear = t;
       if (w.flick) spawn(parts, w.flick, 1 + +(Math.random() < 0.4));
@@ -217,7 +221,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       if (!walking && t > nextQuirk) { q[IDLE[(Math.random() * IDLE.length) | 0]] = t; nextQuirk = t + 4 + Math.random() * 6; }
       spring(bounce, 0, 3, 0.35, dt); spring(lag, 0, 2, 0.5, dt);
       const u = idleUniforms(t, q, w);
-      u.dip -= bounce.x * 5; u.hair += lag.x * 1.5;
+      u.dip -= bounce.x * 5 - walkSettle(settle.dip, t - settle.at); u.hair += lag.x * 1.5;
       if (walking) {
         // the cycle carries the motion: each still is drawn as is, only the step bob moves it
         for (const k of Object.keys(u) as (keyof typeof u)[]) u[k] = 0;
@@ -244,7 +248,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       last = now();
       raf = requestAnimationFrame((ms) => { frame(ms); setDrawn(true); });
     };
-    const stop = () => { cancelAnimationFrame(raf); raf = 0; cancelWave(wave); cancelThink(think); pendingWave = false; };
+    const stop = () => { cancelAnimationFrame(raf); raf = 0; cancelWave(wave); cancelThink(think); waveUntil = null; };
     const onVis = () => (document.hidden ? stop() : go());
     const ro = new ResizeObserver(([e]) => {
       const d = Math.min(DPR_MAX, window.devicePixelRatio || 1);
@@ -259,14 +263,16 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
     g.current = {
       kick: (i) => { bounce.v += i; },
       drag: (vx) => { lag.x = Math.max(-1, Math.min(1, vx)); },
-      wave: () => {
+      wave: (hold = false) => {
         if (!masked || !raf) return;
-        if (!waveReady(walkAt !== null, think)) pendingWave = true; // played once the walk or think is over
-        else if (startWave(wave, now())) q.ear = -Infinity;
+        const n = now();
+        // played once the walk or think is over; a pat's wave goes stale, the done-rendering one (hold) waits it out
+        if (!waveReady(walkAt !== null, think)) waveUntil = Math.max(waveUntil ?? -Infinity, hold ? Infinity : n + WAVE_QUEUE_S);
+        else if (startWave(wave, n)) q.ear = -Infinity;
       },
       walk: (on) => {
         if (!on) {
-          if (walkAt !== null) { walkAt = null; bounce.v += 1; }
+          if (walkAt !== null) { const n = now(); settle = { at: n, dip: walkBob(n - walkAt) }; walkAt = null; bounce.v += 1; }
           return true;
         }
         if (walkTex.some((t) => !t)) return false;
@@ -275,9 +281,10 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
         return true;
       },
       think: (on) => {
-        if (!thinkTex) return;
-        if (on) think.want = true; // the frame loop starts it once no wave or walk is running
+        if (!thinkOk) return false;
+        if (on) think.want = true; // the frame loop starts it once the still is in and no wave or walk is running
         else stopThink(think, now());
+        return true;
       },
     };
     return () => {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cancelThink, cancelWave, END, waveReady, hairMask, handMask, idleUniforms, newThink, newWave, RIGS, startThink, startWave, stopThink, THINK_MIN, thinkStep, WALK_FPS, walkBob, walkFrame, walkSpeed, waveStep, type Quirks } from "./rig";
+import { cancelThink, cancelWave, END, waveReady, hairMask, handMask, idleUniforms, newThink, newWave, RIGS, startThink, startWave, stopThink, THINK_MIN, thinkStep, WALK_FPS, walkBob, walkFrame, walkSpeed, waveStep, queuedWave, walkSettle, WAVE_QUEUE_S, type Quirks } from "./rig";
 
 const rig = RIGS.day!;
 const run = (from: number, to: number, s = newWave(), dt = 1 / 60) => {
@@ -208,4 +208,22 @@ test("waveReady holds a wave through a walk or think and frees it after", () => 
   assert.equal(waveReady(false, s), true);
   s.want = true; // a new render queued: its think goes first
   assert.equal(waveReady(false, s), false);
+});
+
+test("queuedWave plays when free, holds a render's wave, and drops a stale pat", () => {
+  const s = newThink();
+  assert.equal(queuedWave(5, 1, false, s), "play");
+  assert.equal(queuedWave(5, 1, true, s), "keep");
+  assert.equal(queuedWave(5, 6, true, s), "drop"); // a pat from mid-walk is old news
+  assert.equal(queuedWave(Infinity, 999, true, s), "keep"); // the done-rendering wave waits it out
+  assert.equal(queuedWave(5, 6, false, s), "drop");
+  assert.ok(WAVE_QUEUE_S >= 2 && WAVE_QUEUE_S <= 4);
+});
+
+test("walkSettle eases the step bob out instead of snapping", () => {
+  assert.equal(walkSettle(0.35, 0), 0.35);
+  const mid = walkSettle(0.35, 0.05);
+  assert.ok(mid > 0 && mid < 0.35);
+  assert.equal(walkSettle(0.35, 0.2), 0);
+  assert.equal(Math.abs(walkSettle(-0.35, 1)), 0);
 });

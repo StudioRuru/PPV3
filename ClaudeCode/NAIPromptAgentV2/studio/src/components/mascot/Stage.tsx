@@ -86,11 +86,12 @@ export function Stage(p: Props) {
   const { vw, vh } = view, baseH = view.stableH * SIZE_VH[p.size];
   const dims = (pose: Pose) => { const sp = rig ? { width: rig.w, height: rig.h } : POSE_SPEC[pose], h = baseH * (sp.height / 1216); return { w: (h * sp.width) / sp.height, h }; };
   const fits = (pose: Pose) => (rig ? pose === "stand" : eng || stageSprite(have, pose, outfit, "smug") !== null);
-  const wave = () => { const c = canvas.current; if (c && "wave" in c) c.wave(); }; // refs only: safe from long-lived listeners
+  const wave = (hold = false) => { const c = canvas.current; if (c && "wave" in c) c.wave(hold); }; // refs only: safe from long-lived listeners
   const think = (on: boolean) => {
-    thinking.current = on; clearTimeout(thinkT.current);
-    if (on) thinkT.current = setTimeout(() => think(false), THINK_MAX_MS);
-    const c = canvas.current; if (c && "think" in c) c.think(on);
+    const c = canvas.current;
+    thinking.current = !!(c && "think" in c && c.think(on)) && on; // no think pose (sprite outfits, missing still): wander on as usual
+    clearTimeout(thinkT.current);
+    if (thinking.current) thinkT.current = setTimeout(() => think(false), THINK_MAX_MS);
   };
   const endWalk = () => { if (!walkA.current) return; walkA.current = null; canvas.current?.walk?.(false); setWalking(null); };
   /** Measured only when choosing a spot: composers, the island and a focused field are off limits; [data-mascot-target] cards are fair game. */
@@ -139,7 +140,7 @@ export function Stage(p: Props) {
       if (k === "idle" && a.mischief > 0 && !a.typing) a.move("bored"); // mischief 0 = parked
       else if ((k === "generated" || k === "upscaled" || k === "error") && a.spot?.pose === "back") { setMotion(MOVE); setSpot({ ...a.spot, pose: "stand" }); } // turn round to judge it
       else if (k === "generated" || k === "upscaled") a.react(k);
-      if (k === "generated") wave();
+      if (k === "generated") wave(true); // held through the think exit and any walk
     };
     const onReact = (e: Event) => { const d = (e as CustomEvent<{ profile: string; event: ReactEvent }>).detail; if (d?.profile === "miyabi" && !act.current.hidden) act.current.react(d.event); };
     const release = () => { const pr = press.current; if (!pr) return; press.current = null; clearTimeout(pr.timer); setDrag(null); setMotion(MOVE); };
@@ -189,7 +190,7 @@ export function Stage(p: Props) {
     if (!hidden) {
       act.current.move();
       if (!mounted.current) { mounted.current = true; return; }
-      const t = setTimeout(wave, 600); // after the hop-in lands
+      const t = setTimeout(() => wave(), 600); // after the hop-in lands
       return () => clearTimeout(t);
     }
     prevHome.current = null; // a summon appears at her new spot instead of hopping in from the old one

@@ -175,6 +175,15 @@ export function cancelThink(s: ThinkState): void {
 /** A queued wave may start: no walk, no think pose on screen and none wanted. */
 export const waveReady = (walking: boolean, s: ThinkState): boolean => !walking && s.at === null && !s.want;
 
+/** How long a pat's wave may wait out a walk or think; the done-rendering wave queues with until = Infinity. */
+export const WAVE_QUEUE_S = 3;
+export const queuedWave = (until: number, t: number, walking: boolean, s: ThinkState): "play" | "keep" | "drop" =>
+  t > until ? "drop" : waveReady(walking, s) ? "play" : "keep";
+
+const SETTLE_S = 0.12;
+/** The step bob left at walk end, eased to 0 over SETTLE_S so the body doesn't snap level. */
+export const walkSettle = (dip: number, since: number) => dip * Math.max(0, 1 - since / SETTLE_S) ** 2;
+
 /** Dissolves in on a knee dip like the wave, sways and tilts while thinking, dissolves out on a second dip. */
 export function thinkStep(s: ThinkState, now: number) {
   const none = { mixT: 0, bob: 0, sway: 0, tilt: 0, dots: 0 as 0 | 1 | 2 | 3, done: false };
