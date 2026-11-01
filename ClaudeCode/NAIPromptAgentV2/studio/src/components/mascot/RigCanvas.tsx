@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import type { Spring } from "@/lib/mascot/anim";
-import { cancelWave, hairMask, handMask, idleUniforms, newWave, spring, startWave, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
+import { cancelThink, cancelWave, hairMask, handMask, idleUniforms, newThink, newWave, spring, startThink, startWave, stopThink, thinkStep, walkBob, walkFrame, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
 import type { SpriteHandle } from "./SpriteCanvas";
 
-export type RigHandle = SpriteHandle & { wave(): void };
+export type RigHandle = SpriteHandle & { wave(): void; walk(on: boolean): boolean; think(on: boolean): void };
 type Props = { rig: Rig; className?: string; style?: CSSProperties; ref?: Ref<RigHandle> };
 
-const DPR_MAX = 2, IDLE: (keyof Quirks)[] = ["ear", "tilt", "flick", "sway", "ear"];
+const DOT: [number, number] = [525, 140], DPR_MAX = 2, IDLE: (keyof Quirks)[] = ["ear", "tilt", "flick", "sway", "ear"];
 const VS = `#version 300 es
 in vec2 p; out vec2 uv;
 void main() { uv = vec2(p.x * .5 + .5, .5 - p.y * .5); gl_Position = vec4(p, 0, 1); }`;
@@ -67,7 +67,7 @@ const spawn = (parts: Part[], [x, y]: [number, number], n: number) => {
   for (let i = 0; i < n; i++) parts.push({ x: x + (Math.random() - 0.5) * 30, y: y + (Math.random() - 0.5) * 20, vx: -15 - Math.random() * 25, vy: -45 - Math.random() * 35,
     age: 0, life: 1 + Math.random() * 0.4, heart: Math.random() < 0.55, r: (Math.random() - 0.5) * 0.6, s: 0.8 + Math.random() * 0.5 });
 };
-function drawFx(fc: CanvasRenderingContext2D, parts: Part[], k: number, dt: number) {
+function drawFx(fc: CanvasRenderingContext2D, parts: Part[], k: number, dt: number, dots: number) {
   fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, fc.canvas.width, fc.canvas.height);
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
@@ -87,6 +87,12 @@ function drawFx(fc: CanvasRenderingContext2D, parts: Part[], k: number, dt: numb
     }
   }
   fc.globalAlpha = 1;
+  // thought dots rise up and away from her face, a little bigger each
+  for (let i = 0; i < dots; i++) {
+    fc.setTransform(k, 0, 0, k, (DOT[0] + i * 18) * k, (DOT[1] - i * 14) * k);
+    fc.beginPath(); fc.arc(0, 0, 5 + i, 0, 2 * Math.PI);
+    fc.fillStyle = "rgba(255,255,255,.92)"; fc.shadowColor = "#e6d6ff"; fc.shadowBlur = 6; fc.fill(); fc.shadowBlur = 0; fc.lineWidth = 1.5; fc.strokeStyle = "#b9a0e8"; fc.stroke();
+  }
 }
 
 /** Live rig over one exact still: a WebGL2 inverse-warp shader (breath, sway, head tilt, ears, hair, blink, random quirks) plus the cute wave,
@@ -97,7 +103,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
   const [failed, setFailed] = useState(false);
   const [drawn, setDrawn] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null), fx = useRef<HTMLCanvasElement>(null);
-  const g = useRef<{ kick(i: number): void; drag(vx: number): void; wave(): void } | null>(null);
+  const g = useRef<{ kick(i: number): void; drag(vx: number): void; wave(): void; walk(on: boolean): boolean; think(on: boolean): void } | null>(null);
   const live = !reduced && !failed;
 
   useEffect(() => {
@@ -110,6 +116,8 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
     kick: (i) => (g.current ? (g.current.kick(i), true) : false),
     drag: (vx) => g.current?.drag(vx),
     wave: () => g.current?.wave(),
+    walk: (on) => g.current?.walk(on) ?? false,
+    think: (on) => g.current?.think(on),
   }), []);
 
   useEffect(() => {
@@ -143,20 +151,25 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       const t = x.createTexture()!; texs.push(t);
       x.activeTexture(x.TEXTURE0 + unit); x.bindTexture(x.TEXTURE_2D, t); set();
       x.texParameteri(x.TEXTURE_2D, x.TEXTURE_WRAP_S, x.CLAMP_TO_EDGE); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_WRAP_T, x.CLAMP_TO_EDGE);
+      return t;
     };
+    const bind = (unit: number, t: WebGLTexture | null) => { x.activeTexture(x.TEXTURE0 + unit); x.bindTexture(x.TEXTURE_2D, t); };
     const r8 = (unit: number, w: number, h: number, m: Uint8Array) => upload(unit, () => { x.pixelStorei(x.UNPACK_ALIGNMENT, 1); x.texImage2D(x.TEXTURE_2D, 0, x.R8, w, h, 0, x.RED, x.UNSIGNED_BYTE, m); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_MIN_FILTER, x.LINEAR); });
+    const rgba = (unit: number, im: HTMLImageElement) => upload(unit, () => {
+      x.pixelStorei(x.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      x.texImage2D(x.TEXTURE_2D, 0, x.RGBA, x.RGBA, x.UNSIGNED_BYTE, im);
+      x.pixelStorei(x.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      x.generateMipmap(x.TEXTURE_2D); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_MIN_FILTER, x.LINEAR_MIPMAP_LINEAR);
+    });
     // Empty masks until the stills are in: no wave layer, no hair swing.
-    r8(2, 1, 1, new Uint8Array(1)); r8(3, 1, 1, new Uint8Array(1));
+    const noMask = r8(2, 1, 1, new Uint8Array(1)); r8(3, 1, 1, new Uint8Array(1));
+    const base: (WebGLTexture | null)[] = [null, null];
+    let handTex = noMask;
     [rig.rest, rig.wave].forEach((src, unit) => {
       const im = new Image();
       im.onload = () => {
         if (dead) return;
-        upload(unit, () => {
-          x.pixelStorei(x.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-          x.texImage2D(x.TEXTURE_2D, 0, x.RGBA, x.RGBA, x.UNSIGNED_BYTE, im);
-          x.pixelStorei(x.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-          x.generateMipmap(x.TEXTURE_2D); x.texParameteri(x.TEXTURE_2D, x.TEXTURE_MIN_FILTER, x.LINEAR_MIPMAP_LINEAR);
-        });
+        base[unit] = rgba(unit, im);
         if (im.naturalWidth === W && im.naturalHeight === H) {
           const c2 = new OffscreenCanvas(W, H).getContext("2d")!; c2.drawImage(im, 0, 0);
           const px = c2.getImageData(0, 0, W, H).data;
@@ -164,7 +177,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
           else {
             const m = handMask(px, rig);
             masked = m.some((v) => v > 0);
-            if (masked) r8(2, W, H, m);
+            if (masked) handTex = r8(2, W, H, m);
           }
         }
         if (++loaded === 2) go();
@@ -172,27 +185,58 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       im.onerror = () => { if (dead) return; if (unit === 0) setFailed(true); else if (++loaded === 2) go(); }; // no wave still = idle without the wave; no rest still = nothing to rig
       im.src = src;
     });
+    // Walk and think stills load behind the idle and never block it; a missing one just leaves that action off. Unit 4 is scratch.
+    const walkTex: (WebGLTexture | null)[] = rig.walk.map(() => null);
+    let thinkTex: WebGLTexture | null = null;
+    [...rig.walk, rig.think].forEach((src, i) => {
+      const im = new Image();
+      im.onload = () => {
+        if (dead) return;
+        const t = rgba(4, im);
+        if (i < rig.walk.length) walkTex[i] = t; else thinkTex = t;
+      };
+      im.src = src;
+    });
 
-    const wave = newWave(), q: Quirks = { blink: -Infinity, ear: -Infinity, tilt: -Infinity, flick: -Infinity, sway: -Infinity };
+    const wave = newWave(), think = newThink(), q: Quirks = { blink: -Infinity, ear: -Infinity, tilt: -Infinity, flick: -Infinity, sway: -Infinity };
     const bounce: Spring = { x: 0, v: 0 }, lag: Spring = { x: 0, v: 0 }, parts: Part[] = [];
+    let walkAt: number | null = null, pendingWave = false;
     const now = () => performance.now() / 1000;
     const frame = (ms: number) => {
       const t = ms / 1000, dt = Math.min(Math.max(t - last, 0), 1 / 30);
       last = t;
+      const walking = walkAt !== null;
+      // think waits for any wave and walk to finish; a cancelled think (walk, hidden tab) resumes here while still wanted
+      if (!walking && think.want && think.at === null && wave.at === null && thinkTex) startThink(think, t);
+      const th = thinkStep(think, t), thinking = think.at !== null;
+      if (th.done && pendingWave) { pendingWave = false; if (startWave(wave, t)) q.ear = -Infinity; }
       const w = waveStep(wave, t, dt, rig);
       if (w.earKick) q.ear = t;
       if (w.flick) spawn(parts, w.flick, 1 + +(Math.random() < 0.4));
-      if (t > nextBlink) { q.blink = t; nextBlink = t + 2.5 + Math.random() * 4; }
-      if (t > nextQuirk) { q[IDLE[(Math.random() * IDLE.length) | 0]] = t; nextQuirk = t + 4 + Math.random() * 6; }
+      if (!walking && t > nextBlink) { q.blink = t; nextBlink = t + 2.5 + Math.random() * 4; }
+      if (!walking && t > nextQuirk) { q[IDLE[(Math.random() * IDLE.length) | 0]] = t; nextQuirk = t + 4 + Math.random() * 6; }
       spring(bounce, 0, 3, 0.35, dt); spring(lag, 0, 2, 0.5, dt);
       const u = idleUniforms(t, q, w);
       u.dip -= bounce.x * 5; u.hair += lag.x * 1.5;
+      if (walking) {
+        // the cycle carries the motion: each still is drawn as is, only the step bob moves it
+        for (const k of Object.keys(u) as (keyof typeof u)[]) u[k] = 0;
+        u.dip = walkBob(t - walkAt!);
+      } else if (thinking) {
+        // the think still's head and hair don't sit where rest's do, so the rest-placed blink, ear and hair warps fade out with it
+        const k = 1 - th.mixT;
+        u.blink *= k; u.earL *= k; u.earR *= k; u.hair *= k;
+        u.dip += th.bob; u.sway += th.sway; u.tilt += th.tilt;
+      }
       for (const [k, v] of Object.entries(u)) x.uniform1f(uni[k], v);
-      x.uniform1f(uni.mixT, w.mixT); x.uniform1f(uni.hA, w.hA);
+      x.uniform1f(uni.mixT, walking ? 0 : thinking ? th.mixT : w.mixT); x.uniform1f(uni.hA, walking || thinking ? 0 : w.hA);
+      bind(0, walking ? walkTex[walkFrame(t - walkAt!)] : base[0]);
+      bind(1, thinking ? thinkTex : base[1]);
+      bind(2, thinking ? noMask : handTex);
       x.viewport(0, 0, el.width, el.height);
       x.clearColor(0, 0, 0, 0); x.clear(x.COLOR_BUFFER_BIT);
       x.drawArrays(x.TRIANGLE_STRIP, 0, 4);
-      drawFx(fc, parts, fe.width / W, dt);
+      drawFx(fc, parts, fe.width / W, dt, th.dots);
       raf = requestAnimationFrame(frame);
     };
     const go = () => {
@@ -200,7 +244,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       last = now();
       raf = requestAnimationFrame((ms) => { frame(ms); setDrawn(true); });
     };
-    const stop = () => { cancelAnimationFrame(raf); raf = 0; cancelWave(wave); };
+    const stop = () => { cancelAnimationFrame(raf); raf = 0; cancelWave(wave); cancelThink(think); pendingWave = false; };
     const onVis = () => (document.hidden ? stop() : go());
     const ro = new ResizeObserver(([e]) => {
       const d = Math.min(DPR_MAX, window.devicePixelRatio || 1);
@@ -215,7 +259,26 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
     g.current = {
       kick: (i) => { bounce.v += i; },
       drag: (vx) => { lag.x = Math.max(-1, Math.min(1, vx)); },
-      wave: () => { if (masked && raf && startWave(wave, now())) q.ear = -Infinity; },
+      wave: () => {
+        if (!masked || !raf || walkAt !== null) return;
+        if (think.at !== null) pendingWave = true;
+        else if (startWave(wave, now())) q.ear = -Infinity;
+      },
+      walk: (on) => {
+        if (!on) {
+          if (walkAt !== null) { walkAt = null; bounce.v += 1; }
+          return true;
+        }
+        if (walkTex.some((t) => !t)) return false;
+        if (walkAt === null) walkAt = now();
+        cancelWave(wave); cancelThink(think); pendingWave = false; parts.length = 0;
+        return true;
+      },
+      think: (on) => {
+        if (!thinkTex) return;
+        if (on) think.want = true; // the frame loop starts it once no wave or walk is running
+        else stopThink(think, now());
+      },
     };
     return () => {
       dead = true; stop(); g.current = null; ro.disconnect();
