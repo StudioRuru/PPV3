@@ -8,7 +8,7 @@ import { substituteMacros } from "@/lib/rp/prompt";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
-import { Avatar, json, type GalleryChar } from "./RpScreen";
+import { Avatar, json, vt, type GalleryChar } from "./RpScreen";
 
 type View = { chat: Chat; messages: RpMessage[]; version: number; globalMods?: string };
 const LIKE_Q = ["In character", "Great pacing", "Vivid", "Funny"], DISLIKE_Q = ["Out of character", "Too fast", "Too tame", "Wrote for me", "Repetitive"];
@@ -130,16 +130,16 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     <section aria-label={`Chat with ${character.name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
       <header className="bg-bg/95 sticky top-0 z-10 -mx-4 flex items-center gap-2 px-4 py-1 backdrop-blur">
         <button type="button" onClick={onBack} aria-label="Back to chats" className="border-border grid size-10 place-items-center rounded-full border">‹</button>
-        <Avatar c={character} size="size-9" />
+        <Avatar c={character} size="size-9" shared />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[15px] font-semibold">{character.name}</h1>
+          <h1 style={vt("name", character)} className="w-fit max-w-full truncate text-[15px] font-semibold">{character.name}</h1>
           {personas.length > 1 && v ? (
             <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
               className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
           ) : <p className="text-muted truncate text-[11px]">as {persona?.name ?? "User"}</p>}
         </div>
-        {v && <button type="button" onClick={() => setTuning(true)} className={`h-10 rounded-full border px-3 text-sm ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
-          Tune{enabledMods(v.chat, v.globalMods) ? ` · ${enabledMods(v.chat, v.globalMods)}` : ""}</button>}
+        {v && <button type="button" onClick={() => setTuning(true)} className={`h-10 rounded-full border px-3 text-sm transition-colors ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
+          Tune{enabledMods(v.chat, v.globalMods) ? <span key={enabledMods(v.chat, v.globalMods)} className="animate-pop ml-1">· {enabledMods(v.chat, v.globalMods)}</span> : null}</button>}
         <button type="button" onClick={onEdit} className="border-border h-10 rounded-full border px-3 text-sm">Card</button>
       </header>
 
@@ -190,7 +190,9 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             <div key={m.id} className="animate-rise flex gap-2">
               <Avatar c={character} size="size-8" />
               <div className="min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">
-                <Prose text={sub(replacing ? stream!.text || "…" : m.content)} />
+                <div key={replacing ? "stream" : m.activeSwipeIndex} className={`animate-fade space-y-1.5 ${replacing ? "stream-caret" : ""}`}>
+                  <Prose text={sub(replacing ? stream!.text || "…" : m.content)} />
+                </div>
                 {actions}
                 {feedback?.id === m.id && (
                   <div className="bg-surface border-border animate-rise space-y-2 rounded-lg border p-2.5">
@@ -223,9 +225,9 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           </div>
         )}
         {stream && stream.replacing === undefined && (
-          <div className="flex gap-2">
+          <div className="animate-rise flex gap-2">
             <Avatar c={character} size="size-8" />
-            <div className="min-w-0 flex-1 text-[15px] leading-relaxed">{stream.text ? <Prose text={sub(stream.text)} /> : null}</div>
+            <div className="stream-caret min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">{stream.text ? <Prose text={sub(stream.text)} /> : <p className="thinking text-muted text-sm">…</p>}</div>
           </div>
         )}
         {status && (
@@ -244,7 +246,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <textarea ref={composer} value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder={`Message ${character.name}…`}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); submit(); } }}
-          className="bg-bg border-border max-h-[35dvh] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-2 py-2.5 text-base" />
+          className="bg-bg border-border focus:border-accent transition-colors max-h-[35dvh] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-2 py-2.5 text-base" />
         <button type="submit" disabled={busy || !input.trim()} className="bg-accent text-accent-fg h-11 w-16 self-end rounded-md font-semibold disabled:opacity-50">Send</button>
       </form>
       {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} agency={character.agency} sub={sub} onPatch={patch} />}

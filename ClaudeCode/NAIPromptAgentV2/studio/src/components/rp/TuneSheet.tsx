@@ -20,13 +20,13 @@ export function ModList({ mods, onChange, sub }: { mods: Record<string, ModState
   return MODS.map((m) => {
     const s = mods[m.id];
     return (
-      <div key={m.id} className={`bg-bg border-border space-y-1 rounded-lg border p-3 ${s.enabled ? "border-accent/50" : ""}`}>
+      <div key={m.id} className={`border-border space-y-1 rounded-lg border p-3 transition-[border-color,background-color] duration-200 ${s.enabled ? "border-accent/50 bg-accent/5" : "bg-bg"}`}>
         <label className="flex min-h-11 items-center gap-3">
           <span className="flex-1 text-sm font-semibold">{m.label}</span>
-          <input type="checkbox" role="switch" checked={s.enabled} onChange={(e) => setMod(m.id, { enabled: e.target.checked })} className="accent-accent size-5" />
+          <input type="checkbox" role="switch" checked={s.enabled} onChange={(e) => setMod(m.id, { enabled: e.target.checked })} className="switch" />
         </label>
         <p className="text-faint text-xs">{sub(m.blurb)}</p>
-        {s.enabled && (
+        <div className="fold" data-collapsed={!s.enabled || undefined} inert={!s.enabled}><div>
           <div data-noswipe className="pt-1">
             <input type="range" min={m.min} max={m.max} step={m.step} value={s.value} aria-label={`${m.label} strength`}
               onChange={(e) => setMod(m.id, { value: Number(e.target.value) })} className="accent-accent h-11 w-full" />
@@ -34,7 +34,7 @@ export function ModList({ mods, onChange, sub }: { mods: Record<string, ModState
               <span>{m.leftLabel ?? ""}</span><span className="text-accent">{m.format?.(s.value) ?? s.value}</span><span>{m.rightLabel ?? ""}</span>
             </div>
           </div>
-        )}
+        </div></div>
       </div>
     );
   });
