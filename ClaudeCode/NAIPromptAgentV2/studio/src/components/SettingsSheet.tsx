@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fixSchedule, SAMPLERS, schedulesFor, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
+import { resolveMods, type ModState } from "@/lib/rp/mods";
 import { getTheme, setTheme, THEMES, type ThemePref } from "@/lib/theme";
 import { MascotSettings } from "./mascot/MascotSettings";
+import { ModList } from "./rp/TuneSheet";
 import { Sheet } from "./Sheet";
 import { useAnlas } from "./VariationSheet";
 
@@ -25,7 +27,14 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const [purge, setPurge] = useState<{ days: number | null; count: number } | null>(null);
   const [taste, setTaste] = useState<{ profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[] } | null>(null);
   const [forget, setForget] = useState(false);
-  const [models, setModels] = useState<{ heavy: string; quick: string; models: string[] } | null>(null);
+  const [models, setModels] = useState<{ heavy: string; quick: string; models: string[]; settings: { mods: string } } | null>(null);
+  const [mods, setMods] = useState<Record<string, ModState> | null>(null);
+  const modsSave = useRef<ReturnType<typeof setTimeout>>(undefined);
+  function editMods(next: Record<string, ModState>) { // optimistic; saved ~0.4 s after the last change
+    setMods(next);
+    clearTimeout(modsSave.current);
+    modsSave.current = setTimeout(() => saveModel({ settings: { mods: JSON.stringify(next) } }), 400);
+  }
   const post = (body: object) => requestJson<{ autoDeleteDays: number | null; wouldRemove?: number }>("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   // Dry run first: if this window would delete images right now, say how many and ask.
   async function chooseRetention(days: number | null) {
@@ -34,7 +43,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     const r = await post({ autoDeleteDays: days });
     if (r.ok) setRetention(r.data.autoDeleteDays);
   }
-  async function saveModel(body: { heavy?: string; quick?: string }) {
+  async function saveModel(body: { heavy?: string; quick?: string; settings?: { mods: string } }) {
     const r = await requestJson<NonNullable<typeof models>>("/api/rp/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (r.ok) setModels(r.data);
   }
@@ -56,7 +65,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     requestJson<{ danbooru: boolean }>("/api/status").then((r) => setDanbooru(r.ok ? r.data.danbooru : null));
     requestJson<{ autoDeleteDays: number | null }>("/api/settings").then((r) => r.ok && setRetention(r.data.autoDeleteDays));
     requestJson<NonNullable<typeof taste>>("/api/taste").then((r) => r.ok && setTaste(r.data));
-    requestJson<NonNullable<typeof models>>("/api/rp/settings").then((r) => r.ok && setModels(r.data));
+    requestJson<NonNullable<typeof models>>("/api/rp/settings").then((r) => { if (r.ok) { setModels(r.data); setMods(resolveMods(r.data.settings.mods, null)); } });
     requestJson<NonNullable<typeof gpu>>("/api/comfy/settings").then((r) => r.ok && setGpu(r.data));
   }, [open]);
 
@@ -174,6 +183,15 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
               {models?.models.filter((m) => !/embed|bge|nomic/i.test(m)).map((m) => <option key={m} value={m}>{m.replace(/:latest$/, "")}</option>)}
             </select>
           </label>
+        </section>
+
+        <section>
+          <h3 className={h3}>Roleplay mods</h3>
+          <p className="text-faint mb-2 text-xs">Defaults for every chat until you change that chat&rsquo;s Tune sheet.</p>
+          <div className="space-y-2">
+            {mods ? <ModList mods={mods} onChange={editMods} sub={(t) => t.replaceAll("{{char}}", "the character").replaceAll("{{user}}", "you")} />
+              : <p className="text-faint text-xs">…</p>}
+          </div>
         </section>
 
         <section>

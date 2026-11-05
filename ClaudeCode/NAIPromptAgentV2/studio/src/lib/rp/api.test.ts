@@ -87,3 +87,16 @@ test("buildTurn: per-chat mods reach the prompt, and the chat's reply length set
   assert.match(text, /totally entranced \(hypnosis level 9\/10\)/);
   assert.equal(t.options.num_predict, 1600);
 });
+
+test("buildTurn: global mods apply to untuned chats; a tuned chat's map wins", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio" });
+  const deps = { settings: { ...DEFAULT_RP_SETTINGS, mods: JSON.stringify({ hypnosis: { enabled: true, value: 9 } }) }, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] };
+  const untuned = s.createChat(c);
+  s.append(untuned, "user", "hi");
+  assert.match((await buildTurn(s, untuned, deps)).messages.map((m) => m.content).join("\n"), /hypnosis level 9\/10/);
+  const tuned = s.createChat(c);
+  s.updateChat(tuned, { mods: JSON.stringify({ hypnosis: { enabled: false, value: 9 } }) });
+  s.append(tuned, "user", "hi");
+  assert.doesNotMatch((await buildTurn(s, tuned, deps)).messages.map((m) => m.content).join("\n"), /hypnosis/i);
+});

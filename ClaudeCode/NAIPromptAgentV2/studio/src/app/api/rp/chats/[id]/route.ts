@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serializeModsJson } from "@/lib/rp/mods";
-import { removeRpFiles, rp } from "@/lib/rp/server";
+import { removeRpFiles, rp, rpSettings } from "@/lib/rp/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
-const view = (id: number) => ({ chat: rp.chat(id), messages: rp.messages(id), version: rp.version(id) });
+const view = (id: number) => ({ chat: rp.chat(id), messages: rp.messages(id), version: rp.version(id), globalMods: rpSettings().mods });
 const CHAT_FIELDS = ["title", "personaId", "memorySummary", "authorNote", "authorNoteDepth", "lorebookId", "replyLength", "replySpice", "replyAgency", "model"] as const;
 
 export async function GET(_req: NextRequest, { params }: Ctx) {

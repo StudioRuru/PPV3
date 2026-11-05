@@ -5,6 +5,7 @@ import path from "node:path";
 import { db, getSetting, setSetting } from "@/lib/db";
 import { BRAIN_MODEL, DATA_DIR, OLLAMA_URL } from "@/lib/env";
 import { tierModel } from "@/lib/tiers";
+import { serializeModsJson } from "./mods";
 import { RpStore } from "./store";
 import { DEFAULT_RP_SETTINGS, type RpSettings } from "./types";
 
@@ -16,6 +17,7 @@ export function rpSettings(): RpSettings {
 }
 export function saveRpSettings(patch: Partial<RpSettings>): RpSettings {
   const known = Object.fromEntries(Object.entries(patch).filter(([k, v]) => k in DEFAULT_RP_SETTINGS && typeof v === typeof DEFAULT_RP_SETTINGS[k as keyof RpSettings]));
+  if (typeof known.mods === "string") known.mods = serializeModsJson(known.mods); // unknown ids dropped, values clamped
   const next = { ...rpSettings(), ...known };
   setSetting("rp:settings", JSON.stringify(next));
   return next;

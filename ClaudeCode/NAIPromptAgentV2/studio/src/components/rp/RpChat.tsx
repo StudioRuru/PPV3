@@ -10,7 +10,7 @@ import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
 import { Avatar, json, type GalleryChar } from "./RpScreen";
 
-type View = { chat: Chat; messages: RpMessage[]; version: number };
+type View = { chat: Chat; messages: RpMessage[]; version: number; globalMods?: string };
 const LIKE_Q = ["In character", "Great pacing", "Vivid", "Funny"], DISLIKE_Q = ["Out of character", "Too fast", "Too tame", "Wrote for me", "Repetitive"];
 
 function Prose({ text }: { text: string }) {
@@ -138,8 +138,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
               className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
           ) : <p className="text-muted truncate text-[11px]">as {persona?.name ?? "User"}</p>}
         </div>
-        {v && <button type="button" onClick={() => setTuning(true)} className={`h-10 rounded-full border px-3 text-sm ${enabledMods(v.chat) ? "border-accent text-accent" : "border-border"}`}>
-          Tune{enabledMods(v.chat) ? ` · ${enabledMods(v.chat)}` : ""}</button>}
+        {v && <button type="button" onClick={() => setTuning(true)} className={`h-10 rounded-full border px-3 text-sm ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
+          Tune{enabledMods(v.chat, v.globalMods) ? ` · ${enabledMods(v.chat, v.globalMods)}` : ""}</button>}
         <button type="button" onClick={onEdit} className="border-border h-10 rounded-full border px-3 text-sm">Card</button>
       </header>
 
@@ -247,7 +247,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           className="bg-bg border-border max-h-[35dvh] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-2 py-2.5 text-base" />
         <button type="submit" disabled={busy || !input.trim()} className="bg-accent text-accent-fg h-11 w-16 self-end rounded-md font-semibold disabled:opacity-50">Send</button>
       </form>
-      {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} agency={character.agency} sub={sub} onPatch={patch} />}
+      {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} agency={character.agency} sub={sub} onPatch={patch} />}
       {sheet}
     </section>
   );
