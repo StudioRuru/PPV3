@@ -10,32 +10,73 @@ export type Turn = { messages: ChatMessage[]; options: SamplerOptions; model: st
  * Everything needed to ask the model for the next reply in a chat. With `replacing` (regenerate), history stops before
  * that reply. A chat/character model that isn't installed any more falls back to the heavy tier.
  */
-const TWISTS = [
-  "open with a different action or line than any draft", "give {{char}} a different emotional reaction", "focus on a different sensory detail",
-  "let {{char}} take the initiative and push the scene forward", "change the pacing — slower and more intimate, or quicker and punchier",
+// Directions for alternates / fresh turns. Spice gates the pool: below Default stays mature-but-not-sexual;
+// Default+ leans sensual, Explicit+ goes all the way. {{char}}/{{user}} are filled in.
+const DIRECTIONS = {
+  mature: [
+    "give {{char}} a different emotional reaction than before", "let {{char}} take the initiative and push the scene forward",
+    "change the pacing — slower and more intimate, or quicker and punchier", "let a hidden want or old wound of {{char}}'s show through",
+    "add tension: jealousy, rivalry, or a dangerous secret", "let {{char}} be morally grey — tempted, selfish, or cruel in a way that fits them",
+    "shift the power balance between {{char}} and {{user}}",
+  ],
+  sensual: [
+    "let charged physical tension build — lingering looks, closeness, a touch that lasts too long", "have {{char}} flirt boldly and tease {{user}}",
+    "let {{char}}'s desire slip out in what they say or do", "make it intimate: focus on breath, warmth, and how close they are",
+    "have {{char}} play a power game of seduction with {{user}}", "let {{char}} confess or show attraction they've been hiding",
+  ],
+  explicit: [
+    "escalate the intimacy hard — {{char}} acts on their desire without holding back", "have {{char}} take control and make a bold, explicit advance",
+    "go further than the earlier drafts dared, in vivid explicit detail", "let {{char}} voice exactly what they want from {{user}}, crudely and honestly",
+  ],
+  wild: [
+    "throw in a surprising turn of events nobody saw coming", "have {{char}} do something bold and out of their usual comfort zone",
+    "escalate the scene dramatically", "reveal something unexpected about {{char}}", "flip the mood of the scene on its head",
+  ],
+};
+const OPENINGS = [
+  { kind: "dialogue", text: "Open with a line of {{char}}'s dialogue" },
+  { kind: "action", text: "Open with a physical action by {{char}}" },
+  { kind: "thought", text: "Open with {{char}}'s inner thought or feeling" },
+  { kind: "world", text: "Open with something happening around them — a sound, the room, another person" },
+  { kind: "body", text: "Open on {{char}}'s body language reacting to {{user}}" },
 ];
-const WILD = [
-  "throw in a surprising turn of events nobody saw coming", "have {{char}} do something bold and out of their usual comfort zone",
-  "escalate the scene dramatically", "reveal something unexpected about {{char}}", "flip the mood of the scene on its head",
-];
+/** Rough opening kind of a reply, so the next one opens some other way. */
+export const openingKind = (t: string) => (/^\s*["“]/.test(t) ? "dialogue" : /^\s*\*/.test(t) ? "action" : "thought");
+const snip = (t: string, n: number) => { const x = t.replace(/\s+/g, " ").trim(); return x.length > n ? `${x.slice(0, n)}…` : x; };
+
+export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string };
 
 /**
- * Regenerate = a genuinely different take, not a re-roll of the same one: the model sees its earlier drafts and is told
- * to avoid them, gets a random creative direction, a fresh seed, and a hotter sampler each retry. `wild` goes further.
- * min_p is floored so high temperatures stay coherent.
+ * Keeps replies fresh. Every turn: a fresh seed, an opening unlike the last reply's, "don't reuse your recent openings",
+ * and sometimes a direction. Regenerate (`drafts`): the earlier drafts to avoid, always a direction, hotter sampler per
+ * retry. `wild` goes further still. min_p is floored so high temperatures stay coherent.
  */
-export function varyTurn(turn: Turn, drafts: string[], wild: boolean, charName: string, rand = Math.random): Turn {
-  const pick = (a: string[]) => a[Math.floor(rand() * a.length)].replaceAll("{{char}}", charName);
+export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
+  const fill = (t: string) => t.replaceAll("{{char}}", o.charName).replaceAll("{{user}}", o.userName);
+  const pick = <T,>(a: T[]) => a[Math.floor(rand() * a.length)];
+  const pools = [...DIRECTIONS.mature, ...(o.spice >= 2 ? DIRECTIONS.sensual : []), ...(o.spice >= 3 ? DIRECTIONS.explicit : [])];
+  // Adult pools are favoured when the chat allows them; wild mixes in plot-level chaos.
+  const adult = o.spice >= 3 ? DIRECTIONS.explicit.concat(DIRECTIONS.sensual) : o.spice >= 2 ? DIRECTIONS.sensual : DIRECTIONS.mature;
+  const pool = o.wild ? (rand() < 0.5 ? DIRECTIONS.wild : adult) : rand() < 0.6 ? adult : pools;
+  const regen = !!o.drafts?.length;
+  const last = regen ? o.drafts!.at(-1)! : o.recent?.at(-1);
+  const opening = pick(OPENINGS.filter((x) => !last || x.kind !== openingKind(last)));
+  const lines = [regen
+    ? `[Alternate take] Write a reply that is clearly different from these earlier drafts — different opening, different gestures, different choices, different phrasing. Don't reuse their lines.`
+    : `[Keep it fresh] Don't reuse the openings, gestures or stock phrases of your recent replies.`];
+  lines.push(`${fill(opening.text)}.`);
+  if (regen || o.wild || rand() < 0.35) lines.push(`Direction: ${fill(pick(pool))}.`);
+  if (regen) lines.push(`Earlier drafts:\n${o.drafts!.slice(-3).map((d) => `- ${snip(d, 280)}`).join("\n")}`);
+  else if (o.recent?.length) lines.push(`Your recent openings:\n${o.recent.slice(-3).map((d) => `- ${snip(d, 90)}`).join("\n")}`);
   const base = turn.options.temperature ?? 0.9;
-  const heat = wild ? 0.5 : Math.min(0.1 + 0.08 * drafts.length, 0.35);
-  const recent = drafts.slice(-3).map((d) => `- ${d.replace(/\s+/g, " ").slice(0, 280)}${d.length > 280 ? "…" : ""}`).join("\n");
-  const note = `[Alternate take] Write a reply that is clearly different from these earlier drafts — different opening, different choices, different phrasing. Don't reuse their lines.\nDirection: ${pick(wild ? WILD : TWISTS)}.\nEarlier drafts:\n${recent}`;
+  const heat = o.wild ? 0.5 : regen ? Math.min(0.1 + 0.08 * o.drafts!.length, 0.35) : 0;
   return {
     ...turn,
-    messages: [...turn.messages, { role: "system", content: note }],
+    messages: [...turn.messages, { role: "system", content: lines.join("\n") }],
     options: {
-      ...turn.options, temperature: Math.min(base + heat, wild ? 1.8 : 1.5), min_p: Math.max(turn.options.min_p ?? 0, wild ? 0.08 : 0.05),
-      top_p: wild ? 1 : turn.options.top_p, seed: Math.floor(rand() * 2 ** 31),
+      ...turn.options, seed: Math.floor(rand() * 2 ** 31),
+      ...(heat ? { temperature: Math.min(base + heat, o.wild ? 1.8 : 1.5), min_p: Math.max(turn.options.min_p ?? 0, o.wild ? 0.08 : 0.05) } : {}),
+      ...(o.wild ? { top_p: 1 } : {}),
     },
   };
 }
@@ -63,5 +104,9 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
     truncated: r.truncated,
   };
   const old = replacing ? store.messages(chatId).find((m) => m.id === replacing) : undefined;
-  return old ? varyTurn(turn, old.swipes.length ? old.swipes : [old.content], wild, character?.name ?? "the character") : turn;
+  return steerTurn(turn, {
+    drafts: old ? (old.swipes.length ? old.swipes : [old.content]) : undefined,
+    recent: history.filter((m) => m.role === "assistant").slice(-3).map((m) => m.content),
+    wild, spice: chat.replySpice ?? deps.settings.replySpice, charName: character?.name ?? "the character", userName: persona?.name ?? "User",
+  });
 }

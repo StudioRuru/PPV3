@@ -5,7 +5,7 @@ import { migrateRp } from "./schema";
 import { RpStore } from "./store";
 import { rpFile } from "./files";
 import { importCard } from "./import";
-import { buildTurn, varyTurn } from "./turn";
+import { buildTurn, openingKind, steerTurn } from "./turn";
 import { DEFAULT_RP_SETTINGS } from "./types";
 import { toBuffer } from "./voice";
 
@@ -114,9 +114,25 @@ test("regenerate: earlier drafts are shown to avoid, sampler gets hotter per ret
   s.addSwipe(a, "SECOND-DRAFT");
   const t2 = await buildTurn(s, chat, deps, a);
   assert.ok(t2.options.temperature! > t.options.temperature!);
-  const w = varyTurn({ ...t, messages: [] }, ["x"], true, "Mio", () => 0);
+  const w = steerTurn({ ...t, messages: [] }, { drafts: ["x"], wild: true, spice: 2, charName: "Mio", userName: "Kai" }, () => 0);
   assert.ok(w.options.temperature! >= 1.5 && w.options.min_p! >= 0.08);
   assert.match(w.messages[0].content, /surprising turn/);
-  const fresh = await buildTurn(s, chat, deps); // not a regenerate → untouched
-  assert.equal(fresh.options.seed, undefined);
+  const fresh = await buildTurn(s, chat, deps); // a normal turn: fresh seed + "keep it fresh", sampler heat untouched
+  assert.ok(fresh.options.seed !== undefined && fresh.options.temperature === 1);
+  assert.match(fresh.messages.at(-1)!.content, /Keep it fresh/);
+});
+
+test("steerTurn: spice gates adult directions; the opening differs from the last reply's", () => {
+  const t = { messages: [], options: {}, model: "m", truncated: false };
+  const dirs = (spice: number) => new Set(Array.from({ length: 400 }, (_, i) => {
+    let n = i; const r = () => ((n = (n * 9301 + 49297) % 233280) / 233280);
+    return steerTurn(t, { drafts: ["x"], spice, charName: "Mio", userName: "Kai" }, r).messages[0].content.match(/Direction: (.*)/)![1];
+  }));
+  assert.ok(![...dirs(0)].some((d) => /flirt|desire|explicit|seduction/i.test(d)));
+  assert.ok([...dirs(3)].some((d) => /explicit/i.test(d)));
+  assert.equal(openingKind('"Hi."'), "dialogue");
+  for (let i = 0; i < 20; i++) {
+    const c = steerTurn(t, { recent: ['"Hey," she said.'], spice: 2, charName: "Mio", userName: "Kai" }).messages[0].content;
+    assert.doesNotMatch(c, /Open with a line of Mio's dialogue/);
+  }
 });
