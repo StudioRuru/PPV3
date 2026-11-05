@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import type { Spring } from "@/lib/mascot/anim";
-import { cancelThink, cancelWave, hairMask, handMask, idleUniforms, newThink, newWave, spring, startThink, startWave, stopThink, thinkStep, queuedWave, waveReady, walkBob, walkSettle, WAVE_QUEUE_S, walkFrame, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
+import { cancelThink, cancelWave, hairMask, handMask, idleUniforms, newThink, newWave, spring, startThink, startWave, stopThink, thinkStep, queuedWave, waveReady, walkBob, walkSettle, walkSway, WAVE_QUEUE_S, walkFrame, waveStep, type Quirks, type Rig } from "@/lib/mascot/rig";
 import type { SpriteHandle } from "./SpriteCanvas";
 
 export type RigHandle = SpriteHandle & { wave(hold?: boolean): void; walk(on: boolean): boolean; think(on: boolean): boolean };
@@ -201,7 +201,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
 
     const wave = newWave(), think = newThink(), q: Quirks = { blink: -Infinity, ear: -Infinity, tilt: -Infinity, flick: -Infinity, sway: -Infinity };
     const bounce: Spring = { x: 0, v: 0 }, lag: Spring = { x: 0, v: 0 }, parts: Part[] = [];
-    let walkAt: number | null = null, waveUntil: number | null = null, settle = { at: 0, dip: 0 };
+    let walkAt: number | null = null, waveUntil: number | null = null, settle = { at: 0, dip: 0, sway: 0 };
     const now = () => performance.now() / 1000;
     const frame = (ms: number) => {
       const t = ms / 1000, dt = Math.min(Math.max(t - last, 0), 1 / 30);
@@ -221,11 +221,11 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       if (!walking && t > nextQuirk) { q[IDLE[(Math.random() * IDLE.length) | 0]] = t; nextQuirk = t + 4 + Math.random() * 6; }
       spring(bounce, 0, 3, 0.35, dt); spring(lag, 0, 2, 0.5, dt);
       const u = idleUniforms(t, q, w);
-      u.dip -= bounce.x * 5 - walkSettle(settle.dip, t - settle.at); u.hair += lag.x * 1.5;
+      u.dip -= bounce.x * 5 - walkSettle(settle.dip, t - settle.at); u.sway += walkSettle(settle.sway, t - settle.at); u.hair += lag.x * 1.5;
       if (walking) {
-        // the cycle carries the motion: each still is drawn as is, only the step bob moves it
+        // the cycle carries the motion: each still is drawn as is, only the step bob and hip roll move it
         for (const k of Object.keys(u) as (keyof typeof u)[]) u[k] = 0;
-        u.dip = walkBob(t - walkAt!);
+        u.dip = walkBob(t - walkAt!, walkTex.length); u.sway = walkSway(t - walkAt!, walkTex.length);
       } else if (thinking) {
         // the think still's head and hair don't sit where rest's do, so the rest-placed blink, ear and hair warps fade out with it
         const k = 1 - th.mixT;
@@ -234,7 +234,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       }
       for (const [k, v] of Object.entries(u)) x.uniform1f(uni[k], v);
       x.uniform1f(uni.mixT, walking ? 0 : thinking ? th.mixT : w.mixT); x.uniform1f(uni.hA, walking || thinking ? 0 : w.hA);
-      bind(0, walking ? walkTex[walkFrame(t - walkAt!)] : base[0]);
+      bind(0, walking ? walkTex[walkFrame(t - walkAt!, walkTex.length)] : base[0]);
       bind(1, thinking ? thinkTex : base[1]);
       bind(2, thinking ? noMask : handTex);
       x.viewport(0, 0, el.width, el.height);
@@ -272,7 +272,7 @@ export function RigCanvas({ rig, className = "", style, ref }: Props) {
       },
       walk: (on) => {
         if (!on) {
-          if (walkAt !== null) { const n = now(); settle = { at: n, dip: walkBob(n - walkAt) }; walkAt = null; bounce.v += 1; }
+          if (walkAt !== null) { const n = now(); settle = { at: n, dip: walkBob(n - walkAt, walkTex.length), sway: walkSway(n - walkAt, walkTex.length) }; walkAt = null; bounce.v += 1; }
           return true;
         }
         if (walkTex.some((t) => !t)) return false;

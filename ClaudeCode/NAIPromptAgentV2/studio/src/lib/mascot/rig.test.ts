@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cancelThink, cancelWave, END, waveReady, hairMask, handMask, idleUniforms, newThink, newWave, RIGS, startThink, startWave, stopThink, THINK_MIN, thinkStep, WALK_FPS, walkBob, walkFrame, walkSpeed, waveStep, queuedWave, walkSettle, WAVE_QUEUE_S, type Quirks } from "./rig";
+import { cancelThink, cancelWave, END, waveReady, hairMask, handMask, idleUniforms, newThink, newWave, RIGS, startThink, startWave, stopThink, THINK_MIN, thinkStep, WALK_FPS, walkBob, walkFrame, walkSpeed, walkSway, waveStep, queuedWave, walkSettle, WAVE_QUEUE_S, type Quirks } from "./rig";
 
 const rig = RIGS.day!;
 const run = (from: number, to: number, s = newWave(), dt = 1 / 60) => {
@@ -115,7 +115,7 @@ test("idle breath leaves the knee dip to its own channel", () => {
 
 test("shipped walk and think stills are keyed like rest", async () => {
   const sharp = (await import("sharp")).default;
-  for (const f of ["walk1", "walk2", "walk3", "walk4", "think"]) {
+  for (const f of ["walk1", "walk2", "walk3", "walk4", "walk5", "walk6", "think"]) {
     const { data, info } = await sharp(`public/rig/day/${f}.png`).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     assert.equal(info.width, 768, f);
     assert.equal(info.height, 1344, f);
@@ -128,23 +128,35 @@ test("shipped walk and think stills are keyed like rest", async () => {
   }
 });
 
-test("walkFrame cycles at WALK_FPS", () => {
-  assert.equal(walkFrame(0), 0);
-  assert.equal(walkFrame(1.01 / WALK_FPS), 1);
-  assert.equal(walkFrame(3.5 / WALK_FPS), 3);
-  assert.equal(walkFrame(4.2 / WALK_FPS), 0);
-  assert.equal(walkFrame(-1), 0);
+test("walkFrame cycles through every still at WALK_FPS", () => {
+  assert.equal(walkFrame(0, 6), 0);
+  assert.equal(walkFrame(1.01 / WALK_FPS, 6), 1);
+  assert.equal(walkFrame(5.5 / WALK_FPS, 6), 5);
+  assert.equal(walkFrame(6.2 / WALK_FPS, 6), 0);
+  assert.equal(walkFrame(3.5 / WALK_FPS, 4), 3);
+  assert.equal(walkFrame(-1, 6), 0);
+  assert.ok(WALK_FPS >= 7 && WALK_FPS <= 9);
 });
 
-test("walkBob peaks on passing frames", () => {
-  assert.ok(Math.abs(walkBob(1.5 / WALK_FPS) - 0.35) < 1e-9);
-  assert.ok(Math.abs(walkBob(3.5 / WALK_FPS) - 0.35) < 1e-9);
-  assert.ok(Math.abs(walkBob(0.5 / WALK_FPS) + 0.35) < 1e-9);
-  for (let t = 0; t <= 3; t += 0.01) assert.ok(Math.abs(walkBob(t)) <= 0.35 + 1e-9);
+test("walkBob sinks on each contact and rises mid-step", () => {
+  const at = (f: number) => walkBob(f / WALK_FPS, 6);
+  assert.ok(Math.abs(at(0.5) + 0.35) < 1e-9); // contact A
+  assert.ok(Math.abs(at(3.5) + 0.35) < 1e-9); // contact B
+  assert.ok(Math.abs(at(2) - 0.35) < 1e-9);
+  assert.ok(Math.abs(at(5) - 0.35) < 1e-9);
+  for (let t = 0; t <= 3; t += 0.01) assert.ok(Math.abs(walkBob(t, 6)) <= 0.35 + 1e-9);
+});
+
+test("walkSway rolls with every step, a quarter step off the bob", () => {
+  const at = (f: number) => walkSway(f / WALK_FPS, 6);
+  assert.ok(Math.abs(at(0.5)) < 1e-9 && Math.abs(at(3.5)) < 1e-9); // level on contact
+  assert.ok(Math.abs(at(1.25) - 1) < 1e-9 && Math.abs(at(2.75) + 1) < 1e-9);
+  assert.ok(Math.abs(at(4.25) - at(1.25)) < 1e-9); // same roll on both steps: she's side-on
+  for (let t = 0; t <= 3; t += 0.01) assert.ok(Math.abs(walkSway(t, 6)) <= 1 + 1e-9); // ~±0.7° on the shader's sway
 });
 
 test("walkSpeed keeps feet planted", () => {
-  assert.equal(walkSpeed(rig, 336), (130 * 7 * 336) / 1344);
+  assert.equal(walkSpeed(rig, 336), (rig.stride * WALK_FPS * 336) / 1344);
 });
 
 const FADE = 0.14, IN = 0.12;

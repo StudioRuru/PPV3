@@ -6,14 +6,14 @@ export type Rig = {
   w: number; h: number; rest: string; wave: string;
   P: [number, number]; D: [number, number]; tip: [number, number]; seed: [number, number];
   amp: number; hz: number;
-  /** Walk cycle stills (contact, passing, contact, passing) and the think still; stride = still px the feet travel per frame. */
+  /** Catwalk cycle stills (contact, passing, swing per leg: 6 frames) and the think still; stride = still px the feet travel per frame. */
   walk: string[]; think: string; stride: number;
 };
 
 /** Only the day standing still (Sprites base 114) is rigged; other outfits keep SpriteCanvas. */
 export const RIGS: Partial<Record<Outfit, Rig>> = {
   day: { w: 768, h: 1344, rest: "/rig/day/rest.png", wave: "/rig/day/wave.png", P: [268, 342], D: [-0.35, -0.94], tip: [238, 252], seed: [248, 300], amp: 0.22, hz: 2.1,
-    walk: ["/rig/day/walk1.png", "/rig/day/walk2.png", "/rig/day/walk3.png", "/rig/day/walk4.png"], think: "/rig/day/think.png", stride: 130 },
+    walk: ["/rig/day/walk1.png", "/rig/day/walk2.png", "/rig/day/walk3.png", "/rig/day/walk4.png", "/rig/day/walk5.png", "/rig/day/walk6.png"], think: "/rig/day/think.png", stride: 143 },
 };
 
 const HOLD = 2.6, FADE = 0.14, IN = 0.12;
@@ -145,10 +145,14 @@ export function hairMask(px: Uint8ClampedArray, rig: Rig): Uint8Array {
   return m;
 }
 
-export const WALK_FPS = 7;
-export const walkFrame = (t: number) => (Math.floor(Math.max(t, 0) * WALK_FPS) % 4) as 0 | 1 | 2 | 3;
-/** Up on the passing frames (1, 3), down on contact; fed through dip only. */
-export const walkBob = (t: number) => 0.35 * Math.cos(Math.PI * WALK_FPS * (t - 1.5 / WALK_FPS));
+export const WALK_FPS = 8;
+export const walkFrame = (t: number, n: number) => Math.floor(Math.max(t, 0) * WALK_FPS) % n;
+// n stills = two steps; each step's contact frame (0, n/2) sits down, mid-step rises. Phase is in frames from the first contact's centre.
+const stepPhase = (t: number, n: number) => (2 * Math.PI * (t * WALK_FPS - 0.5)) / (n / 2);
+/** Down on contact, up mid-step; fed through dip only. */
+export const walkBob = (t: number, n: number) => -0.35 * Math.cos(stepPhase(t, n));
+/** Hip roll: every step rolls the same way (she is side-on), a quarter step after the bob, level on contact; fed through sway. */
+export const walkSway = (t: number, n: number) => Math.sin(stepPhase(t, n));
 /** Screen px/s that keeps the planted foot still: one stride per frame, scaled to the displayed height. */
 export const walkSpeed = (rig: Rig, displayH: number) => (rig.stride * WALK_FPS * displayH) / rig.h;
 
