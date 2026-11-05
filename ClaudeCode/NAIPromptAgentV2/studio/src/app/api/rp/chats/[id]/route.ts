@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serializeModsJson } from "@/lib/rp/mods";
 import { removeRpFiles, rp } from "@/lib/rp/server";
 
 export const runtime = "nodejs";
@@ -30,7 +31,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   else if (b.op === "rewind" && own()) ok = rp.rewind(id, msgId, expect);
   else if (b.op === "chat") {
     // Metadata: last write wins and the message version doesn't move (safe while a reply is streaming).
-    rp.updateChat(id, Object.fromEntries(CHAT_FIELDS.filter((k) => k in b).map((k) => [k, b[k]])));
+    const fields: Record<string, unknown> = Object.fromEntries(CHAT_FIELDS.filter((k) => k in b).map((k) => [k, b[k]]));
+    if (typeof b.mods === "string") fields.mods = serializeModsJson(b.mods); // unknown ids dropped, values clamped
+    rp.updateChat(id, fields);
     ok = true;
   } else return NextResponse.json({ error: "Unknown change." }, { status: 400 });
   if (!ok) return NextResponse.json({ error: "This chat changed on another device — reload it.", conflict: true, ...view(id) }, { status: 409 });

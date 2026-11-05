@@ -61,16 +61,23 @@ export function RpScreen({ active }: { active: boolean }) {
     else setError(r.error);
   }
 
-  async function doImport(file?: File) {
+  /** One card → straight into a new chat with it. Several → all land in the gallery; failures are listed. */
+  async function doImport(files?: File[]) {
     setBusy(true); setError(null);
-    let r;
-    if (file) { const fd = new FormData(); fd.append("file", file); r = await requestJson<{ character: RpCharacter }>("/api/rp/import", { method: "POST", body: fd }); }
-    else r = await requestJson<{ character: RpCharacter }>("/api/rp/import", { method: "POST", ...json({ url: importUrl }) });
+    const one = (f?: File) => {
+      if (!f) return requestJson<{ character: RpCharacter }>("/api/rp/import", { method: "POST", ...json({ url: importUrl }) });
+      const fd = new FormData(); fd.append("file", f);
+      return requestJson<{ character: RpCharacter }>("/api/rp/import", { method: "POST", body: fd });
+    };
+    const results = files?.length ? await Promise.all(files.map(one)) : [await one()];
     setBusy(false);
-    if (!r.ok) { setError(r.error); return; }
-    setImporting(false); setImportUrl("");
+    const failed = results.flatMap((r, i) => (r.ok ? [] : [`${files?.[i]?.name ?? "link"}: ${r.error}`]));
+    const done = results.flatMap((r) => (r.ok ? [r.data.character] : []));
+    if (failed.length) setError(failed.join(" · "));
+    if (!done.length) return;
+    if (!failed.length) { setImporting(false); setImportUrl(""); }
     await load();
-    openCharacter(r.data.character.id);
+    if (done.length === 1 && !failed.length) newChat(done[0].id);
   }
 
   async function saveMe() {
@@ -160,15 +167,15 @@ export function RpScreen({ active }: { active: boolean }) {
           <button type="button" onClick={() => setImporting(false)} aria-label="Close" className="border-border size-11 rounded-full border">×</button></header>
         <div className="space-y-3 px-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}>
           <label className="border-border flex h-12 cursor-pointer items-center justify-center rounded-lg border border-dashed text-sm">
-            {busy ? "Importing…" : "Choose a card (PNG or JSON)"}
-            <input type="file" accept="image/png,application/json,.json" className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) doImport(f); }} />
+            {busy ? "Importing…" : "Choose cards (PNG or JSON)"}
+            <input type="file" multiple accept="image/png,application/json,.json" className="sr-only" disabled={busy} onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; if (f.length) doImport(f); }} />
           </label>
           <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (importUrl.trim()) doImport(); }}>
             <input value={importUrl} onChange={(e) => setImportUrl(e.target.value)} placeholder="or paste a chub.ai link" className="bg-bg border-border min-w-0 flex-1 rounded-md border px-2 py-2.5 text-base" />
             <button type="submit" disabled={busy || !importUrl.trim()} className="bg-accent text-accent-fg rounded-md px-3 font-semibold disabled:opacity-50">Get</button>
           </form>
           {error && <p role="alert" className="text-danger text-sm">{error}</p>}
-          <p className="text-faint text-xs">Embedded lorebooks come along. Nothing is sent anywhere except Chub, when you paste a link.</p>
+          <p className="text-faint text-xs">One card opens a chat with them right away; pick several to fill the gallery. Embedded lorebooks come along. Nothing is sent anywhere except Chub, when you paste a link.</p>
         </div>
       </Sheet>
 

@@ -74,3 +74,16 @@ test("buildTurn: regenerate excludes the reply being replaced", async () => {
   assert.doesNotMatch(t.messages.map((m) => m.content).join("\n"), /OLD-REPLY/);
   assert.equal(t.model, "apex");
 });
+
+test("buildTurn: per-chat mods reach the prompt, and the chat's reply length sets the token cap", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio" });
+  const chat = s.createChat(c);
+  s.updateChat(chat, { replyLength: 4, mods: JSON.stringify({ bimbofication: { enabled: true, value: 10 }, hypnosis: { enabled: true, value: 9 } }) });
+  s.append(chat, "user", "hi");
+  const t = await buildTurn(s, chat, { settings: { ...DEFAULT_RP_SETTINGS, replyLength: 1 }, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] });
+  const text = t.messages.map((m) => m.content).join("\n");
+  assert.match(text, /Mio is a total bimbo \(100% bimbofied\)/);
+  assert.match(text, /totally entranced \(hypnosis level 9\/10\)/);
+  assert.equal(t.options.num_predict, 1600);
+});

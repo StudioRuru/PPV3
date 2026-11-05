@@ -6,7 +6,8 @@ import { requestJson } from "@/lib/net";
 import { spyData, spyDue } from "@/lib/mascot/spy";
 import { substituteMacros } from "@/lib/rp/prompt";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
-import { AutoTextarea } from "../TagInput";
+import { AutoTextarea, useAutoSize } from "../TagInput";
+import { enabledMods, TuneSheet } from "./TuneSheet";
 import { Avatar, json, type GalleryChar } from "./RpScreen";
 
 type View = { chat: Chat; messages: RpMessage[]; version: number };
@@ -36,7 +37,10 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [feedback, setFeedback] = useState<{ id: number; kind: "like" | "dislike"; note: string } | null>(null);
   const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
   const [memory, setMemory] = useState<string | null>(null);
+  const [tuning, setTuning] = useState(false);
   const end = useRef<HTMLDivElement>(null);
+  const composer = useAutoSize(input);
+  const pinned = useRef(true); // follow the stream only while the reader is at the bottom
 
   const load = useCallback(async () => {
     const r = await requestJson<View>(`/api/rp/chats/${chatId}`);
@@ -50,7 +54,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     window.addEventListener("mascot:settings", on);
     return () => window.removeEventListener("mascot:settings", on);
   }, []);
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [v?.messages.length, stream?.text]);
+  useEffect(() => {
+    const on = () => { pinned.current = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 120; };
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
+  useEffect(() => { if (pinned.current) end.current?.scrollIntoView({ block: "end" }); }, [v?.messages.length, stream?.text]);
 
   const persona = personas.find((p) => p.id === v?.chat.personaId) ?? personas[0];
   const sub = (t: string) => substituteMacros(t, character.name, persona?.name || "User");
@@ -64,6 +73,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
 
   async function send(body: { text?: string; regenerate?: number; retry?: boolean }) {
     if (!v || busy) return;
+    pinned.current = true;
     setError(null); setStatus("Thinking…");
     setStream({ text: "", replacing: body.regenerate });
     if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now() }] });
@@ -128,6 +138,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
               className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
           ) : <p className="text-muted truncate text-[11px]">as {persona?.name ?? "User"}</p>}
         </div>
+        {v && <button type="button" onClick={() => setTuning(true)} className={`h-10 rounded-full border px-3 text-sm ${enabledMods(v.chat) ? "border-accent text-accent" : "border-border"}`}>
+          Tune{enabledMods(v.chat) ? ` · ${enabledMods(v.chat)}` : ""}</button>}
         <button type="button" onClick={onEdit} className="border-border h-10 rounded-full border px-3 text-sm">Card</button>
       </header>
 
@@ -155,7 +167,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             </div>
           );
           const actions = !busy && m.id > 0 && (
-            <div className="text-faint flex flex-wrap items-center gap-3 text-xs">
+            <div className="text-faint -ml-2 flex flex-wrap items-center text-xs [&>button]:min-h-10 [&>button]:px-2">
               {m.role === "assistant" && m.swipes.length > 1 && (
                 <span data-noswipe className="flex items-center gap-1 font-mono">
                   <button type="button" aria-label="Previous version" disabled={m.activeSwipeIndex === 0} onClick={() => patch({ op: "swipe", msgId: m.id, index: m.activeSwipeIndex - 1 })} className="grid size-8 place-items-center disabled:opacity-30">‹</button>
@@ -230,11 +242,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
 
       <form data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 flex gap-2 border-t px-4 py-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
         onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder={`Message ${character.name}…`}
+        <textarea ref={composer} value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder={`Message ${character.name}…`}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); submit(); } }}
-          className="bg-bg border-border min-w-0 flex-1 resize-none rounded-md border px-2 py-2.5 text-base" />
-        <button type="submit" disabled={busy || !input.trim()} className="bg-accent text-accent-fg w-16 rounded-md font-semibold disabled:opacity-50">Send</button>
+          className="bg-bg border-border max-h-[35dvh] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-2 py-2.5 text-base" />
+        <button type="submit" disabled={busy || !input.trim()} className="bg-accent text-accent-fg h-11 w-16 self-end rounded-md font-semibold disabled:opacity-50">Send</button>
       </form>
+      {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} agency={character.agency} sub={sub} onPatch={patch} />}
       {sheet}
     </section>
   );
