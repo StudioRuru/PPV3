@@ -382,6 +382,7 @@ export function assembleMessages({
     chat?.replyLength ?? settings.replyLength,
     chat?.replySpice ?? settings.replySpice,
     chat?.replyAgency ?? character?.agency ?? settings.replyAgency,
+    chat?.style,
   );
   if (mood) jbParts.push(sub(mood));
   // Structural narrative locks (POV / tense / dialogue formatting) authored in the

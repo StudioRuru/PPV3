@@ -35,10 +35,10 @@ const DIRECTIONS = {
 };
 // Close chat: talk, not narration. Story: novelist openings.
 const CHAT_OPENINGS = [
-  { kind: "dialogue", text: "Open straight away with what {{char}} says — a reaction to {{user}}" },
-  { kind: "dialogue", text: "Open with {{char}} asking {{user}} something personal or teasing" },
-  { kind: "action", text: "Open with a tiny *action* aside, then {{char}} talking" },
-  { kind: "thought", text: "Open with {{char}} admitting how they feel right now, out loud" },
+  { kind: "dialogue", text: "Start with a quick reaction text to {{user}}'s message" },
+  { kind: "dialogue", text: "Start by texting {{user}} a question back — personal or teasing" },
+  { kind: "action", text: "Start by texting what {{char}} is doing or wearing right now" },
+  { kind: "thought", text: "Start by texting how {{char}} feels right now, a little too honestly" },
 ];
 const STORY_OPENINGS = [
   { kind: "world", text: "Open by narrating the setting or something happening around them" },
@@ -49,7 +49,7 @@ const STORY_OPENINGS = [
 ];
 const VOICE: Record<string, string> = {
   "": "Keep the same narrative voice and person as your earlier replies — don't switch between \"I\" and third person.",
-  chat: "Speak as {{char}} in the first person — this is a conversation, not a narration.",
+  chat: "Write only {{char}}'s texts — short separate messages, casual, no *actions* or narration.",
   story: "Keep narrating in the third person — never \"I\" outside of dialogue.",
 };
 const OPENINGS = [
