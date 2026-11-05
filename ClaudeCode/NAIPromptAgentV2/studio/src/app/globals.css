@@ -157,6 +157,10 @@ button:active:not(:disabled):not(.sheet-backdrop) { scale: 0.97; transition-dura
 ::view-transition-group(*) { animation-duration: 420ms; animation-timing-function: var(--ease-settle); }
 ::view-transition-old(*), ::view-transition-new(*) { height: 100%; object-fit: cover; }
 ::view-transition-old(root) { animation-duration: 180ms; }
+/* RP chat styles: close chat = message bubbles; story = book prose. */
+[data-style="chat"] { width: fit-content; max-width: 100%; padding: .6rem .9rem; border-radius: 1.15rem 1.15rem 1.15rem .4rem; background: var(--color-surface-2); }
+[data-style="story"] { font-family: ui-serif, "Iowan Old Style", Georgia, serif; font-size: 16.5px; line-height: 1.75; }
+[data-style="story"] > p + p { text-indent: 1.25em; }
 @keyframes fade { from { opacity: 0; } }
 .animate-fade { animation: fade 260ms var(--ease-out) backwards; }
 /* Counter badge lands with a small settle (no overshoot). */

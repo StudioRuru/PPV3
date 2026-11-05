@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS rp_chats (
   lorebook_id INTEGER REFERENCES rp_lorebooks(id) ON DELETE SET NULL, show_background INTEGER NOT NULL DEFAULT 1,
   author_note TEXT NOT NULL DEFAULT '', author_note_depth INTEGER NOT NULL DEFAULT 4, wallpaper_path TEXT,
   reply_length INTEGER, reply_spice INTEGER, reply_agency INTEGER, memory_summary TEXT NOT NULL DEFAULT '',
-  summarized_through INTEGER NOT NULL DEFAULT 0, mods TEXT NOT NULL DEFAULT '', state_values TEXT NOT NULL DEFAULT '{}', ${TS});
+  summarized_through INTEGER NOT NULL DEFAULT 0, mods TEXT NOT NULL DEFAULT '', state_values TEXT NOT NULL DEFAULT '{}', style TEXT NOT NULL DEFAULT '', ${TS});
 CREATE TABLE IF NOT EXISTS rp_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL REFERENCES rp_chats(id) ON DELETE CASCADE,
   role TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', swipes TEXT NOT NULL DEFAULT '[]',
@@ -56,5 +56,8 @@ export function migrateRp(db: Database.Database): void {
   const has = (db.prepare("PRAGMA table_info(taste_events)").all() as { name: string }[]).some((c) => c.name === "source");
   if (!has) {
     try { db.exec("ALTER TABLE taste_events ADD COLUMN source TEXT NOT NULL DEFAULT 'tag'"); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
+  }
+  if (!(db.prepare("PRAGMA table_info(rp_chats)").all() as { name: string }[]).some((c) => c.name === "style")) {
+    db.exec("ALTER TABLE rp_chats ADD COLUMN style TEXT NOT NULL DEFAULT ''");
   }
 }

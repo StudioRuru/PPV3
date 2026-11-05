@@ -73,6 +73,18 @@ const AGENCY_DIRECTIVE = [
 
 const clampLevel = (n: number) => Math.max(0, Math.min(4, Math.round(Number(n) || 0)));
 
+export const CHAT_STYLES = [
+  { id: "", label: "Auto", blurb: "The card's own voice" },
+  { id: "chat", label: "💬 Close chat", blurb: "Intimate one-on-one talk — mostly what they say to you" },
+  { id: "story", label: "📖 Story", blurb: "Narrated like a novel — scene, body language, inner thoughts" },
+] as const;
+const STYLE_DIRECTIVE: Record<string, string> = {
+  chat: "Style: a close, personal one-on-one conversation between {{char}} and {{user}} — like a private late-night talk or texting someone you're close to. Write mostly {{char}}'s own words, in the first person (\"I\"), casual and natural, full of personality: reactions, teasing, little confessions, questions back to {{user}}, pet names when it fits. At most a brief *action* aside — no scene narration, no describing the room. Keep the back-and-forth lively and end on something that pulls {{user}} into replying.",
+  story: "Style: a narrated story. Write like a novelist in the third person, referring to {{char}} by name or pronoun: set the scene, then weave sensory detail, {{char}}'s actions, body language and inner thoughts together with their dialogue in flowing paragraphs. Let the scene move forward each reply. Describe {{user}} only through what {{char}} perceives — never decide {{user}}'s words or actions.",
+};
+/** The chat's style directive ("" = none; the card's POV/tense locks apply instead). */
+export const styleDirective = (style: string | null | undefined) => STYLE_DIRECTIVE[style ?? ""] ?? "";
+
 /** Build the mood directive appended to the post-history slot. */
 export function moodDirective(length: number, spice: number, agency: number): string {
   const parts: string[] = [];

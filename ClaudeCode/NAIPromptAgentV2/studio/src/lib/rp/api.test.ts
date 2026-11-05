@@ -136,3 +136,20 @@ test("steerTurn: spice gates adult directions; the opening differs from the last
     assert.doesNotMatch(c, /Open with a line of Mio's dialogue/);
   }
 });
+
+test("chat style: close chat speaks first person and drops the card's POV lock; story narrates; steering follows", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio", povMode: "second" });
+  const chat = s.createChat(c);
+  s.append(chat, "user", "hey you");
+  const deps = { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] };
+  const text = async () => (await buildTurn(s, chat, deps)).messages.map((m) => m.content).join("\n");
+  assert.match(await text(), /second person/);
+  s.updateChat(chat, { style: "chat" });
+  const t = await text();
+  assert.match(t, /close, personal one-on-one/);
+  assert.doesNotMatch(t, /second person/);
+  assert.match(t, /Speak as Mio in the first person/);
+  s.updateChat(chat, { style: "story" });
+  assert.match(await text(), /narrated story[\s\S]*Keep narrating in the third person/);
+});

@@ -12,7 +12,7 @@ const char = (o: Partial<RpCharacter> = {}): RpCharacter => ({
 const persona: RpPersona = { id: 1, name: "Phil", description: "", avatarPath: null, isDefault: 1, relationship: "", addressAs: "", boundaries: "", createdAt: 0, updatedAt: 0 };
 const chat = (o: Partial<RpChat> = {}): RpChat => ({
   id: 1, characterId: 1, personaId: 1, title: "", model: null, lorebookId: null, showBackground: 1, authorNote: "", authorNoteDepth: 4,
-  wallpaperPath: null, replyLength: null, replySpice: null, replyAgency: null, memorySummary: "", summarizedThrough: 0, mods: "", stateValues: "{}",
+  wallpaperPath: null, replyLength: null, replySpice: null, replyAgency: null, memorySummary: "", summarizedThrough: 0, mods: "", stateValues: "{}", style: "",
   createdAt: 0, updatedAt: 0, ...o,
 });
 const lore = (o: Partial<LoreEntry>): LoreEntry => ({ keys: [], secondaryKeys: [], content: "", enabled: true, constant: false, scanDepth: 0, position: "after", probability: 100, insertionOrder: 0, ...o });

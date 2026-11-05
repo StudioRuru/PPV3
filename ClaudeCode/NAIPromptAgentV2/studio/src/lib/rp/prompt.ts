@@ -1,7 +1,7 @@
 // Ported from Delfino Plaza src/lib/prompt.ts (photo-note support dropped; storyBlock added).
 import type { ChatMessage, RpCharacter as Character, RpChat as Chat, RpMessage as Message, RpPersona as Persona, RpSettings as Settings, SamplerOptions } from "./types";
 import { parseExampleDialogue } from "./exampleDialogue";
-import { lengthNumPredict, moodDirective, structureDirective } from "./presets";
+import { lengthNumPredict, moodDirective, structureDirective, styleDirective } from "./presets";
 import { parseStateSchema, parseStateValues, stateBlock } from "./state";
 import { modsDirective, resolveMods } from "./mods";
 
@@ -386,10 +386,13 @@ export function assembleMessages({
   if (mood) jbParts.push(sub(mood));
   // Structural narrative locks (POV / tense / dialogue formatting) authored in the
   // Character Studio. Sits next to the mood directive, closest to generation.
-  const structure = character
+  // A chat style (close chat / narrated story) replaces the card's POV locks — they'd contradict it.
+  const style = styleDirective(chat?.style);
+  const structure = character && !style
     ? structureDirective(character.povMode, character.tense, character.dialogueStyle)
     : "";
   if (structure) jbParts.push(sub(structure));
+  if (style) jbParts.push(sub(style));
   // Live dynamic story state (relationship meters, outfit, location, …), listed
   // right before generation so the model keeps the scene consistent with it.
   if (character) {

@@ -33,6 +33,25 @@ const DIRECTIONS = {
     "escalate the scene dramatically", "reveal something unexpected about {{char}}", "flip the mood of the scene on its head",
   ],
 };
+// Close chat: talk, not narration. Story: novelist openings.
+const CHAT_OPENINGS = [
+  { kind: "dialogue", text: "Open straight away with what {{char}} says — a reaction to {{user}}" },
+  { kind: "dialogue", text: "Open with {{char}} asking {{user}} something personal or teasing" },
+  { kind: "action", text: "Open with a tiny *action* aside, then {{char}} talking" },
+  { kind: "thought", text: "Open with {{char}} admitting how they feel right now, out loud" },
+];
+const STORY_OPENINGS = [
+  { kind: "world", text: "Open by narrating the setting or something happening around them" },
+  { kind: "action", text: "Open by narrating a physical action of {{char}}'s" },
+  { kind: "thought", text: "Open inside {{char}}'s head — what they notice, want, or fear" },
+  { kind: "body", text: "Open on {{char}}'s body language reacting to {{user}}" },
+  { kind: "dialogue", text: "Open on {{char}}'s spoken line, then narrate around it" },
+];
+const VOICE: Record<string, string> = {
+  "": "Keep the same narrative voice and person as your earlier replies — don't switch between \"I\" and third person.",
+  chat: "Speak as {{char}} in the first person — this is a conversation, not a narration.",
+  story: "Keep narrating in the third person — never \"I\" outside of dialogue.",
+};
 const OPENINGS = [
   { kind: "dialogue", text: "Open with a line of {{char}}'s dialogue" },
   { kind: "action", text: "Open with a physical action by {{char}}" },
@@ -42,9 +61,10 @@ const OPENINGS = [
 ];
 /** Rough opening kind of a reply, so the next one opens some other way. */
 export const openingKind = (t: string) => (/^\s*["“]/.test(t) ? "dialogue" : /^\s*\*/.test(t) ? "action" : "thought");
+const openingsFor = (style: string) => (style === "chat" ? CHAT_OPENINGS : style === "story" ? STORY_OPENINGS : OPENINGS);
 const snip = (t: string, n: number) => { const x = t.replace(/\s+/g, " ").trim(); return x.length > n ? `${x.slice(0, n)}…` : x; };
 
-export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string };
+export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string; style?: string };
 
 /**
  * Keeps replies fresh. Every turn: a fresh seed, an opening unlike the last reply's, "don't reuse your recent openings",
@@ -60,11 +80,13 @@ export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
   const pool = o.wild ? (rand() < 0.5 ? DIRECTIONS.wild : adult) : rand() < 0.6 ? adult : pools;
   const regen = !!o.drafts?.length;
   const last = regen ? o.drafts!.at(-1)! : o.recent?.at(-1);
-  const opening = pick(OPENINGS.filter((x) => !last || x.kind !== openingKind(last)));
+  const all = openingsFor(o.style ?? "");
+  // Close chat always opens with talk, so only the other styles rotate away from the last reply's kind.
+  const opening = pick(o.style === "chat" ? all : all.filter((x) => !last || x.kind !== openingKind(last)));
   const lines = [regen
     ? `[Alternate take] Write a reply that is clearly different from these earlier drafts — different opening, different gestures, different choices, different phrasing. Don't reuse their lines.`
     : `[Keep it fresh] Don't reuse the openings, gestures or stock phrases of your recent replies.`];
-  lines.push(`${fill(opening.text)}. Keep the same narrative voice as your earlier replies — refer to {{char}} by name or she/he/they, never "I", outside of dialogue.`.replaceAll("{{char}}", o.charName));
+  lines.push(`${fill(opening.text)}. ${fill(VOICE[o.style ?? ""] ?? VOICE[""])}`);
   if (regen || o.wild || rand() < 0.35) lines.push(`Direction: ${fill(pick(pool))}.`);
   if (regen) lines.push(`Earlier drafts:\n${o.drafts!.slice(-3).map((d) => `- ${snip(d, 280)}`).join("\n")}`);
   else if (o.recent?.length) lines.push(`Your recent openings:\n${o.recent.slice(-3).map((d) => `- ${snip(d, 90)}`).join("\n")}`);
@@ -107,6 +129,6 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
   return steerTurn(turn, {
     drafts: old ? (old.swipes.length ? old.swipes : [old.content]) : undefined,
     recent: history.filter((m) => m.role === "assistant").slice(-3).map((m) => m.content),
-    wild, spice: chat.replySpice ?? deps.settings.replySpice, charName: character?.name ?? "the character", userName: persona?.name ?? "User",
+    wild, style: chat.style, spice: chat.replySpice ?? deps.settings.replySpice, charName: character?.name ?? "the character", userName: persona?.name ?? "User",
   });
 }

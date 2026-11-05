@@ -33,6 +33,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     // Metadata: last write wins and the message version doesn't move (safe while a reply is streaming).
     const fields: Record<string, unknown> = Object.fromEntries(CHAT_FIELDS.filter((k) => k in b).map((k) => [k, b[k]]));
     if (typeof b.mods === "string") fields.mods = serializeModsJson(b.mods); // unknown ids dropped, values clamped
+    if (["", "chat", "story"].includes(b.style)) fields.style = b.style;
     rp.updateChat(id, fields);
     ok = true;
   } else return NextResponse.json({ error: "Unknown change." }, { status: 400 });

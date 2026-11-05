@@ -22,6 +22,8 @@ export type RpChat = {
   lorebookId: number | null; showBackground: number; authorNote: string; authorNoteDepth: number; wallpaperPath: string | null;
   replyLength: number | null; replySpice: number | null; replyAgency: number | null;
   memorySummary: string; summarizedThrough: number; mods: string; stateValues: string;
+  /** "" = card default, "chat" = close personal one-on-one, "story" = narrated novel prose. */
+  style: string;
   createdAt: number; updatedAt: number;
 };
 

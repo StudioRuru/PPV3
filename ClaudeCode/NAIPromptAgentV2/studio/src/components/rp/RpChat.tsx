@@ -125,6 +125,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
 
   const msgs = v?.messages ?? [];
   const lastId = msgs.at(-1)?.id;
+  const style = v?.chat.style ?? "";
 
   return (
     <section aria-label={`Chat with ${character.name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
@@ -188,12 +189,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             </div>
           );
           return m.role === "user" ? (
-            <div key={m.id} className="animate-rise bg-surface-2 ml-10 space-y-1.5 rounded-lg p-2.5 text-sm"><Prose text={sub(m.content)} />{actions}</div>
+            <div key={m.id} className={`animate-rise space-y-1.5 text-sm ${style === "chat" ? "bg-accent/15 ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2.5" : "bg-surface-2 ml-10 rounded-lg p-2.5"}`}><Prose text={sub(m.content)} />{actions}</div>
           ) : (
             <div key={m.id} className="animate-rise flex gap-2">
               <Avatar c={character} size="size-8" />
               <div className="min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">
-                <div key={replacing ? "stream" : m.activeSwipeIndex} className={`animate-fade space-y-1.5 ${replacing ? "stream-caret" : ""}`}>
+                <div key={replacing ? "stream" : m.activeSwipeIndex} data-style={style || undefined} className={`animate-fade space-y-1.5 ${replacing ? "stream-caret" : ""}`}>
                   <Prose text={sub(replacing ? stream!.text || "…" : m.content)} />
                 </div>
                 {actions}
@@ -230,7 +231,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         {stream && stream.replacing === undefined && (
           <div className="animate-rise flex gap-2">
             <Avatar c={character} size="size-8" />
-            <div className="stream-caret min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">{stream.text ? <Prose text={sub(stream.text)} /> : <p className="thinking text-muted text-sm">…</p>}</div>
+            <div data-style={style || undefined} className="stream-caret min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">{stream.text ? <Prose text={sub(stream.text)} /> : <p className="thinking text-muted text-sm">…</p>}</div>
           </div>
         )}
         {status && (

@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { MODS, resolveMods, type ModState } from "@/lib/rp/mods";
-import { REPLY_AGENCY_STOPS, REPLY_LENGTH_STOPS, REPLY_SPICE_STOPS } from "@/lib/rp/presets";
+import { CHAT_STYLES, REPLY_AGENCY_STOPS, REPLY_LENGTH_STOPS, REPLY_SPICE_STOPS } from "@/lib/rp/presets";
 import { DEFAULT_RP_SETTINGS, type RpChat } from "@/lib/rp/types";
 import { Sheet } from "../Sheet";
 import { AutoTextarea } from "../TagInput";
 
-type Draft = { replyLength: number; replySpice: number; replyAgency: number; authorNote: string; mods: Record<string, ModState> };
+type Draft = { style: string; replyLength: number; replySpice: number; replyAgency: number; authorNote: string; mods: Record<string, ModState> };
 const MOOD: [keyof Draft & `reply${string}`, string, string[]][] = [
   ["replyLength", "Reply length", REPLY_LENGTH_STOPS], ["replySpice", "Spice", REPLY_SPICE_STOPS], ["replyAgency", "Will", REPLY_AGENCY_STOPS],
 ];
@@ -41,6 +41,7 @@ export function ModList({ mods, onChange, sub }: { mods: Record<string, ModState
 }
 
 const fromChat = (c: RpChat, agency: number | null, globalMods?: string): Draft => ({
+  style: c.style ?? "",
   replyLength: c.replyLength ?? DEFAULT_RP_SETTINGS.replyLength, replySpice: c.replySpice ?? DEFAULT_RP_SETTINGS.replySpice,
   replyAgency: c.replyAgency ?? agency ?? DEFAULT_RP_SETTINGS.replyAgency, authorNote: c.authorNote, mods: resolveMods(globalMods, c.mods),
 });
@@ -66,6 +67,13 @@ export function TuneSheet({ open, onClose, chat, globalMods, agency, sub, onPatc
       <header className="flex items-center p-3"><h2 className="flex-1 text-base font-semibold">Tune this chat</h2>
         <button type="button" onClick={onClose} aria-label="Close" className="border-border size-11 rounded-full border">×</button></header>
       <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}>
+        <div role="radiogroup" aria-label="Style" className="bg-bg border-border grid grid-cols-3 gap-1 rounded-xl border p-1">
+          {CHAT_STYLES.map((st) => (
+            <button key={st.id} type="button" role="radio" aria-checked={d.style === st.id} onClick={() => edit({ style: st.id })}
+              className={`min-h-11 rounded-lg px-1 text-sm transition-[background-color,color] duration-200 ${d.style === st.id ? "bg-accent text-accent-fg font-semibold" : "text-muted"}`}>{st.label}</button>
+          ))}
+        </div>
+        <p key={d.style} className="text-faint animate-fade -mt-2 text-xs">{CHAT_STYLES.find((st) => st.id === d.style)?.blurb}</p>
         <div data-noswipe className="space-y-3">
           {MOOD.map(([k, label, stops]) => (
             <label key={k} className="block text-sm">
