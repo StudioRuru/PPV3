@@ -36,7 +36,7 @@ const DIRECTIONS = {
 const OPENINGS = [
   { kind: "dialogue", text: "Open with a line of {{char}}'s dialogue" },
   { kind: "action", text: "Open with a physical action by {{char}}" },
-  { kind: "thought", text: "Open with {{char}}'s inner thought or feeling" },
+  { kind: "thought", text: "Open with a glimpse of what {{char}} is feeling, narrated about {{char}}" },
   { kind: "world", text: "Open with something happening around them — a sound, the room, another person" },
   { kind: "body", text: "Open on {{char}}'s body language reacting to {{user}}" },
 ];
@@ -64,7 +64,7 @@ export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
   const lines = [regen
     ? `[Alternate take] Write a reply that is clearly different from these earlier drafts — different opening, different gestures, different choices, different phrasing. Don't reuse their lines.`
     : `[Keep it fresh] Don't reuse the openings, gestures or stock phrases of your recent replies.`];
-  lines.push(`${fill(opening.text)}.`);
+  lines.push(`${fill(opening.text)}. Keep the same narrative voice as your earlier replies — refer to {{char}} by name or she/he/they, never "I", outside of dialogue.`.replaceAll("{{char}}", o.charName));
   if (regen || o.wild || rand() < 0.35) lines.push(`Direction: ${fill(pick(pool))}.`);
   if (regen) lines.push(`Earlier drafts:\n${o.drafts!.slice(-3).map((d) => `- ${snip(d, 280)}`).join("\n")}`);
   else if (o.recent?.length) lines.push(`Your recent openings:\n${o.recent.slice(-3).map((d) => `- ${snip(d, 90)}`).join("\n")}`);
