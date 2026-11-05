@@ -71,7 +71,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     setError(r.error); load(); return false;
   }
 
-  async function send(body: { text?: string; regenerate?: number; retry?: boolean }) {
+  async function send(body: { text?: string; regenerate?: number; wild?: boolean; retry?: boolean }) {
     if (!v || busy) return;
     pinned.current = true;
     setError(null); setStatus("Thinking…");
@@ -179,7 +179,10 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
                 <button type="button" aria-label="Like reply" aria-pressed={rated[m.id] === "like"} disabled={!!rated[m.id]} onClick={() => rate(m.id, "like")} className={rated[m.id] === "like" ? "text-ok" : ""}>👍</button>
                 <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.id] === "dislike"} disabled={!!rated[m.id]} onClick={() => rate(m.id, "dislike")} className={rated[m.id] === "dislike" ? "text-danger" : ""}>👎</button>
               </>}
-              {m.role === "assistant" && m.id === lastId && <button type="button" onClick={() => send({ regenerate: m.id })}>Regenerate</button>}
+              {m.role === "assistant" && m.id === lastId && <>
+                <button type="button" onClick={() => send({ regenerate: m.id })}>Regenerate</button>
+                <button type="button" onClick={() => send({ regenerate: m.id, wild: true })} title="A much bolder, unpredictable take">🎲 Wild</button>
+              </>}
               <button type="button" onClick={() => setEditing({ id: m.id, text: m.content })}>Edit</button>
               {m.id !== lastId && <button type="button" onClick={() => setRewind(m.id)}>Rewind here</button>}
             </div>

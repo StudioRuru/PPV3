@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * `{ text, version }` sends a message; `{ regenerate: msgId, version }` adds another swipe to that reply;
+ * `{ text, version }` sends a message; `{ regenerate: msgId, wild?, version }` adds another (deliberately different) swipe to that reply;
  * `{ retry: true, version }` answers the chat's last message when it's the user's (after a failed reply).
  * Streams the reply as plain text. The user's message is saved first, so a failed reply never loses it.
  * Header `X-Paused: 1` = the captioner/TIPO were paused to fit the heavy model.
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
   const settings = rpSettings();
   const heavy = heavyModel();
-  const turn = await buildTurn(rp, chatId, { settings, storyBlock: learnedStoryBlock(), heavy, installed: await installedModels(), embed }, replacing);
+  const turn = await buildTurn(rp, chatId, { settings, storyBlock: learnedStoryBlock(), heavy, installed: await installedModels(), embed }, replacing, b.wild === true);
   const willPause = heavyGate.state === "light";
   const enc = new TextEncoder();
 

@@ -47,7 +47,7 @@ export const DEFAULT_RP_SETTINGS: RpSettings = {
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string; images?: string[] };
 export type SamplerOptions = {
   temperature?: number; top_p?: number; top_k?: number; repeat_penalty?: number; min_p?: number;
-  num_ctx?: number; num_predict?: number; stop?: string[];
+  num_ctx?: number; num_predict?: number; stop?: string[]; seed?: number;
 };
 
 const toCamel = (k: string) => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());

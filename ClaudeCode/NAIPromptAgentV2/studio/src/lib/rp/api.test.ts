@@ -5,7 +5,7 @@ import { migrateRp } from "./schema";
 import { RpStore } from "./store";
 import { rpFile } from "./files";
 import { importCard } from "./import";
-import { buildTurn } from "./turn";
+import { buildTurn, varyTurn } from "./turn";
 import { DEFAULT_RP_SETTINGS } from "./types";
 import { toBuffer } from "./voice";
 
@@ -71,7 +71,7 @@ test("buildTurn: regenerate excludes the reply being replaced", async () => {
   s.append(chat, "user", "hello");
   const a = s.append(chat, "assistant", "OLD-REPLY")!;
   const t = await buildTurn(s, chat, { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] }, a);
-  assert.doesNotMatch(t.messages.map((m) => m.content).join("\n"), /OLD-REPLY/);
+  assert.ok(!t.messages.some((m) => m.role === "assistant" && /OLD-REPLY/.test(m.content))); // only in the "avoid" note
   assert.equal(t.model, "apex");
 });
 
@@ -99,4 +99,24 @@ test("buildTurn: global mods apply to untuned chats; a tuned chat's map wins", a
   s.updateChat(tuned, { mods: JSON.stringify({ hypnosis: { enabled: false, value: 9 } }) });
   s.append(tuned, "user", "hi");
   assert.doesNotMatch((await buildTurn(s, tuned, deps)).messages.map((m) => m.content).join("\n"), /hypnosis/i);
+});
+
+test("regenerate: earlier drafts are shown to avoid, sampler gets hotter per retry, wild goes further", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio" });
+  const chat = s.createChat(c);
+  s.append(chat, "user", "hello");
+  const a = s.append(chat, "assistant", "FIRST-DRAFT")!;
+  const deps = { settings: { ...DEFAULT_RP_SETTINGS, temperature: 1 }, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] };
+  const t = await buildTurn(s, chat, deps, a);
+  assert.match(t.messages.at(-1)!.content, /Alternate take[\s\S]*FIRST-DRAFT/);
+  assert.ok(t.options.temperature! > 1 && t.options.seed !== undefined);
+  s.addSwipe(a, "SECOND-DRAFT");
+  const t2 = await buildTurn(s, chat, deps, a);
+  assert.ok(t2.options.temperature! > t.options.temperature!);
+  const w = varyTurn({ ...t, messages: [] }, ["x"], true, "Mio", () => 0);
+  assert.ok(w.options.temperature! >= 1.5 && w.options.min_p! >= 0.08);
+  assert.match(w.messages[0].content, /surprising turn/);
+  const fresh = await buildTurn(s, chat, deps); // not a regenerate → untouched
+  assert.equal(fresh.options.seed, undefined);
 });
