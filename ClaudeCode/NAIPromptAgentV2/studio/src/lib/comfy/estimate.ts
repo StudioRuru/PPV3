@@ -25,7 +25,8 @@ export function estimate(r: PhotoRecipe | VideoRecipe | EditJob, gpu: string, us
     seconds = OVERHEAD.photo + r.steps * PER_STEP.photo[cls][isDit(r.model) ? "qwen" : "1mp"] * mp * hires;
   } else {
     const kind: Kind = r.mode === "t2v" ? "t2v" : "i2v";
-    seconds = OVERHEAD[kind] + r.steps * PER_STEP[kind][cls][r.size] * (wanFrames(r.seconds) / 81);
+    const guided = kind === "i2v" && r.cfg !== 1 ? 2 : 1; // CFG > 1 adds the negative pass: 20 steps / 3.5 measured 510 s at 480p
+    seconds = OVERHEAD[kind] + r.steps * guided * PER_STEP[kind][cls][r.size] * (wanFrames(r.seconds) / 81);
   }
   seconds = Math.round(seconds);
   return { seconds, usd: (seconds / 3600) * usdHr };

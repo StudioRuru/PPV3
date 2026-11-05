@@ -53,7 +53,7 @@ test("loadPhoto ignores wrong-typed fields", () => {
 
 test("default video recipe matches the spec defaults", () => {
   const r = defaultVideo();
-  assert.deepEqual([r.mode, r.seconds, r.motion, r.fps, r.size, r.steps, r.cfg, r.seed], ["animate", 5, "medium", 60, "480p", 8, 1, -1]);
+  assert.deepEqual([r.mode, r.seconds, r.motion, r.fps, r.size, r.steps, r.cfg, r.seed], ["animate", 5, "medium", 60, "480p", 20, 3.5, -1]);
   assert.deepEqual([r.start, r.end, r.loras], [null, null, []]);
 });
 
@@ -74,11 +74,11 @@ test("loadVideo ignores wrong-typed fields and bad enums; saveVideo round-trips"
   }
 });
 
-test("videoTune: t2v 20/3.5, Smooth Mix i2v 8/1", () => {
+test("videoTune: t2v and Smooth Mix i2v both 20/3.5 (no lightx2v baked in)", () => {
   assert.deepEqual(videoTune("t2v"), { steps: 20, cfg: 3.5 });
-  assert.deepEqual(videoTune("loop"), { steps: 8, cfg: 1 });
-  assert.equal(defaultVideo().steps, 8);
-  assert.equal(defaultVideo().cfg, 1);
+  assert.deepEqual(videoTune("loop"), { steps: 20, cfg: 3.5 });
+  assert.equal(defaultVideo().steps, 20);
+  assert.equal(defaultVideo().cfg, 3.5);
 });
 
 test("photoTune per family; defaultPhoto follows the first model", () => {

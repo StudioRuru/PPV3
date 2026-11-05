@@ -42,11 +42,11 @@ export function savePhoto(r: PhotoRecipe): void {
   try { localStorage.setItem(PHOTO_DRAFT_KEY, JSON.stringify({ ...r, pose: null })); } catch {}
 }
 
-export const VIDEO_DRAFT_KEY = "studio-comfy-video-v2"; // v2: Smooth Mix tune (8 steps, CFG 1)
+export const VIDEO_DRAFT_KEY = "studio-comfy-video-v3"; // v3: Smooth Mix at 20 steps, CFG 3.5
 
-/** Smooth Mix i2v has lightx2v baked in (8 steps, CFG 1); the 5B T2V wants 20 / 3.5. */
+/** 20 steps / CFG 3.5 for both models. Smooth Mix v2.0 has no lightx2v baked in, so 8 steps / CFG 1 came out ghosted. */
 export function videoTune(mode: VideoRecipe["mode"]): { steps: number; cfg: number } {
-  return mode === "t2v" ? { steps: 20, cfg: 3.5 } : { steps: 8, cfg: 1 };
+  return { steps: 20, cfg: 3.5 };
 }
 
 export function defaultVideo(): VideoRecipe {

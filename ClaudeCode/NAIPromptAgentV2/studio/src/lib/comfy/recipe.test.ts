@@ -321,3 +321,10 @@ test("expert LoRA lands on one unet only; unscoped on both", () => {
   assert.equal(n([{ name: "h.safetensors", strength: 1, expert: "high" }]), 1);
   assert.equal(n([{ name: "a.safetensors", strength: 1 }]), 2);
 });
+
+test("estimate: CFG above 1 doubles the i2v step cost (measured 510 s for 5 s 480p at 20 / 3.5 on an A6000)", () => {
+  const i2v = { ...video, mode: "animate" as const, size: "480p" as const, seconds: 5, steps: 20 };
+  const s = estimate({ ...i2v, cfg: 3.5 }, "A6000", 1).seconds;
+  assert.ok(s > 450 && s < 650, `${s}`);
+  assert.ok(estimate({ ...i2v, cfg: 1 }, "A6000", 1).seconds < s * 0.6);
+});
