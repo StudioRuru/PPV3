@@ -20,6 +20,7 @@ import { loadDefaults, SettingsSheet } from "@/components/SettingsSheet";
 import { UpscaleSheet, VariationSheet } from "@/components/VariationSheet";
 import { costLabel, developed, HistoryStrip, mb, type Generation } from "@/components/HistoryStrip";
 import { LineList } from "@/components/LineList";
+import { Recall } from "@/components/Recall";
 import { Mascot } from "@/components/mascot/Mascot";
 import { emitMascot } from "@/lib/mascot/bus";
 import { diffTags } from "@/lib/mascot/ui";
@@ -296,9 +297,10 @@ export default function Studio() {
         </div>
         <ParamsBar params={params} onParams={setParams} rating={state.rating} onRating={(rating) => setState({ ...state, rating })} />
         <div data-drop="base" data-mascot-target className="bg-surface border-border rounded-lg border p-3">
-          <header className="mb-2 flex items-center gap-2">
+          <header className="mb-2 flex flex-wrap items-center gap-2">
             <h2 className="flex-1 text-sm font-semibold">Base prompt</h2>
             <PosNegTabs side={baseSide} onSide={setBaseSide} pos={state.base.reduce((n, l) => n + tagCount(l.text), 0)} neg={tagCount(state.uc)} />
+            <Recall lines={state.base} onLoad={(base) => setState({ ...state, base })} what="base" />
           </header>
           {baseSide === "pos"
             ? <LineList lines={state.base} onChange={(base) => setState({ ...state, base })} />

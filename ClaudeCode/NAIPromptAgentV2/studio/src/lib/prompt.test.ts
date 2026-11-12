@@ -166,3 +166,15 @@ test("splitArtists pulls artist tags (with {}/[] or numeric emphasis) out of lin
   assert.deepEqual(base.map((l) => [l.text, l.weight]), [["1girl, nsfw", undefined], ["rain", 1.2]]);
   assert.deepEqual(artists.map((l) => [l.text, l.weight]), [["artist:Yabby", 1.1], ["artist:wlop", undefined], ["artist:sho", 0.8]]);
 });
+
+test("interact tags doer, receiver, or both", async () => {
+  const { interact, layout } = await import("./prompt");
+  const two = [0, 1].map(() => ({ id: newLine().id, lines: [newLine("girl")], uc: "", enabled: true }));
+  const one = interact(two, 1, 0, "target#hug");
+  assert.deepEqual(one.map((c) => c.lines.at(-1)!.text), ["target#hug", "source#hug"]);
+  assert.deepEqual(interact(two, 0, 1, "kiss", true).map((c) => c.lines.at(-1)!.text), ["mutual#kiss", "mutual#kiss"]);
+  assert.equal(interact(two, 0, 0, "hug"), two);
+  const row = layout("row", 3).map((r) => r.x);
+  assert.ok(row[0] < row[1] && row[1] < row[2]);
+  assert.ok(layout("stack", 2)[0].y < layout("stack", 2)[1].y);
+});

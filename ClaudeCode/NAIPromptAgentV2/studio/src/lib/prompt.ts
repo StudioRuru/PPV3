@@ -190,3 +190,26 @@ export function parseToLines(s: string): Line[] {
   }
   return lines.length ? lines : [newLine()];
 }
+
+export type Layout = "row" | "close" | "front" | "stack";
+
+/** One-tap placements. Only the centre reaches NovelAI, so centres are kept well apart (or deliberately close for contact). */
+export function layout(kind: Layout, n: number): Region[] {
+  return Array.from({ length: n }, (_, k) => {
+    const off = k - (n - 1) / 2;
+    if (kind === "close") return clampRegion({ x: 0.5 + off * 0.18, y: 0.5, w: 0.4, h: 0.9 });
+    if (kind === "stack") return clampRegion({ x: 0.5, y: (k + 0.5) / n, w: 0.7, h: 0.9 / n });
+    if (kind === "front") return clampRegion(k === 0
+      ? { x: n === 2 ? 0.4 : 0.5, y: 0.6, w: 0.55, h: 0.8 }
+      : { x: n === 2 ? 0.7 : k / n, y: 0.35, w: 0.3, h: 0.5 });
+    return clampRegion({ x: (k + 0.5) / n, y: 0.5, w: Math.min(0.45, 0.9 / n), h: 0.85 });
+  });
+}
+
+/** NovelAI interaction tags: `source#act` for the doer, `target#act` for the receiver, `mutual#act` in both. */
+export function interact(chars: CharBox[], from: number, to: number, action: string, mutual = false): CharBox[] {
+  const act = action.trim().replace(/^(source|target|mutual)#/i, "");
+  if (!act || from === to || !chars[from] || !chars[to]) return chars;
+  const tag = (i: number) => (mutual ? "mutual" : i === from ? "source" : "target") + "#" + act;
+  return chars.map((c, i) => (i === from || i === to ? { ...c, lines: [...c.lines.filter((l) => l.text.trim()), newLine(tag(i))] } : c));
+}
