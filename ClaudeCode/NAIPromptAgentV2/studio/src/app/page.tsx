@@ -258,8 +258,10 @@ export default function Studio() {
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onDrop(f); }}
       // Swipe left/right on free page areas to change tab; never from controls, the Tagger, the canvas or sheets.
-      onPointerDown={(e) => { swipe.current = e.pointerType !== "touch" || (e.target as HTMLElement).closest(NO_SWIPE) ? null : { x: e.clientX, y: e.clientY, t: e.timeStamp }; }}
+      // A second finger means pinch/zoom, never a tab swipe.
+      onPointerDown={(e) => { swipe.current = !e.isPrimary || e.pointerType !== "touch" || (e.target as HTMLElement).closest(NO_SWIPE) ? null : { x: e.clientX, y: e.clientY, t: e.timeStamp }; }}
       onPointerUp={(e) => {
+        if (!e.isPrimary) return;
         const s = swipe.current; swipe.current = null;
         if (!s || window.getSelection()?.toString()) return;
         const dir = swipeDirection({ dx: e.clientX - s.x, dy: e.clientY - s.y, ms: e.timeStamp - s.t });

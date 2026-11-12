@@ -51,6 +51,7 @@ export function Closet({ active, onUse, prompt }: {
   const [saved, setSaved] = useState<Field[]>([]); // fields as last loaded/saved — for "unsaved" and diffs
   const [error, setError] = useState<string | null>(null);
   const [newKind, setNewKind] = useState<Kind | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [newName, setNewName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmScene, setConfirmScene] = useState<number | null>(null);
@@ -85,6 +86,16 @@ export function Closet({ active, onUse, prompt }: {
   }
   async function create(k: Kind, name: string, extra: object = {}) {
     const r = await requestJson<{ item: Open }>("/api/closet", { method: "POST", ...json({ kind: k, name, ...extra }) });
+    if (!r.ok) { setError(r.error); return; }
+    setNewKind(null); setNewName(""); show(r.data.item); load();
+  }
+  async function fromPhotos(files: File[]) {
+    setPhotoBusy(true); setError(null);
+    const fd = new FormData();
+    fd.append("name", newName.trim());
+    files.forEach((f) => fd.append("files", f));
+    const r = await requestJson<{ item: Open }>("/api/closet/from-photos", { method: "POST", body: fd });
+    setPhotoBusy(false);
     if (!r.ok) { setError(r.error); return; }
     setNewKind(null); setNewName(""); show(r.data.item); load();
   }
@@ -139,6 +150,14 @@ export function Closet({ active, onUse, prompt }: {
             <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name" aria-label="New item name" className="bg-bg border-border min-w-0 flex-1 rounded-md border px-2 py-2 text-base" />
             <button type="submit" disabled={!newName.trim()} className="bg-accent text-accent-fg rounded-md px-4 font-semibold disabled:opacity-40">Create</button>
           </div>
+          {newKind === "outfit" && (
+            <label className={`border-accent/50 text-accent flex min-h-11 cursor-pointer items-center justify-center rounded-md border border-dashed px-3 text-sm ${photoBusy ? "opacity-60" : ""}`}>
+              {photoBusy ? "Reading the clothes…" : "…or build it from photos (tagger)"}
+              <input type="file" accept="image/*" multiple disabled={photoBusy} className="sr-only"
+                onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; if (f.length) fromPhotos(f); }} />
+            </label>
+          )}
+          {newKind === "outfit" && error && <p role="alert" className="text-danger text-xs">{error}</p>}
           {prompt.length > 0 && (
             <button type="button" disabled={!newName.trim()} onClick={() => create("cluster", newName.trim(), { fields: [{ path: ["tags"], label: "Tags", type: "tags", value: prompt }] })}
               className="text-accent text-sm disabled:opacity-40">…or save the current prompt ({prompt.length} tags) as a cluster</button>

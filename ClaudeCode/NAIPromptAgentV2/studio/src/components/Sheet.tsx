@@ -41,20 +41,20 @@ export function Sheet({ open, onClose, label, closeLabel, className, children }:
         onPointerDown={(e) => {
           // Only from the grabber/header, never from controls or scrolling content, and only on phone layouts.
           const t = e.target as HTMLElement;
-          if (window.matchMedia("(min-width: 64rem)").matches || !t.closest("header,[data-grab]") || t.closest("button,input,select,textarea,a")) return;
+          if (!e.isPrimary || window.matchMedia("(min-width: 64rem)").matches || !t.closest("header,[data-grab]") || t.closest("button,input,select,textarea,a")) return;
           drag.current = { y: e.clientY, t: e.timeStamp, dy: 0 };
           e.currentTarget.setPointerCapture(e.pointerId);
           e.currentTarget.style.transition = "none";
         }}
         onPointerMove={(e) => {
           const d = drag.current;
-          if (!d) return;
+          if (!d || !e.isPrimary) return;
           d.dy = Math.max(0, e.clientY - d.y);
           e.currentTarget.style.translate = `0 ${d.dy}px`;
         }}
         onPointerUp={(e) => {
           const d = drag.current;
-          if (d) end(d.dy > 110 || d.dy / Math.max(1, e.timeStamp - d.t) > 0.6);
+          if (d && e.isPrimary) end(d.dy > 110 || d.dy / Math.max(1, e.timeStamp - d.t) > 0.6);
         }}
         onPointerCancel={() => end(false)}>
         <div data-grab aria-hidden="true" className="flex h-6 shrink-0 cursor-grab touch-none items-end justify-center lg:hidden">

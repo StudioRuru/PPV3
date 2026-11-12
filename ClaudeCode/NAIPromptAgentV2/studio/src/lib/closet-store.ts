@@ -84,7 +84,7 @@ export function saveItem(dir: string, slug: string, fields: Field[], mtime: numb
 
 const TEMPLATES: Record<Kind, (name: string) => object> = {
   cluster: (name) => ({ name, kind: "cluster", tags: [], notes: "" }),
-  outfit: (name) => ({ name, created: new Date().toISOString().slice(0, 10), description: "", tags: { tops: [], bottoms: [], legwear: [], footwear: [], accessories: [] }, weight_overrides: { emphasized: [] } }),
+  outfit: (name) => ({ name, created: new Date().toISOString().slice(0, 10), description: "", tags: { tops: [], bottoms: [], legwear: [], footwear: [], accessories: [], materials: [], states: [] }, weight_overrides: { emphasized: [] } }),
   theme: (name) => ({ name, description: "", base_layer: { effects: [] }, character_layer: { anchors: [], support: [] }, clean_cut_negatives: [] }),
   arc: (name) => ({ name, created: new Date().toISOString().slice(0, 10), description: "", artist: "", scenes: [{ scene_number: 1, title: "Scene 1", narrative: "", prompt: { base: "", character: "", undesired: "" } }] }),
 };

@@ -3,11 +3,12 @@ import { useRef, useState } from "react";
 import { clampRegion, positionWords, regionOf, resizeRegion, type CharBox, type Region } from "@/lib/prompt";
 import { DOT } from "./BlockDrawer";
 
-type Drag = { i: number; mode: "move" | "size"; start: { x: number; y: number }; from: Region };
+type Drag = { i: number; mode: "move" | "size"; start: { x: number; y: number }; from: Region; px: { x: number; y: number } };
 
 /**
  * V5 character placement as boxes on a canvas shaped like the image. Drag a box to move it, drag its
- * corner to resize; tap empty space to move the selected box there. The centre is what NovelAI gets;
+ * corner (or pinch it with two fingers) to resize; tap empty space to move the selected box there. Fingers on
+ * different boxes move them independently. The centre is what NovelAI gets;
  * position and size also become words in the prompt (see positionWords).
  */
 export function PositionCanvas({ chars, width, height, onChange, words = true }: {
@@ -15,7 +16,11 @@ export function PositionCanvas({ chars, width, height, onChange, words = true }:
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
-  const drag = useRef<Drag | null>(null);
+  const drags = useRef(new Map<number, Drag>()); // one per finger
+  const pinch = useRef<{ i: number; d0: number; from: Region } | null>(null);
+  // Two fingers move two boxes in the same frame: each move must build on the other's, not on this render's props.
+  const live = useRef(chars);
+  live.current = chars;
 
   const at = (e: React.PointerEvent) => {
     const r = box.current!.getBoundingClientRect();
@@ -23,13 +28,29 @@ export function PositionCanvas({ chars, width, height, onChange, words = true }:
   };
   const set = (i: number, reg: Region) => {
     const region = clampRegion(reg);
-    onChange(chars.map((c, j) => (j === i ? { ...c, region, center: { x: region.x, y: region.y } } : c)));
+    live.current = live.current.map((c, j) => (j === i ? { ...c, region, center: { x: region.x, y: region.y } } : c));
+    onChange(live.current);
+  };
+  const px = (e: React.PointerEvent) => ({ x: e.clientX, y: e.clientY });
+  const gap = () => { const [a, b] = [...drags.current.values()]; return Math.hypot(a.px.x - b.px.x, a.px.y - b.px.y) || 1; };
+  /** Second finger on the same box (or on empty canvas) while one box is held: pinch that box. */
+  const startPinch = (e: React.PointerEvent, first: Drag) => {
+    drags.current.set(e.pointerId, { ...first, px: px(e) });
+    pinch.current = { i: first.i, d0: gap(), from: regionOf(live.current[first.i], first.i, chars.length) };
   };
   const start = (e: React.PointerEvent, i: number, mode: Drag["mode"]) => {
     e.stopPropagation();
     box.current!.setPointerCapture(e.pointerId);
+    const held = [...drags.current.values()];
+    if (held.length === 1 && held[0].i === i) return startPinch(e, held[0]);
+    if (pinch.current) return; // a third finger: ignore
     setActive(i);
-    drag.current = { i, mode, start: at(e), from: regionOf(chars[i], i, chars.length) };
+    drags.current.set(e.pointerId, { i, mode, start: at(e), from: regionOf(live.current[i], i, chars.length), px: px(e) });
+  };
+  const end = (e: React.PointerEvent) => {
+    if (!drags.current.delete(e.pointerId)) return;
+    // Pinch over: the finger still down stays idle until lifted, so the box doesn't jump to it.
+    if (pinch.current) { pinch.current = null; drags.current.clear(); }
   };
 
   return (
@@ -44,21 +65,27 @@ export function PositionCanvas({ chars, width, height, onChange, words = true }:
     <div
       ref={box}
       role="application"
-      aria-label="Character positions — drag a box to move it, drag its corner to resize, or tap to place the selected character"
+      aria-label="Character positions — drag a box to move it, drag its corner or pinch to resize, or tap to place the selected character"
       className="bg-bg border-border relative mx-auto w-full max-w-xs touch-none overflow-hidden rounded-md border select-none"
       style={{ aspectRatio: `${width} / ${height}` }}
       onPointerDown={(e) => {
         if (e.target !== box.current || !chars[active]) return;
+        const held = [...drags.current.values()];
+        if (held.length === 1) { box.current.setPointerCapture(e.pointerId); return startPinch(e, held[0]); }
+        if (held.length) return;
         set(active, { ...regionOf(chars[active], active, chars.length), ...at(e) });
       }}
       onPointerMove={(e) => {
-        const d = drag.current;
+        const d = drags.current.get(e.pointerId);
         if (!d) return;
+        d.px = px(e);
+        const pn = pinch.current;
+        if (pn) { const k = gap() / pn.d0; return set(pn.i, { ...pn.from, w: pn.from.w * k, h: pn.from.h * k }); }
         const p = at(e), dx = p.x - d.start.x, dy = p.y - d.start.y;
         set(d.i, d.mode === "move" ? { ...d.from, x: d.from.x + dx, y: d.from.y + dy } : resizeRegion(d.from, dx, dy));
       }}
-      onPointerUp={() => { drag.current = null; }}
-      onPointerCancel={() => { drag.current = null; }}
+      onPointerUp={end}
+      onPointerCancel={end}
     >
       {/* The selected box is drawn last (on top): its grip and corner always win where boxes overlap. */}
       {chars.map((c, i) => ({ c, i })).sort((a, b) => Number(a.i === active) - Number(b.i === active)).map(({ c, i }) => {

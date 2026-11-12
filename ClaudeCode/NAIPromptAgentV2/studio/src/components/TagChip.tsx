@@ -9,7 +9,7 @@ type Props = {
 };
 
 export function TagChip({ tag, dropped, weight, index = 0, onToggle, onBoost, onDragMove, onDragEnd }: Props) {
-  const start = useRef<{ x: number; y: number; t: ReturnType<typeof setTimeout>; mode: "tap" | "drag" | "held" } | null>(null);
+  const start = useRef<{ x: number; y: number; t: ReturnType<typeof setTimeout>; mode: "tap" | "drag" | "held"; id: number } | null>(null);
 
   return (
     <button
@@ -21,25 +21,26 @@ export function TagChip({ tag, dropped, weight, index = 0, onToggle, onBoost, on
         dropped ? "border-border text-muted border-dashed line-through" : weight ? "border-accent bg-surface-2" : "border-border bg-surface"
       }`}
       onPointerDown={(e) => {
+        if (start.current) return; // second finger: keep the first gesture
         e.currentTarget.setPointerCapture(e.pointerId);
         const t = setTimeout(() => { if (start.current?.mode === "tap") { start.current.mode = "held"; onBoost(); } }, 450);
-        start.current = { x: e.clientX, y: e.clientY, t, mode: "tap" };
+        start.current = { x: e.clientX, y: e.clientY, t, mode: "tap", id: e.pointerId };
       }}
       onPointerMove={(e) => {
         const s = start.current;
-        if (!s) return;
+        if (!s || s.id !== e.pointerId) return;
         if (s.mode === "tap" && dragIntent(e.clientX - s.x, e.clientY - s.y, e.pointerType) === "drag") { clearTimeout(s.t); s.mode = "drag"; }
         if (s.mode === "drag") onDragMove(e.clientX, e.clientY);
       }}
       onPointerUp={(e) => {
         const s = start.current;
+        if (!s || s.id !== e.pointerId) return;
         start.current = null;
-        if (!s) return;
         clearTimeout(s.t);
         if (s.mode === "tap") onToggle();
         if (s.mode === "drag") onDragEnd(e.clientX, e.clientY);
       }}
-      onPointerCancel={() => { if (start.current) clearTimeout(start.current.t); start.current = null; onDragEnd(-1, -1); }}
+      onPointerCancel={(e) => { if (start.current?.id !== e.pointerId) return; if (start.current) clearTimeout(start.current.t); start.current = null; onDragEnd(-1, -1); }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {tag}
