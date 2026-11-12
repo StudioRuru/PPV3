@@ -39,3 +39,17 @@ export function outfitFromTags(photos: { tags: RawTag[]; threshold: number }[], 
   }
   return out;
 }
+
+const flat = (t: string) => t.toLowerCase().replace(/[_-]/g, " ");
+
+/**
+ * Vision pass: ToriiGate always answers in prose, so match its description against the known clothing vocabulary
+ * (YAML tags) instead of trusting free text. Returns vocab tags it mentions that the tagger didn't find.
+ */
+export function tagsInProse(prose: string, vocab: string[], found: string[]): string[] {
+  const text = ` ${flat(prose).replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ")} `;
+  const have = new Set(found.map(flat));
+  const hits = vocab.filter((t) => !have.has(flat(t)) && text.includes(` ${flat(t)} `));
+  // "lace trim" found → drop the bare "lace" it contains.
+  return hits.filter((t) => !hits.some((u) => u !== t && ` ${flat(u)} `.includes(` ${flat(t)} `)));
+}

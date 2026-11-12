@@ -25,3 +25,9 @@ test("slotOf: clothing states and body parts", async () => {
   assert.equal(slotOf("o-ring collar", undefined), "accessories");
   assert.equal(slotOf("thigh strap", "footwear"), "legwear");
 });
+
+test("tagsInProse finds vocab tags the tagger missed", async () => {
+  const { tagsInProse } = await import("./outfit-photo");
+  const prose = "She wears a black choker, heart-shaped earrings, and black thigh-high stockings with lace trim.";
+  assert.deepEqual(tagsInProse(prose, ["lace trim", "choker", "thigh-high stockings", "lace", "trim heels"], ["choker"]), ["lace trim", "thigh-high stockings"]);
+});
