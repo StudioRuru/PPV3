@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     for (const t of tagsInProse(prose, vocab, [...have])) { slots[slotOf(t, stems.get(t)) ?? "tops"].push(t); have.add(t); }
     try {
       let reply = "";
-      for await (const c of chatStream(READ_SYSTEM, [{ role: "user", content: `${prose ? `Detailed caption:\n${prose}\n\n` : ""}Only the main person's clothing: every garment, accessory, shoe, legwear, material and clothing state, with colors. Put them in characters[0]; leave base empty.`, images: [img.split(",")[1]] }], { options: { temperature: 0.2 } })) reply += c;
+      for await (const c of chatStream(READ_SYSTEM, [{ role: "user", content: `${prose ? `Detailed caption:\n${prose}\n\n` : ""}Only the main person's clothing: every garment, accessory, shoe, legwear, material and clothing state, with colors. Put them in characters[0]; leave base empty.`, images: [img.split(",")[1]] }], { think: false, options: { temperature: 0.2 } })) reply += c;
       for (const t of parseRead(reply).characters[0] ?? []) {
         if (have.has(t) || optional.includes(t)) continue;
         const s = known.has(t) ? slotOf(t, stems.get(t)) : null;

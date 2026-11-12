@@ -74,7 +74,7 @@ export const heavyGate = (g.__heavyGate ??= new HeavyGate({
 }));
 const paused = (what: string) => new Error(`${what} is paused while the heavy model is replying — try again in a moment`);
 
-export type StreamOpts = { model?: string; options?: Record<string, unknown>; stop?: string[]; system?: boolean };
+export type StreamOpts = { model?: string; options?: Record<string, unknown>; stop?: string[]; system?: boolean; think?: false };
 
 /**
  * Streams reply text chunks; thinking tokens are skipped. Without `opts.model` it's the everyday brain (servers
@@ -85,7 +85,7 @@ export type StreamOpts = { model?: string; options?: Record<string, unknown>; st
 export function chatBody(system: string, messages: ChatMsg[] | { role: string; content: string }[], opts: StreamOpts = {}): Record<string, unknown> {
   return {
     model: opts.model ?? BRAIN_MODEL, stream: true, keep_alive: opts.model ? "30m" : "2h",
-    ...(opts.model ? { think: false } : {}),
+    ...(opts.model || opts.think === false ? { think: false } : {}),
     messages: opts.system === false ? messages : [{ role: "system", content: system }, ...messages],
     options: { temperature: 0.6, top_k: 64, top_p: 0.9, min_p: 0.05, repeat_penalty: 1.1, num_ctx: 16384, ...opts.options, ...(opts.stop?.length ? { stop: opts.stop } : {}) },
   };

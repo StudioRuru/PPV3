@@ -163,7 +163,7 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
           {res && (
             // Tagger tags are image-wide; the brain splits them per character and notes extras (off, tinted) to opt into.
             <button type="button" disabled={reading} onClick={readChars}
-              className="border-accent/50 text-accent w-full rounded-md border px-3 py-2.5 text-sm disabled:opacity-50">{reading ? "Reading characters… (up to a minute)" : "Read characters (split + optional extras)"}</button>
+              className="border-accent/50 text-accent w-full rounded-md border px-3 py-2.5 text-sm disabled:opacity-50">{reading ? "Reading characters…" : "Read characters (split + optional extras)"}</button>
           )}
           {res && (
             <button type="button" onClick={() => lastFile.current && onScene(lastFile.current, text)}
