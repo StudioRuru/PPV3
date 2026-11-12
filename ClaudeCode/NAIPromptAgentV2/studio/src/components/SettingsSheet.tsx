@@ -223,7 +223,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
               <button type="button" onClick={async () => { const r = await requestJson<NonNullable<typeof taste>>("/api/taste", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset: true }) }); if (r.ok) setTaste(r.data); setForget(false); }}
                 className="bg-danger rounded px-2 py-1 font-semibold text-white">Forget</button>
             </span>
-          ) : <button type="button" onClick={() => setForget(true)} className="text-danger mt-1 text-xs">Forget what it learned</button>}
+          ) : <button type="button" onClick={() => setForget(true)} className="text-danger min-h-11 text-xs">Forget what it learned</button>}
         </section>
 
         <section>

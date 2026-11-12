@@ -55,7 +55,7 @@ export function LineList({ lines, onChange, placeholder = "tags or natural langu
         <div key={l.id} className={`space-y-1 ${l.enabled ? "" : "opacity-40"}`}>
           <div className="flex items-start gap-2">
             <button type="button" aria-label={l.enabled ? "Disable line" : "Enable line"} onClick={() => set(i, { enabled: !l.enabled })}
-              className="text-faint w-5 shrink-0 pt-2.5 text-right font-mono text-xs">{i + 1}</button>
+              className="hit text-faint w-5 shrink-0 pt-2.5 text-right font-mono text-xs">{i + 1}</button>
             <TagInput value={l.text} onChange={(text) => set(i, { text })} placeholder={placeholder} />
             {/* Weight pill above broom (clear text) + trash (delete line): one narrow column, so the text keeps the width. */}
             <div className="flex w-14 shrink-0 flex-col items-stretch gap-1">
@@ -67,16 +67,16 @@ export function LineList({ lines, onChange, placeholder = "tags or natural langu
               </button>
               <div className="text-faint grid grid-cols-2">
                 <button type="button" aria-label="Clear line" disabled={!l.text} onClick={() => set(i, { text: "" })}
-                  className="hover:text-fg grid h-8 place-items-center disabled:opacity-30"><Broom /></button>
+                  className="hover:text-fg grid h-10 place-items-center disabled:opacity-30"><Broom /></button>
                 <button type="button" aria-label="Delete line" onClick={() => onChange(lines.length > 1 ? lines.filter((_, j) => j !== i) : [newLine()])}
-                  className="hover:text-danger grid h-8 place-items-center"><Trash /></button>
+                  className="hover:text-danger grid h-10 place-items-center"><Trash /></button>
               </div>
             </div>
           </div>
           {open === l.id && <WeightSlider value={l.weight} onChange={(weight) => set(i, { weight })} />}
         </div>
       ))}
-      <button type="button" onClick={() => onChange([...lines, newLine()])} className="text-accent text-sm">{addLabel}</button>
+      <button type="button" onClick={() => onChange([...lines, newLine()])} className="text-accent -my-1 min-h-11 pr-4 text-sm">{addLabel}</button>
     </div>
   );
 }

@@ -54,6 +54,15 @@
 
 html, body { height: 100%; }
 
+/* Native feel on phones: no grey tap flash, no whole-page rubber band, no text loupe/callout on long-pressed controls,
+   and scrolling inside a sheet never chains to the page behind it. */
+html { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+button, label, [role="tab"], [role="switch"] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.sheet-panel, .sheet-panel * { overscroll-behavior: contain; }
+/* Small visual controls keep their look but get a ≥44px invisible hit area. */
+.hit { position: relative; }
+.hit::after { content: ""; position: absolute; inset: -8px; }
+
 /* Weight slider: transparent native track over the drawn one; a theme-coloured thumb. */
 .weight-range { appearance: none; -webkit-appearance: none; background: transparent; margin: 0; }
 .weight-range::-webkit-slider-runnable-track { background: transparent; height: 100%; }

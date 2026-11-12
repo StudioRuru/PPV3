@@ -158,12 +158,12 @@ export function ParamsBar({ params, onParams, rating, onRating }: {
             <div className="mt-2 flex flex-wrap gap-1.5">
               {(orientation ? PRESETS[orientation] : []).map((s) => (
                 <button key={s.name} type="button" onClick={() => set({ width: s.w, height: s.h })}
-                  className={`rounded-full border px-3 py-1.5 font-mono text-xs ${params.width === s.w && params.height === s.h ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
+                  className={`rounded-full border min-h-10 px-3 font-mono text-xs ${params.width === s.w && params.height === s.h ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
                   {s.name} {s.w}×{s.h}
                 </button>
               ))}
               <button type="button" onClick={() => set({ width: device.w, height: device.h })} title="This device's native screen size (costs Anlas)"
-                className={`rounded-full border px-3 py-1.5 font-mono text-xs ${params.width === device.w && params.height === device.h ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
+                className={`rounded-full border min-h-10 px-3 font-mono text-xs ${params.width === device.w && params.height === device.h ? "border-accent bg-accent-soft text-accent-ink" : "border-border text-muted"}`}>
                 Device {device.w}×{device.h}
               </button>
             </div>

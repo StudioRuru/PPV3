@@ -27,6 +27,16 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
   incoming?: File | null;
 }) {
   const [open, setOpen] = useState(true);
+  const [stuck, setStuck] = useState(false); // pinned under the island: compact header so the prompt keeps the screen
+  const self = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = self.current;
+    if (!el) return;
+    const check = () => setStuck(el.getBoundingClientRect().top <= parseFloat(getComputedStyle(el).top) + 1 && window.scrollY > 0);
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, []);
   const [preview, setPreview] = useState<string | null>(null);
   const [res, setRes] = useState<TagResponse | null>(null);
   const [chips, setChips] = useState<ChipState>({});
@@ -73,13 +83,13 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
 
   // Split desk: the pane stays pinned while the prompt scrolls under it, so chips and drop targets share the screen.
   return (
-    <section aria-label="Tagger" data-noswipe className="bg-surface border-border sticky top-0 z-20 rounded-lg border shadow-lg">
-      <header className="flex items-center gap-3 p-3">
+    <section ref={self} aria-label="Tagger" data-noswipe className="bg-surface border-border sticky top-[calc(env(safe-area-inset-top)+var(--pt))] z-20 rounded-lg border shadow-lg">
+      <header className={`flex items-center gap-3 transition-[padding] duration-200 ${stuck ? "px-3 py-1.5" : "p-3"}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {preview && <img src={preview} alt="Image being tagged" className="h-16 w-12 rounded object-cover" />}
+        {preview && <img src={preview} alt="Image being tagged" className={`${stuck ? "h-10 w-8" : "h-16 w-12"} rounded object-cover`} />}
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold">Tagger</h2>
-          <p className="text-muted truncate text-xs" role="status">
+          <p className={`text-muted truncate text-xs ${stuck && !busy ? "sr-only" : ""}`} role="status">
             {busy ? "Analyzing…" : res ? `${tags.length} tags · ${res.ms} ms · drag onto the prompt` : "Add an image to tag it"}
           </p>
         </div>
@@ -87,11 +97,11 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
           {preview ? "New image" : "Add image"}
           <input type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) analyze(f); }} />
         </label>
-        <button type="button" aria-expanded={open} aria-label={open ? "Collapse tagger" : "Expand tagger"} onClick={() => setOpen(!open)}
-          className="border-border size-11 rounded-md border">{open ? "–" : "+"}</button>
+        {(res || error) && <button type="button" aria-expanded={open} aria-label={open ? "Collapse tagger" : "Expand tagger"} onClick={() => setOpen(!open)}
+          className="border-border size-11 rounded-md border">{open ? "–" : "+"}</button>}
       </header>
 
-      {open && (
+      {open && (res || error) && (
         <div className="border-border space-y-3 border-t p-3"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) analyze(f); }}>

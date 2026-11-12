@@ -39,7 +39,9 @@ export function GpuLine({ view, boostView, now, onAction, error }: { view: Engin
   return (
     <div className="space-y-2">
       {alarm && <p role="alert" className="bg-danger w-full rounded-lg px-3 py-2 text-sm font-semibold text-white">{alarm}</p>}
-      <div className="bg-surface border-border flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
+      {/* Row 1: what the GPU is doing + H100. Row 2: keep-warm, then the destructive pair (wraps as one group on narrow phones). */}
+      <div className="bg-surface border-border space-y-2 rounded-lg border px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span role="status" className="flex-1 font-mono text-xs whitespace-nowrap">{view ? gpuLabel(view, now) : "○ GPU …"}</span>
         {view && (view.phase === "off" || view.phase === "unavailable") && (
           <button type="button" disabled={seeking} onClick={seek} className={`${btn} text-accent disabled:opacity-60`}>{seeking ? "Seeking…" : view.phase === "unavailable" ? "Retry" : "Start"}</button>
@@ -49,14 +51,19 @@ export function GpuLine({ view, boostView, now, onAction, error }: { view: Engin
           className={`${btn} ${boost === "on" ? "bg-accent text-accent-fg border-accent" : "text-muted"} disabled:opacity-50`}>
           {boost === "unavailable" ? "H100 unavailable" : "H100"}
         </button>
-        <label className="text-muted flex items-center gap-1.5 text-xs">keep warm until
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-muted flex items-center gap-1.5 text-xs">Keep warm until
           <input type="time" defaultValue={view && view.keepWarmUntil > now ? hhmm(view.keepWarmUntil) : ""} key={view && view.keepWarmUntil > now ? view.keepWarmUntil : 0}
             onBlur={(e) => { const t = timeToEpoch(e.target.value, Date.now()); if (t && t !== view?.keepWarmUntil) onAction({ action: "keepWarm", until: t }); }}
             className="bg-bg border-border h-9 rounded-md border px-1.5 font-mono text-xs" />
         </label>
+        <span className="ml-auto flex gap-2">
         <button type="button" disabled={!live} onClick={() => { onAction({ action: "stop" }); onAction({ action: "stop", card: "boost" }); }} className={`${btn} text-danger disabled:opacity-40`}>Stop now</button>
         <button type="button" disabled={!canFlush} onClick={flush} title="Delete the GPU and its downloaded models; the next start re-downloads them"
           className={`${btn} ${arm ? "bg-danger border-danger text-white" : "text-danger"} disabled:opacity-40`}>{arm ? "Tap again: delete models" : "Flush GPU"}</button>
+        </span>
+      </div>
       </div>
       {error && <p role="alert" className="text-danger text-xs">{error}</p>}
     </div>
