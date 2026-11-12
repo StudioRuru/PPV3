@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createItem } from "@/lib/closet-store";
 import { TAGGER_URL } from "@/lib/env";
-import { caption, chatStream, focusQuery, toModelImage } from "@/lib/llm";
-import { outfitFromTags, slotOf, SLOTS, tagsInProse } from "@/lib/outfit-photo";
+import { chatStream, toModelImage } from "@/lib/llm";
+import { outfitFromTags, slotOf, SLOTS } from "@/lib/outfit-photo";
 import { parseRead, READ_SYSTEM } from "@/lib/read-image";
 import { knownTags, yamlGroups } from "@/lib/tag-index";
 import type { RawTag } from "@/lib/tagger";
@@ -10,10 +10,6 @@ import type { RawTag } from "@/lib/tagger";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CLOTHES = new Set(["clothing", "accessories", "footwear", "materials", "states"]);
-// A lone color says nothing about which garment it is.
-const BARE_COLOR = /^(black|white|red|blue|green|pink|purple|yellow|orange|brown|grey|gray|silver|gold|aqua|beige|navy|multicolored)$/;
-const FOCUS = "every garment, accessory, shoe, legwear and material: exact colors, cuts, trims, patterns, and how each is worn, opened, pulled or torn";
 
 /** Photos → tagger → clothing tags bucketed into a new outfit file. */
 export async function POST(req: NextRequest) {
@@ -40,21 +36,17 @@ export async function POST(req: NextRequest) {
   const stems = yamlGroups();
   const slots = outfitFromTags(photos, stems);
 
-  // Vision pass: captioner prose matched against the vocab, then the brain names garments in its own words —
-  // real tags join the slots, the rest become optional extras. Either service off just skips its part.
-  const vocab = [...stems].filter(([t, stem]) => CLOTHES.has(stem) && !BARE_COLOR.test(t)).map(([t]) => t);
+  // Vision pass: the brain names garments in its own words — real tags join the slots, the rest become optional extras.
+  // No ToriiGate caption (+~2 min/photo for little gain); brain off just skips it.
   const optional: string[] = [], used: string[] = [];
   const known = knownTags();
   for (const f of files) {
     const img = await toModelImage(Buffer.from(await f.arrayBuffer())).catch(() => null);
     if (!img) continue;
     const have = new Set(SLOTS.flatMap((s) => slots[s]));
-    const prose = await caption(img, focusQuery([...have].join(", "), FOCUS)).catch(() => "");
-    if (prose) used.push("captioner");
-    for (const t of tagsInProse(prose, vocab, [...have])) { slots[slotOf(t, stems.get(t)) ?? "tops"].push(t); have.add(t); }
     try {
       let reply = "";
-      for await (const c of chatStream(READ_SYSTEM, [{ role: "user", content: `${prose ? `Detailed caption:\n${prose}\n\n` : ""}Only the main person's clothing: every garment, accessory, shoe, legwear, material and clothing state, with colors. Put them in characters[0]; leave base empty.`, images: [img.split(",")[1]] }], { think: false, options: { temperature: 0.2 } })) reply += c;
+      for await (const c of chatStream(READ_SYSTEM, [{ role: "user", content: `Only the main person's clothing: every garment, accessory, shoe, legwear, material and clothing state, with colors. Put them in characters[0]; leave base empty.`, images: [img.split(",")[1]] }], { think: false, options: { temperature: 0.2 } })) reply += c;
       for (const t of parseRead(reply).characters[0] ?? []) {
         if (have.has(t) || optional.includes(t)) continue;
         const s = known.has(t) ? slotOf(t, stems.get(t)) : null;
@@ -62,9 +54,9 @@ export async function POST(req: NextRequest) {
         have.add(t);
       }
       used.push("brain");
-    } catch { /* brain off or paused: tagger (+ captioner) still stands */ }
+    } catch { /* brain off or paused: tagger still stands */ }
   }
-  const vision = used.length ? `plus ${[...new Set(used)].join(" + ")}` : "vision pass skipped (captioner + brain off)";
+  const vision = used.length ? `plus ${[...new Set(used)].join(" + ")}` : "vision pass skipped (brain off)";
 
   if (!SLOTS.some((s) => slots[s].length)) return NextResponse.json({ error: "No clothing found in those photos." }, { status: 422 });
   const item = createItem("outfit", name, { fields: [
