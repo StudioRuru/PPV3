@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
-import type { PromptState } from "@/lib/prompt";
+import type { Line, PromptState } from "@/lib/prompt";
 import { chipsToText, DEFAULT_EXCLUDE, dragText, keepTags, toPromptTag, type ChipState, type Preset, type RawTag } from "@/lib/tagger";
 import { TagChip } from "./TagChip";
 
@@ -16,13 +16,15 @@ function targetAt(x: number, y: number): { el: HTMLElement; target: Target } | n
   return { el, target: v === "base" || v === "new" ? v : Number(v.split(":")[1]) };
 }
 
-export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene, onRecreate, incoming }: {
+export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene, onRecreate, onCharacters, incoming }: {
   preset: Preset; onTagged: (n: number) => void;
   onDrop: (text: string, target: Target) => void;
   onRecipe: (r: { state: PromptState; params: Partial<NaiParams> }) => void;
   onText: (text: string) => void;
   onScene: (file: File, tags: string) => void;
   onRecreate: (tags: RawTag[]) => void;
+  /** Per-character read: known tags as lines, unknown features as optional (off) lines. */
+  onCharacters: (r: { base: Line[]; chars: Line[][] }) => void;
   /** A file handed in from outside (iOS share sheet / native import): tagged as if picked here. */
   incoming?: File | null;
 }) {
@@ -47,6 +49,16 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
   const hover = useRef<HTMLElement | null>(null);
   const latest = useRef(0);
   const lastFile = useRef<File | null>(null);
+  const [reading, setReading] = useState(false);
+
+  async function readChars() {
+    if (!lastFile.current) return;
+    setReading(true); setError(null);
+    const fd = new FormData(); fd.append("file", lastFile.current); fd.append("tags", text);
+    const r = await requestJson<{ base: Line[]; chars: Line[][] }>("/api/tag/characters", { method: "POST", body: fd });
+    setReading(false);
+    if (r.ok) onCharacters(r.data); else setError(r.error);
+  }
 
   const kept = useMemo(() => (res ? keepTags(res.tags, {
     thresholds: { ...res.thresholds, ...preset.thresholds },
@@ -147,6 +159,11 @@ export function TaggerPane({ preset, onTagged, onDrop, onRecipe, onText, onScene
             <button type="button" disabled={!text && !res.recipe}
               onClick={() => res.recipe ? onRecipe(res.recipe) : onRecreate(kept.filter((t) => !chips[toPromptTag(t)]?.dropped).map((t) => ({ ...t, weight: chips[toPromptTag(t)]?.weight })))}
               className="bg-accent text-accent-fg w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-40">{res.recipe ? "Recreate from its NovelAI recipe" : "Recreate this image"}</button>
+          )}
+          {res && (
+            // Tagger tags are image-wide; the brain splits them per character and notes extras (off, tinted) to opt into.
+            <button type="button" disabled={reading} onClick={readChars}
+              className="border-accent/50 text-accent w-full rounded-md border px-3 py-2.5 text-sm disabled:opacity-50">{reading ? "Reading characters… (up to a minute)" : "Read characters (split + optional extras)"}</button>
           )}
           {res && (
             <button type="button" onClick={() => lastFile.current && onScene(lastFile.current, text)}

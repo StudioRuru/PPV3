@@ -30,3 +30,10 @@ export function yamlGroups(): Map<string, string> {
   }
   return (groupCache = m);
 }
+
+let knownCache: Set<string> | null = null;
+
+/** Every tag name + alias, spaces not underscores, for "is this a real tag?" checks. */
+export function knownTags(): Set<string> {
+  return (knownCache ??= new Set(tagIndex().flatMap((e) => [e.name, ...e.aliases]).map((t) => t.toLowerCase().replace(/_/g, " "))));
+}

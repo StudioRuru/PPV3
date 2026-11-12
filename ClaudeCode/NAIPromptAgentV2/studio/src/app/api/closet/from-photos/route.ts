@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createItem } from "@/lib/closet-store";
 import { TAGGER_URL } from "@/lib/env";
-import { caption, focusQuery, Offline, toModelImage } from "@/lib/llm";
+import { caption, chatStream, focusQuery, toModelImage } from "@/lib/llm";
 import { outfitFromTags, slotOf, SLOTS, tagsInProse } from "@/lib/outfit-photo";
-import { yamlGroups } from "@/lib/tag-index";
+import { parseRead, READ_SYSTEM } from "@/lib/read-image";
+import { knownTags, yamlGroups } from "@/lib/tag-index";
 import type { RawTag } from "@/lib/tagger";
 
 export const runtime = "nodejs";
@@ -39,24 +40,37 @@ export async function POST(req: NextRequest) {
   const stems = yamlGroups();
   const slots = outfitFromTags(photos, stems);
 
-  // Vision pass: the captioner looks at each photo for clothing the tagger missed. Optional — off just means tagger-only.
-  let vision = "vision pass skipped (captioner off)";
+  // Vision pass: captioner prose matched against the vocab, then the brain names garments in its own words —
+  // real tags join the slots, the rest become optional extras. Either service off just skips its part.
   const vocab = [...stems].filter(([t, stem]) => CLOTHES.has(stem) && !BARE_COLOR.test(t)).map(([t]) => t);
-  try {
-    for (const f of files) {
-      const found = SLOTS.flatMap((s) => slots[s]);
-      const prose = await caption(await toModelImage(Buffer.from(await f.arrayBuffer())), focusQuery(found.join(", "), FOCUS));
-      for (const t of tagsInProse(prose, vocab, found)) slots[slotOf(t, stems.get(t)) ?? "tops"].push(t);
-    }
-    vision = "plus vision pass";
-  } catch (e) {
-    if (!(e instanceof Offline) && !/paused/i.test((e as Error).message)) vision = `vision pass failed: ${(e as Error).message}`;
+  const optional: string[] = [], used: string[] = [];
+  const known = knownTags();
+  for (const f of files) {
+    const img = await toModelImage(Buffer.from(await f.arrayBuffer())).catch(() => null);
+    if (!img) continue;
+    const have = new Set(SLOTS.flatMap((s) => slots[s]));
+    const prose = await caption(img, focusQuery([...have].join(", "), FOCUS)).catch(() => "");
+    if (prose) used.push("captioner");
+    for (const t of tagsInProse(prose, vocab, [...have])) { slots[slotOf(t, stems.get(t)) ?? "tops"].push(t); have.add(t); }
+    try {
+      let reply = "";
+      for await (const c of chatStream(READ_SYSTEM, [{ role: "user", content: `${prose ? `Detailed caption:\n${prose}\n\n` : ""}Only the main person's clothing: every garment, accessory, shoe, legwear, material and clothing state, with colors. Put them in characters[0]; leave base empty.`, images: [img.split(",")[1]] }], { options: { temperature: 0.2 } })) reply += c;
+      for (const t of parseRead(reply).characters[0] ?? []) {
+        if (have.has(t) || optional.includes(t)) continue;
+        const s = known.has(t) ? slotOf(t, stems.get(t)) : null;
+        if (s) slots[s].push(t); else optional.push(t);
+        have.add(t);
+      }
+      used.push("brain");
+    } catch { /* brain off or paused: tagger (+ captioner) still stands */ }
   }
+  const vision = used.length ? `plus ${[...new Set(used)].join(" + ")}` : "vision pass skipped (captioner + brain off)";
 
   if (!SLOTS.some((s) => slots[s].length)) return NextResponse.json({ error: "No clothing found in those photos." }, { status: 422 });
   const item = createItem("outfit", name, { fields: [
     { path: ["description"], label: "Description", type: "text", value: `From ${files.length} photo${files.length > 1 ? "s" : ""} via tagger, ${vision}` },
     ...SLOTS.map((s) => ({ path: ["tags", s], label: s, type: "tags" as const, value: slots[s] })),
+    { path: ["optional"], label: "optional", type: "tags" as const, value: optional },
   ] });
   return NextResponse.json({ item });
 }

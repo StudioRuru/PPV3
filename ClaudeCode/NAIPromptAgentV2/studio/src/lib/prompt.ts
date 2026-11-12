@@ -1,4 +1,4 @@
-export type Line = { id: string; text: string; weight?: number; enabled: boolean };
+export type Line = { id: string; text: string; weight?: number; enabled: boolean; optional?: boolean };
 /** A character's box on the canvas, as fractions of the image: x/y is its centre (what NovelAI receives). */
 export type Region = { x: number; y: number; w: number; h: number };
 export type CharBox = { id: string; lines: Line[]; uc: string; center?: { x: number; y: number }; region?: Region; enabled: boolean };

@@ -250,6 +250,52 @@ subcategories:
         notes: "Exposed collarbone area"
         theme: ["casual"]
         exposure: "partial"
+      # --- added 2026-11-12 (peplum* = natural language, not a Danbooru tag) ---
+      - tag: "peplum top"
+        theme: ["casual", "office", "formal"]
+        exposure: "full"
+      - tag: "shrug (clothing)"
+        theme: ["casual", "formal"]
+        exposure: "full"
+      - tag: "cropped jacket"
+        theme: ["casual", "streetwear"]
+        exposure: "full"
+      - tag: "cropped sweater"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "cropped vest"
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "crop top overhang"
+        theme: ["casual", "streetwear"]
+        exposure: "partial"
+      - tag: "turtleneck sweater"
+        theme: ["casual", "office"]
+        exposure: "full"
+      - tag: "virgin killer sweater"
+        theme: ["fetish"]
+        exposure: "minimal"
+      - tag: "lace-up top"
+        theme: ["gothic", "casual"]
+        exposure: "partial"
+      - tag: "criss-cross halter"
+        theme: ["casual", "swimwear"]
+        exposure: "partial"
+      - tag: "underbust"
+        theme: ["gothic", "fetish"]
+        exposure: "partial"
+      - tag: "cardigan vest"
+        theme: ["casual", "school"]
+        exposure: "full"
+      - tag: "juliet sleeves"
+        theme: ["fantasy", "formal"]
+        exposure: "full"
+      - tag: "shoulder cutout"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "clothing cutout"
+        theme: ["casual", "fetish"]
+        exposure: "partial"
 
   # ──────────────────────────────────────────────
   #  BOTTOMS
@@ -412,6 +458,46 @@ subcategories:
         aliases: ["braces"]
         theme: ["formal", "office"]
         exposure: "full"
+      # --- added 2026-11-12 (peplum* = natural language, not a Danbooru tag) ---
+      - tag: "peplum skirt"
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "high-low skirt"
+        theme: ["formal", "casual"]
+        exposure: "partial"
+      - tag: "asymmetrical skirt"
+        theme: ["casual", "fantasy"]
+        exposure: "partial"
+      - tag: "skort"
+        theme: ["athletic", "casual"]
+        exposure: "partial"
+      - tag: "culottes"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "cargo pants"
+        theme: ["streetwear", "casual"]
+        exposure: "full"
+      - tag: "track pants"
+        theme: ["athletic"]
+        exposure: "full"
+      - tag: "harem pants"
+        theme: ["casual", "fantasy"]
+        exposure: "full"
+      - tag: "hakama pants"
+        theme: ["traditional"]
+        exposure: "full"
+      - tag: "overall shorts"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "waist cape"
+        theme: ["fantasy", "cosplay"]
+        exposure: "partial"
+      - tag: "hip vent"
+        theme: ["fantasy", "cosplay"]
+        exposure: "partial"
+      - tag: "skirt set"
+        theme: ["casual", "office"]
+        exposure: "full"
 
   # ──────────────────────────────────────────────
   #  DRESSES
@@ -499,6 +585,28 @@ subcategories:
         aliases: ["chinese dress", "qipao"]
         theme: ["traditional"]
         exposure: "partial"
+      # --- added 2026-11-12 (peplum* = natural language, not a Danbooru tag) ---
+      - tag: "peplum dress"
+        theme: ["formal", "office"]
+        exposure: "full"
+      - tag: "frilled dress"
+        theme: ["casual", "gothic"]
+        exposure: "full"
+      - tag: "layered dress"
+        theme: ["formal", "fantasy"]
+        exposure: "full"
+      - tag: "tube dress"
+        theme: ["casual"]
+        exposure: "partial"
+      - tag: "tight dress"
+        theme: ["formal", "casual"]
+        exposure: "partial"
+      - tag: "pencil dress"
+        theme: ["office", "formal"]
+        exposure: "full"
+      - tag: "mermaid dress"
+        theme: ["formal"]
+        exposure: "full"
 
   # ──────────────────────────────────────────────
   #  SCHOOL UNIFORMS
@@ -681,6 +789,16 @@ subcategories:
         exposure: "full"
       - tag: "hooded cloak"
         theme: ["fantasy"]
+        exposure: "full"
+      # --- added 2026-11-12 (peplum* = natural language, not a Danbooru tag) ---
+      - tag: "capelet"
+        theme: ["fantasy", "gothic"]
+        exposure: "full"
+      - tag: "poncho"
+        theme: ["casual"]
+        exposure: "full"
+      - tag: "tailcoat"
+        theme: ["formal"]
         exposure: "full"
 
   # ──────────────────────────────────────────────

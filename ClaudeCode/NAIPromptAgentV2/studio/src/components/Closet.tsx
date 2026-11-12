@@ -29,8 +29,9 @@ function FieldInput({ f, onChange }: { f: Field; onChange: (v: string | string[]
       <p className="text-faint text-xs">This field has a custom shape in the file — edit it by hand.</p></div>
   );
   return (
-    <label className="block">
-      <span className="text-muted mb-1 block text-xs">{f.label}{f.type === "tags" && <span className="text-faint font-mono"> · {(f.value as string[]).length}</span>}</span>
+    // Optional extras: features seen in photos that aren't known tags. Kept out of the prompt; copy one in by hand.
+    <label className={`block ${f.path[0] === "optional" ? "text-cyan [&_textarea]:text-cyan" : ""}`}>
+      <span className={`${f.path[0] === "optional" ? "text-cyan" : "text-muted"} mb-1 block text-xs`}>{f.path[0] === "optional" ? "Optional extras (not tags · V5 reads plain English)" : f.label}{f.type === "tags" && <span className="text-faint font-mono"> · {(f.value as string[]).length}</span>}</span>
       {f.type === "text"
         ? <input value={text} onChange={(e) => { setText(e.target.value); onChange(e.target.value); }} className="bg-bg border-border w-full rounded-md border px-2 py-2 text-base" />
         : <AutoTextarea value={text} onChange={(v) => { setText(v); onChange(f.type === "tags" ? splitTags(v) : v); }} placeholder={f.type === "tags" ? "comma, separated, tags" : ""} />}

@@ -26,7 +26,7 @@ const withId = (m: ChatMsg & { image?: string | null; cid?: string; error?: bool
 const wire = (ms: Msg[]) => ms.filter((m) => !m.error).map(({ role, content, image }) => ({ role, content, image: image ?? null }));
 type Taste = { profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[] };
 type LookSettings = Parameters<typeof outfitFromSettings>[0];
-export type ChatSeed = { text: string; image?: File; tags?: string } | null;
+export type ChatSeed = { text: string; image?: File; tags?: string; send?: boolean } | null;
 type Kind = "arc" | "outfit" | "theme" | "cluster";
 type ClosetItem = { kind: Kind; dir: string; slug: string; name: string };
 
@@ -289,11 +289,20 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
   }
 
   // Seeds from the Tagger ("Make this a scene"): attach the image and ask for a scene.
+  const autoSend = useRef<string | null>(null);
   useEffect(() => {
     if (!seed) return;
     setMode("scene"); setInput(seed.text);
     if (seed.image) setFile(seed.image);
+    if (seed.send) autoSend.current = seed.text;
   }, [seed]);
+  // Scene box on Studio: send once the seeded text and mode have landed (send reads them from state).
+  useEffect(() => {
+    if (autoSend.current === null || input !== autoSend.current || mode !== "scene") return;
+    autoSend.current = null;
+    send();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fires on the seeded render only
+  }, [input, mode]);
 
   const offline = status && !status.brain;
   const canSend = canCompose(status, empty);

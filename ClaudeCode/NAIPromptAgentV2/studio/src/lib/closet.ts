@@ -41,7 +41,9 @@ export function toFields(kind: Kind, doc: Document): Field[] {
     case "outfit":
       return [text(["name"], "Name"), text(["description"], "Description", "long"),
         ...Object.keys(js.tags ?? {}).map((slot) => tags(["tags", slot], cap(slot))),
-        tags(["weight_overrides", "emphasized"], "Emphasized")];
+        tags(["weight_overrides", "emphasized"], "Emphasized"),
+        // Photo-read extras that aren't real tags: shown tinted, never part of the outfit block.
+        ...(Array.isArray(js.optional) ? [tags(["optional"], "Optional")] : [])];
     case "theme":
       return [text(["name"], "Name"), text(["description"], "Description", "long"),
         tags(["base_layer", "effects"], "Base effects"), tags(["character_layer", "anchors"], "Anchors"),

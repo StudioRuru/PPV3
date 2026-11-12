@@ -52,9 +52,9 @@ export function LineList({ lines, onChange, placeholder = "tags or natural langu
   return (
     <div className="space-y-2">
       {lines.map((l, i) => (
-        <div key={l.id} className={`space-y-1 ${l.enabled ? "" : "opacity-40"}`}>
+        <div key={l.id} className={`space-y-1 ${l.optional ? "text-cyan [&_textarea]:text-cyan" : ""} ${l.enabled ? "" : l.optional ? "opacity-60" : "opacity-40"}`}>
           <div className="flex items-start gap-2">
-            <button type="button" aria-label={l.enabled ? "Disable line" : "Enable line"} onClick={() => set(i, { enabled: !l.enabled })}
+            <button type="button" aria-label={`${l.enabled ? "Disable" : "Enable"} line${l.optional ? " (optional extra: not a known tag)" : ""}`} onClick={() => set(i, { enabled: !l.enabled })}
               className="hit text-faint w-5 shrink-0 pt-2.5 text-right font-mono text-xs">{i + 1}</button>
             <TagInput value={l.text} onChange={(text) => set(i, { text })} placeholder={placeholder} />
             {/* Weight pill above broom (clear text) + trash (delete line): one narrow column, so the text keeps the width. */}

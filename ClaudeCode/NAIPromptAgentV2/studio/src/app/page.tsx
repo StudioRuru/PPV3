@@ -37,7 +37,7 @@ import { isFree } from "@/lib/grid";
 import { canResend, legacyParams } from "@/lib/nai-body";
 import { recreate } from "@/lib/recreate";
 import type { RawTag } from "@/lib/tagger";
-import { applyTags, emptyState, splitTags, type PromptState } from "@/lib/prompt";
+import { applyTags, emptyState, newLine, splitTags, type Line, type PromptState } from "@/lib/prompt";
 import { BUILTIN_PRESETS, type Preset } from "@/lib/tagger";
 
 export default function Studio() {
@@ -166,8 +166,11 @@ export default function Studio() {
 
   // Undo restores the pre-Recreate prompt only until the user edits the recreated one.
   const recreated = useRef<PromptState | null>(null);
-  function doRecreate(tags: RawTag[]) {
-    const next = recreate(tags, state);
+  function doRecreate(tags: RawTag[] | { base: Line[]; chars: Line[][] }) {
+    const next = Array.isArray(tags) ? recreate(tags, state) : {
+      ...state, base: tags.base.length ? tags.base : [newLine()], positions: "ai" as const,
+      chars: tags.chars.map((lines, i) => ({ id: `c${Date.now().toString(36)}${i}`, lines, uc: "", enabled: true })),
+    };
     recreated.current = next;
     setUndo(state);
     setState(next);
@@ -287,8 +290,20 @@ export default function Studio() {
         </header>
         <TaggerPane preset={preset} onTagged={() => setDrawer(true)} onDrop={dropTags}
           onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText}
-          onRecreate={doRecreate} incoming={incoming}
+          onRecreate={doRecreate} onCharacters={doRecreate} incoming={incoming}
           onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); setTab("chat"); }} />
+        {/* Plain English in, NovelAI-ready prompt out: the co-pilot's Build-scene mode rewrites it into tags + short V5 phrases. */}
+        <form className="flex gap-2" onSubmit={(e) => {
+          e.preventDefault();
+          const t = new FormData(e.currentTarget).get("scene")?.toString().trim();
+          if (!t) return;
+          setSeed({ text: `Rewrite this scene as a NovelAI V5 prompt — Danbooru tags first, short plain-English phrases only where no tag fits. Count tags, setting, props and lighting go in base; each person in their own char; uc only for things to avoid:\n${t}`, send: true });
+          setTab("chat"); e.currentTarget.reset();
+        }}>
+          <textarea name="scene" rows={2} aria-label="Describe a scene in plain English" placeholder="Describe a scene in plain English…"
+            className="bg-surface border-border min-w-0 flex-1 rounded-md border px-3 py-2 text-base" />
+          <button type="submit" className="bg-accent text-accent-fg shrink-0 rounded-md px-3 text-sm font-semibold">Rewrite</button>
+        </form>
         <div className="flex gap-2">
           <button type="button" onClick={() => setDrawer(true)} className="border-border flex-1 rounded-md border px-3 py-2.5 text-sm">
             Building blocks
