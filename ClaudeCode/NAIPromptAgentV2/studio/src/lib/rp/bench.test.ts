@@ -25,3 +25,10 @@ test("bench: echo, opening repeats, slop, agency, length, style breaks, memory",
   assert.equal(sum.memory, 0.5);
   assert.equal(sum.judge, 8);
 });
+
+test("podBody: Ollama options map to llama-server, llama.cpp samplers pass through", async () => {
+  const { podBody, isPod } = await import("../llm");
+  const b = podBody([{ role: "user", content: "hi" }], "pod:behemoth-128b", { temperature: 0.8, num_predict: 400, num_ctx: 16384, dry_multiplier: 0.8 }, ["\nKai:"]);
+  assert.deepEqual(b, { model: "behemoth-128b", stream: true, messages: [{ role: "user", content: "hi" }], temperature: 0.8, dry_multiplier: 0.8, max_tokens: 400, stop: ["\nKai:"] });
+  assert.ok(isPod("pod:x") && !isPod("gemma4-26b-apex") && !isPod(undefined));
+});

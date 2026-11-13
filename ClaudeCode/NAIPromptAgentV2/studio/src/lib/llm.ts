@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import sharp from "sharp";
-import { BRAIN_MODEL, CAPTION_URL, OLLAMA_URL, TIPO_URL } from "./env";
+import { BRAIN_MODEL, CAPTION_URL, OLLAMA_URL, RP_POD_URL, TIPO_URL } from "./env";
 import type { ChatMsg } from "./copilot-prompt";
 import { HeavyGate } from "./tiers";
 
@@ -91,7 +91,40 @@ export function chatBody(system: string, messages: ChatMsg[] | { role: string; c
   };
 }
 
+/** A model served by the rented RP pod rather than the Mac's Ollama. */
+export const isPod = (model?: string) => !!model?.startsWith("pod:");
+
+/** OpenAI-style body for llama-server; Ollama option names map over, and llama.cpp-only samplers (dry_*, xtc_*) pass through. */
+export function podBody(messages: { role: string; content: string }[], model: string, options: Record<string, unknown> = {}, stop?: string[]): Record<string, unknown> {
+  const { num_predict, num_ctx: _ctx, ...rest } = options;
+  return { model: model.slice(4), stream: true, messages, ...rest, ...(num_predict ? { max_tokens: num_predict } : {}), ...(stop?.length ? { stop } : {}) };
+}
+
+async function* podStream(messages: { role: string; content: string }[], opts: StreamOpts): AsyncGenerator<string> {
+  const r = await post(`${RP_POD_URL}/v1/chat/completions`, podBody(messages, opts.model!, opts.options, opts.stop), 600_000);
+  if (!r.ok || !r.body) throw new Error(`RP pod ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const dec = new TextDecoder();
+  let buf = "";
+  for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) {
+    buf += dec.decode(chunk, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop()!;
+    for (const l of lines) {
+      const d = l.startsWith("data:") ? l.slice(5).trim() : "";
+      if (!d || d === "[DONE]") continue;
+      const j = JSON.parse(d);
+      if (j.error) throw new Error(j.error.message ?? String(j.error));
+      const t = j.choices?.[0]?.delta?.content;
+      if (t) yield t;
+    }
+  }
+}
+
 export async function* chatStream(system: string, messages: ChatMsg[] | { role: string; content: string }[], opts: StreamOpts = {}): AsyncGenerator<string> {
+  if (isPod(opts.model)) {
+    yield* podStream(opts.system === false ? messages : [{ role: "system", content: system }, ...messages], opts);
+    return;
+  }
   if (!opts.model && !(await heavyGate.ensureLight())) throw paused("The co-pilot");
   const r = await post(`${OLLAMA_URL}/api/chat`, chatBody(system, messages, opts), 600_000);
   if (!r.ok || !r.body) throw new Error(`Ollama ${r.status}: ${await r.text()}`);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { learnedStoryBlock } from "@/lib/learning";
-import { chatStream, embed, heavyGate, Offline } from "@/lib/llm";
+import { chatStream, embed, heavyGate, isPod, Offline } from "@/lib/llm";
 import { shouldSummarize, summarizeChat } from "@/lib/rp/memory";
 import { heavyModel, installedModels, rp, rpSettings } from "@/lib/rp/server";
 import { buildTurn } from "@/lib/rp/turn";
@@ -41,14 +41,16 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const settings = rpSettings();
   const heavy = heavyModel();
   const turn = await buildTurn(rp, chatId, { settings, storyBlock: learnedStoryBlock(), heavy, installed: await installedModels(), embed }, replacing, b.wild === true);
-  const willPause = heavyGate.state === "light";
+  // The pod has its own GPU: no need to pause the Mac's captioner + TIPO for it.
+  const gate = <T,>(f: () => Promise<T>) => (isPod(turn.model) ? f() : heavyGate.run(f));
+  const willPause = !isPod(turn.model) && heavyGate.state === "light";
   const enc = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(ctl) {
       let reply = "";
       try {
-        await heavyGate.run(async () => {
+        await gate(async () => {
           for await (const t of chatStream("", turn.messages, { model: turn.model, options: turn.options, system: false })) {
             reply += t;
             try { ctl.enqueue(enc.encode(t)); } catch { /* client gone: keep generating so the reply is saved */ }
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
           // Memory refresh on the model that's already loaded; detached so the stream can close.
           const chat = rp.chat(chatId);
           if (saved && chat && shouldSummarize(rp.messages(chatId), chat.summarizedThrough, turn.truncated)) {
-            void heavyGate.run(() => summarizeChat(rp, chatId, { model: turn.model, numCtx: settings.numCtx, stream: (m, o) => chatStream("", m, { model: turn.model, options: o, system: false }) })).catch(() => {});
+            void gate(() => summarizeChat(rp, chatId, { model: turn.model, numCtx: settings.numCtx, stream: (m, o) => chatStream("", m, { model: turn.model, options: o, system: false }) })).catch(() => {});
           }
         });
       } catch (e) {

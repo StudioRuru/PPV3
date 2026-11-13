@@ -1,0 +1,32 @@
+#cloud-config
+# RP model pod (llama.cpp server on the tailnet). Rendered by scripts/rp-pod.mts; contains secrets: never log or write to disk.
+write_files:
+  - path: /usr/local/bin/rp-run
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Serves on loopback only; the studio reaches it through an SSH tunnel over Tailscale.
+      set -e
+      M=/models/{{FILE}}
+      exec docker run --rm --name rp --gpus all -v /models:/models -p 127.0.0.1:8080:8080 {{IMAGE}} \
+        -m "$M" -c {{CTX}} -ngl 999 -fa on --cache-type-k q8_0 --cache-type-v q8_0 --jinja --host 0.0.0.0 --port 8080 --alias {{ALIAS}}
+  - path: /etc/systemd/system/rp.service
+    content: |
+      [Unit]
+      Description=RP llama.cpp server
+      After=docker.service
+      Requires=docker.service
+      [Service]
+      ExecStartPre=-/usr/bin/docker rm -f rp
+      ExecStart=/usr/local/bin/rp-run
+      Restart=always
+      RestartSec=10
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  # Hyperstack's nova mirror can hang apt-get update for good; use the main archive.
+  - [bash, -c, "sed -i 's#http://nova.clouds.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list"]
+  - [bash, -c, "until command -v tailscale >/dev/null; do curl -fsSL https://tailscale.com/install.sh | sh || sleep 15; done; for i in 1 2 3 4 5 6 7 8 9 10; do tailscale up --force-reauth --authkey='{{TS_AUTHKEY}}' --hostname={{HOST}} --ssh --advertise-tags=tag:comfy-pod && break; sleep 10; done"]
+  # aria2 at 16 connections/file: ~300 MB/s vs ~27 MB/s for curl.
+  - [bash, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y -q aria2 && mkdir -p /models && printf '%s\\n' {{URLS}} > /root/urls.txt && aria2c -c -x16 -s16 -j4 --file-allocation=none --summary-interval=60 -i /root/urls.txt -d /models && touch /models/.ready"]
+  - [bash, -c, "docker pull {{IMAGE}}; systemctl daemon-reload && systemctl enable --now rp.service"]
