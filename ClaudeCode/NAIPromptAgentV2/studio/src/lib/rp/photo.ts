@@ -31,17 +31,42 @@ const EXPLICIT_1 = new RegExp(EXPLICIT.source, "i");
 /**
  * Base look (card beats profile, ensemble speaker's own tags, else tags found in the card's description), then the
  * outfit, then real tags for pose / scene / mood / clothes found in the photo description and recent chat `context`
- * (clothes there replace the card outfit), then the model's description.
+ * (clothes there replace the card outfit) — the LLM tag pass's tags when it ran, else exact matches — then the model's description.
  */
-export function photoPrompt(c: RpCharacter, p: RpProfile | null, speaker: string, desc: string, spice: number, vocab = new Map<string, string>(), context = ""): string {
+export function photoPrompt(c: RpCharacter, p: RpProfile | null, speaker: string, desc: string, spice: number, vocab = new Map<string, string>(), context = "", llm?: string[] | null): string {
   const tame = spice < 3;
   const d = tame ? desc.replace(EXPLICIT, "") : desc;
   const appearance = [...vocab].filter(([, g]) => g === "appearance").map(([t]) => t);
-  const ctx = findTags(`${desc}\n${context}`, [...vocab].filter(([t, g]) => !SKIP_GROUPS.has(g) && !SKIP.has(t)).map(([t]) => t)).filter((t) => !tame || (vocab.get(t) !== "nudity" && !EXPLICIT_1.test(t))).slice(0, 20);
+  const ctx = (llm?.length ? llm : findTags(`${desc}\n${context}`, [...vocab].filter(([t, g]) => !SKIP_GROUPS.has(g) && !SKIP.has(t)).map(([t]) => t))).filter((t) => !tame || (vocab.get(t) !== "nudity" && !EXPLICIT_1.test(t))).slice(0, 20);
   const outfit = ctx.some((t) => WEAR.has(vocab.get(t)!)) ? "" : c.outfitPrompt;
   const all = [photoAppearance(c, p, speaker || undefined) || descriptionTags(c.description ?? "", appearance), outfit, ...ctx, d, ...(tame ? RATING_TAGS.safe.add : [])]
     .flatMap((x) => x.split(",")).map((x) => x.trim()).filter(Boolean);
   return [...new Set(all)].join(", ");
+}
+
+/** Comma/newline-separated model output → real tags only (weights, underscores, case and junk stripped), deduped, ≤ 20. */
+export function cleanTags(raw: string, known: Set<string>): string[] {
+  const ts = raw.replace(/^[^:\n]*:/, "").split(/[,\n]/).map((t) => t.toLowerCase().replace(/_/g, " ").replace(/[()[\]{}]|:[\d.]+/g, "").trim());
+  return [...new Set(ts.filter((t) => known.has(t)))].slice(0, 20);
+}
+
+/** Asks the chat's model for the photo's pose / mood / clothes / scene / framing tags; null when it can't. */
+async function llmTags(chat: { model?: string | null }, c: RpCharacter, base: string, context: string, desc: string): Promise<string[] | null> {
+  try {
+    const { chatStream, heavyGate, isPod } = await import("../llm");
+    const { heavyModel } = await import("./server");
+    const { knownTags } = require("../tag-index") as typeof import("../tag-index");
+    const model = chat.model || c.model || heavyModel();
+    const ask = [{ role: "user", content: [
+      `Write Danbooru tags for a photo ${c.name} is sending in a chat.`,
+      `Their look (already tagged, don't repeat): ${base || "-"}`, `Their usual outfit: ${c.outfitPrompt || "-"}`,
+      `Recent chat:\n${context || "-"}`, `The photo: ${desc}`,
+      "Output only comma-separated Danbooru tags, at most 20: pose, expression/mood, the clothes worn in this photo (the usual outfit unless the chat changed it), setting/background, camera framing. No hair/eye/body tags, no names, no sentences.",
+    ].join("\n\n") }];
+    const run = async () => { let out = ""; for await (const t of chatStream("", ask, { model, options: { temperature: 0.2, num_predict: 160 }, system: false, think: false })) out += t; return out; };
+    const tags = cleanTags(await (isPod(model) ? run() : heavyGate.run(run)), knownTags());
+    return tags.length ? tags : null;
+  } catch (e) { console.error("[rp photo tags]", e instanceof Error ? e.message : e); return null; }
 }
 
 /** Offer photos only when the user asks, or the last photo is ≥ 8 replies back (or never sent and 8 replies in). */
@@ -89,6 +114,10 @@ export function renderPending(store: RpStore, chatId: number, settings: RpSettin
     vocab ??= tagVocab();
     // ponytail: the last 6 messages only — a change of clothes further back falls back to the card outfit.
     const context = ms.slice(Math.max(0, i - 6), i).filter((x) => x.imageId == null).map((x) => x.content).join("\n");
-    void renderPhoto(store, m.id, photoPrompt(c, p, m.speaker, desc, spice, vocab, context), token, spice >= 3).finally(() => inFlight.delete(m.id));
+    const base = photoAppearance(c, p, m.speaker || undefined) || descriptionTags(c.description ?? "", [...vocab].filter(([, g]) => g === "appearance").map(([t]) => t));
+    const v = vocab;
+    void llmTags(chat, c, base, context, desc)
+      .then((llm) => renderPhoto(store, m.id, photoPrompt(c, p, m.speaker, desc, spice, v, context, llm), token, spice >= 3))
+      .finally(() => inFlight.delete(m.id));
   }
 }

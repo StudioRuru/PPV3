@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { descriptionTags, photoDue, photoPrompt } from "./photo";
+import { cleanTags, descriptionTags, photoDue, photoPrompt } from "./photo";
 import { parseProfile } from "./profile";
 import type { RpCharacter, RpMessage } from "./types";
 
@@ -49,4 +49,13 @@ test("conversation context: pose, scene, mood and a change of clothes become rea
   assert.ok(photoPrompt(card(), null, "", "smiling", 3, vocab, "we talked about school").includes("school uniform"), "no clothes in context keeps the card outfit");
   assert.equal(photoPrompt(card(), null, "", "a yellow flower", 3, vocab), "school uniform, a yellow flower", "bare colours (materials) aren't scene tags");
   assert.ok(!photoPrompt(card(), null, "", "smiling", 1, vocab, "i'm nude").includes("nude"), "tame chats drop nudity tags");
+});
+
+test("LLM tag pass: only real tags survive, and they stand in for matched ones", () => {
+  const known = new Set(["lying", "beach", "string bikini", "blush", "from above", "nude"]);
+  assert.deepEqual(cleanTags("Tags: lying, beach,\nString_Bikini, sparkly vibes, blush, (from above:1.2), lying", known), ["lying", "beach", "string bikini", "blush", "from above"]);
+  const vocab = new Map([["string bikini", "clothing"], ["lying", "poses"], ["beach", "settings"]]);
+  const p = photoPrompt(card({ appearancePrompt: "1girl, red hair" }), null, "", "on the sand", 3, vocab, "beach day", ["string bikini", "from above"]);
+  assert.equal(p, "1girl, red hair, string bikini, from above, on the sand", "LLM tags replace matching; clothes there drop the card outfit");
+  assert.ok(!photoPrompt(card(), null, "", "x", 1, vocab, "", ["nude", "beach"]).includes("nude"), "tame chats drop nudity from LLM tags too");
 });
