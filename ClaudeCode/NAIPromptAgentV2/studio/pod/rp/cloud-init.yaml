@@ -28,5 +28,5 @@ runcmd:
   - [bash, -c, "sed -i 's#http://nova.clouds.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list"]
   - [bash, -c, "until command -v tailscale >/dev/null; do curl -fsSL https://tailscale.com/install.sh | sh || sleep 15; done; for i in 1 2 3 4 5 6 7 8 9 10; do tailscale up --force-reauth --authkey='{{TS_AUTHKEY}}' --hostname={{HOST}} --ssh --advertise-tags=tag:comfy-pod && break; sleep 10; done"]
   # aria2 at 16 connections/file: ~300 MB/s vs ~27 MB/s for curl.
-  - [bash, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y -q aria2 && mkdir -p /models && printf '%s\\n' {{URLS}} > /root/urls.txt && aria2c -c -x16 -s16 -j4 --file-allocation=none --summary-interval=60 -i /root/urls.txt -d /models && touch /models/.ready"]
+  - [bash, -c, "DEBIAN_FRONTEND=noninteractive apt-get install -y -q aria2 && mkdir -p /models && printf '%s\\n  out=%s\\n' {{URLS}} > /root/urls.txt && aria2c -c -x16 -s16 -j4 --file-allocation=none --summary-interval=60 -i /root/urls.txt -d /models && touch /models/.ready"]
   - [bash, -c, "docker pull {{IMAGE}}; systemctl daemon-reload && systemctl enable --now rp.service"]

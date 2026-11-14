@@ -126,9 +126,33 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
     truncated: r.truncated,
   };
   const old = replacing ? store.messages(chatId).find((m) => m.id === replacing) : undefined;
-  return steerTurn(turn, {
+  return foldSystem(steerTurn(turn, {
     drafts: old ? (old.swipes.length ? old.swipes : [old.content]) : undefined,
     recent: history.filter((m) => m.role === "assistant").slice(-3).map((m) => m.content),
     wild, style: chat.style, spice: chat.replySpice ?? deps.settings.replySpice, charName: character?.name ?? "the character", userName: persona?.name ?? "User",
-  });
+  }));
+}
+
+/**
+ * One leading system block; every later system note is folded into a user turn (prepended to the next one, or appended
+ * to the last one when it trails). Mistral-family templates render a system message after [/INST] as a fresh system
+ * block, and the model then continues the instructions instead of replying (cydonia: empty or leaked-instruction replies).
+ */
+export function foldSystem(turn: Turn): Turn {
+  const ms = turn.messages;
+  const lead = ms.findIndex((m) => m.role !== "system");
+  if (lead < 0) return turn;
+  const head = ms.slice(0, lead).map((m) => m.content);
+  const out: ChatMessage[] = [];
+  let pending: string[] = [];
+  for (const m of ms.slice(lead)) {
+    if (m.role === "system") { pending.push(m.content); continue; }
+    if (m.role === "user" && pending.length) { out.push({ ...m, content: `${pending.join("\n\n")}\n\n${m.content}` }); pending = []; continue; }
+    out.push(m);
+  }
+  // Trailing notes join the last turn only when it's the user's; after a reply (nothing to answer) they stay a system message.
+  const last = out.at(-1);
+  if (pending.length && last?.role === "user") out[out.length - 1] = { ...last, content: `${last.content}\n\n${pending.join("\n\n")}` };
+  else if (pending.length) out.push({ role: "system", content: pending.join("\n\n") } as ChatMessage);
+  return { ...turn, messages: [...(head.length ? [{ role: "system", content: head.join("\n\n") } as ChatMessage] : []), ...out] };
 }

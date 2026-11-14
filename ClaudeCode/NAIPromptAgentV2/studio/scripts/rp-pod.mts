@@ -20,7 +20,7 @@ if (cmd === "up") {
   if (/['\r\n]/.test(env.COMFY_TS_AUTHKEY)) throw new Error("bad tailscale key");
   const vars: Record<string, string> = {
     TS_AUTHKEY: env.COMFY_TS_AUTHKEY, HOST, FILE: PARTS[0], CTX: "16384", ALIAS: "behemoth-128b",
-    IMAGE: "ghcr.io/ggml-org/llama.cpp:server-cuda", URLS: PARTS.map((p) => `${REPO}/${p}`).join(" "),
+    IMAGE: "ghcr.io/ggml-org/llama.cpp:server-cuda", URLS: PARTS.map((p) => `${REPO}/${p} ${p.split("/").pop()}`).join(" "),
   };
   const userData = Object.entries(vars).reduce((t, [k, v]) => t.split(`{{${k}}}`).join(v), fs.readFileSync("pod/rp/cloud-init.yaml", "utf8"));
   // Not h.create: its "nai-comfy" label makes the comfy watchdog delete this VM as an orphan.
