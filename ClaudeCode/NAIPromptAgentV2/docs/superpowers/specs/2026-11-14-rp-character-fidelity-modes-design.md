@@ -76,6 +76,10 @@ own quirks (formats, verbal tics, relationships) show up without prompting.
   - she sends a follow-up double-text if the user goes quiet.
 - **Switch:** a pill at the top of the chat (💬 Text | 🎭 RP), switchable mid-chat.
 - **Thinking:** "if it increases the quality, always have it run."
+- **Text-mode retry keeps old versions:** each retry is saved, and ‹ 1/3 › flips between whole bursts, like today's
+  swipes.
+- **Ensemble cards in Text mode look like a group chat:** each bubble shows who sent it.
+- **In RP mode the card's POV wins:** third person applies only when the card doesn't set one.
 
 ## Design
 
@@ -91,9 +95,13 @@ own quirks (formats, verbal tics, relationships) show up without prompting.
     character. It is no longer an unstructured blob.
   - Recurring formats from the card's greeting and examples (e.g. `X's Thoughts: **…**`) go into the profile's `format`
     field and are restated in the post-history voice reminder.
-- **The card beats the sliders.** Global agency, spice and mods become *nudges*. The profile's `defaults` (agency level,
-  spice floor/ceiling where the card states one) win when present. The per-chat Tune sheet still overrides explicitly:
-  the owner's direct choice beats the card, and the card beats the global default.
+- **The card beats the sliders.** Each setting resolves in this order:
+  per-chat Tune > hand-set character field (e.g. `RpCharacter.agency`) > `profile.defaults` > global setting.
+  - **Agency:** `profile.defaults.agency` replaces the global value. Nothing is blended.
+  - **Spice:** the profile may give a `{min, max}`, and the global spice is clamped into that range.
+  - **Mods:** stay under the owner's control. When the profile is built, it lists any enabled global mods that
+    contradict the card in `profile.conflicts` (shown on the sheet, e.g. "Willful agency vs. gullible"). Nothing is
+    switched off automatically.
 - **Voice reminder fallback.** When `personality` is empty, the reminder uses the profile's core traits and speech
   lines instead of nothing.
 - **Character-specific variety.** `steerTurn` keeps the fresh seed, the "don't reuse openings" rule, the regenerate
@@ -136,7 +144,9 @@ next to the name/avatar, as in the mockup. Switching mid-chat keeps the same thr
 mode. The Tune sheet's Style picker is removed.
 
 **🎭 RP**
-- The character narrates herself in third person, in the tense set on the card.
+- The card's `povMode`, `tense` and `dialogueStyle` win when they're set. The RP directive replaces only the missing
+  ones, defaulting to third person / past tense. This replaces today's "a chat style replaces the card's POV locks"
+  behaviour (prompt.ts ~391).
 - Dialogue appears inline. When the user writes `*action*`, the reply reacts physically and descriptively before
   speaking.
 - The user's `*actions*` render in the existing italic action style.
@@ -147,7 +157,11 @@ mode. The Tune sheet's Style picker is removed.
 - **Generation.** One model call per reply. The model writes 2–5 short texts separated by a delimiter line (`---`).
   There is no narration and no `*actions*`. The server splits on the delimiter. Each bubble is saved as its own
   assistant message sharing a `burstId`, so history, regenerate and swipes work per burst.
-  - Regenerate replaces the whole burst.
+  - **Retry (owner decision):** keeps old bursts reachable.
+    - A burst-level swipe store: the burst's head message holds `burstSwipes`, each a list of bubbles with their
+      reaction and photo links. ‹ n/m › on the burst's last bubble flips the whole set.
+    - Bubble counts can differ between versions. The reaction and photos belong to the version.
+    - Only the last burst can be regenerated, as today with the last reply.
   - Fallback: if the model ignores the delimiter, split on blank lines, then on sentences, up to 5.
 - **Delivery.** Bubbles stream to the UI one by one. Before each one, a "typing…" indicator shows for about 40 ms per
   character, clamped to 0.6–3 s. "Typing…" also shows under the name in the header.
@@ -166,6 +180,9 @@ mode. The Tune sheet's Style picker is removed.
   - Off with one tap: a toggle in the chat's ⋯ menu, on by default.
   - It needs no server cron. The open page sets the timer and calls a `nudge` endpoint, which runs a normal turn with a
     "the user hasn't replied in N minutes" note.
+- **Ensemble cards (owner decision): group-chat look.** Each bubble is written `Name: text`. The parser sets a
+  `speaker` on each bubble, and the UI shows the name plus a small avatar or colour dot per speaker.
+  - A photo uses the speaker's `appearanceTags`. The profile keeps tags per cast member.
 - **Voice.** Casual and in the character's speech register from the profile: emoji, lowercase and typos only if they
   fit her. "Texting" means the medium, not one shared personality.
 
@@ -187,6 +204,11 @@ never shown. It is stored on the message (`thought`) for debugging, viewable fro
   scenarios (2 runs each), with the same judge.
   - Ship always-on if judge ≥ baseline + 0.2 with no drop in lengthOk/memory.
   - If the gain is smaller, ship it as a per-chat toggle that defaults to off, and report the numbers to the owner.
+- **Re-check after Text mode.** The gate runs once on today's formats (step 2). It runs again after Text bursts land
+  (step 3), with the bench's Text case moved to `style: "text"` and burst-aware length scoring.
+  - The Text case is rebaselined.
+  - The anti-goal bars (judge 8.7, lengthOk 0.95) apply to the RP cases.
+  - If thinking loses in Text mode, it is turned on per mode.
 - **Latency.** The typing indicator covers the plan call in Text mode. In RP mode the reply streams after the plan.
 - **HER-32B as an option.** Test `ChengyuDu0123/HER-32B` (Qwen3-32B, role thinking built in) as a local model through
   the same bench, as a Q4 GGUF if it fits in 24 GB alongside the rest, otherwise as a pod model.
@@ -213,7 +235,9 @@ never shown. It is stored on the message (`thought`) for debugging, viewable fro
 ## Calls I made (owner, please check)
 
 - `displayName` and the cast come from APEX extraction and are editable, rather than parsed from the title with a regex.
-- The precedence order is per-chat Tune > card/profile > global slider.
+- The precedence order is per-chat Tune > hand-set character field > profile defaults > global. Spice is clamped
+  into the profile's range. Conflicting mods are flagged, never switched off.
+- The thinking gate re-runs after Text mode. The Text bench case is rebaselined. Thinking can be on per mode.
 - Learned facts go to the chat's memory, not the card-wide profile.
 - New chats default to RP mode unless the profile says otherwise. Old "Texting" chats become Text.
 - Typing delay is about 40 ms per character, clamped to 0.6–3 s. Spontaneous photos happen at most about 1 in 8 turns.
