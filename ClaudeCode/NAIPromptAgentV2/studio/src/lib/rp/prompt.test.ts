@@ -71,3 +71,60 @@ test("voice lines go in the final block; the story block in the first system mes
   assert.match(r.messages.at(-1)!.content, /Hmph, baka\./);
   assert.match(r.messages[0].content, /\[How the owner likes stories\]\nLikes slow burn\./);
 });
+
+const prof = (o: Record<string, unknown> = {}) => JSON.stringify({ coreTraits: ["bubbly", "airheaded"], wouldNever: ["abandon a lost child"], ...o });
+const tail = (r: ReturnType<typeof assembleMessages>) => r.messages.at(-1)!.content;
+
+test("uses displayName in the system prompt, not the card title", () => {
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ name: "Alice in Wonderland | Lost Elf", displayName: "Alice", description: "", personality: "" }), persona, chat: chat(), history: turns(2) });
+  assert.match(r.messages[0].content, /You are Alice\./);
+  assert.ok(!all(r).includes("Alice in Wonderland | Lost Elf"));
+});
+
+test("voice reminder falls back to the profile when personality is empty", () => {
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ personality: "", profile: prof() }), persona, chat: chat(), history: turns(2) });
+  assert.match(tail(r), /bubbly/);
+});
+
+test("profile slice is injected post-history, not in the system prompt", () => {
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ profile: prof() }), persona, chat: chat(), history: turns(2) });
+  assert.match(tail(r), /abandon a lost child/);
+  assert.ok(!r.messages[0].content.includes("abandon a lost child"));
+});
+
+test("profile format is restated verbatim in the voice reminder", () => {
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ profile: prof({ format: "X's Thoughts: **…**" }) }), persona, chat: chat(), history: turns(2) });
+  assert.ok(tail(r).includes("X's Thoughts: **…**"));
+});
+
+test("agency and spice go through precedence; spice clamps to the profile range", () => {
+  const p = prof({ defaults: { agency: 4, spice: { min: 0, max: 1 } } });
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ profile: p }), persona, chat: chat({ replySpice: 4 }), history: turns(2) });
+  assert.match(tail(r), /fiercely guards their boundaries/);
+  assert.match(tail(r), /suggestive rather than graphic/);
+  assert.ok(!tail(r).includes("Hold nothing back"));
+});
+
+test("a mod that conflicts with the card adds a stay-true note", () => {
+  const p = prof({ conflicts: ["bimbofication"] });
+  const mods = JSON.stringify({ bimbofication: { enabled: true, value: 2 } });
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ profile: p }), persona, chat: chat({ mods }), history: turns(2) });
+  assert.match(tail(r), /Note: the Bimbofication mod conflicts with this character's card/i);
+  const quiet = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ profile: p }), persona, chat: chat(), history: turns(2) });
+  assert.ok(!tail(quiet).includes("conflicts with this character's card"));
+});
+
+test("ensemble cast: example lines are labelled by speaker", () => {
+  const p = prof({ cast: [{ name: "Rin", role: "older sister" }, { name: "Mio", role: "younger sister" }] });
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ name: "Sisters", exampleDialogue: "Rin: hi\nMio: yo\n{{user}}: hey\nRin: bye", profile: p }), persona, chat: chat(), history: turns(2) });
+  const ex = r.messages.filter((m) => /^(Rin|Mio): /.test(m.content));
+  assert.deepEqual(ex.map((m) => [m.role, m.content]), [["assistant", "Rin: hi"], ["assistant", "Mio: yo"], ["assistant", "Rin: bye"]]);
+  assert.ok(r.messages.some((m) => m.role === "user" && m.content === "hey"));
+});
+
+test("splitBySpeaker splits ensemble example text by cast name", async () => {
+  const { splitBySpeaker } = await import("./exampleDialogue");
+  assert.deepEqual(splitBySpeaker("Rin: hi\nMio: yo\nRin: bye", ["Rin", "Mio"]), [
+    { speaker: "Rin", text: "hi" }, { speaker: "Mio", text: "yo" }, { speaker: "Rin", text: "bye" },
+  ]);
+});

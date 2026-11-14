@@ -90,3 +90,22 @@ export function parseExampleDialogue(
 
   return turns;
 }
+
+/**
+ * Ensemble cards (one card, several characters): split example text into lines per named speaker, so each sister/rival
+ * keeps a labelled voice instead of collapsing into one "{{char}}". Multi-line messages continue the last speaker;
+ * `<START>` and unlabelled preamble are dropped.
+ */
+export function splitBySpeaker(example: string, cast: string[]): { speaker: string; text: string }[] {
+  const names = [...new Set(cast.filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!names.length || !example?.trim()) return [];
+  const re = new RegExp(`^\\s*(${names.map(escapeRegExp).join("|")})\\s*:\\s*(.*)$`, "i");
+  const out: { speaker: string; text: string }[] = [];
+  for (const line of example.split(/\r?\n/)) {
+    if (/^\s*<START>\s*$/i.test(line)) continue;
+    const m = line.match(re);
+    if (m) out.push({ speaker: names.find((n) => n.toLowerCase() === m[1].toLowerCase())!, text: m[2] });
+    else if (out.length) out[out.length - 1].text += `\n${line}`;
+  }
+  return out.map((t) => ({ ...t, text: t.text.trim() })).filter((t) => t.text);
+}

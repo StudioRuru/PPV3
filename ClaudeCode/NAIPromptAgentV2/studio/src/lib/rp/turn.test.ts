@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { foldSystem, type Turn } from "./turn";
+import { foldSystem, steerTurn, type Turn } from "./turn";
+import { parseProfile } from "./profile";
 
 test("foldSystem: one lead system block, deep notes onto the next user turn, trailing notes onto the last", () => {
   const t = (messages: { role: string; content: string }[]) => ({ messages, options: {}, model: "m", truncated: false }) as unknown as Turn;
@@ -13,4 +14,13 @@ test("foldSystem: one lead system block, deep notes onto the next user turn, tra
     { role: "system", content: "S1\n\nS2" }, { role: "assistant", content: "hi" }, { role: "user", content: "u1" },
     { role: "assistant", content: "a1" }, { role: "user", content: "note\n\nu2\n\nfresh\n\njb" },
   ]);
+});
+
+test("steer: a forced direction comes from the profile when it has hooks", () => {
+  const t = { messages: [], options: {}, model: "m", truncated: false } as unknown as Turn;
+  const profile = parseProfile({ hooks: ["her missing sister"] });
+  const r = steerTurn(t, { drafts: ["old"], spice: 2, charName: "Alice", userName: "Phil", profile }, () => 0.1);
+  assert.match(r.messages.at(-1)!.content, /Direction: .*her missing sister/);
+  const plain = steerTurn(t, { drafts: ["old"], spice: 2, charName: "Alice", userName: "Phil" }, () => 0.1);
+  assert.ok(!plain.messages.at(-1)!.content.includes("her missing sister"));
 });

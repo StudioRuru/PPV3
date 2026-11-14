@@ -1,9 +1,10 @@
 // Ported from Delfino Plaza src/lib/prompt.ts (photo-note support dropped; storyBlock added).
 import type { ChatMessage, RpCharacter as Character, RpChat as Chat, RpMessage as Message, RpPersona as Persona, RpSettings as Settings, SamplerOptions } from "./types";
-import { parseExampleDialogue } from "./exampleDialogue";
+import { parseExampleDialogue, splitBySpeaker } from "./exampleDialogue";
 import { lengthNumPredict, moodDirective, structureDirective, styleDirective } from "./presets";
 import { parseStateSchema, parseStateValues, stateBlock } from "./state";
-import { modsDirective, resolveMods } from "./mods";
+import { MODS, modsDirective, resolveMods } from "./mods";
+import { charName as nameOf, parseProfile, profileSlice, resolveAgency, resolveSpice, type RpProfile } from "./profile";
 
 const DEFAULT_USER_NAME = "User";
 
@@ -31,7 +32,7 @@ function buildSystemPrompt(
   character: Character | null | undefined,
   persona: Persona | null | undefined,
 ): string {
-  const charName = character?.name || "Assistant";
+  const charName = character ? nameOf(character) || "Assistant" : "Assistant";
   const userName = persona?.name || DEFAULT_USER_NAME;
   const sub = (t: string) => substituteMacros(t, charName, userName);
 
@@ -81,9 +82,23 @@ function buildExampleMessages(
   sub: (t: string) => string,
   charName: string,
   userName: string,
+  profile: RpProfile | null = null,
 ): ChatMessage[] {
   const raw = character?.exampleDialogue?.trim();
   if (!raw) return [];
+  // Ensemble card: label each line by its speaker so every cast member keeps their own voice.
+  if (profile && profile.cast.length > 1) {
+    const users = ["{{user}}", "<USER>", userName];
+    const lines = splitBySpeaker(raw, [...profile.cast.map((c) => c.name), ...users]);
+    if (lines.length) {
+      return [
+        { role: "system", content: "[Example dialogue — voice reference only, not part of the conversation]" },
+        ...lines.map((l) => users.some((u) => u.toLowerCase() === l.speaker.toLowerCase())
+          ? { role: "user" as const, content: sub(l.text) }
+          : { role: "assistant" as const, content: `${l.speaker}: ${sub(l.text)}` }),
+      ];
+    }
+  }
   const turns = parseExampleDialogue(raw, charName, userName);
   if (turns.length) {
     return [
@@ -106,9 +121,10 @@ function buildVoiceReminder(
   character: Character | null | undefined,
   sub: (t: string) => string,
   charName: string,
+  profile: RpProfile | null = null,
 ): string {
   if (!character || charName === "Assistant") return "";
-  const persona = character.personality?.trim();
+  const persona = character.personality?.trim() || profile?.coreTraits.join(", ") || "";
   const excerpt = persona
     ? (persona.length > 600 ? `${persona.slice(0, 600).trimEnd()}…` : persona)
     : "";
@@ -358,7 +374,7 @@ export function assembleMessages({
   voiceLines,
   storyBlock,
 }: AssembleArgs): AssembleResult {
-  const charName = character?.name || "Assistant";
+  const charName = character ? nameOf(character) || "Assistant" : "Assistant";
   const userName = persona?.name || DEFAULT_USER_NAME;
   const sub = (t: string) => substituteMacros(t, charName, userName);
 
@@ -369,7 +385,20 @@ export function assembleMessages({
   // reminder goes first so the character is re-stated right before generation,
   // followed by this turn's retrieved example lines showing that voice in action.
   const jbParts: string[] = [];
-  const voiceReminder = buildVoiceReminder(character, sub, charName);
+  const profile = parseProfile(character?.profile ?? null);
+  const activeMods = resolveMods(settings.mods, chat?.mods);
+  const reminder = [buildVoiceReminder(character, sub, charName, profile)];
+  if (reminder[0] && profile) {
+    // The legacy "chat" style is Text mode until the mode migration lands.
+    const mode = chat?.style === "text" || chat?.style === "chat" ? "text" : "rp";
+    reminder.push(sub(profileSlice(profile, mode, history.filter((m) => m.role === "assistant").length)));
+    const conflicts = profile.conflicts.map((c) => c.toLowerCase());
+    for (const m of MODS) {
+      if (activeMods[m.id]?.enabled && (conflicts.includes(m.id) || conflicts.includes(m.label.toLowerCase())))
+        reminder.push(`Note: the ${m.label} mod conflicts with this character's card — stay true to the card where they clash.`);
+    }
+  }
+  const voiceReminder = reminder.filter(Boolean).join("\n");
   if (voiceReminder) jbParts.push(voiceReminder);
   const voiceExamples = buildVoiceExamples(voiceLines, sub, charName);
   if (voiceExamples) jbParts.push(voiceExamples);
@@ -380,8 +409,8 @@ export function assembleMessages({
   // strong-willed character resists by default while a meek one yields.
   const mood = moodDirective(
     chat?.replyLength ?? settings.replyLength,
-    chat?.replySpice ?? settings.replySpice,
-    chat?.replyAgency ?? character?.agency ?? settings.replyAgency,
+    chat ? resolveSpice(chat, profile, settings) : settings.replySpice,
+    chat ? resolveAgency(chat, character ?? null, profile, settings) : (character?.agency ?? settings.replyAgency),
     chat?.style,
   );
   if (mood) jbParts.push(sub(mood));
@@ -405,7 +434,7 @@ export function assembleMessages({
   }
   // Mods & Upgrades: per-chat overrides win over the global defaults. Enabled
   // mods contribute directives in the same post-history slot as the mood.
-  const mods = modsDirective(resolveMods(settings.mods, chat?.mods));
+  const mods = modsDirective(activeMods);
   if (mods) jbParts.push(sub(mods));
   const jailbreak = jbParts.join("\n\n");
 
@@ -418,7 +447,7 @@ export function assembleMessages({
 
   // Reserve part of the context window for the response (matches the cap used
   // for generation, so the estimate and the actual request agree).
-  const exampleMessages = buildExampleMessages(character, sub, charName, userName);
+  const exampleMessages = buildExampleMessages(character, sub, charName, userName, profile);
   const exampleTokens = exampleMessages.reduce(
     (n, m) => n + estimateTokens(m.content),
     0,

@@ -2,6 +2,7 @@ import { applyCharacterOverrides, assembleMessages, settingsToOptions } from "./
 import type { RpStore } from "./store";
 import type { ChatMessage, RpSettings, SamplerOptions } from "./types";
 import { selectVoiceLines, type Embed } from "./voice";
+import { charName as nameOf, parseProfile, resolveSpice, type RpProfile } from "./profile";
 
 export type TurnDeps = { settings: RpSettings; storyBlock: string; heavy: string; installed: string[]; embed: Embed };
 export type Turn = { messages: ChatMessage[]; options: SamplerOptions; model: string; truncated: boolean };
@@ -64,7 +65,7 @@ export const openingKind = (t: string) => (/^\s*["“]/.test(t) ? "dialogue" : /
 const openingsFor = (style: string) => (style === "chat" ? CHAT_OPENINGS : style === "story" ? STORY_OPENINGS : OPENINGS);
 const snip = (t: string, n: number) => { const x = t.replace(/\s+/g, " ").trim(); return x.length > n ? `${x.slice(0, n)}…` : x; };
 
-export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string; style?: string };
+export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string; style?: string; profile?: RpProfile | null };
 
 /**
  * Keeps replies fresh. Every turn: a fresh seed, an opening unlike the last reply's, "don't reuse your recent openings",
@@ -87,7 +88,12 @@ export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
     ? `[Alternate take] Write a reply that is clearly different from these earlier drafts — different opening, different gestures, different choices, different phrasing. Don't reuse their lines.`
     : `[Keep it fresh] Don't reuse the openings, gestures or stock phrases of your recent replies.`];
   lines.push(`${fill(opening.text)}. ${fill(VOICE[o.style ?? ""] ?? VOICE[""])}`);
-  if (regen || o.wild || rand() < 0.35) lines.push(`Direction: ${fill(pick(pool))}.`);
+  // The character's own wants, fears, tics and story hooks beat generic directions when the profile has them.
+  const own = o.profile ? [
+    ...o.profile.wants.map((w) => `let {{char}}'s want show — ${w}`), ...o.profile.fears.map((f) => `let {{char}}'s fear surface — ${f}`),
+    ...o.profile.speech.tics.map((t) => `work in {{char}}'s habit: ${t}`), ...o.profile.hooks.map((h) => `pull on a thread: ${h}`),
+  ] : [];
+  if (regen || o.wild || rand() < 0.35) lines.push(`Direction: ${fill(pick(own.length && rand() < 0.7 ? own : pool))}.`);
   if (regen) lines.push(`Earlier drafts:\n${o.drafts!.slice(-3).map((d) => `- ${snip(d, 280)}`).join("\n")}`);
   else if (o.recent?.length) lines.push(`Your recent openings:\n${o.recent.slice(-3).map((d) => `- ${snip(d, 90)}`).join("\n")}`);
   const base = turn.options.temperature ?? 0.9;
@@ -125,11 +131,13 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
     model: pinned || deps.heavy,
     truncated: r.truncated,
   };
+  const profile = parseProfile(character?.profile ?? null);
   const old = replacing ? store.messages(chatId).find((m) => m.id === replacing) : undefined;
   return foldSystem(steerTurn(turn, {
     drafts: old ? (old.swipes.length ? old.swipes : [old.content]) : undefined,
     recent: history.filter((m) => m.role === "assistant").slice(-3).map((m) => m.content),
-    wild, style: chat.style, spice: chat.replySpice ?? deps.settings.replySpice, charName: character?.name ?? "the character", userName: persona?.name ?? "User",
+    wild, style: chat.style, spice: resolveSpice(chat, profile, deps.settings), charName: character ? nameOf(character) : "the character", userName: persona?.name ?? "User",
+    profile,
   }));
 }
 
