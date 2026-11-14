@@ -27,4 +27,5 @@ test("photoDue", () => {
   assert.equal(photoDue([m("assistant", 5), ...eight.slice(1)], "hey"), false);
   assert.equal(photoDue([], "send a pic?"), true);
   assert.equal(photoDue([m("assistant")], "how was school"), false);
+  assert.equal(photoDue([m("assistant", 0), ...eight.slice(1)], "hey"), false, "a failed photo still counts as sent");
 });

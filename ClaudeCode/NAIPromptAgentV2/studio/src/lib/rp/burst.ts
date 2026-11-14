@@ -36,6 +36,9 @@ export function splitBurst(raw: string, cast: string[]): Burst {
   return { bubbles: bubbles.length ? bubbles : [{ text: "", speaker: "" }], reaction };
 }
 
+/** How a finished reply is saved: a burst regenerate stays a burst (even after a switch to RP); else Text appends a burst. */
+export const saveKind = (style: string, burstId: string | null | undefined, replacing?: number) =>
+  burstId || (style === "text" && !replacing) ? "burst" : replacing ? "swipe" : "append";
 /** A bubble's row content: a photo is kept as its tag so the model sees it in history. */
 export const bubbleContent = (x: Bubble) => (x.photo ? `[photo: ${x.photo}]` : x.text);
 /** The burst as the model wrote it, for history and drafts. */

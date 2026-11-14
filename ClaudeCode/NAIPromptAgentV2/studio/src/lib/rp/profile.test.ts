@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { charName, extractProfile, parseProfile, photoAppearance, profileRequest } from "./profile";
+import { charName, extractProfile, incomingProfile, parseProfile, photoAppearance, profileRequest } from "./profile";
 
 test("parseProfile tolerates junk", () => {
   assert.equal(parseProfile("nope"), null);
@@ -113,4 +113,13 @@ test("markEdited flags a hand-edited profile and rejects junk", async () => {
   const { markEdited } = await import("./profile");
   assert.equal(parseProfile(markEdited(JSON.stringify({ displayName: "Alice" })))?.edited, true);
   assert.equal(markEdited("not json"), null);
+});
+
+test("incomingProfile: a stale null from the sheet keeps the saved profile; a changed string is a hand edit", () => {
+  const prev = '{"displayName":"Mio"}';
+  assert.equal(incomingProfile(null, prev), prev);
+  assert.equal(incomingProfile(prev, prev), prev);
+  assert.equal(JSON.parse(incomingProfile('{"displayName":"Mio-chan"}', prev)!).edited, true);
+  assert.equal(incomingProfile("junk", prev), prev);
+  assert.equal(incomingProfile(null, null), null);
 });

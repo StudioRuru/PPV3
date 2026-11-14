@@ -137,6 +137,10 @@ export class RpStore {
       return id;
     })();
   }
+  /** The import-time chat was opened before extraction finished: give chats the user hasn't written in the profile's mode. */
+  setUntouchedStyle(characterId: number, style: string): void {
+    this.db.prepare("UPDATE rp_chats SET style = ? WHERE character_id = ? AND NOT EXISTS (SELECT 1 FROM rp_messages WHERE chat_id = rp_chats.id AND role = 'user')").run(style, characterId);
+  }
   /** Metadata only — doesn't change the chat's version. */
   updateChat(id: number, patch: Partial<RpChat>): void {
     this.upsert("rp_chats", { ...patch, id });

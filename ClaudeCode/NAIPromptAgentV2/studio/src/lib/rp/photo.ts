@@ -19,7 +19,8 @@ export function photoPrompt(c: RpCharacter, p: RpProfile | null, speaker: string
 /** Offer photos only when the user asks, or the last photo is ≥ 8 replies back (or never sent and 8 replies in). */
 export function photoDue(history: RpMessage[], lastUser: string): boolean {
   if (ASKS.test(lastUser)) return true;
-  const last = history.findLastIndex((m) => (m.imageId ?? 0) > 0);
+  // Sent, pending or failed all count: the character believes it sent one.
+  const last = history.findLastIndex((m) => m.imageId != null);
   return history.slice(last + 1).filter((m) => m.role === "assistant").length >= 8;
 }
 

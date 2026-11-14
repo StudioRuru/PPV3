@@ -259,3 +259,26 @@ test("buildTurn: nudge adds the follow-up note", async () => {
   const t = await buildTurn(s, chat, { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] }, undefined, false, true);
   assert.ok(t.messages.some((m) => m.content.includes("hasn't replied for a few minutes — send a short follow-up text.")));
 });
+
+test("buildTurn: a photo in a burst's second bubble resets the cadence", async () => {
+  const { PHOTO_LINE } = await import("./presets");
+  const s = store();
+  const chat = s.createChat(s.saveCharacter({ name: "Mio" }));
+  s.updateChat(chat, { style: "text" });
+  for (let i = 0; i < 8; i++) s.append(chat, "assistant", `r${i}`);
+  const [, photo] = s.appendBurst(chat, { bubbles: [{ text: "look", speaker: "" }, { text: "[photo: selfie]", speaker: "", photo: "selfie" }], reaction: "" }, null)!;
+  s.setPhoto(photo, null);
+  s.append(chat, "user", "cute");
+  const deps = { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] };
+  assert.equal((await buildTurn(s, chat, deps)).messages.some((m) => m.content.includes(PHOTO_LINE)), false);
+});
+
+test("refreshProfile: the profile's default mode applies to the chat opened at import", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio", firstMessage: "hey" });
+  const fresh = s.createChat(c), used = s.createChat(c);
+  s.append(used, "user", "hi");
+  await refreshProfile(s, c, null, async () => '{"defaults":{"mode":"text"}}');
+  assert.equal(s.chat(fresh)?.style, "text");
+  assert.equal(s.chat(used)?.style, "rp");
+});

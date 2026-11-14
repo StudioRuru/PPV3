@@ -113,7 +113,8 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
   const character = chat.characterId ? store.character(chat.characterId) : null;
   const persona = store.persona(chat.personaId);
   // Text mode bursts read as one reply each; `replacing` is the burst's head id.
-  const all = joinBursts(store.messages(chatId));
+  const raw = store.messages(chatId);
+  const all = joinBursts(raw);
   const history = replacing ? all.filter((m) => m.id < replacing) : all;
   const lastUser = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
   const voiceLines = character ? await selectVoiceLines(store, character.id, lastUser, deps.settings.embedModel, deps.embed) : [];
@@ -123,7 +124,7 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
   });
   const pinned = [chat.model, character?.model].find((m) => m && deps.installed.includes(m));
   const turn: Turn = {
-    messages: modeOf(chat.style) === "text" && photoDue(history, lastUser) ? [...r.messages, { role: "system", content: PHOTO_LINE }] : r.messages,
+    messages: modeOf(chat.style) === "text" && photoDue(replacing ? raw.filter((m) => m.id < replacing) : raw, lastUser) ? [...r.messages, { role: "system", content: PHOTO_LINE }] : r.messages,
     options: applyCharacterOverrides(settingsToOptions(settings, r.stop), character?.samplerOverrides),
     model: pinned || deps.heavy,
     truncated: r.truncated,

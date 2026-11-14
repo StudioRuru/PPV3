@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { burstText, splitBurst, typingMs } from "./burst";
+import { burstText, saveKind, splitBurst, typingMs } from "./burst";
 
 const texts = (raw: string, cast: string[] = []) => splitBurst(raw, cast).bubbles.map((b) => b.text);
 
@@ -57,4 +57,12 @@ test("splitBurst photo", () => {
   assert.deepEqual(b.bubbles[1], { text: "", speaker: "", photo: "me pouting by a tree" });
   assert.equal(b.bubbles[0].photo, undefined);
   assert.equal(burstText(b), "look\n---\n[photo: me pouting by a tree]");
+});
+
+test("saveKind: a burst regenerate stays a burst even after switching to RP; RP regenerate is a swipe", () => {
+  assert.equal(saveKind("rp", "b1", 5), "burst");
+  assert.equal(saveKind("text", null, undefined), "burst");
+  assert.equal(saveKind("text", null, 5), "swipe");
+  assert.equal(saveKind("rp", null, 5), "swipe");
+  assert.equal(saveKind("rp", null, undefined), "append");
 });

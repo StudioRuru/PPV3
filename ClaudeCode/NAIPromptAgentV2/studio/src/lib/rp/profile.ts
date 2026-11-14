@@ -134,7 +134,7 @@ export async function refreshProfile(store: RpStore, id: number, avatar: Buffer 
   if (!c) return;
   try {
     const p = await extractProfile(c, avatar, ask);
-    if (p) saveExtracted(store, c, p);
+    if (p) { saveExtracted(store, c, p); if (p.defaults.mode) store.setUntouchedStyle(id, p.defaults.mode); }
   } catch (e) {
     console.warn(`[rp] profile extraction failed for character ${id}: ${(e as Error).message}`);
   }
@@ -161,6 +161,10 @@ export function photoAppearance(c: Pick<RpCharacter, "appearancePrompt">, p: RpP
 export const parseLearned = (raw: string | null | undefined): string[] => {
   try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; }
 };
+
+/** Profile field from the Card sheet: a null/stale value keeps the saved one (extraction may have landed since); a changed string is a hand edit. */
+export const incomingProfile = (incoming: unknown, prev: string | null): string | null =>
+  typeof incoming !== "string" || incoming === prev ? prev : markEdited(incoming) ?? prev;
 
 /** A profile saved by hand from the sheet: flagged `edited` so Rebuild won't silently overwrite it; null when unparseable. */
 export function markEdited(raw: string): string | null {

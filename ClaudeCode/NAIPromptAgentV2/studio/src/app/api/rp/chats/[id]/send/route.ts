@@ -4,7 +4,7 @@ import { chatStream, embed, heavyGate, isPod, Offline } from "@/lib/llm";
 import { shouldSummarize, summarizeChat } from "@/lib/rp/memory";
 import { heavyModel, installedModels, rp, rpSettings } from "@/lib/rp/server";
 import { charName, parseProfile } from "@/lib/rp/profile";
-import { splitBurst } from "@/lib/rp/burst";
+import { saveKind, splitBurst } from "@/lib/rp/burst";
 import { stripThoughtEcho, thinkOn, thinkRequest, withThought } from "@/lib/rp/think";
 import { buildTurn } from "@/lib/rp/turn";
 import { renderPending } from "@/lib/rp/photo";
@@ -85,8 +85,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
           if (!reply.trim()) try { ctl.enqueue(enc.encode(`\n\n⚠️ ${turn.model} returned nothing — tap Retry.`)); } catch { /* gone */ }
           // ponytail: the echo is stripped from the saved reply only; the live stream may briefly show it.
           const out = thought ? stripThoughtEcho(reply, thought).trim() : reply.trim();
-          const saved = !out ? true : chat0.style === "text" && (burstId || !replacing) ? saveBurst(out, thought) : replacing ? rp.addSwipe(replacing, out, expect, thought) : rp.append(chatId, "assistant", out, expect, thought) !== null;
-          if (saved && chat0.style === "text") renderPending(rp, chatId, settings);
+          const kind = saveKind(chat0.style, burstId, replacing);
+          const saved = !out ? true : kind === "burst" ? saveBurst(out, thought) : kind === "swipe" ? rp.addSwipe(replacing!, out, expect, thought) : rp.append(chatId, "assistant", out, expect, thought) !== null;
+          if (saved && kind === "burst") renderPending(rp, chatId, settings);
           if (!saved) try { ctl.enqueue(enc.encode("\n\n⚠️ Not saved: this chat changed on another device while I was answering.")); } catch { /* gone */ }
           // Memory refresh on the model that's already loaded; detached so the stream can close.
           const chat = rp.chat(chatId);
