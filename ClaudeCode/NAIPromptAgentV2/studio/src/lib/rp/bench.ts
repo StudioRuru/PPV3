@@ -1,4 +1,5 @@
 // RP eval bench scoring: cheap, deterministic signals per reply. The runner is scripts/rp-bench.mts.
+import { splitBurst } from "./burst";
 
 /** Stock "AI prose" phrases. Hits per 1k words is the slop rate. */
 export const SLOP = [
@@ -34,7 +35,7 @@ export function scoreReply(reply: string, prior: string[], o: { style: string; l
   const w = words(reply);
   const text = o.style === "text";
   const [lo, hi] = text ? TEXTS_FOR_LEVEL[o.length] : WORDS_FOR_LEVEL[o.length];
-  const n = text ? texts(reply).length : w.length;
+  const n = text ? splitBurst(reply, []).bubbles.length : w.length;
   const tol = text ? 1 : 0;
   const g = grams(reply);
   const seen = new Set(prior.flatMap((p) => [...grams(p)]));

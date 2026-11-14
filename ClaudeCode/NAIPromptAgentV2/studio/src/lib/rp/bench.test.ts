@@ -32,3 +32,8 @@ test("podBody: Ollama options map to llama-server, llama.cpp samplers pass throu
   assert.deepEqual(b, { model: "behemoth-128b", stream: true, messages: [{ role: "user", content: "hi" }], temperature: 0.8, dry_multiplier: 0.8, max_tokens: 400, stop: ["\nKai:"] });
   assert.ok(isPod("pod:x") && !isPod("gemma4-26b-apex") && !isPod(undefined));
 });
+
+test("scoreReply text style uses bursts", () => {
+  assert.equal(scoreReply("a\n---\nb\n---\nc", [], { style: "text", length: 3, user: "Kai" }).lengthOk, true);
+  assert.equal(scoreReply("[react:😭]\nok\n---\nfine", [], { style: "text", length: 2, user: "Kai" }).styleBreak, false);
+});
