@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { photoDue, photoPrompt } from "./photo";
+import { descriptionTags, photoDue, photoPrompt } from "./photo";
 import { parseProfile } from "./profile";
 import type { RpCharacter, RpMessage } from "./types";
 
@@ -28,4 +28,14 @@ test("photoDue", () => {
   assert.equal(photoDue([], "send a pic?"), true);
   assert.equal(photoDue([m("assistant")], "how was school"), false);
   assert.equal(photoDue([m("assistant", 0), ...eight.slice(1)], "hey"), false, "a failed photo still counts as sent");
+});
+
+test("no appearance tags: the card description's real appearance tags stand in", () => {
+  const vocab = ["blonde hair", "long hair", "hair", "pointy ears", "huge breasts", "green eyes", "red hair"];
+  const desc = "Gender: Female. Body: a curvy elf with Long blonde hair, pointy ears and huge breasts. Eyes: bright green eyes.";
+  assert.equal(descriptionTags(desc, vocab), "1girl, blonde hair, pointy ears, huge breasts, green eyes");
+  const c = card({ outfitPrompt: "", description: desc } as Partial<RpCharacter>);
+  assert.ok(photoPrompt(c, null, "", "selfie", 3, vocab).startsWith("1girl, blonde hair, "));
+  const own = photoPrompt(card({ appearancePrompt: "1girl, red hair", description: desc } as Partial<RpCharacter>), null, "", "selfie", 3, vocab);
+  assert.ok(own.startsWith("1girl, red hair, school uniform") && !own.includes("pointy ears"), "card tags still win");
 });
