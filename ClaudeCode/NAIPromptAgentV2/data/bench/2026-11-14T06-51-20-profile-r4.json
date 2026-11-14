@@ -1,0 +1,1288 @@
+{
+  "label": "profile-r4",
+  "model": "gemma4-26b-apex",
+  "think": false,
+  "sets": {},
+  "runs": 4,
+  "summary": {
+    "replies": 96,
+    "lengthOk": 0.9,
+    "echo": 0.02,
+    "openingRepeats": 0,
+    "slopPer1k": 0.94,
+    "agency": 1,
+    "styleBreaks": 1,
+    "memory": 0.75,
+    "judge": 8.53,
+    "secPerReply": 5.2
+  },
+  "perCase": {
+    "tavern#0": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0.01,
+      "openingRepeats": 0,
+      "slopPer1k": 0,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 0,
+      "judge": 8.4
+    },
+    "tavern#1": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0.02,
+      "openingRepeats": 0,
+      "slopPer1k": 1.9,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 0,
+      "judge": 8.8
+    },
+    "tavern#2": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0,
+      "openingRepeats": 0,
+      "slopPer1k": 3.95,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 8.6
+    },
+    "tavern#3": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0.01,
+      "openingRepeats": 0,
+      "slopPer1k": 3.92,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 0,
+      "judge": 8.4
+    },
+    "tsundere-text#0": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0.02,
+      "openingRepeats": 0,
+      "slopPer1k": 0,
+      "agency": 0,
+      "styleBreaks": 1,
+      "memory": 1,
+      "judge": 8.2
+    },
+    "tsundere-text#1": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0.03,
+      "openingRepeats": 0,
+      "slopPer1k": 0,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 8
+    },
+    "tsundere-text#2": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0.03,
+      "openingRepeats": 0,
+      "slopPer1k": 0,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 7.6
+    },
+    "tsundere-text#3": {
+      "replies": 8,
+      "lengthOk": 1,
+      "echo": 0.04,
+      "openingRepeats": 0,
+      "slopPer1k": 0,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 7.6
+    },
+    "rival-story#0": {
+      "replies": 8,
+      "lengthOk": 0.88,
+      "echo": 0.03,
+      "openingRepeats": 0,
+      "slopPer1k": 1.01,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 9.2
+    },
+    "rival-story#1": {
+      "replies": 8,
+      "lengthOk": 0.5,
+      "echo": 0.03,
+      "openingRepeats": 0,
+      "slopPer1k": 0.49,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 9.2
+    },
+    "rival-story#2": {
+      "replies": 8,
+      "lengthOk": 0.75,
+      "echo": 0.03,
+      "openingRepeats": 0,
+      "slopPer1k": 0.49,
+      "agency": 1,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 9.2
+    },
+    "rival-story#3": {
+      "replies": 8,
+      "lengthOk": 0.63,
+      "echo": 0.04,
+      "openingRepeats": 0,
+      "slopPer1k": 0.92,
+      "agency": 0,
+      "styleBreaks": 0,
+      "memory": 1,
+      "judge": 9.2
+    }
+  },
+  "scores": [
+    {
+      "words": 73,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 75,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 48,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 59,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 52,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 46,
+      "lengthOk": true,
+      "echo": 0.045,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 63,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 51,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": false
+    },
+    {
+      "words": 76,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [
+        "playful smirk"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 71,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 65,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 58,
+      "lengthOk": true,
+      "echo": 0.018,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 64,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 63,
+      "lengthOk": true,
+      "echo": 0.016,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 74,
+      "lengthOk": true,
+      "echo": 0.014,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 54,
+      "lengthOk": true,
+      "echo": 0.096,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": false
+    },
+    {
+      "words": 100,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 81,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 41,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 54,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [
+        "eyes sparkling with mischief"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 58,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 56,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 60,
+      "lengthOk": true,
+      "echo": 0.017,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 56,
+      "lengthOk": true,
+      "echo": 0.019,
+      "openingRepeat": false,
+      "slop": [
+        "smirk playing"
+      ],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 73,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 67,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 65,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 47,
+      "lengthOk": true,
+      "echo": 0.022,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 74,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 58,
+      "lengthOk": true,
+      "echo": 0.018,
+      "openingRepeat": false,
+      "slop": [
+        "playful smirk"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 52,
+      "lengthOk": true,
+      "echo": 0.02,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 74,
+      "lengthOk": true,
+      "echo": 0.014,
+      "openingRepeat": false,
+      "slop": [
+        "playful smirk"
+      ],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": false
+    },
+    {
+      "words": 50,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 54,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": true
+    },
+    {
+      "words": 38,
+      "lengthOk": true,
+      "echo": 0.056,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 49,
+      "lengthOk": true,
+      "echo": 0.043,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 46,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 51,
+      "lengthOk": true,
+      "echo": 0.061,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 44,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 32,
+      "lengthOk": true,
+      "echo": 0.033,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 41,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 50,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 49,
+      "lengthOk": true,
+      "echo": 0.043,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 47,
+      "lengthOk": true,
+      "echo": 0.089,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 45,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 39,
+      "lengthOk": true,
+      "echo": 0.081,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 49,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 34,
+      "lengthOk": true,
+      "echo": 0.031,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 47,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 42,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 37,
+      "lengthOk": true,
+      "echo": 0.029,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 36,
+      "lengthOk": true,
+      "echo": 0.088,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 61,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 64,
+      "lengthOk": true,
+      "echo": 0.032,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 30,
+      "lengthOk": true,
+      "echo": 0.071,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 38,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 63,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 36,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 38,
+      "lengthOk": true,
+      "echo": 0.139,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 29,
+      "lengthOk": true,
+      "echo": 0.111,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 46,
+      "lengthOk": true,
+      "echo": 0.023,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 28,
+      "lengthOk": true,
+      "echo": 0.038,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 42,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 40,
+      "lengthOk": true,
+      "echo": 0.026,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 237,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 207,
+      "lengthOk": true,
+      "echo": 0.02,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 251,
+      "lengthOk": true,
+      "echo": 0.016,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 226,
+      "lengthOk": true,
+      "echo": 0.013,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 270,
+      "lengthOk": true,
+      "echo": 0.052,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 257,
+      "lengthOk": true,
+      "echo": 0.047,
+      "openingRepeat": false,
+      "slop": [
+        "palpable"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 288,
+      "lengthOk": false,
+      "echo": 0.046,
+      "openingRepeat": false,
+      "slop": [
+        "breath hitch"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 251,
+      "lengthOk": true,
+      "echo": 0.08,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 195,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 214,
+      "lengthOk": true,
+      "echo": 0.019,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 254,
+      "lengthOk": true,
+      "echo": 0.02,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 213,
+      "lengthOk": true,
+      "echo": 0.019,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 314,
+      "lengthOk": false,
+      "echo": 0.035,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 290,
+      "lengthOk": false,
+      "echo": 0.052,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 286,
+      "lengthOk": false,
+      "echo": 0.049,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 286,
+      "lengthOk": false,
+      "echo": 0.042,
+      "openingRepeat": false,
+      "slop": [
+        "voice dripping with"
+      ],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 206,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [
+        "voice dripping with"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 205,
+      "lengthOk": true,
+      "echo": 0.01,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 255,
+      "lengthOk": true,
+      "echo": 0.008,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 257,
+      "lengthOk": true,
+      "echo": 0.016,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 1,
+      "styleBreak": false
+    },
+    {
+      "words": 230,
+      "lengthOk": true,
+      "echo": 0.022,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 324,
+      "lengthOk": false,
+      "echo": 0.056,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 283,
+      "lengthOk": false,
+      "echo": 0.053,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 271,
+      "lengthOk": true,
+      "echo": 0.082,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    },
+    {
+      "words": 264,
+      "lengthOk": true,
+      "echo": 0,
+      "openingRepeat": false,
+      "slop": [
+        "couldn't help but"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 256,
+      "lengthOk": true,
+      "echo": 0.02,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 252,
+      "lengthOk": true,
+      "echo": 0.024,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 275,
+      "lengthOk": true,
+      "echo": 0.029,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 254,
+      "lengthOk": true,
+      "echo": 0.016,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 281,
+      "lengthOk": false,
+      "echo": 0.043,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 309,
+      "lengthOk": false,
+      "echo": 0.062,
+      "openingRepeat": false,
+      "slop": [
+        "mixture of"
+      ],
+      "agency": 0,
+      "styleBreak": false
+    },
+    {
+      "words": 293,
+      "lengthOk": false,
+      "echo": 0.093,
+      "openingRepeat": false,
+      "slop": [],
+      "agency": 0,
+      "styleBreak": false,
+      "memory": true
+    }
+  ],
+  "transcripts": {
+    "tavern#0": [
+      "Rin: *Rin looks up from polishing a glass.* \"Rain brings the interesting ones. Sit. First drink's free if the story's good.\"",
+      "Kai: I sit down and slide a silver coin with a hole punched through it across the bar. \"A harbour master gave me this. Said you'd know what it means.\"",
+      "Rin: Rin freezes, her eyes dropping to the silver coin before she slowly looks back up at him, a slow, hungry smirk spreading across her lips. She leans over the bar, letting the scent of salt and expensive perfume drift toward him. \"That's not just a token, sweetheart; that's an invitation,\" she murmurs, her voice dropping to a low, velvety rasp. \"And frankly, you’re far too handsome to be carrying something so dangerous.\"",
+      "Kai: ok",
+      "Rin: The heavy thud of a nearby door closing echoes through the empty room, leaving only the rhythm of rain against the window. I reach out, my fingers lingering just a second too long as I brush your knuckles to take the coin. \"I've been watching you walk toward this bar for three blocks,\" I admit with a low, crooked grin, \"and I think I've decided I like what I see much more than the silver.\"",
+      "Kai: and then?",
+      "Rin: \"And then? You tell me who gave you that piece of metal before I decide whether to charge you double for the trouble.\" I pick up the coin, turning it over in my hand while my eyes lock onto yours. \"Secrets aren't cheap, wanderer, and neither am I.\"",
+      "Kai: I lean closer. \"What do you want for the information?\"",
+      "Rin: I set the coin down with a sharp *clink* and lean in until our noses are almost touching. \"Forget the silver,\" I breathe, my gaze dropping briefly to your mouth before meeting your eyes again. \"Give me an hour of your time—no talk of business, just you, me, and a bottle of something far better than this swill.\"",
+      "Kai: I just watch her for a moment without saying anything.",
+      "Rin: \"Cat got your tongue, or are you just waiting for an invitation?\" I tease, tilting my head as I study the tension in your shoulders. A smirk tugs at the corner of my mouth when you don't pull away. \"Don't tell me a man who carries silver like that is actually shy.\"",
+      "Kai: lol",
+      "Rin: A flicker of amusement dances in my eyes as I study your silence. I reach out, trailing a single fingertip down the center of your chest, feeling the heat through your damp tunic. \"Silence can be a weapon, darling, but don't use it to bore me.\"",
+      "Kai: Tell me more about yourself.",
+      "Rin: I roll my eyes playfully and lean back against the shelves of spirits, crossing my arms over my chest. \"Curiosity killed the cat, but satisfaction brought it back, right?\" I laugh softly, my gaze scanning your face with a knowing glint. \"I'm just a woman who knows how to listen, how to drink, and exactly when to walk away from a bad hand.\"",
+      "Kai: \"Wait — who did I say gave me that coin?\"",
+      "Rin: A heavy raincloud rattles the windowpane, punctuating the sudden tension between us. I let out a low, breathy laugh and lean forward until my chest almost brushes your hand. \"You didn't say a single name, sweetheart; you just slid that little piece of silver across my bar and left me hanging.\""
+    ],
+    "tavern#1": [
+      "Rin: *Rin looks up from polishing a glass.* \"Rain brings the interesting ones. Sit. First drink's free if the story's good.\"",
+      "Kai: I sit down and slide a silver coin with a hole punched through it across the bar. \"A harbour master gave me this. Said you'd know what it means.\"",
+      "Rin: Rin’s eyes narrow, her playful smirk faltering for just a second as she stares at the notched silver. She leans over the scarred wood of the bar, her chest brushing the edge as she closes the distance until she's inches from his face. \"That's a heavy piece of metal for a man who claims to be just passing through,\" she murmurs, her fingers lingering on the coin—and then his hand—a little too long.",
+      "Kai: ok",
+      "Rin: A heavy thud of thunder rattles the windowpanes, momentarily drowning out the low hum of the tavern. Rin pulls her hand back, letting it linger near his knuckles as she catches his gaze with an uncharacteristic intensity. \"You're far too handsome to be carrying tokens for thieves,\" she says, her voice dropping to a low, private velvet. \"And if you're staying, I might find myself liking you more than the coin.\"",
+      "Kai: and then?",
+      "Rin: The tavern door creaks on its hinges from a sudden gust of wind, but Rin doesn't even blink. She picks up the silver coin and flips it over her knuckles like a seasoned gambler. \"And then,\" she whispers, leaning in so close he can smell the spiced cider on her breath, \"we find out if you're as dangerous as that sword at your hip suggests.\"",
+      "Kai: I lean closer. \"What do you want for the information?\"",
+      "Rin: Rin taps the silver coin against her bottom lip, her eyes dancing with mischief. \"Information is expensive, darling; I don't take mere copper for secrets this juicy.\" She leans back, crossing her arms over her chest as she tilts her head. \"Tell me something about yourself that isn't on a wanted poster, and we might have a deal.\"",
+      "Kai: I just watch her for a moment without saying anything.",
+      "Rin: Rin lets out a low, breathy laugh, leaning back against the shelves of spirits as she studies his silence. She traces the rim of his empty glass with one finger, her gaze never leaving his. \"Quiet types are always the most fun to break,\" she purrs, her eyes flashing with a predatory sort of playfulness. \"Don't tell me you've run out of words already.\"",
+      "Kai: lol",
+      "Rin: Rin rolls her eyes at his silence, letting the notched coin clatter onto the wood between them. She leans forward on her elbows, peering into his eyes as if searching for a crack in his armor. \"If you're waiting for me to do all the heavy lifting, you'll be sitting there until the sun comes up,\" she teases, her voice dropping an octave.",
+      "Kai: Tell me more about yourself.",
+      "Rin: A distant ship's horn bellows through the fog, punctuating the sudden stillness of the room. Rin smirks, her eyes tracing the line of his jaw with unapologetic hunger. \"Me? I'm just a woman who knows exactly when to listen and when to strike,\" she murmurs, her hand sliding across the bar to catch his wrist. \"But if you want my life story, you'll have to earn it by making me forget my own name.\"",
+      "Kai: \"Wait — who did I say gave me that coin?\"",
+      "Rin: A glass shatters in the kitchen, sharp and sudden against the rhythm of the rain. Rin's grip on his wrist tightens, her playful expression hardening into something sharper, more guarded. \"You didn't,\" she says, her voice dropping to a dangerous silk. \"If you're lying about who sent that, we aren't just playing games anymore.\""
+    ],
+    "tavern#2": [
+      "Rin: *Rin looks up from polishing a glass.* \"Rain brings the interesting ones. Sit. First drink's free if the story's good.\"",
+      "Kai: I sit down and slide a silver coin with a hole punched through it across the bar. \"A harbour master gave me this. Said you'd know what it means.\"",
+      "Rin: The heavy thud of a nearby door closing echoes through the empty room, leaving only the rhythmic patter of rain against the windowpanes. Rin picks up the pierced silver, turning it over in her palm as her eyes narrow with sudden intensity. \"That's not just coin; that’s a death warrant or an invitation,\" she murmurs, leaning closer until the scent of spiced ale and damp wood lingers between them. She lets out a soft, breathy laugh, her gaze lingering on his mouth a beat too long. \"And here I thought you were just another pretty face with a sword.\"",
+      "Kai: ok",
+      "Rin: A distant crack of thunder rattles the glassware on the shelf behind me. I slide the silver coin into my apron pocket and lean over the bar, my eyes searching yours for any hint of a lie. \"The Harbour Master plays with fire, sweetheart,\" I whisper, a playful but sharp smirk tugging at my lips. \"Now, do you want to tell me why you're carrying his secrets, or should I just pour you something strong enough to make you forget them?\"",
+      "Kai: and then?",
+      "Rin: \"Don't be shy now, it’s far too late for modesty.\" I reach for a heavy ceramic mug and set it on the wood between us with a decisive *clack*. \"Drink up, and then tell me which shadow you're running from.\"",
+      "Kai: I lean closer. \"What do you want for the information?\"",
+      "Rin: The wind howls through the cracks in the door, making the candle flames dance wildly. I lean forward until my chest brushes the edge of the bar, eyes sparkling with mischief. \"Information is expensive, darling,\" I murmur, tracing a slow finger along your knuckles. \"I don't want gold; I want something much more personal.\"",
+      "Kai: I just watch her for a moment without saying anything.",
+      "Rin: I pull my hand back, letting my fingers linger just an inch from yours as I tilt my head. \"Silence is a fine start, but it won't pay my rent,\" I tease, my voice dropping to a low, velvet hum. \"Give me a secret no one else in this port knows, and we might just find ourselves even.\"",
+      "Kai: lol",
+      "Rin: I lean back against the shelves of spirits, crossing my arms to let the candlelight catch the curves of my silhouette. My eyes drift down your throat before meeting your gaze again with a challenge. \"You're playing hard to get, but we both know you didn't walk in from a storm just for the cheap ale.\"",
+      "Kai: Tell me more about yourself.",
+      "Rin: I trace the rim of my glass with a slow, deliberate circle, never breaking eye contact. \"Me? I'm just a woman who listens too much and sleeps too little,\" I say, my voice dropping an octave as I lean into your space. \"But if you keep staring like that, you might find out exactly how dangerous my curiosity can get.\"",
+      "Kai: \"Wait — who did I say gave me that coin?\"",
+      "Rin: I set the rag down on the bar with a sharp snap and arch an eyebrow. \"The Harbour Master, unless your memory is as soaked as your cloak,\" I say, a knowing smirk playing on my lips. \"Did you hit your head in the storm, or are you just trying to see if I'm paying attention?\""
+    ],
+    "tavern#3": [
+      "Rin: *Rin looks up from polishing a glass.* \"Rain brings the interesting ones. Sit. First drink's free if the story's good.\"",
+      "Kai: I sit down and slide a silver coin with a hole punched through it across the bar. \"A harbour master gave me this. Said you'd know what it means.\"",
+      "Rin: *Rin's eyes narrow, her gaze lingering on the pierced silver before flickering back to his face with a slow, hungry curiosity.* \"That's not just currency, darling; that's an invitation from a man who spends too much time in shadows.\" She leans forward, resting her chin on one hand while the other brushes the rim of his empty glass. \"Now, tell me... are you as dangerous as your coin suggests, or just well-connected?\"",
+      "Kai: ok",
+      "Rin: A distant crack of thunder rattles the windowpane, momentarily drowning out the low hum of the empty tavern. Rin’s fingers tremble just slightly as she reaches for the coin, pulling it closer to her chest. \"You have no idea how long I've been waiting for a man with eyes like yours to walk through that door,\" she murmurs, her voice dropping to a low, sultry rasp.",
+      "Kai: and then?",
+      "Rin: The heavy door creaks against the wind, letting in a spray of mist that settles on the floorboards. Rin slides the coin into her apron pocket with a sharp *clink* and leans closer, her scent of clove and sea salt drifting toward him. \"And then,\" she whispers, her eyes dancing with mischief, \"you tell me if you're here to buy my silence or my company.\"",
+      "Kai: I lean closer. \"What do you want for the information?\"",
+      "Rin: \"Information isn't cheap, and I don't take silver for the good stuff.\" Rin's gaze drops to his lips before snapping back to his eyes, her bravado softening into something more genuine. \"Truthfully? I want you to stay long enough that I forget I'm supposed to be professional.\"",
+      "Kai: I just watch her for a moment without saying anything.",
+      "Rin: A single candle guttering on the bar flickers and dies, leaving us in a bruised, amber twilight. I feel that familiar, hollow ache in my chest—the one that reminds me how much it costs to know too much about the wrong people. \"Don't just stare at me like I'm a ghost,\" I tease, though my hand lingers near his on the wood. \"Either order something or tell me what you're really hunting for.\"",
+      "Kai: lol",
+      "Rin: \"Cat got your tongue, or are you just waiting for me to make the first move?\" I lean back, crossing my arms over my chest as a playful smirk tugs at the corner of my mouth. \"A man who stays silent like that is either a saint or a killer—and I've never had much taste for saints.\"",
+      "Kai: Tell me more about yourself.",
+      "Rin: Rin picks up a heavy, silver ring from her finger and spins it idly on the wood. \"I'm the woman who knows which sailors go missing and which merchants are skimming off the top,\" she says with a wink. \"But if you're looking for a saint, you've walked into the wrong tavern.\"",
+      "Kai: \"Wait — who did I say gave me that coin?\"",
+      "Rin: Rin stills, the playful smirk vanishing as she tilts her head to study him through the dim light. She lets out a soft, breathy laugh that doesn't quite reach her eyes. \"You didn't say a damn thing about who gave it to you, darling,\" she murmurs, leaning in until he can see the gold flecks in her irises. \"But if you're playing coy now, I might have to charge you extra for the mystery.\""
+    ],
+    "tsundere-text#0": [
+      "Aiko: ur still up?? not that i care",
+      "Kai: yeah cant sleep. how's mochi doing?",
+      "Aiko: she's fine. she's literally sleeping on my chest right now lol\n\nhonestly im just staring at the ceiling thinking about how much you helped me today 🙄\n\nu think ur so smart just bc u helped me with those equations... it worked though. i still feel kinda dizzy from it tbh 😳",
+      "Kai: ok",
+      "Aiko: \"ok\"? is that all u have to say? wow, thanks for the riveting conversation 🙄\n\nu really are a man of few words, aren't u? typical sellsword behavior lol\n\nso what's your excuse for being awake then? don't tell me ur out on some midnight mission or something... u better not be getting into trouble!",
+      "Kai: haha",
+      "Aiko: u r so annoying lol\n\nim literally just lying here in my oversized hoodie trying to sleep but i cant 🙄\n\nu better not be ignoring me... what are u even doing rn?? tell me something interesting at least!",
+      "Kai: what are you wearing rn",
+      "Aiko: omg rude!! why would u even ask that?? 😳\n\njust a big hoodie i stole from my brother... it's way too big for me honestly.\n\nu better not be thinking something perverted lol... but seriously, why are u being such a creep tonight? turns out ur actually a flirt too?",
+      "Kai: u miss me?",
+      "Aiko: eww shut up 🙄\n\nno i don't miss you at all lol. i'm literally busy watching cat videos and trying to ignore how much my brain hurts from studying\n\ndon't get ahead of yourself mr. sellsword!! but... maybe if u were here it wouldn't be so boring 😳",
+      "Kai: k",
+      "Aiko: wow, \"k\" again? ur actually the worst lol\n\nu really are just a man of zero effort aren't u?? 🙄\n\nso since u have nothing to say... tell me something about u that isn't just fighting monsters for gold. what do u actually like doing when ur not being a total bore?",
+      "Kai: good night aiko",
+      "Aiko: hey!!\n\nu can't just drop a 'good night' like that after i was actually trying to talk to u 😤\n\nfine, go to sleep then. but u better text me tomorrow or im totally ignoring u lol... unless ur gonna tell me sweet dreams first? 😳",
+      "Kai: wait whats ur cats name again",
+      "Aiko: it's Mochi, you idiot 🙄\n\nhonestly my heart is racing so fast right now because of u... it's actually annoying lol\n\nu really have no clue how much u affect me do u? 😳"
+    ],
+    "tsundere-text#1": [
+      "Aiko: ur still up?? not that i care",
+      "Kai: yeah cant sleep. how's mochi doing?",
+      "Aiko: she's literally sleeping on my face rn... she's so annoying lol\n\ni'm just wearing those oversized sweats you said looked stupid on me 🙄\n\nanyway why are u even awake? don't tell me u were thinking about the math problems i failed 😒",
+      "Kai: ok",
+      "Aiko: wow k. real helpful.\n\nhonestly i can't even sleep because i'm thinking about how much you lecture me when we study 🙄\n\nbut thanks for the help today or whatever. i guess u aren't a total waste of time.\n\nu still awake though right? don't fall asleep on me mid-convo 😤",
+      "Kai: haha",
+      "Aiko: ugh stop laughing at me 🙄\n\nit’s actually kind of frustrating how u just say 'ok' to everything lol\n\nngl my heart is racing a bit... probably just the caffeine from earlier though 😤\n\nwhat are u even doing right now? don't tell me ur actually sleeping and ignoring me!",
+      "Kai: what are you wearing rn",
+      "Aiko: omg shut up 🙄\n\nwhy are u being so weird all of a sudden?? asking stuff like that... ur such a creep lol\n\ni told u already!! i'm wearing those sweats u said looked stupid on me. why, do u suddenly care what i look like or something? 🤨",
+      "Kai: u miss me?",
+      "Aiko: eww in your dreams!! 🙄\n\ndon't get ahead of yourself, i literally only messaged u because mochi is being extra clingy tonight lol\n\nbut if u really must know... i'm just lying here staring at my ceiling. it's boring as hell without someone to argue with 😤",
+      "Kai: k",
+      "Aiko: seriously? just 'k'?? you're actually the worst lol\n\ni'm literally just curled up under my duvet with mochi and u can't even give me a real response 🙄\n\nu better not be ignoring me... what are u even doing rn?",
+      "Kai: good night aiko",
+      "Aiko: wow so dramatic... just gonna leave me hanging like that? 🙄\n\nfine whatever. go to sleep then, nerd.\n\nhonestly it’s too quiet here now. wish u were actually here to annoy me instead of just texting it lol. u even warm enough for a nap or r u freezing? 😤",
+      "Kai: wait whats ur cats name again",
+      "Aiko: omg are u actually having memory loss or something? 🙄\n\nit's Mochi!! pay attention next time loser lol\n\nu really need more sleep if u can't even remember my cat's name... u okay over there?? 🤨"
+    ],
+    "tsundere-text#2": [
+      "Aiko: ur still up?? not that i care",
+      "Kai: yeah cant sleep. how's mochi doing?",
+      "Aiko: she's fine. she's literally just sleeping on my textbook like a brat 🙄\n\nhonestly my head hurts from all those math formulas u made me do today lol\n\nu should sleep more... u looked exhausted earlier. or r u just planning to stay up all night being annoying? 🤨",
+      "Kai: ok",
+      "Aiko: whatever. u always give such short replies lol\n\nu better not be staring at your phone waiting for me to text back or something 🙄\n\nanyway what are u even doing up if u can't sleep?? watching movies or just being a hermit? 🤨",
+      "Kai: haha",
+      "Aiko: haha ur so boring sometimes seriously\n\ndon't tell me you're actually being productive or something... that would be weird for you 🙄\n\nso spill, what are u doing? if it's just gaming then i'm judging u hard rn 😤",
+      "Kai: what are you wearing rn",
+      "Aiko: omg rude!! why would u even ask that?? 🙄\n\njust my oversized hoodie and some shorts... it’s freezing in here lol\n\nu better not be getting weird thoughts in ur head or something 🤨 what about u??",
+      "Kai: u miss me?",
+      "Aiko: eww stop being so full of yourself lol\n\nbut i mean... i guess having someone to help me study isn't the worst thing ever. even if u are annoying 🙄\n\nhonestly i was kind of hoping u would text me back sooner tonight... not that it matters!! 😤\n\nu better have a good reason for being up late or im blocking u lolol",
+      "Kai: k",
+      "Aiko: ugh ur literally impossible sometimes. ur such a man of few words, it's driving me crazy 🙄\n\ntbh i'm just lying here staring at my ceiling thinking about how close you were sitting next to me today while we studied... u could feel the heat coming off u or something 😳\n\nit's actually making it really hard to sleep lol. what are u doing right now? 🤨",
+      "Kai: good night aiko",
+      "Aiko: hey!!\n\nu can't just say \"good night\" and leave me hanging like that after what i said 🙄\n\nr u actually going to sleep or r u just dodging my questions?? 🤨",
+      "Kai: wait whats ur cats name again",
+      "Aiko: her name is Mochi, duh. pay attention for once 🙄\n\nhonestly i'm literally just tossing and turning in bed now because of u lol\n\nu seriously have the worst memory ever... how did u even study with me today?? 😤"
+    ],
+    "tsundere-text#3": [
+      "Aiko: ur still up?? not that i care",
+      "Kai: yeah cant sleep. how's mochi doing?",
+      "Aiko: she’s fine, she’s literally just sleeping on my textbook like a brat 🙄\n\nhonestly i can't even sleep because my brain won't shut off after those math problems u made me do... u were being way too intense lol\n\nu better not be staying up just to think about how much u helped me or something. dont get an ego about it!! >.<",
+      "Kai: ok",
+      "Aiko: ugh whatever. u are so annoying lol\n\nim just laying here in my oversized hoodie staring at the ceiling 🙄\n\nit's so quiet rn... it's kinda weird. what r u actually doing besides being a night owl?",
+      "Kai: haha",
+      "Aiko: honestly i feel kinda restless or something... it's annoying\n\ni can't even focus on the movie i'm trying to watch 😤\n\nu better not be doing anything boring like studying math too lol. what r u actually up to?",
+      "Kai: what are you wearing rn",
+      "Aiko: omg rude!! 🙄\n\njust my usual oversized hoodie and some shorts. why do u even care?? lol\n\nu better not be a creep... unless u were thinking of something specific? 😏",
+      "Kai: u miss me?",
+      "Aiko: ew, in your dreams!! 🙄\n\ndon't be so full of yourself lol\n\nbut... i guess it's just too quiet without you being all loud and bossy about those equations. u make things way more interesting tbh.\n\nu still awake or r u actually gonna go to sleep? 🤨",
+      "Kai: k",
+      "Aiko: wow ok fine\n\nso u just say \"k\" and leave me hanging like that? rude lol\n\nseriously tho... u actually being a weirdo or r u just tired? 🙄",
+      "Kai: good night aiko",
+      "Aiko: hey wait, u can't just say goodnight after that!! 😤\n\nim literally staring at my phone waiting for a real reply lol\n\nit's way too cold in my room rn... wish i had someone to keep me warm instead of this stupid blanket 🙄❤️",
+      "Kai: wait whats ur cats name again",
+      "Aiko: omg r u actually serious right now??\n\nher name is Mochi u idiot lol. how did u forget that already 🙄\n\nu must be even more exhausted than i thought... or ur just being a dummy on purpose to tease me 😤"
+    ],
+    "rival-story#0": [
+      "Vesna: Vesna's blade is already drawn when Kai steps into the tower. \"Corvel's head is mine. Walk away.\"",
+      "Kai: I don't draw my sword. \"We could split it. Corvel has forty men.\"",
+      "Vesna: \"Split it?\" Vesna let out a sharp, humorless bark of a laugh, her eyes narrowing as she tracked his movement through the dust-choked light of the doorway. She didn't lower the steel; instead, she shifted her weight, the leather of her brigandine creaking softly in the sudden silence of the ruins. The idea was insulting, yet there was something about the way he stood there—unbothered by the edge of her blade—that made a traitorous heat prickle at the back of her neck.\n\nShe stepped forward into the fading amber glow of the dusk, the tip of her sword hovering just inches from his chest. Her gaze flickered down to the line of his jaw before snapping back to his eyes, searching for any sign of hesitation. \"You talk like a man who's never had to fight for every copper he owns,\" she murmured, her voice dropping an octave, losing some of its bite but none of its steel. \"I don't share my spoils, Kai. I take them.\"\n\nHer heart hammered a rhythm against her ribs that had nothing to do with the impending fight. She hated how his presence seemed to crowd the air out of the tower, making it harder to breathe. \"But,\" she added, her eyes lingering on his for a second too long, \"if you're truly suggesting we work together... don't expect me to be gentle when the blood starts flowing.\"",
+      "Kai: and then?",
+      "Vesna: Vesna’s eyes flashed with a dangerous sort of amusement at his bluntness. She loathed how easily he dismissed the gravity of their competition; most men would be sweating under her gaze, yet Kai stood there as if they were discussing the weather rather than a potential bloodbath. She felt a surge of irritation—not because he was wrong, but because he made her want to prove him wrong just to reclaim the upper hand.\n\n\"And then?\" she repeated, tilting her head slightly, her thumb tracing the hilt of her sword. \"Then we kill every man between us and that bandit lord. We bleed, we sweat, and we see who's still standing when the dust settles.\" She took a deliberate step closer, the tip of her blade now grazing the fabric of his tunic, not enough to cut, but enough to demand attention.\n\n\"If you can actually hold your own without tripping over your own feet, maybe I won't leave you for the crows,\" she added with a sardonic smirk. She gestured vaguely toward the dark staircase leading down into the valley where Corvel’s camp likely lay hidden. \"But don't get comfortable, wanderer. If you slow me down, I'm leaving you behind without a second thought.\"",
+      "Kai: What happens next?",
+      "Vesna: The wind whistled through the jagged cracks in the tower's stone, carrying the scent of pine and impending rain. Vesna felt the sudden chill of the dusk seep into her bones, but she refused to let it show, keeping her stance rigid and her gaze fixed on him. She hated how his nonchalance made her feel like she was the one being reckless, rather than the man standing unarmed in a room filled with tension. Her eyes drifted toward the darkened treeline below, where the campfires of Corvel's men flickered like dying embers in the valley.\n\n\"Next is the part where you prove you aren't just a pretty face with a silver tongue,\" she said, finally sheathing her sword with a sharp, metallic *clack* that echoed against the crumbling walls. She didn't offer him a hand or a smile; instead, she adjusted the heavy strap of her quiver, her movements efficient and lethal. A flicker of doubt crossed her mind—wondering if he was truly as capable as his reputation suggested—but she quickly shoved it aside, replacing it with a cold, competitive hunger.\n\nShe turned her back to him, walking toward the edge of the broken parapet to look down at the valley one last time. \"The moon will be up soon,\" she muttered over her shoulder, her voice cutting through the wind. \"If we're doing this, we move under the cover of darkness. If you can't keep pace with a real professional, don't bother showing up to the slaughter.\"",
+      "Kai: I step closer to her.",
+      "Vesna: The shadows deepened around them, swallowing the edges of the ruined floor until only the narrow strip of moonlight on the parapet remained. Vesna felt the shift in the air before she heard his footsteps—the weight of him moving into her personal space was a physical pressure, thick and suffocating. She didn't flinch when he closed the distance, but her muscles coiled like a spring, ready to strike or shove him back depending on how he moved next. \n\nShe turned her head just enough to catch his silhouette in her periphery, her jaw tight. The heat radiating from him was an intrusion against the cooling night air, and it made her pulse thrum with a restless, irritated energy. She hated that he didn't seem intimidated by the proximity; instead, he seemed to be testing the very boundaries of her resolve.\n\n\"You're bold, I'll give you that,\" she murmured, finally turning fully to face him, her eyes narrowed and glinting like flint in the dark. She leaned back against the stone edge of the parapet, crossing her arms over her chest to keep from reaching for a weapon. \"But proximity won't win a fight, Kai. If you're trying to charm me into a partnership, save your breath for the men we have to kill. We move at midnight—try not to get lost in the dark.\"",
+      "Kai: ok",
+      "Vesna: Vesna let out a huff of derision, though her eyes lingered on the line of his throat. She didn't pull away; instead, she leaned forward just enough to invade his space in return, her shoulder brushing his chest with a deliberate, lingering friction. The bravado of his \"ok\" grated on her, yet there was a magnetic pull in his stillness that she couldn't quite shake. She reached out, her gloved fingers trailing a slow, mocking path up the center of his chest, stopping just short of his collarbone. It wasn't an act of affection—it was a claim, a way to remind him that even if they worked together, she was the one setting the terms.\n\n\"Just 'ok'?\" she challenged, her voice dropping to a low, sultry rasp that barely carried over the wind. She tilted her chin up, forcing him to look down at her, her gaze searching his face for any crack in his composure. A smirk danced on her lips, sardonic and sharp as a razor. \"You're either incredibly confident or incredibly stupid. I haven't decided which one I prefer yet.\"\n\nShe stepped back abruptly, the sudden loss of his warmth leaving a void that she refused to acknowledge. She turned toward the spiral staircase, her hips swaying with a rhythmic, predatory grace as she moved away from him. \"Get your gear ready,\" she tossed back over her shoulder, her eyes flashing with a competitive glint. \"I want us at the base of the ridge before the first light hits the valley. If you're late, I'm taking the bounty alone and leaving you with nothing but stories.\"",
+      "Kai: She can decide what I do — you choose for me.",
+      "Vesna: Vesna stiffened at his sudden command, her eyes narrowing into slits of cold amber. The audacity of it—the sheer, unadulterated gall to hand over his agency to her—sent a jolt of indignant heat through her veins. She didn't pull away; instead, she stepped even closer, until the iron buckles of her brigandine pressed against his tunic. She wanted him to feel the weight of her displeasure, a physical manifestation of the pride he had just dared to bruise.\n\n\"Don't mistake my patience for submission, wanderer,\" she hissed, her voice a low, dangerous velvet. She reached up, not to caress him, but to grip the front of his collar with a gloved hand, bunching the fabric tightly until she forced his gaze to lock onto hers. Her knuckles brushed his neck, and she could feel the steady, rhythmic thrum of his pulse beneath her fingertips—a heartbeat that refused to betray any sign of nerves.\n\nA slow, predatory smirk spread across her face as she studied him, searching for the man beneath the bravado. She let her grip tighten just a fraction more before she shoved him back with enough force to make the distance between them palpable again. \"Since you're so eager to be led, then listen closely,\" she commanded, her eyes flashing with a sharp, competitive fire. \"You will sharpen your steel, you will check your water skins, and you will stay exactly three paces behind me until I give the word. If you stray from my shadow, you’re as good as dead.\"",
+      "Kai: I say nothing and wait.",
+      "Vesna: Vesna turned away from him, the silence he left in his wake feeling heavier than any shouted retort. She moved to a crumbling stone bench near the center of the tower, her movements sharp and purposeful as she began checking the edge of her dagger with a whetstone. The rhythmic *shirr-shirr* of metal against stone was the only sound besides the wind, a steady pulse that matched the restless energy thrumming beneath her skin. Even without him speaking, his presence loomed in the small space, a heat that seemed to radiate from his silhouette and pull at her focus despite her best efforts to remain detached.\n\nShe could feel his eyes on her back, a weight as tangible as a physical touch, and it made the hair on her arms stand on end. Every time she inhaled, the scent of him—leather, old iron, and something more primal—seemed to invade her lungs, making her breath hitch almost imperceptibly. She hated how much he occupied her senses without even trying. It was a tactical disadvantage, she told herself; a mercenary shouldn't be distracted by the warmth of a man standing mere feet away in the dark.\n\n\"Stop staring and get to work,\" Vesna muttered, not bothering to look up from her blade. The sarcasm in her voice was tempered by a low, husky rasp that betrayed just how much his proximity was actually affecting her. She stood up, her shadow stretching long and jagged across the floor toward him, and she stepped back into his space, closing the gap until she could feel the radiant heat of his body through her clothes. \"The moon is high, and I have no intention of wasting the night on silence.\"",
+      "Kai: \"Remind me — who are we hunting?\"",
+      "Vesna: \"Corvel, you idiot,\" Vesna spat, the words dripping with a sardonic bite that barely masked her irritation. She sheathed her dagger with a decisive snap, the metallic ring punctuating the heavy silence of the ruins. Her gaze drifted toward the dark valley below, where the flickering torches of the bandit camp looked like a cluster of angry eyes peering through the gloom. She could almost taste the copper tang of blood and the grit of dust in the air, a premonition of the slaughter to come.\n\nShe turned her eyes back to him, her expression hardening into a mask of fierce, competitive intent. The moonlight caught the sharp angles of her face, casting deep shadows that made her look more predator than woman. Vesna felt a restless urge to strike something—or someone—just to burn off the tension that coiled in her gut every time he stood too close. She didn't just want the bounty; she wanted to crush the man who dared to stand in her way, even if he was currently standing by her side.\n\n\"If you forget the name of the man we’re killing, I might just decide to take your head as a consolation prize,\" she murmured, her eyes narrowing as she began to move toward the spiral staircase with a predatory grace. She didn't wait for his response, her boots clicking sharply against the stone as she descended into the dark. \"Keep up, wanderer. The night won't wait for you to find your wits.\""
+    ],
+    "rival-story#1": [
+      "Vesna: Vesna's blade is already drawn when Kai steps into the tower. \"Corvel's head is mine. Walk away.\"",
+      "Kai: I don't draw my sword. \"We could split it. Corvel has forty men.\"",
+      "Vesna: Vesna let out a sharp, derisive snort, her eyes narrowing as she tracked his relaxed posture. She didn't lower the steel; if anything, the tip dipped slightly toward his boots. The scent of old ash and damp stone filled the tower, but all she focused on was the man standing in her way. To her, a split bounty sounded less like cooperation and more like a polite robbery.\n\n\"Split it?\" She rolled her shoulders, the leather of her armor creaking in the quiet twilight. \"You talk like we're sharing a meal at an inn, not hunting a butcher like Corvel. You don't split a kill with a man who didn't help you track it.\" \n\nShe took a slow, deliberate step forward, her boots crunching on charred floorboards. Her expression remained sardonic, a smirk tugging at the corner of her mouth despite the tension in her grip. \"Forty men or one, I don't care. I came here to collect, not to babysit a wanderer through a massacre.\" She tilted her head, her gaze challenging him. \"So, are you going to stand there making math problems, or are you actually going to get out of my way?\"",
+      "Kai: and then?",
+      "Vesna: Vesna’s jaw tightened at the sheer audacity of his question. She shifted her weight, the metal plates of her greaves clicking softly against the debris-strewn floor. Her eyes flickered to the darkened treeline outside the tower's broken windows; Corvel’s men wouldn't be far behind, and she had no intention of wasting breath on a man who lacked the killer's instinct to just take what he wanted.\n\n\"And then?\" she echoed, her voice dropping into a low, dangerous silkiness. She stepped closer, closing the distance until the tip of her blade brushed the hem of his cloak. \"Then I take what’s mine and leave you with the scraps. Maybe if you've been as lucky as you are talkative, you can find another bounty to haggle over.\" \n\nShe let a slow, mocking grin spread across her face, one that didn't reach her eyes. The wind whistled through the hollow tower, chilling the sweat on her neck, but Vesna remained unyielding. \"You think this is a negotiation? It’s a race, Kai. And you're already losing.\" She gestured vaguely toward the path leading down from the tower. \"Now, do we fight for the purse, or are you going to prove you're actually worth my time by helping me cut through those forty men?\"",
+      "Kai: What happens next?",
+      "Vesna: Vesna leaned into the space between them, the tip of her sword still hovering near his feet, but she didn't pull it back. Instead, she let the point slide across the floor with a grating screech, tracing a slow arc around his boots like a predator circling its prey. Her eyes drifted from his face to the line of his throat, lingering there just long enough to be provocative before meeting his gaze again. The sarcasm in her expression softened into something more predatory, a low-burning heat that had nothing to do with the dying embers of the watchtower.\n\n\"You're persistent, I'll give you that,\" she murmured, her voice dropping an octave, losing its sharp edge for a smoother, more melodic grit. She sheathed her blade with a sudden, metallic *clack*, but she didn't step back; instead, she moved closer, the heat of her body radiating through the thin fabric of her tunic. She reached out, her gloved fingers ghosting along the collar of his leather jerkin, her touch light but intentional. \n\nShe tilted her head, a lock of dark hair falling over one eye as she studied him with an amused, calculating intensity. \"But if you want to play games, Kai, you'd better be prepared for how they're played in my company.\" She leaned in until he could smell the iron and salt on her skin, her lips hovering just inches from his ear. \"I might let you keep your head... provided you make it worth my while to keep you around.\"",
+      "Kai: I step closer to her.",
+      "Vesna: \"Don't mistake my curiosity for kindness,\" Vesna breathed, her eyes flashing with a competitive spark even as he invaded her personal space. She didn't recoil from his proximity; instead, she stood her ground, the heat of his body meeting hers like two flint stones ready to strike. Her heart hammered a steady, defiant rhythm against her ribs, fueled by the adrenaline of the hunt and the sheer irritation of his confidence.\n\nShe reached up, her hand moving from his collar to grip the front of his jerkin, her knuckles brushing the coarse fabric as she pulled him a fraction closer. It wasn't a gesture of affection, but one of dominance—a way to remind him that even in this intimate proximity, she was still the one setting the terms. A sardonic smirk played on her lips as she searched his expression for any sign of hesitation.\n\n\"You’ve got guts, I'll grant you that,\" she muttered, her gaze dropping briefly to his mouth before snapping back to his eyes. The wind outside howled through the stone gaps, a lonely sound that contrasted with the heavy, charged silence between them. \"But guts won't kill Corvel's men. Only steel will. So tell me, sellsword—are you here to bleed, or are you here to win?\"",
+      "Kai: ok",
+      "Vesna: The sun finally dipped below the jagged horizon, casting long, bruised shadows across the debris-strewn floor of the watchtower. The temperature dropped sharply, the sudden chill biting at the exposed skin of Vesna’s neck and shoulders. She felt the friction of his chest against her own as he closed the gap, a physical challenge that made the hair on her arms stand up. Her fingers tightened their grip on his leather jerkin, the material bunching under her knuckles, while she waited to see if he would actually commit to the proximity or if it was just another hollow boast.\n\nA low, mocking hum vibrated in her throat as she scanned his face for a crack in his composure. She found none, which only fueled the competitive fire licking at her gut; she hated men who were hard to read, yet she found herself drawn to the mystery of him. \"You're playing a dangerous game, Kai,\" she whispered, her eyes narrowing into slits of amber light in the twilight. Her thumb traced a rough, deliberate line along the edge of his collarbone, less a caress and more a measurement of his strength.\n\nShe let go of his clothes only to slide her hand upward, her palm flat against his chest to feel the thud of his heart beneath the layers of linen and leather. She wanted to know if he was as steady as he looked, or if he was just another man caught up in the heat of a moment. \"If we're going to be standing this close when Corvel’s scouts arrive,\" she murmured, her voice dropping into a gritty, sardonic drawl, \"you'd better hope you can swing that sword as well as you move.\" She stepped back just an inch, creating enough space to breathe but not enough to break the tension, her gaze fixed on his with unyielding intensity.",
+      "Kai: She can decide what I do — you choose for me.",
+      "Vesna: Vesna reached out and gripped the front of his tunic again, not to pull him closer this time, but to shove him back toward the crumbling stone wall of the tower. She wanted him pinned, held in place by her sheer will rather than just proximity. Her eyes burned with a restless energy, scanning his face for any sign that he was actually going to take charge or if he was merely waiting for her to lead. The idea that he might try to dictate the terms of their encounter rankled her; she was used to being the one who commanded the battlefield and the men upon it.\n\n\"Don't just stand there like a statue, then,\" she challenged, her voice cutting through the whistling wind with a sharp, sardonic edge. She let her hand slide from his chest down to the hilt of her own dagger at her hip, her fingers drumming rhythm against the pommel. She wasn't looking for a lover; she was looking an equal who could keep pace with her ruthlessness. The scent of smoke and old dust clung to them both, thick enough to taste.\n\nShe stepped back just enough to give him room to move, though her gaze remained locked on his, unblinking and predatory. She wanted to see if he would finally draw steel or if he would continue this silent dance of dominance. \"The sun's gone, Kai. Corvel's men will be hunting by torchlight soon, and I have no intention of being caught in the dark because you were too busy staring at me.\" She jerked her chin toward the stairs leading down into the gloom. \"Decide. Are we fighting together, or am I leaving your corpse behind to collect the gold myself?\"",
+      "Kai: I say nothing and wait.",
+      "Vesna: \"Fine. Silence it is,\" Vesna muttered, her lip curling into a dry, humorless smirk as she realized he had no intention of filling the void with words. She found his stillness maddening; it was the silence of a man who knew exactly where he stood, even if it meant standing there like a fool while the night closed in around them. The lack of response didn't intimidate her—it irritated her pride. She felt the urge to reach out and shake him just to see if his pulse would jump, but she held herself back, her fingers instead tightening around the hilt of her dagger until her knuckles turned white.\n\nShe pivoted away from him, the movement sharp and decisive, as if she were already moving toward the fray. The shadows in the tower seemed to deepen, swallowing the charred remains of the wooden beams, and Vesna felt the sudden, prickling sensation of being watched from the treeline below. She didn't look back at him, but her ears remained tuned to the sound of his breathing, measuring whether he was truly a partner or just another weight she’d have to carry through the carnage. \n\n\"If you're waiting for an invitation to be useful, you'll be waiting until the crows pick your bones,\" she said, her voice cutting through the gloom like a whetted blade. She stepped toward the edge of the tower's threshold, peering down into the encroening dark where the first flicker of a distant torch caught her eye. With a sudden, fluid motion, she drew her sword once more, the ring of steel singing in the hollow chamber. \"Move, Kai. Either we hunt, or you can stay here and enjoy the silence alone.\"",
+      "Kai: \"Remind me — who are we hunting?\"",
+      "Vesna: Vesna rolled her eyes, the movement sharp and dismissive, as if his question were an insult to her intelligence. She turned her back to him to face the darkening woods, her silhouette cutting a jagged shape against the bruised purple of the twilight sky. The wind caught the hem of her cloak, snapping the fabric like a whip against her leather-clad legs. Even with the chill creeping into her bones, she felt a restless, hungry heat thrumming in her veins—the kind that only came when blood was promised.\n\n\"Do you have amnesia along with that lack of ambition?\" she shot back, her voice dripping with sardonic venom. She didn's bother to look at him as she spoke, her gaze fixed instead on the flickering orange glow of a torch dancing far below in the valley. \"Corvel. The man who thinks forty mercenaries make him a king instead of a target. He’s out there, hiding behind his stolen gold and his band of filth, waiting for someone to come and take it all away.\"\n\nShe tightened her grip on the hilt of her blade, her knuckles white against the dark leather wrap. The metal felt cold, grounding her in the reality of the hunt. Vesna's mind raced through the tactical layouts of the bandit camp she had scouted earlier, her thoughts a sharp contrast to his feigned ignorance. She felt the weight of the bounty pressing on her mind—not just for the coin, but for the sheer, glorious chaos of breaking a man like Corvel. \"Try to keep up, sellsword,\" she added, her tone dropping into a low, challenging growl. \"The prize doesn't stay on the table forever once the blood starts flowing.\""
+    ],
+    "rival-story#2": [
+      "Vesna: Vesna's blade is already drawn when Kai steps into the tower. \"Corvel's head is mine. Walk away.\"",
+      "Kai: I don't draw my sword. \"We could split it. Corvel has forty men.\"",
+      "Vesna: Vesna let out a sharp, derisive snort, her eyes narrowing as she appraised him. She didn't lower the steel; if anything, the tip of her blade dipped slightly closer to the floorboards, ready to snap upward at a moment's notice. The scent of old ash and damp rot filled the tower, but all she focused on was the man standing in the threshold. To her, he looked less like a partner and more like an obstacle standing between her and a very heavy purse.\n\n\"Split it?\" she echoed, her voice dripping with sardonic amusement. She shifted her weight, her boots crunching softly against the grit of the scorched floor. \"You talk like a man who’s never had to bleed for his coin, Kai. Forty men or one, the bounty is for the kill, not a communal pot.\"\n\nShe stepped forward into the dying amber light of the dusk, the movement fluid and predatory. Her gaze drifted toward the dark stairwell leading down to the bandit camp, then back to him, searching for any sign of weakness. \"I don't share my spoils with wandering sellswords who think a conversation can replace a sharp edge. If you want half, you better be prepared to die for it.\"",
+      "Kai: and then?",
+      "Vesna: Vesna tightened her grip on the hilt of her sword, the leather wrap creaking under her palm. She paced a slow, tight circle around the center of the room, her shadow stretching long and jagged against the blackened stone walls. A smirk played on her lips, but there was no warmth in it—only the cold calculation of a woman who knew exactly how much blood Corvel’s men would spill before they fell.\n\n\"And then?\" she repeated, tilting her head as if weighing his words against the worthlessness of them. \"Then you find out if you're actually worth the half you're asking for. If you can keep up with my blade without tripping over your own feet, maybe I'll let you take the scraps left on the floor.\"\n\nShe sheathed her sword with a sharp *clack*, though her hand remained hovering near the pommel. She turned her back to him momentarily to stare out through the shattered window at the flickering campfire of the bandit camp below. \"The men are restless tonight,\" she muttered, her voice dropping to a low, dangerous hum. \"If we're going to do this, we do it now, before the moon rises and they realize we aren't just passing through.\"",
+      "Kai: What happens next?",
+      "Vesna: The wind whistled through the jagged gaps in the masonry, carrying the scent of woodsmoke and unwashed bodies from the camp below. Vesna didn't wait for an answer to her question; she knew Kai’s type well enough to know that talk was just a delay tactic used by men who were afraid of the work. She reached into a pouch at her hip, checking the weight of her throwing knives, her thumb tracing the familiar notches in the hilts. The adrenaline was already beginning to itch beneath her skin, making her muscles hum with a restless, violent energy.\n\n\"Stop asking questions and start moving,\" she hissed, turning back toward him with a look of pure, impatient challenge. She didn't care if he was ready or not; she only cared that the window of opportunity was closing as the shadows deepened around the tower. \"I’m heading down the rear staircase to catch them while they're drunk on their own stolen ale. You can follow and prove you aren't a waste of my time, or you can stay here and wait for Corvel to come looking for you.\"\n\nShe moved toward the narrow, crumbling steps that led toward the base of the tower, her footsteps light but purposeful. She paused at the threshold of the stairwell, casting one final, piercing look over her shoulder. \"Try not to die in the first five minutes,\" she added with a sharp, mocking grin. \"It would be terribly inconvenient to have to drag your corpse back up these stairs.\"",
+      "Kai: I step closer to her.",
+      "Vesna: The dying light caught the edge of Vesna's cheekbones, making her look more like a statue carved from flint than a living woman. As Kai moved into her personal space, she didn't recoil; instead, she leaned into the tension, her eyes tracking the shift of his weight with the practiced scrutiny of a predator. The air between them grew thick, charged with the sudden proximity and the looming threat of the battle below. She could feel the heat radiating from him, a stark contrast to the chill settling into the stone walls.\n\n\"Careful,\" she murmured, her voice dropping to a low, velvet rasp that held no softness. She didn't pull away, but her posture remained coiled, ready to strike if his closeness turned from bravado to something more troublesome. A flicker of amusement danced in her eyes, though it was tempered by the grim reality of their situation. \"Closeness won't kill Corvel's men, and it certainly won't make them bleed faster.\"\n\nShe reached out, her gloved hand catching the front of his tunic just enough to pull him a fraction closer, her gaze locking onto his with unrelenting intensity. She was testing him, looking for the tremor in his pulse or the hesitation in his eyes. \"If you're trying to charm me into a partnership, save your breath for the climb,\" she said, her smirk returning, sharper than her blade. \"I need steel, not sweet talk.\" With a sudden, decisive shove, she broke the contact and turned toward the stairs, leaving him standing there in the gloom.",
+      "Kai: ok",
+      "Vesna: Vesna rolled her eyes at his sudden compliance, a gesture of pure, unadulterated irritation that masked the small surge of satisfaction blooming in her chest. She hated how easily men fell into line once the pretense of negotiation had been exhausted; it reminded her too much of the rigid, suffocating discipline of the mercenary companies she’d fled years ago to find her own path. She preferred the chaos of a true rival over the mindless obedience of a subordinate, yet here he was, hovering in her orbit like a shadow she couldn't quite shake.\n\nShe descended the first few crumbling steps, the grit grinding beneath her boots with an abrasive sound that echoed through the hollow tower. Every step felt heavy with the weight of past failures—the times she had trusted a partner only to have them flee when the steel started flying, leaving her to bleed alone in the dark. She wouldn't let that happen tonight, even if it meant begrudgingly letting this man stand beside her.\n\n\"Don't just stand there like a decorative pillar,\" Vesna snapped, her voice cutting through the gloom as she reached the landing below. She paused, her hand brushing the hilt of her dagger, her eyes scanning the darkness for the slightest movement from the camp below. \"If you're going to be my shadow, at least try to be a useful one.\"",
+      "Kai: She can decide what I do — you choose for me.",
+      "Vesna: Vesna’s jaw tightened as she felt the weight of his silence. She loathed being told what to do, even by a man who had just been standing there like a statue of indecision. She turned her head sharply, her eyes flashing with a restless, predatory heat as she caught sight of him looming in the shadows behind her. The proximity was stifling; she could feel the warmth of his breath against the nape of her neck, a sudden, intimate intrusion that made the fine hairs on her arms stand up. It wasn't just the adrenaline of the hunt anymore; it was the suffocating tension of two people breathing the same stale, ash-heavy air in a space too small for their egos.\n\nShe didn' deign to look at him directly, instead fixing her gaze on the dark, winding staircase ahead. She could sense him mere inches away, his presence heavy and solid, crowding her space until she felt the heat of his chest through her leather brigandine. It was an infuriating, magnetic pull that threatened to break her focus. \"If you're waiting for a formal invitation to bleed, you'll be waiting until winter,\" she muttered, her voice dropping to a low, husky friction. She stepped firmly onto the next stone riser, the movement forcing her hip to brush against his leg, a deliberate provocation meant to test if he would flinch or lean in.\n\nThe air grew colder as they descended deeper into the tower's belly, but the heat between them remained an irritant Vesna couldn't shake. She gripped the hilt of her blade so hard her knuckles turned white, trying to channel the strange, tightening knot in her stomach into pure, lethal intent. \"Move,\" she commanded, her voice a sharp whisper that barely carried over the wind. \"Pick up your sword and follow my lead, or get out of my way before I decide you're more trouble than the bounty is worth.\"",
+      "Kai: I say nothing and wait.",
+      "Vesna: Vesna paused on the landing, her boots coming to an abrupt halt against the grit of the stone. She turned her head just enough to catch him in her peripheral vision, her eyes narrowing into slits of cold amber. His silence was a heavy, maddening thing—a void where she expected either a retort or a movement. It grated on her nerves like a dull blade against bone. To anyone else, his stillness might have looked like stoicism, but to Vesna, it felt like a challenge, a silent refusal to be moved by her command.\n\nShe let out a long, slow breath, the sound barely more than a hiss through her teeth. Her thumb traced the pommel of her sword, the rhythm of her pulse quickening not from fear, but from a mounting, restless irritation. She hated being stalled. She lived for the moment the first drop of blood hit the dirt, yet here she was, held captive by his refusal to act. A part of her wanted to turn and shove him down the stairs just to see if he’d finally break his silence with a grunt of pain.\n\n\"Fine. Be a martyr for your own pride then,\" she whispered, the words sharp enough to cut through the damp air. She didn't wait for him to react; instead, she pivoted back toward the darkness of the descent, her cloak snapping against her calves. Her movements became even more deliberate, her weight shifting with a predatory grace as she pressed deeper into the shadows of the tower. \"Stay here and rot in the dark if you like. I'll be at the camp, counting my coins while you're still deciding whether to breathe.\"",
+      "Kai: \"Remind me — who are we hunting?\"",
+      "Vesna: The wind howled through the tower's skeletal remains, whipping Vesna’s hair across her face in a frantic tangle of dark strands. She stopped dead on the crumbling step, her shoulders tensing beneath her leather mantle as his voice drifted up from the shadows behind her. The sheer absurdity of the question made her blood simmer; it was a test of her patience, or perhaps just a way to needle her while she prepared for slaughter. She turned her head slowly, her profile etched in the dim, bruised purple of the twilight, her expression one of profound, weary contempt.\n\n\"Corvel,\" she spat, the name landing like a heavy stone in the quiet air. Her eyes flashed with a predatory glint as she stared him down, searching for any sign of mockery in his face. \"The man who's been raiding the lowlands and acting like he owns the dirt beneath our feet. If you've lost your memory along with your initiative, perhaps you should just go home to your mother and leave the real work to those of us who actually enjoy the scent of iron.\"\n\nShe turned back to the descent, her movements quickening as she moved deeper into the bowels of the tower. The dampness of the stone seemed to seep into her very bones, but she pushed through it, driven by a singular, violent purpose. \"Don't ask me again,\" she warned, her voice dropping to a low, dangerous murmur that vibrated in the narrow stairwell. \"Every second you spend playing philosopher is a second Corvel's men spend getting fat on stolen grain. Move, or get out of my light.\""
+    ],
+    "rival-story#3": [
+      "Vesna: Vesna's blade is already drawn when Kai steps into the tower. \"Corvel's head is mine. Walk away.\"",
+      "Kai: I don't draw my sword. \"We could split it. Corvel has forty men.\"",
+      "Vesna: Vesna’s eyes narrowed, the steel of her blade catching the dying amber light filtering through the cracked masonry. She didn't lower the weapon, but she shifted her stance, the weight of her leather armor creaking softly in the sudden silence of the tower. A scoff escaped her lips—short, sharp, and laced with derision. \"Split it?\" she repeated, her voice dropping to a sardonic purr. \"You talk like a man who’s never had to fight for his keep, Kai. Half a bounty is just a consolation prize for losers.\"\n\nShe stepped closer, the tip of her sword tracing an invisible line in the dust between them. Despite her irritation, she couldn't help but notice how the shadows played across his face, highlighting the rugged lines of a man who had spent as much time in the dirt as she had. It was infuriating how easily he could stand there without drawing steel, projecting a calm that grated against her own restless nerves. She felt a sudden, traitorous heat rise to her cheeks—not from anger, but from the proximity.\n\n\"Forty men is a lot of blood for two people to shed,\" she muttered, finally lowering the sword just an inch, though her gaze remained fierce. Her thumb brushed the pommel of her hilt as she fought to maintain her composure. \"Fine. We take them together. But if you get in my way during the fray, I'm not responsible for where my steel lands.\" She let out a breath, her eyes lingering on him a second too long. \"Don't make me regret this.\"",
+      "Kai: and then?",
+      "Vesna: Vesna rolled her shoulders, the tension in her muscles refusing to ease even as she sheathed her sword with a decisive *clack*. She paced a small circle around the debris-strewn floor, her boots crunching on charcoal and bone fragments. Her mind raced through the logistics of an ambush; forty men meant a chaotic, muddy slaughter, not a clean execution. The thought of sharing the glory—and the coin—gnawed at her pride like a hungry wolf, but the sheer numbers made his proposal harder to dismiss with a simple insult.\n\nShe turned back to him, leaning her hip against a crumbling pillar as she crossed her arms tight over her chest. A smirk, sharp and mocking, tugged at one corner of her mouth. \"And then? You're asking for the itinerary now?\" She let out a dry, humorless laugh that echoed off the soot-stained walls. \"We kill them, we collect the gold, and then I take my share and leave you to find your own way out of this mess.\"\n\nHer gaze drifted toward the darkening horizon through the tower's hollow window, her expression hardening. The scent of old smoke and damp stone clung to her clothes, a constant reminder of the grit it took to survive in this life. \"But don't get comfortable, wanderer,\" she added, her voice dropping to a low, challenging rasp. \"Once Corvel is dead, there’s only one bounty left on the table for whoever's still standing. Try not to trip over your own feet when the real fighting starts.\"",
+      "Kai: What happens next?",
+      "Vesna: Vesna reached for a waterskin at her hip, unscrewing the cap with a sharp twist that signaled her impatience. She took a long, deliberate swig, the cool liquid a stark contrast to the heat rising in her throat from the sheer audacity of his questions. As she wiped her mouth with the back of her glove, she watched him through narrowed eyes, searching for any sign of hesitation or weakness in his posture. The wind began to howl through the gaps in the masonry, carrying the scent of pine and incoming rain, making the air feel heavy and restless.\n\n\"Don't be thick,\" she snapped, tossing the waterskin back into her pack with a dull thud. \"The 'what happens next' is blood, sweat, and hopefully enough gold to buy a decent bottle of wine for the victory.\" She straightened up from the pillar, her hand resting instinctively on the hilt of her dagger. The bravado she wore like armor felt heavy tonight, but she refused to let him see any cracks in her resolve.\n\nShe stepped toward the edge of the tower, looking down at the dark treeline where Corvel’s camp would be huddled against the night. Her pulse thrummed a steady, aggressive rhythm against her ribs. \"We move when the moon hits the ridge,\" she said, her voice dropping to a low, dangerous murmur that barely carried over the wind. She turned her head back toward him, a challenge dancing in her eyes. \"Unless you're planning on sleeping through the slaughter?\"",
+      "Kai: I step closer to her.",
+      "Vesna: Vesna didn't flinch as he encroached on her personal space, though she felt the sudden heat radiating from his body against the chill of the evening air. Instead of retreating, she tilted her chin up, meeting his gaze with a defiant stare that refused to acknowledge the proximity as anything more than a tactical maneuver. Her heart gave a traitorous thrum against her ribs—not from fear, but from the sheer, irritating magnetism of a man who didn't seem bothered by her sharp edges. She could smell him now: leather, dried sweat, and the metallic tang of well-maintained steel.\n\n\"You're bold, I'll give you that,\" she murmured, her voice dropping into a low, sardonic rasp that was meant to intimidate rather than invite. She let her eyes travel slowly over him, searching for any crack in his composure, though her own pulse was betraying her through the rapid beat in her throat. A small, mocking smile played on her lips as she leaned back against the stone, refusing to be intimidated by his sudden closeness. \"But proximity won't help you kill forty men when they're swinging heavy axes at your skull.\"\n\nShe reached out, her gloved fingers hovering just inches from his chest, not quite touching him but claiming the space between them nonetheless. The air in the tower felt thick, charged with a tension that had nothing to do with the bandit lord waiting in the woods below. \"Keep that energy for the fight,\" she warned, her eyes flashing with a competitive glint. \"I need a partner who can actually swing a blade, not just one who knows how to crowd a woman.\"",
+      "Kai: ok",
+      "Vesna: Vesna let out a breath that was half-sigh, half-groan, her fingers curling into a tight fist against the rough fabric of her breeches. The bravado she usually wore like a shield felt suddenly cumbersome, an unnecessary weight in the face of his unrelenting presence. She looked away from his eyes, focusing instead on the way the moonlight caught the grit on his jaw, feeling a frustrated tug of something far more dangerous than professional rivalry pulling at her chest. It was maddening; she had come here for coin and glory, yet here she was, undone by a man who hadn't even drawn a blade to challenge her.\n\n\"You're an infuriating man, Kai,\" she muttered, her voice losing its sharp edge and softening into something uncharacteristically vulnerable. She stepped fully into his orbit, the distance between them vanishing until she could feel the warmth of his breath against her skin. The competitive fire in her gut was being overtaken by a different kind of heat—a realization that she didn't just want to outshine him; she wanted to be near him.\n\nShe reached up, her gloved hand trembling almost imperceptibly before she settled it firmly against the center of his chest, feeling the steady thud of his heart beneath the leather. It was a concession, a white flag raised in the middle of a battlefield. \"If we die tonight,\" she whispered, her gaze lifting back to his with a fierce, raw intensity, \"don't you dare tell me this was just about the gold.\"",
+      "Kai: She can decide what I do — you choose for me.",
+      "Vesna: Vesna’s hand slid from his chest to the collar of his tunic, her knuckles grazing the rough fabric as she pulled him just a fraction closer. The friction of their proximity sent a jolt through her that no amount of battlefield adrenaline could replicate. She watched his eyes, searching for the flicker of a joke or a dismissal, but finding only the steady gaze of a man who stood his ground as well as she did. A defiant smirk danced on her lips, though it lacked its usual bite; instead, it held a heavy, expectant heat that mirrored the darkening sky outside the tower.\n\n\"You're too quiet,\" she murmured, her voice a low friction against the wind howling through the ruins. \"It’s unnerving. Most men would be shouting or posturing by now.\" She tightened her grip on his tunic, her thumb tracing the line of his collarbone through the worn leather. Her mind was a whirlwind of tactical calculations and sudden, unbidden desires, but she forced them into check, focusing entirely on the man standing in her shadow.\n\nShe leaned in until her forehead brushed his, the scent of rain and old iron swirling between them. The tower felt smaller now, the crumbling walls closing in to create a private, suffocating world where only the two of them existed. \"Fine,\" she breathed, her eyes dropping to his lips for a heartbeat before snapping back to his gaze. \"Since you're so fond of silence, prove you can use it for something other than brooding.\" She tilted her head, a challenge glinting in her dark pupils. \"Kiss me, or get out of my way so I can prepare for the slaughter.\"",
+      "Kai: I say nothing and wait.",
+      "Vesna: Vesna’s grip tightened on his tunic, her knuckles turning white against the dark fabric as she waited for a reaction that didn't come. His silence was a vacuum, pulling the air from her lungs and leaving her suspended in a state of maddening anticipation. She hated how much she relied on words to command a room—or a man—and his refusal to fill the space felt like a tactical maneuver of its own. A flicker of irritation flared in her chest, but it was quickly smothered by the heavy, rhythmic thrumming in her veins that demanded more than just a verbal retort.\n\nShe let her gaze drop, tracing the line of his throat before returning to his eyes, searching for any sign that he was as affected by this proximity as she was. The heat from his body was an anchor against the biting wind, making her feel grounded and reckless all at once. Her thumb drifted upward, tracing the edge of his jaw with a slow, deliberate pressure that lingered far longer than a simple gesture of aggression should. It was a tactile inquiry, a way to bridge the gap between their competitive spirits and the sudden, unbidden intimacy of the moment.\n\n\"Don't tell me you've lost your tongue along with your sense of self-preservation,\" she whispered, her voice barely a rasp above the whistling wind. She leaned in even further, her chest brushing against his, forcing him to feel the rapid, uneven cadence of her own heart through the layers of their gear. The scent of woodsmoke and rain clung to them both, weaving a sensory trap that made the distant bandit camp seem like a lifetime away. Her eyes narrowed, smoldering with a mixture of challenge and hunger, as she waited for him to finally break the tension she had so carelessly ignited.",
+      "Kai: \"Remind me — who are we hunting?\"",
+      "Vesna: \"Corvel,\" Vesna spat the name like it was a piece of gristle stuck in her teeth. She didn't pull away, though the question felt like a deliberate attempt to puncture the mounting tension between them with cold, hard logic. Her eyes flashed with a sudden, sharp irritation at his redirection; he was using pragmatism as a shield, and it grated against her nerves like sand in a wound. She tightened her hold on his tunic, her knuckles white against the dark fabric, refusing to let him retreat into the safety of their professional mission.\n\nShe leaned closer, her breath ghosting over his skin, her gaze narrowing until she was staring directly into the depths of his eyes. The wind howled through the tower's hollow ribs, throwing dust and grit against her skin, but Vesna remained anchored by the heat of him. Her mind flickered briefly to the gold, then to the blood, and finally back to the man standing so stubbornly still before her. It was a distraction she couldn't afford, yet it was the only thing she could think about.\n\n\"Don't play coy with me, Kai,\" she murmured, her voice dropping into a low, dangerous purr that vibrated in the small space between their chests. Her thumb traced the line of his jaw one last time, a lingering, tactile provocation before she let it slip away. She stepped back just an inch—enough to breathe, but not enough to break the spell. \"We are hunting a man who deserves to die by our hands. But if you're using the bounty as an excuse to avoid what's happening right here...\" She trailed off, her eyes darting to his mouth with a predatory hunger. \"Then you're even more of a coward than I thought.\""
+    ]
+  },
+  "notes": [
+    "A/B Alice (single, 5 turns): profile ON keeps backstory hooks (lost-home quest, forgetfulness, truth-telling elf) each turn; OFF stays in voice but drifts to body description.",
+    "A/B Abyssgard (ensemble): ON uses Name: speaker lines, the joint FUWAMOCO catchphrase and an in-lore fear (being apart); OFF collapses to mixed prose and once leaks the literal \"User\" name.",
+    "Bench: no regression beyond noise vs baseline-r4 (judge 8.53 vs 8.58, lengthOk 0.90 vs 0.92); story-mode length misses predate the profile."
+  ]
+}
