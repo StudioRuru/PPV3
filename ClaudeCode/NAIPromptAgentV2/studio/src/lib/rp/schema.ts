@@ -57,7 +57,10 @@ export function migrateRp(db: Database.Database): void {
   if (!has) {
     try { db.exec("ALTER TABLE taste_events ADD COLUMN source TEXT NOT NULL DEFAULT 'tag'"); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
   }
-  if (!(db.prepare("PRAGMA table_info(rp_chats)").all() as { name: string }[]).some((c) => c.name === "style")) {
-    db.exec("ALTER TABLE rp_chats ADD COLUMN style TEXT NOT NULL DEFAULT ''");
-  }
+  const addCol = (table: string, col: string, def: string) => {
+    if (!(db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+  };
+  addCol("rp_chats", "style", "TEXT NOT NULL DEFAULT ''");
+  addCol("rp_characters", "display_name", "TEXT NOT NULL DEFAULT ''");
+  addCol("rp_characters", "profile", "TEXT");
 }

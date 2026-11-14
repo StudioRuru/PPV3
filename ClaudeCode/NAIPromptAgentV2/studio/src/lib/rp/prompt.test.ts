@@ -7,7 +7,7 @@ const char = (o: Partial<RpCharacter> = {}): RpCharacter => ({
   id: 1, name: "Mio", avatarPath: null, description: "{{char}} teases {{user}}.", personality: "bratty", scenario: "", firstMessage: "",
   exampleDialogue: "", systemPrompt: "", postHistoryInstructions: "", alternateGreetings: "[]", creatorNotes: "", tags: "[]",
   lorebookId: null, worldLorebookId: null, model: null, samplerOverrides: null, appearancePrompt: "", outfitPrompt: "", bodyProps: "",
-  agency: null, povMode: "", tense: "", dialogueStyle: "", stateSchema: "[]", createdAt: 0, updatedAt: 0, ...o,
+  agency: null, povMode: "", tense: "", dialogueStyle: "", stateSchema: "[]", displayName: "", profile: null, createdAt: 0, updatedAt: 0, ...o,
 });
 const persona: RpPersona = { id: 1, name: "Phil", description: "", avatarPath: null, isDefault: 1, relationship: "", addressAs: "", boundaries: "", createdAt: 0, updatedAt: 0 };
 const chat = (o: Partial<RpChat> = {}): RpChat => ({

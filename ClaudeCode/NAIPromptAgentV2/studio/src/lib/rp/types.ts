@@ -9,6 +9,10 @@ export type RpCharacter = {
   lorebookId: number | null; worldLorebookId: number | null; model: string | null; samplerOverrides: string | null;
   appearancePrompt: string; outfitPrompt: string; bodyProps: string; agency: number | null;
   povMode: string; tense: string; dialogueStyle: string; stateSchema: string;
+  /** Name used in prompts + headers (the card title is just the list label). */
+  displayName: string;
+  /** RpProfile JSON (see profile.ts), extracted at import and hand-editable. */
+  profile: string | null;
   createdAt: number; updatedAt: number;
 };
 

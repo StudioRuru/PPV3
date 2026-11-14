@@ -41,3 +41,8 @@ test("deleting a chat deletes its messages", () => {
   db.prepare("DELETE FROM rp_chats WHERE id = 1").run();
   assert.equal((db.prepare("SELECT COUNT(*) n FROM rp_messages").get() as { n: number }).n, 0);
 });
+
+test("rp_characters gains display_name + profile", () => {
+  const db = mem(); migrateRp(db); migrateRp(db);
+  for (const c of ["display_name", "profile"]) assert.ok(cols(db, "rp_characters").includes(c), c);
+});
