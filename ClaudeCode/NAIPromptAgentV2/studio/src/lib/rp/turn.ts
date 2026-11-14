@@ -1,6 +1,7 @@
 import { joinBursts } from "./burst";
 import { applyCharacterOverrides, assembleMessages, settingsToOptions } from "./prompt";
-import { modeOf } from "./presets";
+import { modeOf, PHOTO_LINE } from "./presets";
+import { photoDue } from "./photo";
 import type { RpStore } from "./store";
 import type { ChatMessage, Mode, RpSettings, SamplerOptions } from "./types";
 import { selectVoiceLines, type Embed } from "./voice";
@@ -122,7 +123,7 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
   });
   const pinned = [chat.model, character?.model].find((m) => m && deps.installed.includes(m));
   const turn: Turn = {
-    messages: r.messages,
+    messages: modeOf(chat.style) === "text" && photoDue(history, lastUser) ? [...r.messages, { role: "system", content: PHOTO_LINE }] : r.messages,
     options: applyCharacterOverrides(settingsToOptions(settings, r.stop), character?.samplerOverrides),
     model: pinned || deps.heavy,
     truncated: r.truncated,

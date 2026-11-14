@@ -44,6 +44,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [tuning, setTuning] = useState(false);
   // Text mode: a new burst's bubbles appear one at a time, each after a typing pause.
   const [reveal, setReveal] = useState<{ id: string; shown: number } | null>(null);
+  const [zoom, setZoom] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const composer = useAutoSize(input);
   const pinned = useRef(true); // follow the stream only while the reader is at the bottom
@@ -53,6 +54,13 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     if (r.ok) setV(r.data); else setError(r.error);
   }, [chatId]);
   useEffect(() => { load(); }, [load]);
+  // Text mode photos render after the reply: re-fetch every 3 s while any is pending, for up to 90 s.
+  const pending = v?.messages.some((m) => m.imageId === -1);
+  useEffect(() => {
+    if (!pending) return;
+    const t = setInterval(load, 3000), stop = setTimeout(() => clearInterval(t), 90_000);
+    return () => { clearInterval(t); clearTimeout(stop); };
+  }, [pending, load]);
   useEffect(() => { emitMascot("rp_chat", { character: character.name }); }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps -- once per opened chat
   useEffect(() => {
     const on = (e: Event) => { const m = (e as CustomEvent<{ mischief?: number }>).detail?.mischief; if (typeof m === "number") mischief = m; };
@@ -90,7 +98,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     pinned.current = true;
     setError(null); setStatus("Thinking…");
     setStream({ text: "", replacing: body.regenerate });
-    if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now(), thought: "", burstId: null, burstSwipes: null, speaker: "", reaction: "" }] });
+    if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now(), thought: "", burstId: null, burstSwipes: null, speaker: "", reaction: "", imageId: null }] });
     try {
       const res = await fetch(`/api/rp/chats/${chatId}/send`, { method: "POST", ...json({ ...body, version: v.version }) });
       if (!res.ok || !res.body) {
@@ -236,7 +244,9 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
               <div className="min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">
                 {m.speaker && <p className="text-muted flex items-center gap-1.5 text-[11px] font-semibold"><i aria-hidden="true" className="size-2 rounded-full" style={{ background: `hsl(${[...m.speaker].reduce((h, c) => h * 31 + c.charCodeAt(0), 7) % 360} 65% 55%)` }} />{m.speaker}</p>}
                 <div key={replacing ? "stream" : m.activeSwipeIndex} data-style={style || undefined} className={`animate-fade space-y-1.5 ${replacing ? "stream-caret" : ""}`}>
-                  <Prose text={sub(replacing ? stream!.text || "…" : m.content)} />
+                  {m.imageId === null || replacing ? <Prose text={sub(replacing ? stream!.text || "…" : m.content)} />
+                    : m.imageFile ? <button type="button" onClick={() => setZoom(m.imageFile!)} className="block w-fit"><img src={`/api/rp/files/images/${m.imageFile}`} alt="Photo" className="max-h-80 rounded-2xl" /></button>
+                    : <p className="text-muted bg-surface-2 w-fit rounded-2xl px-3.5 py-2.5 text-sm">{m.imageId === 0 ? "📷 photo failed" : "📷 sending…"}</p>}
                 </div>
                 {actions}
                 {feedback?.id === m.id && (
@@ -290,7 +300,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         {!busy && msgs.at(-1)?.role === "user" && msgs.at(-1)!.id > 0 && (
           <button type="button" onClick={() => send({ retry: true })} className="border-border text-accent h-10 rounded-full border px-4 text-sm font-semibold">Retry reply</button>
         )}
-        <div ref={end} />
+        {zoom && <button type="button" aria-label="Close photo" onClick={() => setZoom(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"><img src={`/api/rp/files/images/${zoom}`} alt="Photo" className="max-h-full max-w-full object-contain" /></button>}
+      <div ref={end} />
       </div>
 
       <form data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 flex gap-2 border-t px-4 py-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}

@@ -51,3 +51,10 @@ test("splitBurst takes a reaction tag at the start of any bubble", () => {
   assert.equal(b.reaction, "😱");
   assert.deepEqual(b.bubbles.map((x) => x.text), ["a puppy??", "omg wait", "ok"]);
 });
+
+test("splitBurst photo", () => {
+  const b = splitBurst("look\n---\n[photo: me pouting by a tree]", []);
+  assert.deepEqual(b.bubbles[1], { text: "", speaker: "", photo: "me pouting by a tree" });
+  assert.equal(b.bubbles[0].photo, undefined);
+  assert.equal(burstText(b), "look\n---\n[photo: me pouting by a tree]");
+});

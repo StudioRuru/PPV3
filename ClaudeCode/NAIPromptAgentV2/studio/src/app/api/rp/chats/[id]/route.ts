@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serializeModsJson } from "@/lib/rp/mods";
 import { removeRpFiles, rp, rpSettings } from "@/lib/rp/server";
+import { renderPending } from "@/lib/rp/photo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   else if (b.op === "burstSwipe") {
     const burstId = rp.messages(id).find((m) => m.id === msgId)?.burstId;
     ok = !!burstId && rp.pickBurst(burstId, Number(b.index), expect);
+    if (ok) renderPending(rp, id, rpSettings()); // a take with a photo not shown before
   }
   else if (b.op === "chat") {
     // Metadata: last write wins and the message version doesn't move (safe while a reply is streaming).

@@ -1,10 +1,11 @@
 import type { RpMessage } from "./types";
 
 /** Text mode replies as a burst of short texts: split the model's raw reply, pull out a reaction, tag ensemble speakers. */
-export type Bubble = { text: string; speaker: string; photo?: number };
+export type Bubble = { text: string; speaker: string; photo?: string };
 export type Burst = { bubbles: Bubble[]; reaction: string };
 
 const MAX = 5;
+const PHOTO = /^\[photo:\s*([^\]]+?)\s*\]$/i;
 const REACT = /^\s*\[react:\s*([^\]\s]{1,16})\s*\]\s*/;
 const EMOJI = /^[\p{Extended_Pictographic}‍️\p{Emoji_Modifier}]{1,8}$/u;
 const SPLITS: [RegExp, string][] = [[/^\s*-{3,}\s*$/m, "\n"], [/\n\s*\n/, "\n\n"], [/\n/, "\n"], [/(?<=[.!?…])\s+/, " "]];
@@ -28,13 +29,17 @@ export function splitBurst(raw: string, cast: string[]): Burst {
   const bubbles = parts.filter(Boolean).map((t) => {
     const m = t.match(/^([^:\n]{1,40}):\s*/);
     const who = m && names.get(m[1].trim().toLowerCase());
-    return who ? { text: t.slice(m[0].length), speaker: who } : { text: t, speaker: "" };
+    const b = who ? { text: t.slice(m[0].length), speaker: who } : { text: t, speaker: "" };
+    const ph = b.text.match(PHOTO);
+    return ph ? { ...b, text: "", photo: ph[1] } : b;
   });
   return { bubbles: bubbles.length ? bubbles : [{ text: "", speaker: "" }], reaction };
 }
 
+/** A bubble's row content: a photo is kept as its tag so the model sees it in history. */
+export const bubbleContent = (x: Bubble) => (x.photo ? `[photo: ${x.photo}]` : x.text);
 /** The burst as the model wrote it, for history and drafts. */
-export const burstText = (b: Burst) => b.bubbles.map((x) => (x.speaker ? `${x.speaker}: ${x.text}` : x.text)).join("\n---\n");
+export const burstText = (b: Burst) => b.bubbles.map((x) => (x.speaker ? `${x.speaker}: ` : "") + bubbleContent(x)).join("\n---\n");
 
 export const typingMs = (text: string) => Math.min(3000, Math.max(600, 40 * text.length));
 

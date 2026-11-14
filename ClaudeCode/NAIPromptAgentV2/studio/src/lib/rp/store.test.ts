@@ -189,3 +189,21 @@ test("legacy message has no burst", () => {
   assert.equal(m.speaker, "");
   assert.equal(s.pickSwipe(m.id, 1), true);
 });
+
+test("burst photo rows: pending, then linked or failed", () => {
+  const { s, charId } = setup();
+  const chatId = s.createChat(charId);
+  const u = s.append(chatId, "user", "pic?")!;
+  const ids = s.appendBurst(chatId, { bubbles: [{ text: "ok", speaker: "" }, { text: "", speaker: "", photo: "a selfie" }], reaction: "" }, u)!;
+  const row = (id: number) => s.messages(chatId).find((m) => m.id === id)!;
+  assert.equal(row(ids[0]).imageId, null);
+  assert.equal(row(ids[1]).imageId, -1);
+  assert.equal(row(ids[1]).content, "[photo: a selfie]");
+  const img = s.setPhoto(ids[1], { file: "x.png", prompt: "p", seed: 1, width: 832, height: 1216 })!;
+  assert.ok(img > 0);
+  assert.equal(row(ids[1]).imageId, img);
+  assert.equal(row(ids[1]).imageFile, "x.png");
+  const ids2 = s.appendBurst(chatId, { bubbles: [{ text: "", speaker: "", photo: "b" }], reaction: "" }, null)!;
+  assert.equal(s.setPhoto(ids2[0], null), null);
+  assert.equal(row(ids2[0]).imageId, 0);
+});

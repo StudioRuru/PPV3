@@ -41,6 +41,8 @@ export type RpMessage = {
   swipes: string[]; activeSwipeIndex: number; createdAt: number; updatedAt: number; thought: string;
   /** Text mode: rows of one burst share burstId; the head (first row) holds every take in burstSwipes. */
   burstId: string | null; burstSwipes: Burst[] | null; speaker: string; reaction: string;
+  /** Text mode photo: null = none, -1 = rendering, 0 = failed, >0 = rp_images id (imageFile its file). */
+  imageId: number | null; imageFile?: string | null;
 };
 
 /** Global RP settings (Delfino's settings row, the fields RP still uses). Stored as JSON under settings key `rp:settings`. */

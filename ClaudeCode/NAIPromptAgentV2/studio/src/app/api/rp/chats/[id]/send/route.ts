@@ -7,6 +7,7 @@ import { charName, parseProfile } from "@/lib/rp/profile";
 import { splitBurst } from "@/lib/rp/burst";
 import { stripThoughtEcho, thinkOn, thinkRequest, withThought } from "@/lib/rp/think";
 import { buildTurn } from "@/lib/rp/turn";
+import { renderPending } from "@/lib/rp/photo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
           // ponytail: the echo is stripped from the saved reply only; the live stream may briefly show it.
           const out = thought ? stripThoughtEcho(reply, thought).trim() : reply.trim();
           const saved = !out ? true : chat0.style === "text" && (burstId || !replacing) ? saveBurst(out, thought) : replacing ? rp.addSwipe(replacing, out, expect, thought) : rp.append(chatId, "assistant", out, expect, thought) !== null;
+          if (saved && chat0.style === "text") renderPending(rp, chatId, settings);
           if (!saved) try { ctl.enqueue(enc.encode("\n\n⚠️ Not saved: this chat changed on another device while I was answering.")); } catch { /* gone */ }
           // Memory refresh on the model that's already loaded; detached so the stream can close.
           const chat = rp.chat(chatId);

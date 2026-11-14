@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import type { LoreEntry } from "./prompt";
-import type { Burst } from "./burst";
+import { bubbleContent, type Burst } from "./burst";
 import { parseProfile } from "./profile";
 import { camel, snake, type RpCharacter, type RpChat, type RpMessage, type RpPersona } from "./types";
 
@@ -151,7 +151,7 @@ export class RpStore {
   }
 
   messages(chatId: number): RpMessage[] {
-    return (this.db.prepare("SELECT * FROM rp_messages WHERE chat_id = ? ORDER BY id").all(chatId) as Record<string, unknown>[])
+    return (this.db.prepare("SELECT m.*, i.file image_file FROM rp_messages m LEFT JOIN rp_images i ON i.id = m.image_id AND m.image_id > 0 WHERE m.chat_id = ? ORDER BY m.id").all(chatId) as Record<string, unknown>[])
       .map(rowMsg);
   }
   version(chatId: number): number | null {
@@ -233,9 +233,9 @@ export class RpStore {
     return this.write(chatId, expect, () => {
       if (replyTo) this.db.prepare("UPDATE rp_messages SET reaction = ? WHERE id = ? AND chat_id = ?").run(burst.reaction, replyTo, chatId);
       const burstId = crypto.randomUUID();
-      const ids = burst.bubbles.map((b, i) => this.insertMsg(chatId, "assistant", b.text, [], i ? "" : thought));
-      const tag = this.db.prepare("UPDATE rp_messages SET burst_id = ?, speaker = ? WHERE id = ?");
-      ids.forEach((id, i) => tag.run(burstId, burst.bubbles[i].speaker, id));
+      const ids = burst.bubbles.map((b, i) => this.insertMsg(chatId, "assistant", bubbleContent(b), [], i ? "" : thought));
+      const tag = this.db.prepare("UPDATE rp_messages SET burst_id = ?, speaker = ?, image_id = ? WHERE id = ?");
+      ids.forEach((id, i) => tag.run(burstId, burst.bubbles[i].speaker, burst.bubbles[i].photo ? -1 : null, id));
       this.db.prepare("UPDATE rp_messages SET burst_swipes = ? WHERE id = ?").run(JSON.stringify([burst]), ids[0]);
       return ids;
     }, null);
@@ -258,8 +258,10 @@ export class RpStore {
       if (!got) return false;
       const [takes, index] = got, b = takes[index], now = Date.now();
       b.bubbles.forEach((x, i) => {
-        if (rows[i]) this.db.prepare("UPDATE rp_messages SET content = ?, speaker = ?, updated_at = ? WHERE id = ?").run(x.text, x.speaker, now, rows[i].id);
-        else this.db.prepare("UPDATE rp_messages SET burst_id = ?, speaker = ? WHERE id = ?").run(burstId, x.speaker, this.insertMsg(chatId, "assistant", x.text));
+        // A row showing the same photo keeps its image; a new photo goes back to rendering.
+        const c = bubbleContent(x), img = x.photo ? (rows[i]?.content === c ? rows[i].imageId : -1) : null;
+        if (rows[i]) this.db.prepare("UPDATE rp_messages SET content = ?, speaker = ?, image_id = ?, updated_at = ? WHERE id = ?").run(c, x.speaker, img, now, rows[i].id);
+        else this.db.prepare("UPDATE rp_messages SET burst_id = ?, speaker = ?, image_id = ? WHERE id = ?").run(burstId, x.speaker, img, this.insertMsg(chatId, "assistant", c));
       });
       const gone = rows.slice(b.bubbles.length).map((r) => r.id);
       if (gone.length) {
@@ -272,6 +274,15 @@ export class RpStore {
       this.db.prepare("UPDATE rp_messages SET reaction = ? WHERE id = (SELECT MAX(id) FROM rp_messages WHERE chat_id = ? AND id < ? AND role = 'user')").run(b.reaction, chatId, head.id);
       return true;
     }, false);
+  }
+  /** Links a rendered photo to its message (image_id = the rp_images row), or marks it failed (0). Never moves the chat version. */
+  setPhoto(msgId: number, img: { file: string; prompt: string; seed: number; width: number; height: number } | null): number | null {
+    const chatId = (this.db.prepare("SELECT chat_id FROM rp_messages WHERE id = ?").get(msgId) as { chat_id: number } | undefined)?.chat_id;
+    if (!chatId) return null;
+    const id = img ? Number(this.db.prepare("INSERT INTO rp_images (chat_id, message_id, prompt, seed, file, width, height) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(chatId, msgId, img.prompt, img.seed, img.file, img.width, img.height).lastInsertRowid) : 0;
+    this.db.prepare("UPDATE rp_messages SET image_id = ? WHERE id = ?").run(id, msgId);
+    return id || null;
   }
   /** Delete every message after `afterMsgId` in the chat. */
   rewind(chatId: number, afterMsgId: number, expect?: number): boolean {

@@ -84,6 +84,8 @@ const STYLE_DIRECTIVE: Record<Mode, string> = {
   text: "Style: texting. {{char}} and {{user}} are texting each other on their phones — write ONLY {{char}}'s text messages, nothing else. Send 1–5 short texts, like real double-texting, separated by a line containing only `---`. To react to their last message with an emoji, start with `[react:😭]` (any one emoji) on its own line. Casual and natural: first person, contractions, lowercase is fine, slang and abbreviations (lol, omg, ngl, tbh, rn, wyd), the odd typo-free emoji or kaomoji when it fits {{char}}, pet names when you're close. No *actions*, no quotation marks, no narration or scene description — if {{char}} is doing something, they mention it in the text itself (\"just got out of the shower lol\"). React, tease, confess, ask things back, and end on something {{user}} wants to answer.",
   rp: "Write in the third person, past tense, referring to {{char}} by name or pronoun. Respond descriptively to {{user}}'s *actions* and words: {{char}}'s actions, body language and dialogue, woven with the scene. Describe {{user}} only through what {{char}} perceives — never decide {{user}}'s words or actions.",
 };
+/** Text mode, offered only when a photo is due (asked for, or none in a while). */
+export const PHOTO_LINE = "You may send a photo as `[photo: what it shows]` — rarely, or when asked.";
 /** The mode's directive. In RP mode the card's POV/tense/dialogue locks replace it when set. */
 export const styleDirective = (style: string | null | undefined, ensemble = false) =>
   STYLE_DIRECTIVE[modeOf(style)] + (ensemble && modeOf(style) === "text" ? " Prefix each text with `Name:` — the cast member sending it." : "");

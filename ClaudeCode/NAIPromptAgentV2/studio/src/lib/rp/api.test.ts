@@ -212,3 +212,19 @@ test("profile extraction fills a blank display name and never overwrites a set o
   await rebuildProfile(s, d, null, async () => '{"displayName":"Mio"}', true);
   assert.equal(s.character(d)?.displayName, "Mimi");
 });
+
+test("buildTurn: photo line only in text mode when a photo is due", async () => {
+  const { PHOTO_LINE } = await import("./presets");
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio" });
+  const chat = s.createChat(c);
+  s.append(chat, "user", "send me a selfie");
+  const deps = { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] };
+  const has = async () => (await buildTurn(s, chat, deps)).messages.some((m) => m.content.includes(PHOTO_LINE));
+  assert.equal(await has(), false, "rp mode");
+  s.updateChat(chat, { style: "text" });
+  assert.equal(await has(), true, "asked");
+  s.append(chat, "assistant", "no");
+  s.append(chat, "user", "how was school");
+  assert.equal(await has(), false, "not due");
+});
