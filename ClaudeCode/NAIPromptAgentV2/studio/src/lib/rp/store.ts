@@ -153,10 +153,10 @@ export class RpStore {
     return (this.db.prepare("SELECT updated_at FROM rp_chats WHERE id = ?").get(chatId) as { updated_at: number } | undefined)?.updated_at ?? null;
   }
 
-  private insertMsg(chatId: number, role: string, content: string, swipes: string[] = []): number {
+  private insertMsg(chatId: number, role: string, content: string, swipes: string[] = [], thought = ""): number {
     const now = Date.now();
-    return Number(this.db.prepare("INSERT INTO rp_messages (chat_id, role, content, swipes, active_swipe_index, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)")
-      .run(chatId, role, content, JSON.stringify(swipes), now, now).lastInsertRowid);
+    return Number(this.db.prepare("INSERT INTO rp_messages (chat_id, role, content, swipes, active_swipe_index, created_at, updated_at, thought) VALUES (?, ?, ?, ?, 0, ?, ?, ?)")
+      .run(chatId, role, content, JSON.stringify(swipes), now, now, thought).lastInsertRowid);
   }
   /** Run `fn` in a transaction if the chat exists and matches `expect`; bumps the version strictly. */
   private write<T>(chatId: number, expect: number | undefined, fn: () => T, refused: T): T {
@@ -182,11 +182,11 @@ export class RpStore {
   }
 
   /** New message id, or null if refused. */
-  append(chatId: number, role: "user" | "assistant", content: string, expect?: number): number | null {
-    return this.write(chatId, expect, () => this.insertMsg(chatId, role, content), null);
+  append(chatId: number, role: "user" | "assistant", content: string, expect?: number, thought = ""): number | null {
+    return this.write(chatId, expect, () => this.insertMsg(chatId, role, content, [], thought), null);
   }
   /** Regenerate: add an alternative reply and show it. */
-  addSwipe(msgId: number, content: string, expect?: number): boolean {
+  addSwipe(msgId: number, content: string, expect?: number, thought = ""): boolean {
     const chatId = this.chatOf(msgId);
     if (chatId === null) return false;
     return this.write(chatId, expect, () => {
@@ -194,6 +194,7 @@ export class RpStore {
       const swipes = m.swipes.length ? [...m.swipes] : [m.content];
       swipes.push(content);
       this.setSwipes(msgId, swipes, swipes.length - 1);
+      this.db.prepare("UPDATE rp_messages SET thought = ? WHERE id = ?").run(thought, msgId); // ponytail: latest swipe's thought only
       return true;
     }, false);
   }

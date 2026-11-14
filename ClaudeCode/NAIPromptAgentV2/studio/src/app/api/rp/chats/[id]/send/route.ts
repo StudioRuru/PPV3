@@ -3,6 +3,8 @@ import { learnedStoryBlock } from "@/lib/learning";
 import { chatStream, embed, heavyGate, isPod, Offline } from "@/lib/llm";
 import { shouldSummarize, summarizeChat } from "@/lib/rp/memory";
 import { heavyModel, installedModels, rp, rpSettings } from "@/lib/rp/server";
+import { charName } from "@/lib/rp/profile";
+import { stripThoughtEcho, thinkOn, thinkRequest, withThought } from "@/lib/rp/think";
 import { buildTurn } from "@/lib/rp/turn";
 
 export const runtime = "nodejs";
@@ -45,18 +47,30 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const gate = <T,>(f: () => Promise<T>) => (isPod(turn.model) ? f() : heavyGate.run(f));
   const willPause = !isPod(turn.model) && heavyGate.state === "light";
   const enc = new TextEncoder();
+  const chat0 = rp.chat(chatId)!;
+  const char = chat0.characterId != null ? rp.character(chat0.characterId) : null;
+  const thinking = thinkOn(chat0, chat0.style === "chat" ? "text" : "rp", settings);
 
   const stream = new ReadableStream({
     async start(ctl) {
       let reply = "";
+      let thought = "";
       try {
         await gate(async () => {
-          for await (const t of chatStream("", turn.messages, { model: turn.model, options: turn.options, system: false })) {
+          if (thinking) {
+            const plan = thinkRequest(turn, char ? charName(char) : "the character");
+            for await (const t of chatStream("", plan.messages, { model: plan.model, options: plan.options, system: false })) thought += t;
+            thought = thought.trim();
+          }
+          const final = thought ? withThought(turn, thought) : turn;
+          for await (const t of chatStream("", final.messages, { model: final.model, options: final.options, system: false })) {
             reply += t;
             try { ctl.enqueue(enc.encode(t)); } catch { /* client gone: keep generating so the reply is saved */ }
           }
           if (!reply.trim()) try { ctl.enqueue(enc.encode(`\n\n⚠️ ${turn.model} returned nothing — tap Retry.`)); } catch { /* gone */ }
-          const saved = reply.trim() ? (replacing ? rp.addSwipe(replacing, reply.trim(), expect) : rp.append(chatId, "assistant", reply.trim(), expect) !== null) : true;
+          // ponytail: the echo is stripped from the saved reply only; the live stream may briefly show it.
+          const out = thought ? stripThoughtEcho(reply, thought).trim() : reply.trim();
+          const saved = out ? (replacing ? rp.addSwipe(replacing, out, expect, thought) : rp.append(chatId, "assistant", out, expect, thought) !== null) : true;
           if (!saved) try { ctl.enqueue(enc.encode("\n\n⚠️ Not saved: this chat changed on another device while I was answering.")); } catch { /* gone */ }
           // Memory refresh on the model that's already loaded; detached so the stream can close.
           const chat = rp.chat(chatId);
@@ -71,5 +85,5 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       try { ctl.close(); } catch { /* gone */ }
     },
   });
-  return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Paused": willPause ? "1" : "0", "X-Model": turn.model } });
+  return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Paused": willPause ? "1" : "0", "X-Model": turn.model, "X-Thinking": thinking ? "1" : "0" } });
 }

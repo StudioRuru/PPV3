@@ -6,7 +6,7 @@ import { DEFAULT_RP_SETTINGS, type RpChat } from "@/lib/rp/types";
 import { Sheet } from "../Sheet";
 import { AutoTextarea } from "../TagInput";
 
-type Draft = { style: string; replyLength: number; replySpice: number; replyAgency: number; authorNote: string; mods: Record<string, ModState> };
+type Draft = { style: string; think: boolean; replyLength: number; replySpice: number; replyAgency: number; authorNote: string; mods: Record<string, ModState> };
 const MOOD: [keyof Draft & `reply${string}`, string, string[]][] = [
   ["replyLength", "Reply length", REPLY_LENGTH_STOPS], ["replySpice", "Spice", REPLY_SPICE_STOPS], ["replyAgency", "Will", REPLY_AGENCY_STOPS],
 ];
@@ -41,7 +41,7 @@ export function ModList({ mods, onChange, sub }: { mods: Record<string, ModState
 }
 
 const fromChat = (c: RpChat, agency: number | null, globalMods?: string): Draft => ({
-  style: c.style ?? "",
+  style: c.style ?? "", think: c.think === 1,
   replyLength: c.replyLength ?? DEFAULT_RP_SETTINGS.replyLength, replySpice: c.replySpice ?? DEFAULT_RP_SETTINGS.replySpice,
   replyAgency: c.replyAgency ?? agency ?? DEFAULT_RP_SETTINGS.replyAgency, authorNote: c.authorNote, mods: resolveMods(globalMods, c.mods),
 });
@@ -56,7 +56,7 @@ export function TuneSheet({ open, onClose, chat, globalMods, agency, sub, onPatc
 
   useEffect(() => {
     if (!touched.current) return;
-    const t = setTimeout(() => { onPatch({ op: "chat", ...d, mods: JSON.stringify(d.mods) }); }, 400);
+    const t = setTimeout(() => { onPatch({ op: "chat", ...d, think: d.think ? 1 : null, mods: JSON.stringify(d.mods) }); }, 400);
     return () => clearTimeout(t);
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps -- debounce on edits only
 
@@ -82,6 +82,11 @@ export function TuneSheet({ open, onClose, chat, globalMods, agency, sub, onPatc
             </label>
           ))}
         </div>
+
+        <label className="flex items-center gap-3 text-sm">
+          <span className="flex-1">Think before replying<span className="text-faint block text-xs">A short private plan in character first — slower; read it under 💭 Thought.</span></span>
+          <input type="checkbox" role="switch" checked={d.think} onChange={(e) => edit({ think: e.target.checked })} className="switch" />
+        </label>
 
         <h3 className="text-muted text-xs font-semibold tracking-wide uppercase">Mods</h3>
         <ModList mods={d.mods} onChange={(mods) => edit({ mods })} sub={sub} />

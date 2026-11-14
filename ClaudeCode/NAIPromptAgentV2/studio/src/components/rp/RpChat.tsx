@@ -34,6 +34,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
+  const [thoughtOf, setThoughtOf] = useState<number | null>(null);
   const [rewind, setRewind] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{ id: number; kind: "like" | "dislike"; note: string } | null>(null);
   const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
@@ -78,7 +79,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     pinned.current = true;
     setError(null); setStatus("Thinking…");
     setStream({ text: "", replacing: body.regenerate });
-    if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now() }] });
+    if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now(), thought: "" }] });
     try {
       const res = await fetch(`/api/rp/chats/${chatId}/send`, { method: "POST", ...json({ ...body, version: v.version }) });
       if (!res.ok || !res.body) {
@@ -188,6 +189,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
               </>}
               <button type="button" onClick={() => setEditing({ id: m.id, text: m.content })}>Edit</button>
               {m.id !== lastId && <button type="button" onClick={() => setRewind(m.id)}>Rewind here</button>}
+              {m.thought && <button type="button" aria-expanded={thoughtOf === m.id} onClick={() => setThoughtOf(thoughtOf === m.id ? null : m.id)}>💭 Thought</button>}
+              {thoughtOf === m.id && <p className="text-muted basis-full px-2 pb-1 whitespace-pre-wrap italic">{m.thought}</p>}
             </div>
           );
           return m.role === "user" ? (

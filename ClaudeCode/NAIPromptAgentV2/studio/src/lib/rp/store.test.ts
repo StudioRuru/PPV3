@@ -124,3 +124,15 @@ test("review C1/I3: chat metadata and memory writes never move the message versi
   assert.equal(s.chat(chatId)!.memorySummary, "They met.");
   assert.ok(s.append(chatId, "user", "next", v));
 });
+
+test("append and addSwipe keep the latest planning thought", () => {
+  const { s, charId } = setup();
+  const chatId = s.createChat(charId);
+  const a = s.append(chatId, "assistant", "first", undefined, "I want to tease.")!;
+  assert.equal(s.messages(chatId).find((m) => m.id === a)!.thought, "I want to tease.");
+  assert.equal(s.messages(chatId).at(-1)!.thought, "I want to tease.");
+  s.append(chatId, "user", "hi");
+  assert.equal(s.messages(chatId).at(-1)!.thought, "");
+  assert.ok(s.addSwipe(a, "second", undefined, "I'll soften."));
+  assert.equal(s.messages(chatId).find((m) => m.id === a)!.thought, "I'll soften.");
+});

@@ -1,6 +1,6 @@
 // RP eval bench: scripted chats through the real prompt builder, scored by src/lib/rp/bench.ts.
 //   npx tsx scripts/rp-bench.mts --label baseline [--model cydonia-24b] [--runs 2] [--set temperature=1 --set min_p=0.1]
-//                                [--judge gemma4-26b-apex] [--vs ../data/bench/<file>.json]
+//                                [--judge gemma4-26b-apex] [--vs ../data/bench/<file>.json] [--think]
 // Point OLLAMA_URL at a pod to bench a model that only lives there.
 import Database from "better-sqlite3";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -9,12 +9,14 @@ import { RpStore } from "../src/lib/rp/store";
 import { buildTurn } from "../src/lib/rp/turn";
 import { DEFAULT_RP_SETTINGS } from "../src/lib/rp/types";
 import { chatStream, embed, heavyGate, power } from "../src/lib/llm";
+import { stripThoughtEcho, thinkRequest, withThought } from "../src/lib/rp/think";
 import { OLLAMA_URL } from "../src/lib/env";
 import { scoreReply, summarize, type ReplyScore } from "../src/lib/rp/bench";
 
 const argv = process.argv.slice(2);
 const flag = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
 const model = flag("model") ?? "gemma4-26b-apex";
+const think = argv.includes("--think");
 const label = flag("label") ?? model.replace(/[^a-z0-9]+/gi, "-");
 const runs = Number(flag("runs") ?? 1);
 const judgeModel = flag("judge");
@@ -81,7 +83,13 @@ await heavyGate.run(async () => {
     for (const [i, u] of c.turns.entries()) {
       s.append(chat, "user", u);
       const t = await buildTurn(s, chat, { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: model, installed: [], embed: (m, x) => embed(m, x) });
-      const text = await reply(t.messages, { ...t.options, ...sets });
+      let text: string;
+      if (think) { // same path as the send route
+        const p = thinkRequest(t, c.char.name);
+        const thought = await reply(p.messages, { ...p.options, ...sets, num_predict: 200 });
+        const f = withThought(t, thought);
+        text = stripThoughtEcho(await reply(f.messages, { ...f.options, ...sets }), thought).trim();
+      } else text = await reply(t.messages, { ...t.options, ...sets });
       const last = i === c.turns.length - 1;
       scores.push(scoreReply(text, prior, { style: c.style, length: c.length, user: "Kai", expect: last ? c.expect : undefined }));
       prior.push(text); log.push(`Kai: ${u}`, `${c.char.name}: ${text}`);
@@ -101,7 +109,7 @@ const summary = { ...summarize(all, judged), secPerReply: Math.round((Date.now()
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 mkdirSync("../data/bench", { recursive: true });
 const file = `../data/bench/${stamp}-${label}.json`;
-writeFileSync(file, JSON.stringify({ label, model, sets, runs, summary, perCase, scores: all, transcripts }, null, 2));
+writeFileSync(file, JSON.stringify({ label, model, think, sets, runs, summary, perCase, scores: all, transcripts }, null, 2));
 console.log(`\n${label} (${model}) → ${file}`);
 const vs = flag("vs") ? JSON.parse(readFileSync(flag("vs")!, "utf8")).summary : null;
 console.table(Object.fromEntries(Object.entries(summary).map(([k, v]) => [k, vs ? { now: v, was: vs[k] } : { now: v }])));

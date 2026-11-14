@@ -64,4 +64,6 @@ export function migrateRp(db: Database.Database): void {
   addCol("rp_characters", "display_name", "TEXT NOT NULL DEFAULT ''");
   addCol("rp_characters", "profile", "TEXT");
   addCol("rp_chats", "learned", "TEXT NOT NULL DEFAULT '[]'");
+  addCol("rp_messages", "thought", "TEXT NOT NULL DEFAULT ''");
+  addCol("rp_chats", "think", "INTEGER");
 }

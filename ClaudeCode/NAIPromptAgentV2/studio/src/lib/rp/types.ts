@@ -30,12 +30,14 @@ export type RpChat = {
   learned: string;
   /** "" = card default, "chat" = close personal one-on-one, "story" = narrated novel prose. */
   style: string;
+  /** Hidden planning step: null = follow settings.thinkByMode, 0 = off, 1 = on. */
+  think: number | null;
   createdAt: number; updatedAt: number;
 };
 
 export type RpMessage = {
   id: number; chatId: number; role: "user" | "assistant" | "system"; content: string;
-  swipes: string[]; activeSwipeIndex: number; createdAt: number; updatedAt: number;
+  swipes: string[]; activeSwipeIndex: number; createdAt: number; updatedAt: number; thought: string;
 };
 
 /** Global RP settings (Delfino's settings row, the fields RP still uses). Stored as JSON under settings key `rp:settings`. */
@@ -43,12 +45,17 @@ export type RpSettings = {
   systemPromptTemplate: string; jailbreakPrompt: string;
   temperature: number; topP: number; topK: number; repeatPenalty: number; minP: number; numCtx: number;
   replyLength: number; replySpice: number; replyAgency: number; mods: string; loreBudgetPct: number; embedModel: string;
+  thinkByMode: Record<Mode, boolean>;
 };
+
+/** "text" = phone-style texting, "rp" = scene roleplay. */
+export type Mode = "text" | "rp";
 
 export const DEFAULT_RP_SETTINGS: RpSettings = {
   systemPromptTemplate: DEFAULT_SYSTEM_PROMPT, jailbreakPrompt: "",
   temperature: 0.8, topP: 0.95, topK: 40, repeatPenalty: 1.1, minP: 0.05, numCtx: 16384,
   replyLength: 2, replySpice: 2, replyAgency: 2, mods: "{}", loreBudgetPct: 25, embedModel: "bge-m3:latest",
+  thinkByMode: { text: false, rp: false },
 };
 
 /** Message for Ollama /api/chat. */
