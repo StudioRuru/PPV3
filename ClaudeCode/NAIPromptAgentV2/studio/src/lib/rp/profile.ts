@@ -125,12 +125,16 @@ export async function extractProfile(c: RpCharacter, avatar: Buffer | null, ask:
 type Ask = (system: string, messages: ChatMessage[]) => Promise<string>;
 
 /** Import-time extraction: best effort, a failure only logs and leaves `profile` null. */
+/** Saves an extracted profile; its displayName only fills a blank display name, never a hand-set one. */
+const saveExtracted = (store: RpStore, c: RpCharacter, p: RpProfile) =>
+  store.saveCharacter({ id: c.id, name: c.name, profile: JSON.stringify(p), ...(!c.displayName?.trim() && p.displayName ? { displayName: p.displayName } : {}) });
+
 export async function refreshProfile(store: RpStore, id: number, avatar: Buffer | null, ask: Ask): Promise<void> {
   const c = store.character(id);
   if (!c) return;
   try {
     const p = await extractProfile(c, avatar, ask);
-    if (p) store.saveCharacter({ id, name: c.name, profile: JSON.stringify(p) });
+    if (p) saveExtracted(store, c, p);
   } catch (e) {
     console.warn(`[rp] profile extraction failed for character ${id}: ${(e as Error).message}`);
   }
@@ -143,7 +147,7 @@ export async function rebuildProfile(store: RpStore, id: number, avatar: Buffer 
   if (!force && parseProfile(c.profile)?.edited) return { status: 409, body: { error: "edited" } };
   const p = await extractProfile(c, avatar, ask);
   if (!p) return { status: 502, body: { error: "The model didn't return a usable profile — try again." } };
-  store.saveCharacter({ id, name: c.name, profile: JSON.stringify(p) });
+  saveExtracted(store, c, p);
   return { status: 200, body: { character: store.character(id) } };
 }
 

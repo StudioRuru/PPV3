@@ -201,3 +201,13 @@ test("summarizeChat stores learned facts and the prompt shows them next to the m
   assert.ok(r.messages.some((m) => m.content.includes("Phil is allergic to cats")));
   assert.ok(!(s.character(c)?.profile ?? "").includes("allergic"));
 });
+
+test("profile extraction fills a blank display name and never overwrites a set one", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Alice, the elf (Fixed and Extended)" });
+  await refreshProfile(s, c, null, async () => '{"displayName":"Alice"}');
+  assert.equal(s.character(c)?.displayName, "Alice");
+  const d = s.saveCharacter({ name: "Mio", displayName: "Mimi" });
+  await rebuildProfile(s, d, null, async () => '{"displayName":"Mio"}', true);
+  assert.equal(s.character(d)?.displayName, "Mimi");
+});

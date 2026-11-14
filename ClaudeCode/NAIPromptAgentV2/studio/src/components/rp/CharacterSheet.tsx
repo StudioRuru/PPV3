@@ -7,6 +7,8 @@ import type { RpCharacter } from "@/lib/rp/types";
 import { Sheet } from "../Sheet";
 import { AutoTextarea } from "../TagInput";
 import { Trash } from "../icons";
+import { parseProfile, type RpProfile } from "@/lib/rp/profile";
+import { ProfileEditor } from "./ProfileEditor";
 import { Avatar, json } from "./RpScreen";
 
 type Line = { id: number; text: string; context: string; embedded: boolean };
@@ -32,6 +34,8 @@ export function CharacterSheet({ id, onClose, onSaved, onDeleted }: { id: number
   const [note, setNote] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmRebuild, setConfirmRebuild] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   const [newLine, setNewLine] = useState({ text: "", context: "" });
   // Studio
   const [mode, setMode] = useState<"wiki" | "concept" | "sample">("wiki");
@@ -61,6 +65,19 @@ export function CharacterSheet({ id, onClose, onSaved, onDeleted }: { id: number
     if (!r.ok) { setError(r.error); return null; }
     setC(r.data.character); setDirty(false); setError(null); setNote("Saved"); onSaved(r.data.character.id);
     return r.data.character.id;
+  }
+
+  const profile = parseProfile(c.profile);
+  const editProfile = (p: RpProfile) => set({ profile: JSON.stringify({ ...p, edited: true }) });
+  async function rebuild(force = false) {
+    if (!cid) return;
+    if (!force && profile?.edited) { setConfirmRebuild(true); return; }
+    setConfirmRebuild(false); setRebuilding(true);
+    const r = await requestJson<{ character: RpCharacter }>(`/api/rp/characters/${cid}/profile`, { method: "POST", ...json({ force }) });
+    setRebuilding(false);
+    if (r.ok) { setC({ ...c, profile: r.data.character.profile, displayName: c.displayName?.trim() ? c.displayName : r.data.character.displayName }); setNote("Profile rebuilt"); setError(null); }
+    else if (r.error === "edited") setConfirmRebuild(true);
+    else setError(r.error);
   }
 
   async function del() {
@@ -178,7 +195,8 @@ export function CharacterSheet({ id, onClose, onSaved, onDeleted }: { id: number
         {note && <p role="status" className="text-ok text-xs">{note}</p>}
 
         {tab === "card" && <>
-          <label className="block text-xs"><span className="text-muted">Name</span><input value={c.name ?? ""} onChange={(e) => set({ name: e.target.value })} className={field} /></label>
+          <label className="block text-xs"><span className="text-muted">Display name (what they're called in chat)</span><input value={c.displayName ?? ""} placeholder={c.name || ""} onChange={(e) => set({ displayName: e.target.value })} className={field} /></label>
+          <label className="block text-xs"><span className="text-muted">Card title</span><input value={c.name ?? ""} onChange={(e) => set({ name: e.target.value })} className={field} /></label>
           {FIELDS.map(([k, label]) => (
             <label key={k} className="block text-xs"><span className="text-muted">{label}</span>
               <AutoTextarea value={String(c[k] ?? "")} onChange={(v) => set({ [k]: v })} /></label>
@@ -187,6 +205,19 @@ export function CharacterSheet({ id, onClose, onSaved, onDeleted }: { id: number
             <AutoTextarea value={list(c.alternateGreetings).join("\n\n")} onChange={(v) => set({ alternateGreetings: JSON.stringify(v.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean)) })} /></label>
           <label className="block text-xs"><span className="text-muted">Tags (comma separated)</span>
             <input value={list(c.tags).join(", ")} onChange={(e) => set({ tags: JSON.stringify(e.target.value.split(",").map((s) => s.trim()).filter(Boolean)) })} className={field} /></label>
+          {cid && <details className="border-border rounded-lg border p-2">
+            <summary className="cursor-pointer text-sm font-semibold">Profile{profile?.edited ? " · edited" : ""}</summary>
+            <div className="pt-3">
+              <ProfileEditor value={profile} onChange={editProfile} onRebuild={() => rebuild()} busy={rebuilding} />
+              {confirmRebuild && (
+                <div role="alertdialog" className="border-warn/40 bg-warn/10 mt-2 flex items-center gap-2 rounded-lg border p-2 text-sm">
+                  <span className="flex-1">Overwrite your edits?</span>
+                  <button type="button" onClick={() => setConfirmRebuild(false)} className="px-2 py-1.5">Keep</button>
+                  <button type="button" onClick={() => rebuild(true)} className="bg-danger rounded-md px-3 py-1.5 font-semibold text-white">Overwrite</button>
+                </div>
+              )}
+            </div>
+          </details>}
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={() => save()} disabled={!dirty} className="bg-accent text-accent-fg h-11 flex-1 rounded-lg font-semibold disabled:opacity-40">Save card</button>
             {cid && <a href={`/api/rp/characters/${cid}?export=1`} className="border-border grid h-11 place-items-center rounded-lg border px-4 text-sm">Export</a>}

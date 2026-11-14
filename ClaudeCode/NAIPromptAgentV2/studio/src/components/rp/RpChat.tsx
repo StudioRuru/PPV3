@@ -5,6 +5,7 @@ import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
 import { spyData, spyDue } from "@/lib/mascot/spy";
 import { substituteMacros } from "@/lib/rp/prompt";
+import { charName } from "@/lib/rp/profile";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
@@ -62,7 +63,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   useEffect(() => { if (pinned.current) end.current?.scrollIntoView({ block: "end" }); }, [v?.messages.length, stream?.text]);
 
   const persona = personas.find((p) => p.id === v?.chat.personaId) ?? personas[0];
-  const sub = (t: string) => substituteMacros(t, character.name, persona?.name || "User");
+  const name = charName(character);
+  const sub = (t: string) => substituteMacros(t, name, persona?.name || "User");
   const busy = !!stream;
 
   async function patch(body: object) {
@@ -128,12 +130,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const style = v?.chat.style ?? "";
 
   return (
-    <section aria-label={`Chat with ${character.name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
+    <section aria-label={`Chat with ${name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
       <header className="bg-bg/95 sticky top-0 z-10 -mx-4 flex items-center gap-2 px-4 py-1 backdrop-blur">
         <button type="button" onClick={onBack} aria-label="Back to chats" className="border-border grid size-10 place-items-center rounded-full border">‹</button>
         <Avatar c={character} size="size-9" shared />
         <div className="min-w-0 flex-1">
-          <h1 style={vt("name", character)} className="w-fit max-w-full truncate text-[15px] font-semibold">{character.name}</h1>
+          <h1 style={vt("name", character)} className="w-fit max-w-full truncate text-[15px] font-semibold">{name}</h1>
           {personas.length > 1 && v ? (
             <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
               className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
@@ -248,7 +250,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
 
       <form data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 flex gap-2 border-t px-4 py-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
         onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <textarea ref={composer} value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder={`Message ${character.name}…`}
+        <textarea ref={composer} value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder={`Message ${name}…`}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); submit(); } }}
           className="bg-bg border-border focus:border-accent transition-colors max-h-[35dvh] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-2 py-2.5 text-base" />
         <button type="submit" disabled={busy || !input.trim()} className="bg-accent text-accent-fg h-11 w-16 self-end rounded-md font-semibold disabled:opacity-50">Send</button>
