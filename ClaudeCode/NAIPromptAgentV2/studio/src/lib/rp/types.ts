@@ -33,6 +33,8 @@ export type RpChat = {
   style: Mode;
   /** Hidden planning step: null = follow settings.thinkByMode, 0 = off, 1 = on. */
   think: number | null;
+  /** Text mode: 1 = the character may double-text after a silence, 0 = off. */
+  doubleText: number;
   createdAt: number; updatedAt: number;
 };
 
@@ -43,6 +45,8 @@ export type RpMessage = {
   burstId: string | null; burstSwipes: Burst[] | null; speaker: string; reaction: string;
   /** Text mode photo: null = none, -1 = rendering, 0 = failed, >0 = rp_images id (imageFile its file). */
   imageId: number | null; imageFile?: string | null;
+  /** 1 on the head of a burst sent unprompted (double-text). */
+  nudge?: number;
 };
 
 /** Global RP settings (Delfino's settings row, the fields RP still uses). Stored as JSON under settings key `rp:settings`. */

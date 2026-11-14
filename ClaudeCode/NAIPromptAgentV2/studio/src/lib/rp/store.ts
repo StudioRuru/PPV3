@@ -229,14 +229,14 @@ export class RpStore {
     }, false);
   }
   /** Text mode: save a burst as one row per bubble, the reaction on the user message it answers. Ids, or null if refused. */
-  appendBurst(chatId: number, burst: Burst, replyTo: number | null, expect?: number, thought = ""): number[] | null {
+  appendBurst(chatId: number, burst: Burst, replyTo: number | null, expect?: number, thought = "", nudge = false): number[] | null {
     return this.write(chatId, expect, () => {
       if (replyTo) this.db.prepare("UPDATE rp_messages SET reaction = ? WHERE id = ? AND chat_id = ?").run(burst.reaction, replyTo, chatId);
       const burstId = crypto.randomUUID();
       const ids = burst.bubbles.map((b, i) => this.insertMsg(chatId, "assistant", bubbleContent(b), [], i ? "" : thought));
       const tag = this.db.prepare("UPDATE rp_messages SET burst_id = ?, speaker = ?, image_id = ? WHERE id = ?");
       ids.forEach((id, i) => tag.run(burstId, burst.bubbles[i].speaker, burst.bubbles[i].photo ? -1 : null, id));
-      this.db.prepare("UPDATE rp_messages SET burst_swipes = ? WHERE id = ?").run(JSON.stringify([burst]), ids[0]);
+      this.db.prepare("UPDATE rp_messages SET burst_swipes = ?, nudge = ? WHERE id = ?").run(JSON.stringify([burst]), nudge ? 1 : 0, ids[0]);
       return ids;
     }, null);
   }
@@ -274,6 +274,12 @@ export class RpStore {
       this.db.prepare("UPDATE rp_messages SET reaction = ? WHERE id = (SELECT MAX(id) FROM rp_messages WHERE chat_id = ? AND id < ? AND role = 'user')").run(b.reaction, chatId, head.id);
       return true;
     }, false);
+  }
+  /** A double-text is allowed once after a reply, in text mode, when the chat hasn't changed and the user hasn't turned it off. */
+  nudgeRefused(chatId: number, expect: number): boolean {
+    const chat = this.chat(chatId), ms = this.messages(chatId), last = ms.at(-1);
+    if (!chat || chat.style !== "text" || chat.doubleText === 0 || this.version(chatId) !== expect || last?.role !== "assistant") return true;
+    return !!last.burstId && ms.find((m) => m.burstId === last.burstId)?.nudge === 1;
   }
   /** Links a rendered photo to its message (image_id = the rp_images row), or marks it failed (0). Never moves the chat version. */
   setPhoto(msgId: number, img: { file: string; prompt: string; seed: number; width: number; height: number } | null): number | null {

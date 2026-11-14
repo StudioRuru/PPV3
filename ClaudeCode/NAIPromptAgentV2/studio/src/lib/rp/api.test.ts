@@ -228,3 +228,34 @@ test("buildTurn: photo line only in text mode when a photo is due", async () => 
   s.append(chat, "user", "how was school");
   assert.equal(await has(), false, "not due");
 });
+
+test("nudge refused on stale version / after a nudge / when disabled / in rp mode", () => {
+  const s = store();
+  const chat = s.createChat(s.saveCharacter({ name: "Mio", firstMessage: "hey" }));
+  assert.equal(s.nudgeRefused(chat, s.version(chat)!), true, "rp mode");
+  s.updateChat(chat, { style: "text" });
+  assert.equal(s.nudgeRefused(chat, s.version(chat)!), false);
+  assert.equal(s.nudgeRefused(chat, 1), true, "stale");
+  s.updateChat(chat, { doubleText: 0 });
+  assert.equal(s.nudgeRefused(chat, s.version(chat)!), true, "disabled");
+  s.updateChat(chat, { doubleText: 1 });
+  s.appendBurst(chat, { bubbles: [{ text: "u there?", speaker: "" }], reaction: "" }, null, undefined, "", true);
+  assert.equal(s.nudgeRefused(chat, s.version(chat)!), true, "after a nudge");
+  s.append(chat, "user", "yes");
+  assert.equal(s.nudgeRefused(chat, s.version(chat)!), true, "last is the user's");
+});
+
+test("nudge appends one burst marked nudge", () => {
+  const s = store();
+  const chat = s.createChat(s.saveCharacter({ name: "Mio", firstMessage: "hey" }));
+  const ids = s.appendBurst(chat, { bubbles: [{ text: "a", speaker: "" }, { text: "b", speaker: "" }], reaction: "" }, null, undefined, "", true)!;
+  const ms = s.messages(chat).filter((m) => ids.includes(m.id));
+  assert.deepEqual(ms.map((m) => m.nudge), [1, 0]);
+});
+
+test("buildTurn: nudge adds the follow-up note", async () => {
+  const s = store();
+  const chat = s.createChat(s.saveCharacter({ name: "Mio", firstMessage: "hey" }));
+  const t = await buildTurn(s, chat, { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] }, undefined, false, true);
+  assert.ok(t.messages.some((m) => m.content.includes("hasn't replied for a few minutes — send a short follow-up text.")));
+});

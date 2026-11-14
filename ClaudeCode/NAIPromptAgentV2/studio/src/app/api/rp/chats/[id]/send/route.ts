@@ -16,6 +16,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * `{ text, version }` sends a message; `{ regenerate: msgId, wild?, version }` adds another (deliberately different) swipe to that reply;
+ * `{ nudge: true, version }` (text mode) sends an unprompted follow-up after a silence — 409 when it no longer applies.
  * `{ retry: true, version }` answers the chat's last message when it's the user's (after a failed reply).
  * Streams the reply as plain text. The user's message is saved first, so a failed reply never loses it.
  * Header `X-Paused: 1` = the captioner/TIPO were paused to fit the heavy model.
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     if (last?.burstId && ms.some((m) => m.id === replacing && m.burstId === last.burstId)) { burstId = last.burstId; replacing = ms.find((m) => m.burstId === burstId)!.id; }
     else if (last?.id !== replacing || last.role !== "assistant") return NextResponse.json({ error: "Only the last reply can be regenerated." }, { status: 400 });
     if (expect !== undefined && rp.version(chatId) !== expect) return conflict();
+  } else if (b.nudge) {
+    if (rp.nudgeRefused(chatId, typeof expect === "number" ? expect : -1)) return NextResponse.json({ error: "No nudge now." }, { status: 409 });
   } else if (b.retry) {
     if (rp.messages(chatId).at(-1)?.role !== "user") return NextResponse.json({ error: "Nothing to answer." }, { status: 400 });
     if (expect !== undefined && rp.version(chatId) !== expect) return conflict();
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
   const settings = rpSettings();
   const heavy = heavyModel();
-  const turn = await buildTurn(rp, chatId, { settings, storyBlock: learnedStoryBlock(), heavy, installed: await installedModels(), embed }, replacing, b.wild === true);
+  const turn = await buildTurn(rp, chatId, { settings, storyBlock: learnedStoryBlock(), heavy, installed: await installedModels(), embed }, replacing, b.wild === true, b.nudge === true);
   // The pod has its own GPU: no need to pause the Mac's captioner + TIPO for it.
   const gate = <T,>(f: () => Promise<T>) => (isPod(turn.model) ? f() : heavyGate.run(f));
   const willPause = !isPod(turn.model) && heavyGate.state === "light";
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const burst = splitBurst(out, (parseProfile(char?.profile ?? null)?.cast ?? []).map((c) => c.name));
     if (burstId) return rp.replaceBurst(burstId, burst, expect, thought);
     const lastUser = rp.messages(chatId).at(-1);
-    return rp.appendBurst(chatId, burst, lastUser?.role === "user" ? lastUser.id : null, expect, thought) !== null;
+    return rp.appendBurst(chatId, burst, lastUser?.role === "user" ? lastUser.id : null, expect, thought, b.nudge === true) !== null;
   };
 
   const stream = new ReadableStream({

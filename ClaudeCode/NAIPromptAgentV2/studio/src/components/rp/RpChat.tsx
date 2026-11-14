@@ -93,7 +93,17 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     setError(r.error); load(); return false;
   }
 
-  async function send(body: { text?: string; regenerate?: number; wild?: boolean; retry?: boolean }) {
+  // Text mode double-text: after a reply, while the tab is visible and the user isn't typing, the character may follow up once.
+  const lastMsg = v?.messages.at(-1);
+  const nudgeArmed = modeOf(v?.chat.style) === "text" && !busy && !input && v?.chat.doubleText !== 0 && lastMsg?.role === "assistant"
+    && v?.messages.find((m) => m.burstId && m.burstId === lastMsg.burstId)?.nudge !== 1;
+  useEffect(() => {
+    if (!nudgeArmed) return;
+    const t = setTimeout(() => { if (document.visibilityState === "visible") send({ nudge: true }); }, (120 + Math.random() * 240) * 1000);
+    return () => clearTimeout(t);
+  }, [nudgeArmed, v?.version]); // eslint-disable-line react-hooks/exhaustive-deps -- re-arm per chat version only
+
+  async function send(body: { text?: string; regenerate?: number; wild?: boolean; retry?: boolean; nudge?: boolean }) {
     if (!v || busy) return;
     pinned.current = true;
     setError(null); setStatus("Thinking…");
@@ -118,7 +128,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       const warn = /\n\n⚠️ ([^\n]*)$/.exec(text);
       if (warn) setError(warn[1]);
     } catch (e) {
-      setError((e as Error).message);
+      if (!body.nudge) setError((e as Error).message); // a refused nudge is silent
       // Not sent (conflict, offline…): give the typed text back instead of losing it.
       if (body.text) setInput((cur) => cur || body.text!);
     }

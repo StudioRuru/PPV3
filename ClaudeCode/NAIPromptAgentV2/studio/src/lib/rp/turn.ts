@@ -105,7 +105,7 @@ export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
   };
 }
 
-export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, replacing?: number, wild = false): Promise<Turn> {
+export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, replacing?: number, wild = false, nudge = false): Promise<Turn> {
   const chat = store.chat(chatId);
   if (!chat) throw new Error("Chat not found");
   // The chat's reply length also sets the token cap + context budget, or a per-chat "Epic" gets cropped at the global cap.
@@ -129,6 +129,7 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
     truncated: r.truncated,
   };
   const profile = parseProfile(character?.profile ?? null);
+  if (nudge) turn.messages.push({ role: "system", content: `${persona?.name ?? "User"} hasn't replied for a few minutes — send a short follow-up text.` });
   const old = replacing ? all.find((m) => m.id === replacing) : undefined;
   return foldSystem(steerTurn(turn, {
     drafts: old ? (old.swipes.length ? old.swipes : [old.content]) : undefined,
