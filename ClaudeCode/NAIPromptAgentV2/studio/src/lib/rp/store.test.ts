@@ -144,3 +144,48 @@ test("createChat mode from profile: defaults.mode text → text chat; no profile
   assert.equal(s.chat(s.createChat(t))!.style, "text");
   assert.equal(s.chat(s.createChat(plain))!.style, "rp");
 });
+
+test("appendBurst / replaceBurst / pickBurst", () => {
+  const { s, charId } = setup();
+  const chatId = s.createChat(charId);
+  const u = s.append(chatId, "user", "hey")!;
+  const a = { bubbles: [{ text: "a1", speaker: "" }, { text: "a2", speaker: "" }], reaction: "😭" };
+  const ids = s.appendBurst(chatId, a, u, s.version(chatId)!, "plan")!;
+  assert.equal(ids.length, 2);
+  let ms = s.messages(chatId);
+  const head = ms.find((m) => m.id === ids[0])!;
+  assert.ok(head.burstId);
+  assert.deepEqual(head.burstSwipes, [a]);
+  assert.equal(ms.find((m) => m.id === u)!.reaction, "😭");
+  assert.equal(s.appendBurst(chatId, a, u, 1), null, "stale expect refused");
+
+  const b = { bubbles: [{ text: "b1", speaker: "Rin" }, { text: "b2", speaker: "" }, { text: "b3", speaker: "" }], reaction: "" };
+  assert.equal(s.replaceBurst(head.burstId!, b, s.version(chatId)!), true);
+  ms = s.messages(chatId).filter((m) => m.burstId === head.burstId);
+  assert.deepEqual(ms.map((m) => m.content), ["b1", "b2", "b3"]);
+  assert.equal(ms[0].speaker, "Rin");
+  assert.equal(ms[0].burstSwipes!.length, 2);
+  assert.equal(ms[0].activeSwipeIndex, 1);
+  assert.equal(s.messages(chatId).find((m) => m.id === u)!.reaction, "");
+
+  assert.equal(s.pickBurst(head.burstId!, 0, s.version(chatId)!), true);
+  ms = s.messages(chatId).filter((m) => m.burstId === head.burstId);
+  assert.deepEqual(ms.map((m) => m.content), ["a1", "a2"]);
+  assert.equal(ms[0].speaker, "");
+  assert.equal(s.messages(chatId).find((m) => m.id === u)!.reaction, "😭");
+  assert.equal(s.pickBurst(head.burstId!, 5, s.version(chatId)!), false);
+  assert.equal(s.pickBurst(head.burstId!, 1, 1), false, "stale expect refused");
+  // only the last burst can change: a later message freezes it
+  s.append(chatId, "user", "next");
+  assert.equal(s.pickBurst(head.burstId!, 1, s.version(chatId)!), false);
+});
+
+test("legacy message has no burst", () => {
+  const { s, charId } = setup();
+  const chatId = s.createChat(charId);
+  const m = s.messages(chatId)[0];
+  assert.equal(m.burstId, null);
+  assert.equal(m.burstSwipes, null);
+  assert.equal(m.speaker, "");
+  assert.equal(s.pickSwipe(m.id, 1), true);
+});

@@ -24,3 +24,12 @@ test("steer: a forced direction comes from the profile when it has hooks", () =>
   const plain = steerTurn(t, { drafts: ["old"], spice: 2, charName: "Alice", userName: "Phil" }, () => 0.1);
   assert.ok(!plain.messages.at(-1)!.content.includes("her missing sister"));
 });
+
+test("steer: text-mode regenerate shows only each draft's opening, so a short burst can't be copied whole", () => {
+  const t = { messages: [], options: {}, model: "m", truncated: false } as unknown as Turn;
+  const draft = "a puppy?? is it a tiny little doggy or like a big scary one?\n---\nomg wait does it want to play with me too";
+  const r = steerTurn(t, { drafts: [draft], spice: 2, charName: "Alice", userName: "Phil", style: "text" }, () => 0.1);
+  const msg = r.messages.at(-1)!.content;
+  assert.ok(!msg.includes("play with me too"), msg);
+  assert.match(msg, /- a puppy\?\? is it/);
+});

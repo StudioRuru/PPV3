@@ -1,3 +1,4 @@
+import { joinBursts } from "./burst";
 import { applyCharacterOverrides, assembleMessages, settingsToOptions } from "./prompt";
 import { modeOf } from "./presets";
 import type { RpStore } from "./store";
@@ -87,7 +88,8 @@ export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
     ...o.profile.speech.tics.map((t) => `work in {{char}}'s habit: ${t}`), ...o.profile.hooks.map((h) => `pull on a thread: ${h}`),
   ] : [];
   if (regen || o.wild || rand() < 0.35) lines.push(`Direction: ${fill(pick(own.length && rand() < 0.7 ? own : pool))}.`);
-  if (regen) lines.push(`Earlier drafts:\n${o.drafts!.slice(-3).map((d) => `- ${snip(d, 280)}`).join("\n")}`);
+  // A whole text burst fits in 280 chars and the model copies it back verbatim, so text mode shows only openings.
+  if (regen) lines.push(`Earlier drafts:\n${o.drafts!.slice(-3).map((d) => `- ${snip(d, modeOf(o.style) === "text" ? 60 : 280)}`).join("\n")}`);
   else if (o.recent?.length) lines.push(`Your recent openings:\n${o.recent.slice(-3).map((d) => `- ${snip(d, 90)}`).join("\n")}`);
   const base = turn.options.temperature ?? 0.9;
   const heat = o.wild ? 0.5 : regen ? Math.min(0.1 + 0.08 * o.drafts!.length, 0.35) : 0;
@@ -109,8 +111,9 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
   const settings = { ...deps.settings, replyLength: chat.replyLength ?? deps.settings.replyLength };
   const character = chat.characterId ? store.character(chat.characterId) : null;
   const persona = store.persona(chat.personaId);
-  let history = store.messages(chatId);
-  if (replacing) history = history.filter((m) => m.id < replacing);
+  // Text mode bursts read as one reply each; `replacing` is the burst's head id.
+  const all = joinBursts(store.messages(chatId));
+  const history = replacing ? all.filter((m) => m.id < replacing) : all;
   const lastUser = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
   const voiceLines = character ? await selectVoiceLines(store, character.id, lastUser, deps.settings.embedModel, deps.embed) : [];
   const r = assembleMessages({
@@ -125,7 +128,7 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
     truncated: r.truncated,
   };
   const profile = parseProfile(character?.profile ?? null);
-  const old = replacing ? store.messages(chatId).find((m) => m.id === replacing) : undefined;
+  const old = replacing ? all.find((m) => m.id === replacing) : undefined;
   return foldSystem(steerTurn(turn, {
     drafts: old ? (old.swipes.length ? old.swipes : [old.content]) : undefined,
     recent: history.filter((m) => m.role === "assistant").slice(-3).map((m) => m.content),

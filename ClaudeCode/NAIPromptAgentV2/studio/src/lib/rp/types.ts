@@ -1,3 +1,4 @@
+import type { Burst } from "./burst";
 import { DEFAULT_SYSTEM_PROMPT } from "./presets";
 
 // Row shapes for the rp_* tables, camelCase (the ported Delfino code reads these names).
@@ -38,6 +39,8 @@ export type RpChat = {
 export type RpMessage = {
   id: number; chatId: number; role: "user" | "assistant" | "system"; content: string;
   swipes: string[]; activeSwipeIndex: number; createdAt: number; updatedAt: number; thought: string;
+  /** Text mode: rows of one burst share burstId; the head (first row) holds every take in burstSwipes. */
+  burstId: string | null; burstSwipes: Burst[] | null; speaker: string; reaction: string;
 };
 
 /** Global RP settings (Delfino's settings row, the fields RP still uses). Stored as JSON under settings key `rp:settings`. */

@@ -419,7 +419,7 @@ export function assembleMessages({
   const structure = character && modeOf(chat?.style) === "rp"
     ? structureDirective(character.povMode, character.tense, character.dialogueStyle)
     : "";
-  const style = structure ? "" : styleDirective(chat?.style);
+  const style = structure ? "" : styleDirective(chat?.style, (profile?.cast.length ?? 0) > 1);
   if (structure) jbParts.push(sub(structure));
   if (style) jbParts.push(sub(style));
   // Live dynamic story state (relationship meters, outfit, location, …), listed

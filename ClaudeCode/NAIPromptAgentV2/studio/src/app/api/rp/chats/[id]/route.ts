@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 }
 
 /**
- * `{ op: "edit", msgId, content }`, `{ op: "swipe", msgId, index }`, `{ op: "rewind", msgId }` (delete after it) or
+ * `{ op: "edit", msgId, content }`, `{ op: "swipe", msgId, index }`, `{ op: "burstSwipe", msgId (any bubble), index }`, `{ op: "rewind", msgId }` (delete after it) or
  * `{ op: "chat", ...fields }`. All carry `version`; a stale one is refused with 409.
  */
 export async function PATCH(req: NextRequest, { params }: Ctx) {
@@ -29,6 +29,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (b.op === "edit" && typeof b.content === "string" && own()) ok = rp.edit(msgId, b.content, expect);
   else if (b.op === "swipe" && own()) ok = rp.pickSwipe(msgId, Number(b.index), expect);
   else if (b.op === "rewind" && own()) ok = rp.rewind(id, msgId, expect);
+  else if (b.op === "burstSwipe") {
+    const burstId = rp.messages(id).find((m) => m.id === msgId)?.burstId;
+    ok = !!burstId && rp.pickBurst(burstId, Number(b.index), expect);
+  }
   else if (b.op === "chat") {
     // Metadata: last write wins and the message version doesn't move (safe while a reply is streaming).
     const fields: Record<string, unknown> = Object.fromEntries(CHAT_FIELDS.filter((k) => k in b).map((k) => [k, b[k]]));

@@ -3,7 +3,8 @@ import { learnedStoryBlock } from "@/lib/learning";
 import { chatStream, embed, heavyGate, isPod, Offline } from "@/lib/llm";
 import { shouldSummarize, summarizeChat } from "@/lib/rp/memory";
 import { heavyModel, installedModels, rp, rpSettings } from "@/lib/rp/server";
-import { charName } from "@/lib/rp/profile";
+import { charName, parseProfile } from "@/lib/rp/profile";
+import { splitBurst } from "@/lib/rp/burst";
 import { stripThoughtEcho, thinkOn, thinkRequest, withThought } from "@/lib/rp/think";
 import { buildTurn } from "@/lib/rp/turn";
 
@@ -24,11 +25,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (!b || !rp.chat(chatId)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const conflict = () => NextResponse.json({ error: "This chat changed on another device — reload it.", conflict: true }, { status: 409 });
   let expect = typeof b.version === "number" ? b.version : undefined;
-  const replacing = b.regenerate ? Number(b.regenerate) : undefined;
+  let replacing = b.regenerate ? Number(b.regenerate) : undefined;
+  let burstId: string | null = null;
 
   if (replacing) {
-    const last = rp.messages(chatId).at(-1);
-    if (last?.id !== replacing || last.role !== "assistant") return NextResponse.json({ error: "Only the last reply can be regenerated." }, { status: 400 });
+    const ms = rp.messages(chatId), last = ms.at(-1);
+    // Text mode: any bubble of the last burst regenerates the whole burst (history stops before its head).
+    if (last?.burstId && ms.some((m) => m.id === replacing && m.burstId === last.burstId)) { burstId = last.burstId; replacing = ms.find((m) => m.burstId === burstId)!.id; }
+    else if (last?.id !== replacing || last.role !== "assistant") return NextResponse.json({ error: "Only the last reply can be regenerated." }, { status: 400 });
     if (expect !== undefined && rp.version(chatId) !== expect) return conflict();
   } else if (b.retry) {
     if (rp.messages(chatId).at(-1)?.role !== "user") return NextResponse.json({ error: "Nothing to answer." }, { status: 400 });
@@ -50,6 +54,13 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const chat0 = rp.chat(chatId)!;
   const char = chat0.characterId != null ? rp.character(chat0.characterId) : null;
   const thinking = thinkOn(chat0, chat0.style, settings);
+  // Text mode: the reply is saved as a burst of bubbles, the reaction on the user message it answers.
+  const saveBurst = (out: string, thought: string) => {
+    const burst = splitBurst(out, (parseProfile(char?.profile ?? null)?.cast ?? []).map((c) => c.name));
+    if (burstId) return rp.replaceBurst(burstId, burst, expect, thought);
+    const lastUser = rp.messages(chatId).at(-1);
+    return rp.appendBurst(chatId, burst, lastUser?.role === "user" ? lastUser.id : null, expect, thought) !== null;
+  };
 
   const stream = new ReadableStream({
     async start(ctl) {
@@ -70,7 +81,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
           if (!reply.trim()) try { ctl.enqueue(enc.encode(`\n\n⚠️ ${turn.model} returned nothing — tap Retry.`)); } catch { /* gone */ }
           // ponytail: the echo is stripped from the saved reply only; the live stream may briefly show it.
           const out = thought ? stripThoughtEcho(reply, thought).trim() : reply.trim();
-          const saved = out ? (replacing ? rp.addSwipe(replacing, out, expect, thought) : rp.append(chatId, "assistant", out, expect, thought) !== null) : true;
+          const saved = !out ? true : chat0.style === "text" && (burstId || !replacing) ? saveBurst(out, thought) : replacing ? rp.addSwipe(replacing, out, expect, thought) : rp.append(chatId, "assistant", out, expect, thought) !== null;
           if (!saved) try { ctl.enqueue(enc.encode("\n\n⚠️ Not saved: this chat changed on another device while I was answering.")); } catch { /* gone */ }
           // Memory refresh on the model that's already loaded; detached so the stream can close.
           const chat = rp.chat(chatId);

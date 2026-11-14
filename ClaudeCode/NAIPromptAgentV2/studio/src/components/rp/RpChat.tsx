@@ -7,6 +7,7 @@ import { spyData, spyDue } from "@/lib/mascot/spy";
 import { substituteMacros } from "@/lib/rp/prompt";
 import { MODES, modeOf } from "@/lib/rp/presets";
 import { charName } from "@/lib/rp/profile";
+import { typingMs } from "@/lib/rp/burst";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
@@ -41,6 +42,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
   const [memory, setMemory] = useState<string | null>(null);
   const [tuning, setTuning] = useState(false);
+  // Text mode: a new burst's bubbles appear one at a time, each after a typing pause.
+  const [reveal, setReveal] = useState<{ id: string; shown: number } | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const composer = useAutoSize(input);
   const pinned = useRef(true); // follow the stream only while the reader is at the bottom
@@ -67,7 +70,14 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const persona = personas.find((p) => p.id === v?.chat.personaId) ?? personas[0];
   const name = charName(character);
   const sub = (t: string) => substituteMacros(t, name, persona?.name || "User");
-  const busy = !!stream;
+  const busy = !!stream || !!reveal;
+  useEffect(() => {
+    if (!reveal) return;
+    const rows = (v?.messages ?? []).filter((m) => m.burstId === reveal.id);
+    if (reveal.shown >= rows.length) { setReveal(null); return; }
+    const t = setTimeout(() => setReveal({ ...reveal, shown: reveal.shown + 1 }), typingMs(rows[reveal.shown].content));
+    return () => clearTimeout(t);
+  }, [reveal, v?.messages]);
 
   async function patch(body: object) {
     const r = await requestJson<View>(`/api/rp/chats/${chatId}`, { method: "PATCH", ...json({ ...body, version: v?.version }) });
@@ -80,7 +90,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     pinned.current = true;
     setError(null); setStatus("Thinking…");
     setStream({ text: "", replacing: body.regenerate });
-    if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now(), thought: "" }] });
+    if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now(), thought: "", burstId: null, burstSwipes: null, speaker: "", reaction: "" }] });
     try {
       const res = await fetch(`/api/rp/chats/${chatId}/send`, { method: "POST", ...json({ ...body, version: v.version }) });
       if (!res.ok || !res.body) {
@@ -108,6 +118,9 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     const r = await requestJson<View>(`/api/rp/chats/${chatId}`);
     if (r.ok) {
       setV(r.data);
+      const last = r.data.messages.at(-1), seen = Math.max(0, ...v.messages.map((m) => m.id));
+      const head = last?.burstId ? r.data.messages.find((m) => m.burstId === last.burstId) : undefined;
+      if (head && (head.id > seen || body.regenerate)) setReveal({ id: head.burstId!, shown: 0 });
       if (r.data.messages.at(-1)?.role === "assistant" && spyDue(Date.now(), lastSpyAt, mischief, Math.random)) { lastSpyAt = Date.now(); emitMascot("rp_spy", spyData(r.data.messages)); }
     } else setError(r.error);
   }
@@ -130,6 +143,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const msgs = v?.messages ?? [];
   const lastId = msgs.at(-1)?.id;
   const style = modeOf(v?.chat.style);
+  const lastBurst = msgs.at(-1)?.burstId ?? null;
+  const burstHead = lastBurst ? msgs.find((m) => m.burstId === lastBurst) : undefined;
+  const texting = style === "text" && (!!stream || !!reveal);
+  // Hidden while typing: the burst being regenerated, and bubbles not revealed yet.
+  const hidden = (m: RpMessage) => !!m.burstId && ((style === "text" && stream?.replacing !== undefined && m.burstId === lastBurst)
+    || (reveal?.id === m.burstId && msgs.filter((x) => x.burstId === m.burstId).indexOf(m) >= reveal.shown));
 
   return (
     <section aria-label={`Chat with ${name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
@@ -142,6 +161,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
               className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
           ) : <p className="text-muted truncate text-[11px]">as {persona?.name ?? "User"}</p>}
+          {texting && <p role="status" className="text-accent text-[11px]">typing…</p>}
         </div>
         {v && <div role="radiogroup" aria-label="Mode" className="border-border flex rounded-full border p-0.5">
           {MODES.map((m) => (
@@ -167,7 +187,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
 
       <div className="flex-1 space-y-3">
         {msgs.map((m) => {
-          const replacing = stream?.replacing === m.id;
+          if (hidden(m)) return null;
+          const replacing = style !== "text" && stream?.replacing === m.id;
           if (editing?.id === m.id) return (
             <div key={m.id} className="space-y-1.5">
               <AutoTextarea value={editing.text} onChange={(text) => setEditing({ id: m.id, text })} />
@@ -186,6 +207,13 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
                   <button type="button" aria-label="Next version" disabled={m.activeSwipeIndex >= m.swipes.length - 1} onClick={() => patch({ op: "swipe", msgId: m.id, index: m.activeSwipeIndex + 1 })} className="grid size-8 place-items-center disabled:opacity-30">›</button>
                 </span>
               )}
+              {m.id === lastId && burstHead && (burstHead.burstSwipes?.length ?? 0) > 1 && (
+                <span data-noswipe className="flex items-center gap-1 font-mono">
+                  <button type="button" aria-label="Previous set" disabled={burstHead.activeSwipeIndex === 0} onClick={() => patch({ op: "burstSwipe", msgId: burstHead.id, index: burstHead.activeSwipeIndex - 1 })} className="grid size-8 place-items-center disabled:opacity-30">‹</button>
+                  {burstHead.activeSwipeIndex + 1}/{burstHead.burstSwipes!.length}
+                  <button type="button" aria-label="Next set" disabled={burstHead.activeSwipeIndex >= burstHead.burstSwipes!.length - 1} onClick={() => patch({ op: "burstSwipe", msgId: burstHead.id, index: burstHead.activeSwipeIndex + 1 })} className="grid size-8 place-items-center disabled:opacity-30">›</button>
+                </span>
+              )}
               {m.role === "assistant" && <>
                 <button type="button" aria-label="Like reply" aria-pressed={rated[m.id] === "like"} disabled={!!rated[m.id]} onClick={() => rate(m.id, "like")} className={rated[m.id] === "like" ? "text-ok" : ""}>👍</button>
                 <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.id] === "dislike"} disabled={!!rated[m.id]} onClick={() => rate(m.id, "dislike")} className={rated[m.id] === "dislike" ? "text-danger" : ""}>👎</button>
@@ -201,11 +229,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             </div>
           );
           return m.role === "user" ? (
-            <div key={m.id} className={`animate-rise space-y-1.5 text-sm ${style === "text" ? "bg-accent/15 ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2.5" : "bg-surface-2 ml-10 rounded-lg p-2.5"}`}><Prose text={sub(m.content)} />{actions}</div>
+            <div key={m.id} className={`animate-rise space-y-1.5 text-sm ${style === "text" ? "bg-accent/15 ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2.5" : "bg-surface-2 ml-10 rounded-lg p-2.5"}`}><Prose text={sub(m.content)} />{actions}{m.reaction && <span aria-label={`Reacted ${m.reaction}`} className="bg-surface border-border -mb-4 ml-auto block w-fit rounded-full border px-1.5 text-sm">{m.reaction}</span>}</div>
           ) : (
             <div key={m.id} className="animate-rise flex gap-2">
               <Avatar c={character} size="size-8" />
               <div className="min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">
+                {m.speaker && <p className="text-muted flex items-center gap-1.5 text-[11px] font-semibold"><i aria-hidden="true" className="size-2 rounded-full" style={{ background: `hsl(${[...m.speaker].reduce((h, c) => h * 31 + c.charCodeAt(0), 7) % 360} 65% 55%)` }} />{m.speaker}</p>}
                 <div key={replacing ? "stream" : m.activeSwipeIndex} data-style={style || undefined} className={`animate-fade space-y-1.5 ${replacing ? "stream-caret" : ""}`}>
                   <Prose text={sub(replacing ? stream!.text || "…" : m.content)} />
                 </div>
@@ -240,7 +269,13 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             <button type="button" onClick={async () => { await patch({ op: "rewind", msgId: rewind }); setRewind(null); }} className="bg-danger rounded-md px-3 py-1.5 font-semibold text-white">Delete</button>
           </div>
         )}
-        {stream && stream.replacing === undefined && (
+        {texting && (
+          <div className="animate-rise flex gap-2" aria-hidden="true">
+            <Avatar c={character} size="size-8" />
+            <span className="thinking bg-surface-2 flex w-fit gap-1 rounded-2xl rounded-bl-md px-3.5 py-3">{[0, 1, 2].map((n) => <i key={n} className="bg-muted size-1.5 rounded-full" />)}</span>
+          </div>
+        )}
+        {stream && stream.replacing === undefined && style !== "text" && (
           <div className="animate-rise flex gap-2">
             <Avatar c={character} size="size-8" />
             <div data-style={style || undefined} className="stream-caret min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">{stream.text ? <Prose text={sub(stream.text)} /> : <p className="thinking text-muted text-sm">…</p>}</div>

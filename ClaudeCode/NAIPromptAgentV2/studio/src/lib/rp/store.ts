@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import type { LoreEntry } from "./prompt";
+import type { Burst } from "./burst";
 import { parseProfile } from "./profile";
 import { camel, snake, type RpCharacter, type RpChat, type RpMessage, type RpPersona } from "./types";
 
@@ -8,6 +9,8 @@ export type RpLoreEntry = LoreEntry & { id: number; lorebookId: number };
 export type RpVoiceLine = { id: number; characterId: number; text: string; context: string; source: string; embedding: Buffer | null; embedModel: string };
 
 const parseList = (json: string): string[] => { try { const v = JSON.parse(json); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
+const parseBursts = (json: unknown): Burst[] | null => { try { const v = JSON.parse(json as string); return Array.isArray(v) ? v : null; } catch { return null; } };
+const rowMsg = (r: Record<string, unknown>): RpMessage => ({ ...camel<RpMessage>(r), swipes: parseList(r.swipes as string), burstSwipes: r.burst_swipes ? parseBursts(r.burst_swipes) : null });
 
 /** All RP reads/writes. Chat writes take an optional `expect` version (the chat's updated_at) and refuse stale ones. */
 export class RpStore {
@@ -149,7 +152,7 @@ export class RpStore {
 
   messages(chatId: number): RpMessage[] {
     return (this.db.prepare("SELECT * FROM rp_messages WHERE chat_id = ? ORDER BY id").all(chatId) as Record<string, unknown>[])
-      .map((r) => ({ ...camel<RpMessage>(r), swipes: parseList(r.swipes as string) }));
+      .map(rowMsg);
   }
   version(chatId: number): number | null {
     return (this.db.prepare("SELECT updated_at FROM rp_chats WHERE id = ?").get(chatId) as { updated_at: number } | undefined)?.updated_at ?? null;
@@ -176,7 +179,7 @@ export class RpStore {
   }
   private msg(msgId: number): RpMessage | null {
     const r = this.db.prepare("SELECT * FROM rp_messages WHERE id = ?").get(msgId) as Record<string, unknown> | undefined;
-    return r ? { ...camel<RpMessage>(r), swipes: parseList(r.swipes as string) } : null;
+    return r ? rowMsg(r) : null;
   }
   private setSwipes(msgId: number, swipes: string[], index: number): void {
     this.db.prepare("UPDATE rp_messages SET swipes = ?, active_swipe_index = ?, content = ?, updated_at = ? WHERE id = ?")
@@ -222,6 +225,51 @@ export class RpStore {
       const swipes = [...m.swipes];
       swipes[m.activeSwipeIndex] = content;
       this.setSwipes(msgId, swipes, m.activeSwipeIndex);
+      return true;
+    }, false);
+  }
+  /** Text mode: save a burst as one row per bubble, the reaction on the user message it answers. Ids, or null if refused. */
+  appendBurst(chatId: number, burst: Burst, replyTo: number | null, expect?: number, thought = ""): number[] | null {
+    return this.write(chatId, expect, () => {
+      if (replyTo) this.db.prepare("UPDATE rp_messages SET reaction = ? WHERE id = ? AND chat_id = ?").run(burst.reaction, replyTo, chatId);
+      const burstId = crypto.randomUUID();
+      const ids = burst.bubbles.map((b, i) => this.insertMsg(chatId, "assistant", b.text, [], i ? "" : thought));
+      const tag = this.db.prepare("UPDATE rp_messages SET burst_id = ?, speaker = ? WHERE id = ?");
+      ids.forEach((id, i) => tag.run(burstId, burst.bubbles[i].speaker, id));
+      this.db.prepare("UPDATE rp_messages SET burst_swipes = ? WHERE id = ?").run(JSON.stringify([burst]), ids[0]);
+      return ids;
+    }, null);
+  }
+  /** Regenerate the last burst: add a take and show it. */
+  replaceBurst(burstId: string, burst: Burst, expect?: number, thought = ""): boolean {
+    return this.showBurst(burstId, expect, (takes) => [[...takes, burst], takes.length], thought);
+  }
+  pickBurst(burstId: string, index: number, expect?: number): boolean {
+    return this.showBurst(burstId, expect, (takes) => (Number.isInteger(index) && index >= 0 && index < takes.length ? [takes, index] : null));
+  }
+  /** Rewrite the last burst's rows to show take `index` (rows added/removed to match), plus its reaction. */
+  private showBurst(burstId: string, expect: number | undefined, pick: (takes: Burst[]) => [Burst[], number] | null, thought?: string): boolean {
+    const rows = this.db.prepare("SELECT * FROM rp_messages WHERE burst_id = ? ORDER BY id").all(burstId).map((r) => rowMsg(r as Record<string, unknown>));
+    if (!rows.length) return false;
+    const head = rows[0], chatId = head.chatId;
+    return this.write(chatId, expect, () => {
+      if (this.db.prepare("SELECT 1 FROM rp_messages WHERE chat_id = ? AND id > ?").get(chatId, rows.at(-1)!.id)) return false; // only the last burst changes
+      const got = pick(head.burstSwipes ?? []);
+      if (!got) return false;
+      const [takes, index] = got, b = takes[index], now = Date.now();
+      b.bubbles.forEach((x, i) => {
+        if (rows[i]) this.db.prepare("UPDATE rp_messages SET content = ?, speaker = ?, updated_at = ? WHERE id = ?").run(x.text, x.speaker, now, rows[i].id);
+        else this.db.prepare("UPDATE rp_messages SET burst_id = ?, speaker = ? WHERE id = ?").run(burstId, x.speaker, this.insertMsg(chatId, "assistant", x.text));
+      });
+      const gone = rows.slice(b.bubbles.length).map((r) => r.id);
+      if (gone.length) {
+        const q = gone.map(() => "?").join(",");
+        this.db.prepare(`UPDATE rp_images SET message_id = NULL WHERE message_id IN (${q})`).run(...gone);
+        this.db.prepare(`DELETE FROM rp_messages WHERE id IN (${q})`).run(...gone);
+      }
+      this.db.prepare("UPDATE rp_messages SET burst_swipes = ?, active_swipe_index = ? WHERE id = ?").run(JSON.stringify(takes), index, head.id);
+      if (thought !== undefined) this.db.prepare("UPDATE rp_messages SET thought = ? WHERE id = ?").run(thought, head.id);
+      this.db.prepare("UPDATE rp_messages SET reaction = ? WHERE id = (SELECT MAX(id) FROM rp_messages WHERE chat_id = ? AND id < ? AND role = 'user')").run(b.reaction, chatId, head.id);
       return true;
     }, false);
   }
