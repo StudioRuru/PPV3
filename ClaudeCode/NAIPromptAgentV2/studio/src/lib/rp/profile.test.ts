@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { charName, parseProfile } from "./profile";
+import { charName, extractProfile, parseProfile, photoAppearance, profileRequest } from "./profile";
 
 test("parseProfile tolerates junk", () => {
   assert.equal(parseProfile("nope"), null);
@@ -79,4 +79,38 @@ test("profileSlice length", () => {
     speech: { register: "blunt", tics: L("tic"), sampleLines: L("line") }, format: "plain" });
   assert.ok(profileSlice(p, "text", 5).length < 1100);
   assert.ok(profileSlice(p, "rp", 5).length < 1100);
+});
+
+const card = (o: Partial<RpCharacter> = {}) => ({ id: 1, name: "Alice | Lost Elf", displayName: "", description: "An elf.", personality: "bubbly", scenario: "", firstMessage: "Hi!", exampleDialogue: "", appearancePrompt: "", profile: null, ...o }) as RpCharacter;
+
+test("extractProfile parses fenced JSON and never sets edited", async () => {
+  const p = await extractProfile(card(), null, async () => '```json\n{"displayName":"Alice","coreTraits":["bubbly"],"edited":true}\n```');
+  assert.equal(p?.displayName, "Alice");
+  assert.deepEqual(p?.coreTraits, ["bubbly"]);
+  assert.equal(p?.edited, undefined);
+});
+
+test("extractProfile returns null on junk", async () => {
+  assert.equal(await extractProfile(card(), null, async () => "sorry, I can't"), null);
+});
+
+test("profileRequest sends the card text and the avatar as an image", () => {
+  const r = profileRequest(card(), "QUJD");
+  assert.match(r.messages[0].content, /An elf\./);
+  assert.deepEqual(r.messages[0].images, ["QUJD"]);
+  assert.match(r.system, /invent nothing/i);
+});
+
+test("photoAppearance: the card's appearancePrompt wins; extracted tags only when it is empty", () => {
+  const p = parseProfile({ displayName: "Rin", appearanceTags: "1girl, elf", cast: [{ name: "Mio", role: "sister", appearanceTags: "1girl, twintails" }] });
+  assert.equal(photoAppearance(card({ appearancePrompt: "1girl, silver hair" }), p), "1girl, silver hair");
+  assert.equal(photoAppearance(card(), p), "1girl, elf");
+  assert.equal(photoAppearance(card(), p, "Mio"), "1girl, twintails");
+  assert.equal(photoAppearance(card(), null), "");
+});
+
+test("markEdited flags a hand-edited profile and rejects junk", async () => {
+  const { markEdited } = await import("./profile");
+  assert.equal(parseProfile(markEdited(JSON.stringify({ displayName: "Alice" })))?.edited, true);
+  assert.equal(markEdited("not json"), null);
 });

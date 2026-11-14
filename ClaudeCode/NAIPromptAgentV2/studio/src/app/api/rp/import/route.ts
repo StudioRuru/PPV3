@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { importCard } from "@/lib/rp/import";
-import { rp, saveRpFile } from "@/lib/rp/server";
+import { refreshProfile } from "@/lib/rp/profile";
+import { askHeavy, avatarForModel, rp, saveRpFile } from "@/lib/rp/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,5 +26,7 @@ export async function POST(req: NextRequest) {
   }
   const avatarPath = r.avatar ? saveRpFile("avatars", r.avatar.bytes, r.avatar.ext) : null;
   const id = rp.saveCharacter({ ...r.character, avatarPath, lorebookId });
+  // Detached: the profile lands a few seconds later; a failure only logs and leaves `profile` null.
+  void avatarForModel(avatarPath).then((a) => refreshProfile(rp, id, a, askHeavy)).catch(() => {});
   return NextResponse.json({ character: rp.character(id) });
 }

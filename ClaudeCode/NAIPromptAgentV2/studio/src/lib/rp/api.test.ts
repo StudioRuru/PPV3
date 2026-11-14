@@ -7,6 +7,8 @@ import { rpFile } from "./files";
 import { importCard } from "./import";
 import { buildTurn, openingKind, steerTurn } from "./turn";
 import { DEFAULT_RP_SETTINGS } from "./types";
+import { rebuildProfile, refreshProfile } from "./profile";
+import { mergeLearned } from "./memory";
 import { toBuffer } from "./voice";
 
 test("rpFile: only avatars/images with a plain image name, inside the rp dir", () => {
@@ -154,4 +156,48 @@ test("chat style: texting writes only texts and drops the card's POV lock; story
   assert.doesNotMatch(t, /paragraph/);
   s.updateChat(chat, { style: "story" });
   assert.match(await text(), /narrated story[\s\S]*Keep narrating in the third person/);
+});
+
+test("refreshProfile: a throwing extractor leaves the imported character saved with no profile", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio" });
+  await refreshProfile(s, c, null, async () => { throw new Error("ollama down"); });
+  assert.equal(s.character(c)?.profile, null);
+  await refreshProfile(s, c, null, async () => '{"displayName":"Mio-chan"}');
+  assert.equal(JSON.parse(s.character(c)!.profile!).displayName, "Mio-chan");
+});
+
+test("rebuildProfile refuses a hand-edited profile unless forced", async () => {
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio", profile: JSON.stringify({ displayName: "Mine", edited: true }) });
+  const ask = async () => '{"displayName":"Fresh"}';
+  assert.deepEqual(await rebuildProfile(s, c, null, ask, false), { status: 409, body: { error: "edited" } });
+  const ok = await rebuildProfile(s, c, null, ask, true);
+  assert.equal(ok.status, 200);
+  assert.equal(JSON.parse(s.character(c)!.profile!).displayName, "Fresh");
+  assert.equal((await rebuildProfile(s, 999, null, ask, true)).status, 404);
+});
+
+test("learned facts: keep at most 20, newest last", () => {
+  const old = Array.from({ length: 25 }, (_, i) => `old ${i}`);
+  const r = mergeLearned(old, ["a", "b", "c"]);
+  assert.equal(r.length, 20);
+  assert.deepEqual(r.slice(-3), ["a", "b", "c"]);
+  assert.deepEqual(mergeLearned([], ["x", "y", "z", "w"]), ["x", "y", "z"]);
+});
+
+test("summarizeChat stores learned facts and the prompt shows them next to the memory", async () => {
+  const { summarizeChat } = await import("./memory");
+  const { assembleMessages } = await import("./prompt");
+  const s = store();
+  const c = s.saveCharacter({ name: "Mio" });
+  const chat = s.createChat(c);
+  s.append(chat, "user", "I'm allergic to cats.");
+  await summarizeChat(s, chat, { model: "m", stream: async function* () { yield "They met.\nLEARNED:\n- Phil is allergic to cats\n"; } });
+  const ch = s.chat(chat)!;
+  assert.equal(ch.memorySummary, "They met.");
+  assert.deepEqual(JSON.parse(ch.learned), ["Phil is allergic to cats"]);
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: s.character(c), persona: null, chat: ch, history: [{ role: "user", content: "hi" }] });
+  assert.ok(r.messages.some((m) => m.content.includes("Phil is allergic to cats")));
+  assert.ok(!(s.character(c)?.profile ?? "").includes("allergic"));
 });

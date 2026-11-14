@@ -4,7 +4,7 @@ import { parseExampleDialogue, splitBySpeaker } from "./exampleDialogue";
 import { lengthNumPredict, moodDirective, structureDirective, styleDirective } from "./presets";
 import { parseStateSchema, parseStateValues, stateBlock } from "./state";
 import { MODS, modsDirective, resolveMods } from "./mods";
-import { charName as nameOf, parseProfile, profileSlice, resolveAgency, resolveSpice, type RpProfile } from "./profile";
+import { charName as nameOf, parseLearned, parseProfile, profileSlice, resolveAgency, resolveSpice, type RpProfile } from "./profile";
 
 const DEFAULT_USER_NAME = "User";
 
@@ -511,6 +511,8 @@ export function assembleMessages({
   const out: ChatMessage[] = [];
   if (systemPrompt) out.push({ role: "system", content: systemPrompt });
   if (memory) out.push({ role: "system", content: `[Story so far]\n${memory}` });
+  const learned = parseLearned(chat?.learned);
+  if (learned.length) out.push({ role: "system", content: `[Learned in this chat]\n${learned.map((f) => `- ${f}`).join("\n")}` });
   if (beforeLore) out.push({ role: "system", content: `[World Info]\n${beforeLore}` });
   out.push(...exampleMessages);
   out.push(...kept);

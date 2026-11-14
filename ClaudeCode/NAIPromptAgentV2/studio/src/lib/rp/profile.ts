@@ -1,4 +1,5 @@
-import type { RpCharacter, RpChat, RpSettings } from "./types";
+import type { RpStore } from "./store";
+import type { ChatMessage, RpCharacter, RpChat, RpSettings } from "./types";
 
 // A character profile distilled from the card (and avatar) once at import, editable on the sheet.
 export type CastMember = { name: string; role: string; appearanceTags?: string };
@@ -83,4 +84,82 @@ export function profileSlice(p: RpProfile, mode: Mode, turn: number): string {
     if (hook) lines.push(`Thread to pull on: ${hook}. Show it through body language, not exposition.`);
   }
   return lines.map((l) => (l.length > 240 ? `${l.slice(0, 239)}…` : l)).join("\n");
+}
+
+/* ------------------------------ extraction ------------------------------ */
+
+export const PROFILE_SYSTEM = `You distill a roleplay character card (and its avatar, if attached) into a JSON profile.
+Speak in the card's own terms only and invent nothing: leave a field empty ("" or []) when the card doesn't say.
+Output ONLY one JSON object with these keys:
+displayName (the name the character is called in conversation, not the card title),
+cast ([{name, role, appearanceTags}] — one entry per distinct speaker the card voices; a single-character card has one),
+coreTraits [], speech {register, tics [], sampleLines [] (short lines in their voice, quoted from or closely following the card)},
+format (the literal output-format convention the card uses, e.g. thought headers or bracketed status lines — copied exactly),
+wants [], fears [], knows [], doesntKnow [], viewOfUser, wouldNever [], hooks [] (unresolved threads the story can pull on),
+relationships [], defaults {agency 0-4, spice {min,max} 0-4, mode "text"|"rp"} (only when the card clearly implies them),
+appearanceTags (comma-separated Danbooru-style tags for how they look), conflicts [] (mods or behaviours the card forbids).`;
+
+const cardText = (c: RpCharacter) => [
+  ["Card title", c.name], ["Description", c.description], ["Personality", c.personality], ["Scenario", c.scenario],
+  ["First message", c.firstMessage], ["Example dialogue", c.exampleDialogue],
+].filter(([, v]) => v?.trim()).map(([k, v]) => `## ${k}\n${v.trim()}`).join("\n\n");
+
+export function profileRequest(c: RpCharacter, avatarB64?: string): { system: string; messages: ChatMessage[] } {
+  return {
+    system: PROFILE_SYSTEM,
+    messages: [{ role: "user", content: `${cardText(c)}\n\nWrite the JSON profile.`, ...(avatarB64 ? { images: [avatarB64] } : {}) }],
+  };
+}
+
+/** Ask the model for a profile; null when the reply has no usable JSON. Never marks it edited — that's the owner's. */
+export async function extractProfile(c: RpCharacter, avatar: Buffer | null, ask: (system: string, messages: ChatMessage[]) => Promise<string>): Promise<RpProfile | null> {
+  const r = profileRequest(c, avatar?.toString("base64"));
+  const out = await ask(r.system, r.messages);
+  const a = out.indexOf("{"), b = out.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  const p = parseProfile(out.slice(a, b + 1));
+  if (p) delete p.edited;
+  return p;
+}
+
+type Ask = (system: string, messages: ChatMessage[]) => Promise<string>;
+
+/** Import-time extraction: best effort, a failure only logs and leaves `profile` null. */
+export async function refreshProfile(store: RpStore, id: number, avatar: Buffer | null, ask: Ask): Promise<void> {
+  const c = store.character(id);
+  if (!c) return;
+  try {
+    const p = await extractProfile(c, avatar, ask);
+    if (p) store.saveCharacter({ id, name: c.name, profile: JSON.stringify(p) });
+  } catch (e) {
+    console.warn(`[rp] profile extraction failed for character ${id}: ${(e as Error).message}`);
+  }
+}
+
+/** The sheet's Rebuild: refuses to overwrite a hand-edited profile unless `force`. */
+export async function rebuildProfile(store: RpStore, id: number, avatar: Buffer | null, ask: Ask, force: boolean): Promise<{ status: number; body: unknown }> {
+  const c = store.character(id);
+  if (!c) return { status: 404, body: { error: "Not found" } };
+  if (!force && parseProfile(c.profile)?.edited) return { status: 409, body: { error: "edited" } };
+  const p = await extractProfile(c, avatar, ask);
+  if (!p) return { status: 502, body: { error: "The model didn't return a usable profile — try again." } };
+  store.saveCharacter({ id, name: c.name, profile: JSON.stringify(p) });
+  return { status: 200, body: { character: store.character(id) } };
+}
+
+/** Photo appearance: the hand-written card prompt wins; extracted tags (per speaker for ensembles) only fill a blank. */
+export function photoAppearance(c: Pick<RpCharacter, "appearancePrompt">, p: RpProfile | null, speaker?: string): string {
+  if (c.appearancePrompt?.trim()) return c.appearancePrompt.trim();
+  const member = speaker ? p?.cast.find((m) => m.name.toLowerCase() === speaker.toLowerCase()) : undefined;
+  return member?.appearanceTags || p?.appearanceTags || "";
+}
+
+export const parseLearned = (raw: string | null | undefined): string[] => {
+  try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; }
+};
+
+/** A profile saved by hand from the sheet: flagged `edited` so Rebuild won't silently overwrite it; null when unparseable. */
+export function markEdited(raw: string): string | null {
+  const p = parseProfile(raw);
+  return p ? JSON.stringify({ ...p, edited: true }) : null;
 }

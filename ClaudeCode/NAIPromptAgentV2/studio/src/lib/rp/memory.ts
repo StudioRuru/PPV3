@@ -1,5 +1,7 @@
 // Rolling "story so far" memory, ported from Delfino Plaza src/lib/memory.ts. Callers fire it detached after a reply.
 import { substituteMacros } from "./prompt";
+import { parseLearned } from "./profile";
+export { parseLearned };
 import type { RpStore } from "./store";
 import type { ChatMessage } from "./types";
 
@@ -43,7 +45,9 @@ export async function summarizeChat(store: RpStore, chatId: number, deps: Summar
     `needed to continue the story later: key facts, decisions, the state and dynamics of their ` +
     `relationship, important emotional beats, promises or commitments made, and unresolved threads. ` +
     `Write in past tense and the third person, concise but complete. Output ONLY the updated ` +
-    `summary text — no preamble, headings, or commentary.`;
+    `summary text — no preamble, headings, or commentary. Then, if the new events reveal lasting facts ` +
+    `(names, preferences, history, promises), add a final line "LEARNED:" followed by up to 3 such ` +
+    `facts as "- " bullets; omit the LEARNED section when there are none.`;
   const messages: ChatMessage[] = [
     { role: "system", content: system },
     { role: "user", content: `Existing summary:\n${prior || "(none yet)"}\n\nNew events to fold in:\n${transcript}\n\nWrite the updated summary.` },
@@ -51,9 +55,12 @@ export async function summarizeChat(store: RpStore, chatId: number, deps: Summar
 
   let out = "";
   for await (const d of deps.stream(messages, { temperature: 0.3, num_ctx: deps.numCtx ?? 16384, num_predict: SUMMARY_NUM_PREDICT })) out += d;
-  const summary = out.trim();
+  const [body, learnedRaw = ""] = out.split(/^\s*LEARNED:\s*$/im);
+  const summary = body.trim();
   if (!summary) return; // never clobber a good summary with an empty result
-  store.updateChat(chatId, { memorySummary: summary, summarizedThrough: plan.through });
+  const fresh = learnedRaw.split("\n").map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
+  const learned = fresh.length ? JSON.stringify(mergeLearned(parseLearned(chat.learned), fresh)) : chat.learned;
+  store.updateChat(chatId, { memorySummary: summary, summarizedThrough: plan.through, learned });
 }
 
 /** Refresh memory once enough new turns accrued, or as soon as history started being trimmed (Delfino's trigger). */
@@ -61,3 +68,6 @@ export function shouldSummarize(messages: Turn[], summarizedThrough: number, tru
   const fresh = messages.filter((m) => m.role !== "system" && m.id > summarizedThrough).length;
   return fresh > 0 && (truncated || fresh >= trigger);
 }
+
+/** Up to 3 new facts per pass appended; at most 20 kept, oldest dropped. */
+export const mergeLearned = (existing: string[], fresh: string[]): string[] => [...existing, ...fresh.slice(0, 3)].slice(-20);

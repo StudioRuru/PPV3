@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { markEdited } from "@/lib/rp/profile";
 import { rp } from "@/lib/rp/server";
 
 export const runtime = "nodejs";
@@ -19,6 +20,9 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body.name !== "string" || !body.name.trim()) return NextResponse.json({ error: "A character needs a name." }, { status: 400 });
   if (body.id && !rp.character(Number(body.id))) return NextResponse.json({ error: "That character was deleted." }, { status: 404 });
   const { createdAt: _c, updatedAt: _u, ...fields } = body;
+  const prev = body.id ? rp.character(Number(body.id)) : null;
+  // A changed profile from the sheet is a hand edit; an unchanged one rides along untouched.
+  if ("profile" in fields && fields.profile !== (prev?.profile ?? null)) fields.profile = typeof fields.profile === "string" ? markEdited(fields.profile) ?? prev?.profile ?? null : null;
   const id = rp.saveCharacter({ ...fields, id: body.id ? Number(body.id) : undefined, name: body.name.trim().slice(0, 120) });
   return NextResponse.json({ character: rp.character(id) });
 }

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { db, getSetting, setSetting } from "@/lib/db";
 import { BRAIN_MODEL, DATA_DIR, OLLAMA_URL, RP_POD_URL } from "@/lib/env";
+import { chatStream, heavyGate, toModelImage } from "@/lib/llm";
 import { tierModel } from "@/lib/tiers";
 import { serializeModsJson } from "./mods";
 import { RpStore } from "./store";
@@ -53,4 +54,21 @@ export function removeRpFiles(names: string[]): void {
       if (/^[\w-]+\.(png|jpe?g|webp)$/i.test(n)) fs.rmSync(path.join(RP_DIR, kind, n), { force: true });
     }
   }
+}
+
+/** One collected, low-temperature heavy-tier call (profile extraction); waits behind the heavy gate. */
+export async function askHeavy(system: string, messages: { role: string; content: string; images?: string[] }[]): Promise<string> {
+  return heavyGate.run(async () => {
+    let out = "";
+    for await (const c of chatStream(system, messages, { model: heavyModel(), think: false, options: { temperature: 0.2 } })) out += c;
+    return out;
+  });
+}
+
+/** A character's avatar as model-ready image bytes (resized JPEG), or null. */
+export async function avatarForModel(name: string | null): Promise<Buffer | null> {
+  if (!name || !/^[\w-]+\.(png|jpe?g|webp)$/i.test(name)) return null;
+  const raw = await fs.promises.readFile(path.join(RP_DIR, "avatars", name)).catch(() => null);
+  const url = raw && (await toModelImage(raw).catch(() => null));
+  return url ? Buffer.from(url.split(",")[1], "base64") : null;
 }
