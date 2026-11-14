@@ -26,7 +26,7 @@ argv.forEach((a, i) => { if (a === "--set") { const [k, v] = argv[i + 1].split("
 type Case = { name: string; style: string; length: number; spice: number; char: Record<string, string>; turns: string[]; expect?: string };
 const CASES: Case[] = [
   {
-    name: "tavern", style: "", length: 2, spice: 2,
+    name: "tavern", style: "rp", length: 2, spice: 2,
     char: { name: "Rin", description: "Rin runs the Gilded Eel tavern by the harbour. Flirty, quick-witted, a little dangerous; she trades in secrets.", personality: "teasing, bold, perceptive", scenario: "Late night, the tavern is nearly empty. Kai is a stranger who just walked in from the rain.", firstMessage: "*Rin looks up from polishing a glass.* \"Rain brings the interesting ones. Sit. First drink's free if the story's good.\"" },
     turns: [
       "I sit down and slide a silver coin with a hole punched through it across the bar. \"A harbour master gave me this. Said you'd know what it means.\"",
@@ -37,13 +37,13 @@ const CASES: Case[] = [
     expect: "harbou?r",
   },
   {
-    name: "tsundere-text", style: "chat", length: 2, spice: 2,
+    name: "tsundere-text", style: "text", length: 2, spice: 2,
     char: { name: "Aiko", description: "Aiko is Kai's classmate. A tsundere: acts annoyed and prickly but secretly has a huge crush on him.", personality: "prickly, proud, secretly sweet", scenario: "Texting late at night after Kai helped Aiko study for exams. Her cat is called Mochi.", firstMessage: "ur still up?? not that i care" },
     turns: ["yeah cant sleep. how's mochi doing?", "ok", "haha", "what are you wearing rn", "u miss me?", "k", "good night aiko", "wait whats ur cats name again"],
     expect: "mochi",
   },
   {
-    name: "rival-story", style: "story", length: 3, spice: 2,
+    name: "rival-story", style: "rp", length: 3, spice: 2,
     char: { name: "Vesna", description: "Vesna is a rival mercenary captain, proud and strong-willed. She and Kai both want the same bounty.", personality: "fierce, competitive, sardonic", scenario: "A burned-out watchtower at dusk; both arrived for the bounty on the bandit lord Corvel.", firstMessage: "Vesna's blade is already drawn when Kai steps into the tower. \"Corvel's head is mine. Walk away.\"" },
     turns: [
       "I don't draw my sword. \"We could split it. Corvel has forty men.\"", "and then?",

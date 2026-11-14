@@ -12,14 +12,14 @@ test("bench: echo, opening repeats, slop, agency, length, style breaks, memory",
   assert.equal(s.agency, 1);
   assert.equal(s.lengthOk, false); // 18 words < 30 for Natural
   assert.equal(s.memory, false);
-  const fresh = scoreReply("\"The harbour master owes me,\" Rin says, tapping the coin twice.", prior, { style: "story", length: 1, user: "Kai", expect: "harbou?r" });
+  const fresh = scoreReply("\"The harbour master owes me,\" Rin says, tapping the coin twice.", prior, { style: "rp", length: 1, user: "Kai", expect: "harbou?r" });
   assert.equal(fresh.echo, 0);
   assert.equal(fresh.memory, true);
   assert.equal(fresh.styleBreak, false); // "me" inside dialogue is fine
-  assert.equal(scoreReply("I sigh.", [], { style: "story", length: 0, user: "Kai" }).styleBreak, true);
-  const t = scoreReply("omg hi\n\nwyd rn", [], { style: "chat", length: 1, user: "Kai" });
+  assert.equal(scoreReply("I sigh.", [], { style: "rp", length: 0, user: "Kai" }).styleBreak, true);
+  const t = scoreReply("omg hi\n\nwyd rn", [], { style: "text", length: 1, user: "Kai" });
   assert.ok(t.lengthOk && !t.styleBreak);
-  assert.equal(scoreReply("*waves*\n\nhi", [], { style: "chat", length: 1, user: "Kai" }).styleBreak, true);
+  assert.equal(scoreReply("*waves*\n\nhi", [], { style: "text", length: 1, user: "Kai" }).styleBreak, true);
   const sum = summarize([s, fresh], [7, 9]);
   assert.equal(sum.openingRepeats, 1);
   assert.equal(sum.memory, 0.5);

@@ -28,8 +28,8 @@ export type RpChat = {
   memorySummary: string; summarizedThrough: number; mods: string; stateValues: string;
   /** JSON string[] of facts learned in this chat (summarizer, max 20) — never written into the profile. */
   learned: string;
-  /** "" = card default, "chat" = close personal one-on-one, "story" = narrated novel prose. */
-  style: string;
+  /** "text" = texting each other, "rp" = narrated roleplay (legacy values migrate to these). */
+  style: Mode;
   /** Hidden planning step: null = follow settings.thinkByMode, 0 = off, 1 = on. */
   think: number | null;
   createdAt: number; updatedAt: number;

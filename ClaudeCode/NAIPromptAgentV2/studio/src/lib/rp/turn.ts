@@ -1,6 +1,7 @@
 import { applyCharacterOverrides, assembleMessages, settingsToOptions } from "./prompt";
+import { modeOf } from "./presets";
 import type { RpStore } from "./store";
-import type { ChatMessage, RpSettings, SamplerOptions } from "./types";
+import type { ChatMessage, Mode, RpSettings, SamplerOptions } from "./types";
 import { selectVoiceLines, type Embed } from "./voice";
 import { charName as nameOf, parseProfile, resolveSpice, type RpProfile } from "./profile";
 
@@ -41,17 +42,9 @@ const CHAT_OPENINGS = [
   { kind: "action", text: "Start by texting what {{char}} is doing or wearing right now" },
   { kind: "thought", text: "Start by texting how {{char}} feels right now, a little too honestly" },
 ];
-const STORY_OPENINGS = [
-  { kind: "world", text: "Open by narrating the setting or something happening around them" },
-  { kind: "action", text: "Open by narrating a physical action of {{char}}'s" },
-  { kind: "thought", text: "Open inside {{char}}'s head — what they notice, want, or fear" },
-  { kind: "body", text: "Open on {{char}}'s body language reacting to {{user}}" },
-  { kind: "dialogue", text: "Open on {{char}}'s spoken line, then narrate around it" },
-];
-const VOICE: Record<string, string> = {
-  "": "Keep the same narrative voice and person as your earlier replies — don't switch between \"I\" and third person.",
-  chat: "Write only {{char}}'s texts — short separate messages, casual, no *actions* or narration.",
-  story: "Keep narrating in the third person — never \"I\" outside of dialogue.",
+const VOICE: Record<Mode, string> = {
+  rp: "Keep the same narrative voice and person as your earlier replies — don't switch between \"I\" and third person.",
+  text: "Write only {{char}}'s texts — short separate messages, casual, no *actions* or narration.",
 };
 const OPENINGS = [
   { kind: "dialogue", text: "Open with a line of {{char}}'s dialogue" },
@@ -62,7 +55,7 @@ const OPENINGS = [
 ];
 /** Rough opening kind of a reply, so the next one opens some other way. */
 export const openingKind = (t: string) => (/^\s*["“]/.test(t) ? "dialogue" : /^\s*\*/.test(t) ? "action" : "thought");
-const openingsFor = (style: string) => (style === "chat" ? CHAT_OPENINGS : style === "story" ? STORY_OPENINGS : OPENINGS);
+const openingsFor = (style: string) => (modeOf(style) === "text" ? CHAT_OPENINGS : OPENINGS);
 const snip = (t: string, n: number) => { const x = t.replace(/\s+/g, " ").trim(); return x.length > n ? `${x.slice(0, n)}…` : x; };
 
 export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string; style?: string; profile?: RpProfile | null };
@@ -83,11 +76,11 @@ export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
   const last = regen ? o.drafts!.at(-1)! : o.recent?.at(-1);
   const all = openingsFor(o.style ?? "");
   // Close chat always opens with talk, so only the other styles rotate away from the last reply's kind.
-  const opening = pick(o.style === "chat" ? all : all.filter((x) => !last || x.kind !== openingKind(last)));
+  const opening = pick(modeOf(o.style) === "text" ? all : all.filter((x) => !last || x.kind !== openingKind(last)));
   const lines = [regen
     ? `[Alternate take] Write a reply that is clearly different from these earlier drafts — different opening, different gestures, different choices, different phrasing. Don't reuse their lines.`
     : `[Keep it fresh] Don't reuse the openings, gestures or stock phrases of your recent replies.`];
-  lines.push(`${fill(opening.text)}. ${fill(VOICE[o.style ?? ""] ?? VOICE[""])}`);
+  lines.push(`${fill(opening.text)}. ${fill(VOICE[modeOf(o.style)])}`);
   // The character's own wants, fears, tics and story hooks beat generic directions when the profile has them.
   const own = o.profile ? [
     ...o.profile.wants.map((w) => `let {{char}}'s want show — ${w}`), ...o.profile.fears.map((f) => `let {{char}}'s fear surface — ${f}`),

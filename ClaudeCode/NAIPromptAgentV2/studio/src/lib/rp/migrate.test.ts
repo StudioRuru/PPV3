@@ -117,3 +117,14 @@ test("missing source files are counted, not fatal", async () => {
   const r = await runMigration(f.src, f.dst, f.files, { apply: false, installed: [] });
   assert.equal(r.counts.missingFiles, 1);
 });
+
+test("migrate maps legacy styles: chat → text, story and '' → rp; idempotent", () => {
+  const db = new Database(":memory:");
+  db.exec("CREATE TABLE taste_events (id INTEGER PRIMARY KEY, created_at INTEGER, kind TEXT, tags TEXT, note TEXT, persona TEXT)");
+  migrateRp(db);
+  db.exec("INSERT INTO rp_chats (id, style) VALUES (1, 'chat'), (2, 'story'), (3, ''), (4, 'text')");
+  migrateRp(db);
+  migrateRp(db);
+  const rows = db.prepare("SELECT style FROM rp_chats ORDER BY id").all() as { style: string }[];
+  assert.deepEqual(rows.map((r) => r.style), ["text", "rp", "rp", "text"]);
+});

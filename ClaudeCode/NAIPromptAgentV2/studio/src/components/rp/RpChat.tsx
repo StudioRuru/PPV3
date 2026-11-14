@@ -5,6 +5,7 @@ import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
 import { spyData, spyDue } from "@/lib/mascot/spy";
 import { substituteMacros } from "@/lib/rp/prompt";
+import { MODES, modeOf } from "@/lib/rp/presets";
 import { charName } from "@/lib/rp/profile";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea, useAutoSize } from "../TagInput";
@@ -128,7 +129,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
 
   const msgs = v?.messages ?? [];
   const lastId = msgs.at(-1)?.id;
-  const style = v?.chat.style ?? "";
+  const style = modeOf(v?.chat.style);
 
   return (
     <section aria-label={`Chat with ${name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
@@ -142,6 +143,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
               className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
           ) : <p className="text-muted truncate text-[11px]">as {persona?.name ?? "User"}</p>}
         </div>
+        {v && <div role="radiogroup" aria-label="Mode" className="border-border flex rounded-full border p-0.5">
+          {MODES.map((m) => (
+            <button key={m.id} type="button" role="radio" aria-checked={style === m.id} title={m.blurb} disabled={busy || style === m.id} onClick={() => patch({ op: "chat", style: m.id })}
+              className={`min-h-11 rounded-full px-2.5 text-xs whitespace-nowrap transition-colors ${style === m.id ? "bg-accent text-accent-fg font-semibold" : "text-muted"}`}>{m.label}</button>
+          ))}
+        </div>}
         {v && <button type="button" onClick={() => setTuning(true)} className={`h-10 rounded-full border px-3 text-sm transition-colors ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
           Tune{enabledMods(v.chat, v.globalMods) ? <span key={enabledMods(v.chat, v.globalMods)} className="animate-pop ml-1">· {enabledMods(v.chat, v.globalMods)}</span> : null}</button>}
         <button type="button" onClick={onEdit} className="border-border h-10 rounded-full border px-3 text-sm">Card</button>
@@ -194,7 +201,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             </div>
           );
           return m.role === "user" ? (
-            <div key={m.id} className={`animate-rise space-y-1.5 text-sm ${style === "chat" ? "bg-accent/15 ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2.5" : "bg-surface-2 ml-10 rounded-lg p-2.5"}`}><Prose text={sub(m.content)} />{actions}</div>
+            <div key={m.id} className={`animate-rise space-y-1.5 text-sm ${style === "text" ? "bg-accent/15 ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2.5" : "bg-surface-2 ml-10 rounded-lg p-2.5"}`}><Prose text={sub(m.content)} />{actions}</div>
           ) : (
             <div key={m.id} className="animate-rise flex gap-2">
               <Avatar c={character} size="size-8" />

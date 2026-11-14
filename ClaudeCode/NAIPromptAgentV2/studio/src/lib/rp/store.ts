@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import type { LoreEntry } from "./prompt";
+import { parseProfile } from "./profile";
 import { camel, snake, type RpCharacter, type RpChat, type RpMessage, type RpPersona } from "./types";
 
 export type RpLorebook = { id: number; name: string; description: string };
@@ -126,7 +127,8 @@ export class RpStore {
   createChat(characterId: number, personaId?: number | null): number {
     const c = this.character(characterId);
     return this.db.transaction(() => {
-      const id = this.upsert("rp_chats", { characterId, personaId: personaId ?? this.persona(null)?.id ?? null });
+      const style = parseProfile(c?.profile ?? null)?.defaults.mode ?? "rp";
+      const id = this.upsert("rp_chats", { characterId, personaId: personaId ?? this.persona(null)?.id ?? null, style });
       const greetings = [c?.firstMessage ?? "", ...parseList(c?.alternateGreetings ?? "[]")].filter((g) => g.trim());
       if (greetings.length) this.insertMsg(id, "assistant", greetings[0], greetings.length > 1 ? greetings : []);
       return id;

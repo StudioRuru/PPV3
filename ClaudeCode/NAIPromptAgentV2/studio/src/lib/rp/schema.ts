@@ -66,4 +66,5 @@ export function migrateRp(db: Database.Database): void {
   addCol("rp_chats", "learned", "TEXT NOT NULL DEFAULT '[]'");
   addCol("rp_messages", "thought", "TEXT NOT NULL DEFAULT ''");
   addCol("rp_chats", "think", "INTEGER");
+  db.exec("UPDATE rp_chats SET style = CASE style WHEN 'chat' THEN 'text' ELSE 'rp' END WHERE style NOT IN ('text','rp')");
 }

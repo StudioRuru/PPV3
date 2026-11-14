@@ -139,23 +139,24 @@ test("steerTurn: spice gates adult directions; the opening differs from the last
   }
 });
 
-test("chat style: texting writes only texts and drops the card's POV lock; story narrates; steering follows", async () => {
+test("mode: RP keeps the card's POV lock; Text writes only texts and drops it; steering follows", async () => {
   const s = store();
   const c = s.saveCharacter({ name: "Mio", povMode: "second" });
   const chat = s.createChat(c);
   s.append(chat, "user", "hey you");
   const deps = { settings: DEFAULT_RP_SETTINGS, storyBlock: "", heavy: "apex", installed: [], embed: async () => [] };
   const text = async () => (await buildTurn(s, chat, deps)).messages.map((m) => m.content).join("\n");
-  assert.match(await text(), /second person/);
-  s.updateChat(chat, { style: "chat" });
+  const rpT = await text();
+  assert.match(rpT, /second person/);
+  assert.doesNotMatch(rpT, /Write in the third person, past tense/);
+  assert.match(rpT, /Keep the same narrative voice/);
+  s.updateChat(chat, { style: "text" });
   const t = await text();
   assert.match(t, /Style: texting/);
   assert.doesNotMatch(t, /second person/);
   assert.match(t, /Write only Mio's texts/);
   assert.match(t, /Send [^.]*texts?/); // length counts texts, not paragraphs
   assert.doesNotMatch(t, /paragraph/);
-  s.updateChat(chat, { style: "story" });
-  assert.match(await text(), /narrated story[\s\S]*Keep narrating in the third person/);
 });
 
 test("refreshProfile: a throwing extractor leaves the imported character saved with no profile", async () => {

@@ -1,3 +1,4 @@
+import type { Mode } from "./types";
 /** Sampler presets — quick "feel" changes. Client/server-safe (no imports). */
 
 export interface SamplerValues {
@@ -73,17 +74,18 @@ const AGENCY_DIRECTIVE = [
 
 const clampLevel = (n: number) => Math.max(0, Math.min(4, Math.round(Number(n) || 0)));
 
-export const CHAT_STYLES = [
-  { id: "", label: "Auto", blurb: "The card's own voice" },
-  { id: "chat", label: "💬 Texting", blurb: "Like texting each other — short, casual messages, one bubble each" },
-  { id: "story", label: "📖 Story", blurb: "Narrated like a novel — scene, body language, inner thoughts" },
+export const MODES = [
+  { id: "text", label: "💬 Text", blurb: "Like texting each other — short, casual messages" },
+  { id: "rp", label: "🎭 RP", blurb: "Roleplay — narrated actions, the card's own voice" },
 ] as const;
-const STYLE_DIRECTIVE: Record<string, string> = {
-  chat: "Style: texting. {{char}} and {{user}} are texting each other on their phones — write ONLY {{char}}'s text messages, nothing else. Send them as separate short texts, each on its own line with a blank line between, like real double-texting. Casual and natural: first person, contractions, lowercase is fine, slang and abbreviations (lol, omg, ngl, tbh, rn, wyd), the odd typo-free emoji or kaomoji when it fits {{char}}, pet names when you're close. No *actions*, no quotation marks, no narration or scene description — if {{char}} is doing something, they mention it in the text itself (\"just got out of the shower lol\"). React, tease, confess, ask things back, and end on something {{user}} wants to answer.",
-  story: "Style: a narrated story. Write like a novelist in the third person, referring to {{char}} by name or pronoun: set the scene, then weave sensory detail, {{char}}'s actions, body language and inner thoughts together with their dialogue in flowing paragraphs. Let the scene move forward each reply. Describe {{user}} only through what {{char}} perceives — never decide {{user}}'s words or actions.",
+/** Anything that isn't "text" (legacy "", "story", junk) is RP. */
+export const modeOf = (style: string | null | undefined): Mode => (style === "text" || style === "chat" ? "text" : "rp");
+const STYLE_DIRECTIVE: Record<Mode, string> = {
+  text: "Style: texting. {{char}} and {{user}} are texting each other on their phones — write ONLY {{char}}'s text messages, nothing else. Send them as separate short texts, each on its own line with a blank line between, like real double-texting. Casual and natural: first person, contractions, lowercase is fine, slang and abbreviations (lol, omg, ngl, tbh, rn, wyd), the odd typo-free emoji or kaomoji when it fits {{char}}, pet names when you're close. No *actions*, no quotation marks, no narration or scene description — if {{char}} is doing something, they mention it in the text itself (\"just got out of the shower lol\"). React, tease, confess, ask things back, and end on something {{user}} wants to answer.",
+  rp: "Write in the third person, past tense, referring to {{char}} by name or pronoun. Respond descriptively to {{user}}'s *actions* and words: {{char}}'s actions, body language and dialogue, woven with the scene. Describe {{user}} only through what {{char}} perceives — never decide {{user}}'s words or actions.",
 };
-/** The chat's style directive ("" = none; the card's POV/tense locks apply instead). */
-export const styleDirective = (style: string | null | undefined) => STYLE_DIRECTIVE[style ?? ""] ?? "";
+/** The mode's directive. In RP mode the card's POV/tense/dialogue locks replace it when set. */
+export const styleDirective = (style: string | null | undefined) => STYLE_DIRECTIVE[modeOf(style)];
 
 /** Build the mood directive appended to the post-history slot. */
 // Texting style counts messages, not paragraphs.
@@ -97,7 +99,7 @@ const TEXT_LENGTH_DIRECTIVE = [
 
 export function moodDirective(length: number, spice: number, agency: number, style?: string | null): string {
   const parts: string[] = [];
-  const l = (style === "chat" ? TEXT_LENGTH_DIRECTIVE : LENGTH_DIRECTIVE)[clampLevel(length)];
+  const l = (modeOf(style) === "text" ? TEXT_LENGTH_DIRECTIVE : LENGTH_DIRECTIVE)[clampLevel(length)];
   const s = SPICE_DIRECTIVE[clampLevel(spice)];
   const a = AGENCY_DIRECTIVE[clampLevel(agency)];
   if (l) parts.push(l);

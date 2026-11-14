@@ -1,7 +1,7 @@
 // Ported from Delfino Plaza src/lib/prompt.ts (photo-note support dropped; storyBlock added).
 import type { ChatMessage, RpCharacter as Character, RpChat as Chat, RpMessage as Message, RpPersona as Persona, RpSettings as Settings, SamplerOptions } from "./types";
 import { parseExampleDialogue, splitBySpeaker } from "./exampleDialogue";
-import { lengthNumPredict, moodDirective, structureDirective, styleDirective } from "./presets";
+import { lengthNumPredict, modeOf, moodDirective, structureDirective, styleDirective } from "./presets";
 import { parseStateSchema, parseStateValues, stateBlock } from "./state";
 import { MODS, modsDirective, resolveMods } from "./mods";
 import { charName as nameOf, parseLearned, parseProfile, profileSlice, resolveAgency, resolveSpice, type RpProfile } from "./profile";
@@ -389,8 +389,7 @@ export function assembleMessages({
   const activeMods = resolveMods(settings.mods, chat?.mods);
   const reminder = [buildVoiceReminder(character, sub, charName, profile)];
   if (reminder[0] && profile) {
-    // The legacy "chat" style is Text mode until the mode migration lands.
-    const mode = chat?.style === "text" || chat?.style === "chat" ? "text" : "rp";
+    const mode = modeOf(chat?.style);
     reminder.push(sub(profileSlice(profile, mode, history.filter((m) => m.role === "assistant").length)));
     const conflicts = profile.conflicts.map((c) => c.toLowerCase());
     for (const m of MODS) {
@@ -416,11 +415,11 @@ export function assembleMessages({
   if (mood) jbParts.push(sub(mood));
   // Structural narrative locks (POV / tense / dialogue formatting) authored in the
   // Character Studio. Sits next to the mood directive, closest to generation.
-  // A chat style (close chat / narrated story) replaces the card's POV locks — they'd contradict it.
-  const style = styleDirective(chat?.style);
-  const structure = character && !style
+  // RP mode: the card's locks win when set, else the RP default. Text mode drops them — they'd contradict texting.
+  const structure = character && modeOf(chat?.style) === "rp"
     ? structureDirective(character.povMode, character.tense, character.dialogueStyle)
     : "";
+  const style = structure ? "" : styleDirective(chat?.style);
   if (structure) jbParts.push(sub(structure));
   if (style) jbParts.push(sub(style));
   // Live dynamic story state (relationship meters, outfit, location, …), listed

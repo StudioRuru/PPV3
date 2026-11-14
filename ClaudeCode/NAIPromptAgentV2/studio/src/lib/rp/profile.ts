@@ -38,7 +38,7 @@ export function parseProfile(raw: unknown): RpProfile | null {
   if (agency !== undefined) p.defaults.agency = agency;
   if (lo !== undefined && hi !== undefined) p.defaults.spice = { min: Math.min(lo, hi), max: Math.max(lo, hi) };
   if (d.mode === "text" || d.mode === "rp") p.defaults.mode = d.mode;
-  const usable = p.displayName || p.cast.length || p.coreTraits.length || p.speech.register || p.format || p.wants.length || p.hooks.length || p.wouldNever.length;
+  const usable = p.displayName || p.cast.length || p.coreTraits.length || p.speech.register || p.format || p.wants.length || p.hooks.length || p.wouldNever.length || Object.keys(p.defaults).length;
   return usable ? p : null;
 }
 

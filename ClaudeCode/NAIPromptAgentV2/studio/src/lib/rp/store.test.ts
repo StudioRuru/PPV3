@@ -136,3 +136,11 @@ test("append and addSwipe keep the latest planning thought", () => {
   assert.ok(s.addSwipe(a, "second", undefined, "I'll soften."));
   assert.equal(s.messages(chatId).find((m) => m.id === a)!.thought, "I'll soften.");
 });
+
+test("createChat mode from profile: defaults.mode text → text chat; no profile → rp", () => {
+  const { s } = setup();
+  const t = s.saveCharacter({ name: "Texter", profile: JSON.stringify({ defaults: { mode: "text" } }) });
+  const plain = s.saveCharacter({ name: "Plain" });
+  assert.equal(s.chat(s.createChat(t))!.style, "text");
+  assert.equal(s.chat(s.createChat(plain))!.style, "rp");
+});

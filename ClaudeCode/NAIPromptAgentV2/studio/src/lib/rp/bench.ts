@@ -32,9 +32,10 @@ export type ReplyScore = {
  */
 export function scoreReply(reply: string, prior: string[], o: { style: string; length: number; user: string; expect?: string }): ReplyScore {
   const w = words(reply);
-  const [lo, hi] = o.style === "chat" ? TEXTS_FOR_LEVEL[o.length] : WORDS_FOR_LEVEL[o.length];
-  const n = o.style === "chat" ? texts(reply).length : w.length;
-  const tol = o.style === "chat" ? 1 : 0;
+  const text = o.style === "text";
+  const [lo, hi] = text ? TEXTS_FOR_LEVEL[o.length] : WORDS_FOR_LEVEL[o.length];
+  const n = text ? texts(reply).length : w.length;
+  const tol = text ? 1 : 0;
   const g = grams(reply);
   const seen = new Set(prior.flatMap((p) => [...grams(p)]));
   const echo = g.size ? [...g].filter((x) => seen.has(x)).length / g.size : 0;
@@ -44,7 +45,7 @@ export function scoreReply(reply: string, prior: string[], o: { style: string; l
   const u = o.user.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const agency = (nar.match(new RegExp(`\\b${u}\\s+(?!is\\b|was\\b|has\\b|had\\b)[a-z]+(?:s|ed)\\b`, "g")) ?? []).length
     + (nar.match(/\byou (?:feel|decide|realize|realise|find yourself|can't help|moan|gasp|shiver|nod|agree)\b/gi) ?? []).length;
-  const styleBreak = o.style === "chat" ? /^\s*[*"“]/m.test(reply) : o.style === "story" ? /\bI(?:'m|'ve|'d|'ll)?\b/.test(nar) : false;
+  const styleBreak = text ? /^\s*[*"“]/m.test(reply) : o.style === "rp" ? /\bI(?:'m|'ve|'d|'ll)?\b/.test(nar) : false;
   return {
     words: w.length, lengthOk: n >= lo - tol && n <= hi + tol, echo: Math.round(echo * 1000) / 1000,
     openingRepeat: prior.slice(-3).some((p) => open(p) && open(p) === open(reply)),

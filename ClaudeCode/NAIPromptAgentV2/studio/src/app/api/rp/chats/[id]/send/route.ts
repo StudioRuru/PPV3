@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const enc = new TextEncoder();
   const chat0 = rp.chat(chatId)!;
   const char = chat0.characterId != null ? rp.character(chat0.characterId) : null;
-  const thinking = thinkOn(chat0, chat0.style === "chat" ? "text" : "rp", settings);
+  const thinking = thinkOn(chat0, chat0.style, settings);
 
   const stream = new ReadableStream({
     async start(ctl) {

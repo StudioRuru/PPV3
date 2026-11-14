@@ -12,7 +12,7 @@ const char = (o: Partial<RpCharacter> = {}): RpCharacter => ({
 const persona: RpPersona = { id: 1, name: "Phil", description: "", avatarPath: null, isDefault: 1, relationship: "", addressAs: "", boundaries: "", createdAt: 0, updatedAt: 0 };
 const chat = (o: Partial<RpChat> = {}): RpChat => ({
   id: 1, characterId: 1, personaId: 1, title: "", model: null, lorebookId: null, showBackground: 1, authorNote: "", authorNoteDepth: 4,
-  wallpaperPath: null, replyLength: null, replySpice: null, replyAgency: null, memorySummary: "", summarizedThrough: 0, mods: "", stateValues: "{}", style: "", learned: "[]", think: null,
+  wallpaperPath: null, replyLength: null, replySpice: null, replyAgency: null, memorySummary: "", summarizedThrough: 0, mods: "", stateValues: "{}", style: "rp", learned: "[]", think: null,
   createdAt: 0, updatedAt: 0, ...o,
 });
 const lore = (o: Partial<LoreEntry>): LoreEntry => ({ keys: [], secondaryKeys: [], content: "", enabled: true, constant: false, scanDepth: 0, position: "after", probability: 100, insertionOrder: 0, ...o });
@@ -127,4 +127,18 @@ test("splitBySpeaker splits ensemble example text by cast name", async () => {
   assert.deepEqual(splitBySpeaker("Rin: hi\nMio: yo\nRin: bye", ["Rin", "Mio"]), [
     { speaker: "Rin", text: "hi" }, { speaker: "Mio", text: "yo" }, { speaker: "Rin", text: "bye" },
   ]);
+});
+
+test("rp keeps card POV: a second-person card in RP mode gets its lock, not the third-person default", () => {
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ povMode: "second" }), persona, chat: chat({ style: "rp" }), history: turns(2) });
+  const all = r.messages.map((m) => m.content).join("\n");
+  assert.match(all, /second person/);
+  assert.doesNotMatch(all, /third person, past tense/);
+});
+
+test("rp default POV: a card with no locks gets third person, past tense, descriptive replies to *actions*", () => {
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char(), persona, chat: chat({ style: "rp" }), history: turns(2) });
+  const all = r.messages.map((m) => m.content).join("\n");
+  assert.match(all, /third person, past tense/);
+  assert.match(all, /\*actions\*/);
 });
