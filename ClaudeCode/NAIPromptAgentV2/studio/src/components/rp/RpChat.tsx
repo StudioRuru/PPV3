@@ -13,7 +13,7 @@ import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
 import { Avatar, json, vt, type GalleryChar } from "./RpScreen";
 
-type View = { chat: Chat; messages: RpMessage[]; version: number; globalMods?: string };
+type View = { chat: Chat; messages: RpMessage[]; version: number; globalMods?: string; thinking?: boolean };
 const LIKE_Q = ["In character", "Great pacing", "Vivid", "Funny"], DISLIKE_Q = ["Out of character", "Too fast", "Too tame", "Wrote for me", "Repetitive"];
 
 function Prose({ text }: { text: string }) {
@@ -321,7 +321,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           className="bg-bg border-border focus:border-accent transition-colors max-h-[35dvh] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-2 py-2.5 text-base" />
         <button type="submit" disabled={busy || !input.trim()} className="bg-accent text-accent-fg h-11 w-16 self-end rounded-md font-semibold disabled:opacity-50">Send</button>
       </form>
-      {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} agency={character.agency} sub={sub} onPatch={patch} />}
+      {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} thinking={v.thinking} agency={character.agency} sub={sub} onPatch={patch} />}
       {sheet}
     </section>
   );

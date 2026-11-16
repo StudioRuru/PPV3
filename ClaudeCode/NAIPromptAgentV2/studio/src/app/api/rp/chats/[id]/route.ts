@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serializeModsJson } from "@/lib/rp/mods";
-import { removeRpFiles, rp, rpSettings } from "@/lib/rp/server";
+import { heavyModel, removeRpFiles, rp, rpSettings } from "@/lib/rp/server";
+import { hasStatus } from "@/lib/rp/fresh";
+import { thinkOn } from "@/lib/rp/think";
 import { renderPending } from "@/lib/rp/photo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
-const view = (id: number) => ({ chat: rp.chat(id), messages: rp.messages(id), version: rp.version(id), globalMods: rpSettings().mods });
+// `thinking`: whether the next reply will think (what the Think switch shows), as the send route decides it.
+// ponytail: skips buildTurn's installed-model check, so a pinned model that was removed reads as pinned until the next send.
+const thinking = (id: number) => {
+  const chat = rp.chat(id)!, ms = rp.messages(id), last = ms.filter((m) => m.role === "assistant").at(-1);
+  const model = chat.model || (chat.characterId != null ? rp.character(chat.characterId)?.model : null) || heavyModel();
+  return thinkOn(chat, chat.style, rpSettings(), !!last && hasStatus(last.content), model);
+};
+const view = (id: number) => ({ chat: rp.chat(id), messages: rp.messages(id), version: rp.version(id), globalMods: rpSettings().mods, thinking: thinking(id) });
 const CHAT_FIELDS = ["title", "personaId", "memorySummary", "authorNote", "authorNoteDepth", "lorebookId", "replyLength", "replySpice", "replyAgency", "model"] as const;
 
 export async function GET(_req: NextRequest, { params }: Ctx) {

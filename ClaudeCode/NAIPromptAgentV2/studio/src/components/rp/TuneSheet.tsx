@@ -40,24 +40,23 @@ export function ModList({ mods, onChange, sub }: { mods: Record<string, ModState
   });
 }
 
-const fromChat = (c: RpChat, agency: number | null, globalMods?: string): Draft => ({
-  think: c.think === 1, doubleText: c.doubleText !== 0,
+const fromChat = (c: RpChat, agency: number | null, globalMods?: string, thinking?: boolean): Draft => ({
+  think: thinking ?? c.think === 1, doubleText: c.doubleText !== 0,
   replyLength: c.replyLength ?? DEFAULT_RP_SETTINGS.replyLength, replySpice: c.replySpice ?? DEFAULT_RP_SETTINGS.replySpice,
   replyAgency: c.replyAgency ?? agency ?? DEFAULT_RP_SETTINGS.replyAgency, authorNote: c.authorNote, mods: resolveMods(globalMods, c.mods),
 });
 
 /** Per-chat steering: reply mood sliders, Mods (hypnosis, bimbofication…), author's note. Saves itself ~0.4 s after a change. */
-export function TuneSheet({ open, onClose, chat, globalMods, agency, sub, onPatch }: {
-  open: boolean; onClose: () => void; chat: RpChat; globalMods?: string; agency: number | null; sub: (t: string) => string; onPatch: (body: object) => Promise<boolean>;
+export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, sub, onPatch }: {
+  open: boolean; onClose: () => void; chat: RpChat; globalMods?: string; thinking?: boolean; agency: number | null; sub: (t: string) => string; onPatch: (body: object) => Promise<boolean>;
 }) {
-  const [d, setD] = useState(() => fromChat(chat, agency, globalMods));
+  const [d, setD] = useState(() => fromChat(chat, agency, globalMods, thinking));
   const touched = useRef(false), thinkTouched = useRef(false);
-  useEffect(() => { if (open) { setD(fromChat(chat, agency, globalMods)); touched.current = false; thinkTouched.current = false; } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on open only
+  useEffect(() => { if (open) { setD(fromChat(chat, agency, globalMods, thinking)); touched.current = false; thinkTouched.current = false; } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on open only
 
   useEffect(() => {
     if (!touched.current) return;
     // Think is only saved once its switch is flipped (1 on, 0 off); otherwise the chat keeps following the mode/model default.
-    // ponytail: the switch shows only an explicit on; a default-on chat (status card) shows off — flip on then off to force off.
     const { think, ...rest } = d;
     const t = setTimeout(() => { onPatch({ op: "chat", ...rest, ...(thinkTouched.current && { think: think ? 1 : 0 }), doubleText: d.doubleText ? 1 : 0, mods: JSON.stringify(d.mods) }); }, 400);
     return () => clearTimeout(t);
