@@ -51,12 +51,15 @@ export function TuneSheet({ open, onClose, chat, globalMods, agency, sub, onPatc
   open: boolean; onClose: () => void; chat: RpChat; globalMods?: string; agency: number | null; sub: (t: string) => string; onPatch: (body: object) => Promise<boolean>;
 }) {
   const [d, setD] = useState(() => fromChat(chat, agency, globalMods));
-  const touched = useRef(false);
-  useEffect(() => { if (open) { setD(fromChat(chat, agency, globalMods)); touched.current = false; } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on open only
+  const touched = useRef(false), thinkTouched = useRef(false);
+  useEffect(() => { if (open) { setD(fromChat(chat, agency, globalMods)); touched.current = false; thinkTouched.current = false; } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on open only
 
   useEffect(() => {
     if (!touched.current) return;
-    const t = setTimeout(() => { onPatch({ op: "chat", ...d, think: d.think ? 1 : null, doubleText: d.doubleText ? 1 : 0, mods: JSON.stringify(d.mods) }); }, 400);
+    // Think is only saved once its switch is flipped (1 on, 0 off); otherwise the chat keeps following the mode/model default.
+    // ponytail: the switch shows only an explicit on; a default-on chat (status card) shows off — flip on then off to force off.
+    const { think, ...rest } = d;
+    const t = setTimeout(() => { onPatch({ op: "chat", ...rest, ...(thinkTouched.current && { think: think ? 1 : 0 }), doubleText: d.doubleText ? 1 : 0, mods: JSON.stringify(d.mods) }); }, 400);
     return () => clearTimeout(t);
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps -- debounce on edits only
 
@@ -78,7 +81,7 @@ export function TuneSheet({ open, onClose, chat, globalMods, agency, sub, onPatc
 
         <label className="flex items-center gap-3 text-sm">
           <span className="flex-1">Think before replying<span className="text-faint block text-xs">A short private plan in character first — slower; read it under 💭 Thought.</span></span>
-          <input type="checkbox" role="switch" checked={d.think} onChange={(e) => edit({ think: e.target.checked })} className="switch" />
+          <input type="checkbox" role="switch" checked={d.think} onChange={(e) => { thinkTouched.current = true; edit({ think: e.target.checked }); }} className="switch" />
         </label>
         {chat.style === "text" && <label className="flex items-center gap-3 text-sm">
           <span className="flex-1">Double-texts<span className="text-faint block text-xs">If you go quiet for a few minutes, {sub("{{char}}")} may text again.</span></span>
