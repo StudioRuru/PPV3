@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const enc = new TextEncoder();
   const chat0 = rp.chat(chatId)!;
   const char = chat0.characterId != null ? rp.character(chat0.characterId) : null;
-  const thinking = thinkOn(chat0, chat0.style, settings);
+  const thinking = thinkOn(chat0, chat0.style, settings, turn.status);
   // Text mode: the reply is saved as a burst of bubbles, the reaction on the user message it answers.
   const saveBurst = (out: string, thought: string) => {
     const burst = splitBurst(out, (parseProfile(char?.profile ?? null)?.cast ?? []).map((c) => c.name));
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       try {
         await gate(async () => {
           if (thinking) {
-            const plan = thinkRequest(turn, char ? charName(char) : "the character");
+            const plan = thinkRequest(turn, char ? charName(char) : "the character", turn.status);
             for await (const t of chatStream("", plan.messages, { model: plan.model, options: plan.options, system: false })) thought += t;
             thought = thought.trim();
           }

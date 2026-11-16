@@ -6,9 +6,11 @@ import type { RpStore } from "./store";
 import type { ChatMessage, Mode, RpSettings, SamplerOptions } from "./types";
 import { selectVoiceLines, type Embed } from "./voice";
 import { charName as nameOf, parseProfile, resolveSpice, type RpProfile } from "./profile";
+import { freshNotes, hasStatus, voiceLine } from "./fresh";
 
 export type TurnDeps = { settings: RpSettings; storyBlock: string; heavy: string; installed: string[]; embed: Embed };
-export type Turn = { messages: ChatMessage[]; options: SamplerOptions; model: string; truncated: boolean };
+/** `status`: the last reply carried a stat block, so the turn should think about what changed. */
+export type Turn = { messages: ChatMessage[]; options: SamplerOptions; model: string; truncated: boolean; status?: boolean };
 
 /**
  * Everything needed to ask the model for the next reply in a chat. With `replacing` (regenerate), history stops before
@@ -60,7 +62,7 @@ export const openingKind = (t: string) => (/^\s*["“]/.test(t) ? "dialogue" : /
 const openingsFor = (style: string) => (modeOf(style) === "text" ? CHAT_OPENINGS : OPENINGS);
 const snip = (t: string, n: number) => { const x = t.replace(/\s+/g, " ").trim(); return x.length > n ? `${x.slice(0, n)}…` : x; };
 
-export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string; style?: string; profile?: RpProfile | null };
+export type Steer = { drafts?: string[]; recent?: string[]; wild?: boolean; spice: number; charName: string; userName: string; style?: string; profile?: RpProfile | null; notes?: string[] };
 
 /**
  * Keeps replies fresh. Every turn: a fresh seed, an opening unlike the last reply's, "don't reuse your recent openings",
@@ -89,6 +91,9 @@ export function steerTurn(turn: Turn, o: Steer, rand = Math.random): Turn {
     ...o.profile.speech.tics.map((t) => `work in {{char}}'s habit: ${t}`), ...o.profile.hooks.map((h) => `pull on a thread: ${h}`),
   ] : [];
   if (regen || o.wild || rand() < 0.35) lines.push(`Direction: ${fill(pick(own.length && rand() < 0.7 ? own : pool))}.`);
+  const voice = voiceLine(o.profile ?? null, o.charName);
+  if (voice) lines.push(voice);
+  lines.push(...(o.notes ?? []));
   // A whole text burst fits in 280 chars and the model copies it back verbatim, so text mode shows only openings.
   if (regen) lines.push(`Earlier drafts:\n${o.drafts!.slice(-3).map((d) => `- ${snip(d, modeOf(o.style) === "text" ? 60 : 280)}`).join("\n")}`);
   else if (o.recent?.length) lines.push(`Your recent openings:\n${o.recent.slice(-3).map((d) => `- ${snip(d, 90)}`).join("\n")}`);
@@ -132,11 +137,14 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
   const profile = parseProfile(character?.profile ?? null);
   if (nudge) turn.messages.push({ role: "system", content: `${persona?.name ?? "User"} hasn't replied for a few minutes — send a short follow-up text.` });
   const old = replacing ? all.find((m) => m.id === replacing) : undefined;
+  const replies = history.filter((m) => m.role === "assistant").map((m) => m.content);
+  const charName = character ? nameOf(character) : "the character", userName = persona?.name ?? "User";
+  turn.status = replies.length > 0 && hasStatus(replies.at(-1)!);
   return foldSystem(steerTurn(turn, {
     drafts: old ? (old.swipes.length ? old.swipes : [old.content]) : undefined,
-    recent: history.filter((m) => m.role === "assistant").slice(-3).map((m) => m.content),
-    wild, style: chat.style, spice: resolveSpice(chat, profile, deps.settings), charName: character ? nameOf(character) : "the character", userName: persona?.name ?? "User",
-    profile,
+    recent: replies.slice(-3),
+    wild, style: chat.style, spice: resolveSpice(chat, profile, deps.settings), charName, userName,
+    profile, notes: freshNotes(replies.slice(-8), { mode: modeOf(chat.style), cast: (profile?.cast ?? []).map((c) => c.name), names: [charName, userName] }),
   }));
 }
 
