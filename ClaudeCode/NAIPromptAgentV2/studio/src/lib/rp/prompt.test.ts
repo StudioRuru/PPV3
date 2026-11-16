@@ -142,3 +142,12 @@ test("rp default POV: a card with no locks gets third person, past tense, descri
   assert.match(all, /third person, past tense/);
   assert.match(all, /\*actions\*/);
 });
+
+test("default scene rules ride the final block with names filled; a card's own post-history replaces them", () => {
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char(), persona, chat: chat(), history: turns(2) });
+  assert.match(tail(r), /\[Scene rules\][\s\S]*Phil/);
+  assert.doesNotMatch(tail(r), /\{\{(char|user)\}\}/);
+  const own = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char({ postHistoryInstructions: "CARD-RULES" }), persona, chat: chat(), history: turns(2) });
+  assert.match(tail(own), /CARD-RULES/);
+  assert.doesNotMatch(tail(own), /\[Scene rules\]/);
+});

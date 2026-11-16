@@ -35,6 +35,21 @@ export const DEFAULT_SYSTEM_PROMPT = [
   "Keep replies grounded and in the present moment; advance the scene with a clear hook rather than rambling or repeating yourself.",
 ].join(" ");
 
+/**
+ * Default post-history rules: they sit right before the reply, where a local model actually listens (the top system
+ * prompt fades 40 messages in). Aimed at APEX's bench habits: stock moves, forgetting facts, narrating {{user}}.
+ * A card's own post-history instructions replace them; the Settings field overrides the global copy.
+ */
+export const DEFAULT_SCENE_RULES = [
+  "[Scene rules]",
+  "- Ground the reply in something concrete from this scene: an object, a place, a detail from earlier. No stock moves (predatory, smirking, voice dropping an octave, glancing at lips).",
+  "- {{char}} wants something right now; let that want drive what they say and do.",
+  "- React to what {{user}} actually did, then add one new thing: a choice, a complication, a reveal.",
+  "- Keep established facts straight: injuries, items, who is present, time of day.",
+  "- Write only {{char}} and side characters, never {{user}}'s words, actions or feelings.",
+  "- Don't end every reply on a question to {{user}}; an action or a line works too.",
+].join("\n");
+
 /* ------------------------------- mood ---------------------------------- */
 /** Two independent 0–4 axes that steer reply length and explicitness. */
 

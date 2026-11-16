@@ -1,5 +1,5 @@
 import type { Burst } from "./burst";
-import { DEFAULT_SYSTEM_PROMPT } from "./presets";
+import { DEFAULT_SCENE_RULES, DEFAULT_SYSTEM_PROMPT } from "./presets";
 
 // Row shapes for the rp_* tables, camelCase (the ported Delfino code reads these names).
 
@@ -61,7 +61,7 @@ export type RpSettings = {
 export type Mode = "text" | "rp";
 
 export const DEFAULT_RP_SETTINGS: RpSettings = {
-  systemPromptTemplate: DEFAULT_SYSTEM_PROMPT, jailbreakPrompt: "",
+  systemPromptTemplate: DEFAULT_SYSTEM_PROMPT, jailbreakPrompt: DEFAULT_SCENE_RULES,
   temperature: 0.8, topP: 0.95, topK: 40, repeatPenalty: 1.1, minP: 0.05, numCtx: 16384,
   replyLength: 2, replySpice: 2, replyAgency: 2, mods: "{}", loreBudgetPct: 25, embedModel: "bge-m3:latest",
   thinkByMode: { text: false, rp: false },
