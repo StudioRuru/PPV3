@@ -1,6 +1,6 @@
 // Retrieved few-shot voice, ported from Delfino Plaza src/lib/voice.ts: each turn, the character lines closest to
 // what the user just said (brute-force cosine; pools are tens to low thousands of lines).
-import type { RpStore } from "./store";
+import type { RpLoreEntry, RpStore } from "./store";
 
 export const VOICE_TOP_K = 4;
 export type Embed = (model: string, texts: string[]) => Promise<number[][]>;
@@ -57,5 +57,31 @@ export async function selectVoiceLines(store: RpStore, characterId: number, quer
     return q?.length ? rankVoiceLines(q, lines, model, k).map(({ text, context, score }) => ({ text, context, score })) : [];
   } catch {
     return [];
+  }
+}
+
+export const LORE_SEMANTIC_K = 3;
+export const LORE_SEMANTIC_MIN = 0.55; // ponytail: fixed bge-m3 cosine cut, make it a setting if hits are too loose/tight
+const loreText = (e: RpLoreEntry) => (e.keys.length ? `${e.keys.join(", ")}: ${e.content}` : e.content);
+
+/** Marks up to k keyword entries whose meaning is close to `query` as `semantic` (they fire without their key).
+ *  Stale vectors are filled in first. Never throws: on any failure the lore comes back unmarked (keywords only). */
+export async function semanticLore(store: RpStore, lore: RpLoreEntry[], query: string, model: string, embed: Embed, k = LORE_SEMANTIC_K): Promise<RpLoreEntry[]> {
+  const pool = lore.filter((e) => e.enabled && !e.constant && e.content.trim());
+  if (!model || !query.trim() || !pool.length) return lore;
+  try {
+    const stale = pool.filter((e) => !e.embedding || e.embedModel !== model);
+    if (stale.length) {
+      const vs = await embed(model, stale.map(loreText));
+      stale.forEach((e, i) => { if (vs[i]?.length) { e.embedding = toBuffer(new Float32Array(vs[i])); e.embedModel = model; store.setLoreEmbedding(e.id, e.embedding, model); } });
+    }
+    const [q] = await embed(model, [query.trim()]);
+    if (!q?.length) return lore;
+    const hits = new Set(pool.filter((e) => e.embedModel === model)
+      .map((e) => ({ e, score: cosine(q, toVector(e.embedding ?? null) ?? []) }))
+      .filter((x) => x.score >= LORE_SEMANTIC_MIN).sort((a, b) => b.score - a.score).slice(0, k).map((x) => x.e));
+    return lore.map((e) => (hits.has(e) ? { ...e, semantic: true } : e));
+  } catch {
+    return lore;
   }
 }

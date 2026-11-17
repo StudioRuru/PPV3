@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import Database from "better-sqlite3";
 import { migrateRp } from "./schema";
 import { RpStore } from "./store";
-import { embedVoiceLines, rankVoiceLines, selectVoiceLines, toBuffer, toVector } from "./voice";
+import { embedVoiceLines, rankVoiceLines, selectVoiceLines, semanticLore, toBuffer, toVector } from "./voice";
 import { foldPlan, shouldSummarize, summarizeChat } from "./memory";
 
 const line = (text: string, v: number[] | null, embedModel = "bge-m3:latest") => ({ text, context: "", embedding: v ? toBuffer(new Float32Array(v)) : null, embedModel });
@@ -75,4 +75,27 @@ test("shouldSummarize: after 20 new turns, or as soon as history is trimmed", ()
   assert.equal(shouldSummarize(msgs(25), 10, false), false);
   assert.equal(shouldSummarize(msgs(3), 0, true), true);
   assert.equal(shouldSummarize(msgs(3), 3, true), false);
+});
+
+test("semanticLore: embeds stale entries once, marks close keyword entries semantic, never throws", async () => {
+  const s = db();
+  const book = s.saveLorebook({ name: "L" });
+  s.saveEntry({ lorebookId: book, keys: ["Ark"], content: "The colony ship.", enabled: true });
+  s.saveEntry({ lorebookId: book, keys: ["guild"], content: "Thieves guild.", enabled: true });
+  s.saveEntry({ lorebookId: book, keys: [], content: "Always.", enabled: true, constant: true });
+  const vec: Record<string, number[]> = { "Ark: The colony ship.": [1, 0], "guild: Thieves guild.": [0, 1], "we boarded the vessel": [0.9, 0.1] };
+  let calls = 0;
+  const embed = async (_m: string, texts: string[]) => { calls++; return texts.map((t) => vec[t] ?? [0, 0]); };
+  const lore = () => s.entries(book);
+  const out = await semanticLore(s, lore(), "we boarded the vessel", "bge-m3:latest", embed);
+  assert.deepEqual(out.filter((e) => e.semantic).map((e) => e.content), ["The colony ship."]);
+  assert.equal(out.length, 3);
+  assert.equal(calls, 2, "stale entries + query");
+  await semanticLore(s, lore(), "we boarded the vessel", "bge-m3:latest", embed);
+  assert.equal(calls, 3, "vectors cached: only the query is embedded");
+  s.saveEntry({ id: lore()[0].id, lorebookId: book, content: "Changed." });
+  assert.equal(lore().find((e) => e.content === "Changed.")!.embedding, null, "edits invalidate the vector");
+  const boom = async () => { throw new Error("ollama down"); };
+  assert.equal((await semanticLore(s, lore(), "x", "bge-m3:latest", boom)).length, 3);
+  assert.equal((await semanticLore(s, lore(), "", "bge-m3:latest", embed)).some((e) => e.semantic), false);
 });

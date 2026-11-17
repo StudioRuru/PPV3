@@ -30,6 +30,7 @@ export function CharacterSheet({ id, onClose, onSaved, onDeleted }: { id: number
   const [lines, setLines] = useState<Line[]>([]);
   const [books, setBooks] = useState<RpLorebook[]>([]);
   const [entries, setEntries] = useState<RpLoreEntry[]>([]);
+  const [bookQ, setBookQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -91,6 +92,17 @@ export function CharacterSheet({ id, onClose, onSaved, onDeleted }: { id: number
   async function newBook() {
     const r = await requestJson<{ id: number }>("/api/rp/lore", { method: "POST", ...json({ lorebook: { name: `${c.name || "New"} lore` } }) });
     if (r.ok) linkBook(r.data.id);
+  }
+  async function importBook(f?: File) {
+    if (!f) return;
+    const fd = new FormData(); fd.append("file", f);
+    const r = await requestJson<{ id: number; entries: number }>("/api/rp/lore", { method: "POST", body: fd });
+    if (!r.ok) setError(r.error); else { setNote(`Imported ${r.data.entries} entries.`); linkBook(r.data.id); }
+  }
+  async function deleteBook(b: RpLorebook) {
+    if (!confirm(`Delete lorebook "${b.name}" and its ${b.count ?? 0} entries? This can't be undone.`)) return;
+    await requestJson(`/api/rp/lore?lorebook=${b.id}`, { method: "DELETE" });
+    if (c.lorebookId === b.id) linkBook(null); else loadLore(c.lorebookId);
   }
   async function saveEntry(e: Partial<RpLoreEntry>) {
     const r = await requestJson("/api/rp/lore", { method: "POST", ...json({ entry: { ...e, lorebookId: c.lorebookId } }) });
@@ -235,11 +247,25 @@ export function CharacterSheet({ id, onClose, onSaved, onDeleted }: { id: number
           <div className="flex gap-2">
             <select value={c.lorebookId ?? ""} onChange={(e) => linkBook(Number(e.target.value) || null)} aria-label="Lorebook" className="bg-bg border-border h-11 min-w-0 flex-1 rounded-md border px-2 text-base">
               <option value="">No lorebook</option>
-              {books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {books.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.count ?? 0})</option>)}
             </select>
             <button type="button" onClick={newBook} className="border-border h-11 rounded-md border px-3 text-sm">New</button>
+            <label className="border-border flex h-11 cursor-pointer items-center rounded-md border px-3 text-sm">Import
+              <input type="file" accept=".json,application/json" className="sr-only" onChange={(e) => { importBook(e.target.files?.[0]); e.target.value = ""; }} /></label>
           </div>
-          <p className="text-faint text-xs">Entries are added to the prompt when a key shows up in the recent chat (constant ones always).</p>
+          <p className="text-faint text-xs">Entries join the prompt when a key shows up in the recent chat, or when the chat is about the same thing (constant ones always). Import takes SillyTavern World Info or a character card&rsquo;s book.</p>
+          {books.length > 0 && <details className="border-border rounded-lg border p-2 text-sm">
+            <summary className="cursor-pointer font-semibold">Library ({books.length})</summary>
+            <input value={bookQ} onChange={(e) => setBookQ(e.target.value)} placeholder="Search lorebooks" aria-label="Search lorebooks" className={field} />
+            {books.filter((b) => b.name.toLowerCase().includes(bookQ.trim().toLowerCase())).map((b) => (
+              <div key={b.id} className="flex items-center gap-2 py-1">
+                <span className="min-w-0 flex-1 truncate">{b.name} <span className="text-faint text-xs">· {b.count ?? 0}</span></span>
+                {c.lorebookId === b.id ? <span className="text-accent text-xs">In use</span>
+                  : <button type="button" onClick={() => linkBook(b.id)} className="text-accent min-h-11 px-2 text-xs font-semibold">Use</button>}
+                <button type="button" onClick={() => deleteBook(b)} aria-label={`Delete ${b.name}`} className="min-h-11 px-2"><Trash /></button>
+              </div>
+            ))}
+          </details>}
           {c.lorebookId && entries.map((e) => <LoreRow key={e.id} e={e} onSave={saveEntry} onDelete={async () => { await requestJson(`/api/rp/lore?entry=${e.id}`, { method: "DELETE" }); loadLore(c.lorebookId); }} />)}
           {c.lorebookId && <button type="button" onClick={() => saveEntry({ keys: [], content: "New entry", enabled: true })} className="text-accent text-sm font-semibold">+ Add entry</button>}
         </>}

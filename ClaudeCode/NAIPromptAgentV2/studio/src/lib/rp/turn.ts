@@ -4,7 +4,7 @@ import { modeOf, PHOTO_LINE } from "./presets";
 import { photoDue } from "./photo";
 import type { RpStore } from "./store";
 import type { ChatMessage, Mode, RpSettings, SamplerOptions } from "./types";
-import { selectVoiceLines, type Embed } from "./voice";
+import { selectVoiceLines, semanticLore, type Embed } from "./voice";
 import { charName as nameOf, parseProfile, resolveSpice, type RpProfile } from "./profile";
 import { freshNotes, hasStatus, voiceLine } from "./fresh";
 
@@ -123,10 +123,10 @@ export async function buildTurn(store: RpStore, chatId: number, deps: TurnDeps, 
   const history = replacing ? all.filter((m) => m.id < replacing) : all;
   const lastUser = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
   const voiceLines = character ? await selectVoiceLines(store, character.id, lastUser, deps.settings.embedModel, deps.embed) : [];
-  const r = assembleMessages({
-    settings, character, persona, chat, history, voiceLines, storyBlock: deps.storyBlock,
-    lore: store.loreFor(chat, character),
-  });
+  // Lore fires on meaning too: the last exchange is embedded against the entries.
+  const recent = history.slice(-2).map((m) => m.content).join("\n");
+  const lore = await semanticLore(store, store.loreFor(chat, character), recent, deps.settings.embedModel, deps.embed);
+  const r = assembleMessages({ settings, character, persona, chat, history, voiceLines, storyBlock: deps.storyBlock, lore });
   const pinned = [chat.model, character?.model].find((m) => m && deps.installed.includes(m));
   const turn: Turn = {
     messages: modeOf(chat.style) === "text" && photoDue(replacing ? raw.filter((m) => m.id < replacing) : raw, lastUser) ? [...r.messages, { role: "system", content: PHOTO_LINE }] : r.messages,

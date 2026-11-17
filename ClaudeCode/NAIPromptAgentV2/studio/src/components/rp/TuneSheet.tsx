@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { requestJson } from "@/lib/net";
+import type { RpLorebook } from "@/lib/rp/store";
 import { MODS, resolveMods, type ModState } from "@/lib/rp/mods";
 import { REPLY_AGENCY_STOPS, REPLY_LENGTH_STOPS, REPLY_SPICE_STOPS } from "@/lib/rp/presets";
 import { DEFAULT_RP_SETTINGS, type RpChat } from "@/lib/rp/types";
@@ -52,6 +54,9 @@ export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, s
 }) {
   const [d, setD] = useState(() => fromChat(chat, agency, globalMods, thinking));
   const touched = useRef(false), thinkTouched = useRef(false);
+  const [books, setBooks] = useState<RpLorebook[]>([]);
+  const [bookId, setBookId] = useState(chat.lorebookId);
+  useEffect(() => { if (open) { setBookId(chat.lorebookId); requestJson<{ lorebooks: RpLorebook[] }>("/api/rp/lore").then((r) => r.ok && setBooks(r.data.lorebooks)); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- refresh on open only
   useEffect(() => { if (open) { setD(fromChat(chat, agency, globalMods, thinking)); touched.current = false; thinkTouched.current = false; } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on open only
 
   useEffect(() => {
@@ -86,6 +91,15 @@ export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, s
           <span className="flex-1">Double-texts<span className="text-faint block text-xs">If you go quiet for a few minutes, {sub("{{char}}")} may text again.</span></span>
           <input type="checkbox" role="switch" checked={d.doubleText} onChange={(e) => edit({ doubleText: e.target.checked })} className="switch" />
         </label>}
+
+        <label className="block text-sm"><span>Chat lorebook</span>
+          <span className="text-faint block text-xs">Added on top of the character&rsquo;s own lorebook, for this chat only.</span>
+          <select value={bookId ?? ""} onChange={(e) => { const v = Number(e.target.value) || null; setBookId(v); onPatch({ op: "chat", lorebookId: v }); }}
+            className="bg-bg border-border mt-1 h-11 w-full rounded-md border px-2 text-base">
+            <option value="">None</option>
+            {books.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.count ?? 0})</option>)}
+          </select>
+        </label>
 
         <h3 className="text-muted text-xs font-semibold tracking-wide uppercase">Mods</h3>
         <ModList mods={d.mods} onChange={(mods) => edit({ mods })} sub={sub} />

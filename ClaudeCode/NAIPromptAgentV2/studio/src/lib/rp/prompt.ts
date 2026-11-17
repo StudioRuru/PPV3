@@ -169,6 +169,8 @@ export interface LoreEntry {
   position: string; // "before" | "after"
   probability: number;
   insertionOrder: number;
+  /** Set per turn by semanticLore: close in meaning to the recent chat, so it fires without its keyword. */
+  semantic?: boolean;
 }
 
 export interface AssembleArgs {
@@ -304,7 +306,7 @@ function matchLore(
   for (const e of ordered) {
     if (!e.enabled || !e.content.trim()) continue;
 
-    if (!e.constant) {
+    if (!e.constant && !e.semantic) {
       const window = e.scanDepth > 0 ? contents.slice(-e.scanDepth) : contents;
       const haystack = window.join("\n");
       if (!keyHits(e.keys, haystack)) continue;

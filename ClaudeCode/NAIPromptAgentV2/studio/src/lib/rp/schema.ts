@@ -68,6 +68,8 @@ export function migrateRp(db: Database.Database): void {
   addCol("rp_chats", "think", "INTEGER");
   addCol("rp_messages", "burst_id", "TEXT");
   addCol("rp_messages", "burst_swipes", "TEXT");
+  addCol("rp_lore_entries", "embedding", "BLOB");
+  addCol("rp_lore_entries", "embed_model", "TEXT NOT NULL DEFAULT ''");
   addCol("rp_messages", "speaker", "TEXT NOT NULL DEFAULT ''");
   addCol("rp_messages", "reaction", "TEXT NOT NULL DEFAULT ''");
   addCol("rp_messages", "image_id", "INTEGER");

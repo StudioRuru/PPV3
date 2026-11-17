@@ -21,8 +21,7 @@ export async function POST(req: NextRequest) {
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
   let lorebookId: number | null = null;
   if (r.lorebook) {
-    lorebookId = rp.saveLorebook({ name: r.lorebook.name || `${r.character.name} lore` });
-    for (const e of r.lorebook.entries) rp.saveEntry({ lorebookId, keys: e.keys, content: e.content, enabled: e.enabled, insertionOrder: e.insertionOrder });
+    lorebookId = rp.importLorebook(r.lorebook, `${r.character.name} lore`);
   }
   const avatarPath = r.avatar ? saveRpFile("avatars", r.avatar.bytes, r.avatar.ext) : null;
   const id = rp.saveCharacter({ ...r.character, avatarPath, lorebookId });

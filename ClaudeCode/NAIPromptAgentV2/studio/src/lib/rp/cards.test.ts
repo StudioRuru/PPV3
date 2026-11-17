@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import encode from "png-chunks-encode";
 import * as pngText from "png-chunk-text";
-import { chubHostAllowed, extractChubFullPath, extractLorebookFromCard, MAX_CARD_BYTES, parseCardJson, parseCardObject, parseCardPng, toCardV2 } from "./cards";
+import { chubHostAllowed, extractChubFullPath, extractLorebookFromCard, parseLorebookObject, MAX_CARD_BYTES, parseCardJson, parseCardObject, parseCardPng, toCardV2 } from "./cards";
 import type { RpCharacter } from "./types";
 
 const V2 = {
@@ -70,4 +70,25 @@ test("toCardV2 round-trips through parseCardObject", () => {
   assert.equal(back.firstMessage, "f");
   assert.deepEqual(back.alternateGreetings, ["g"]);
   assert.deepEqual(back.tags, ["t"]);
+});
+
+test("SillyTavern World Info keeps secondary keys, constant, position, probability, depth; keyless constants survive", () => {
+  const wi = { entries: {
+    "0": { uid: 0, key: ["Ark"], keysecondary: ["ship"], content: "The Ark is a colony ship.", constant: false, disable: false, order: 50, position: 0, probability: 40, useProbability: true, depth: 6, comment: "Ark" },
+    "1": { uid: 1, key: [], content: "Magic is outlawed.", constant: true, disable: true, order: 10, position: 1, probability: 100, useProbability: false },
+  } };
+  const lb = parseLorebookObject(wi)!;
+  assert.equal(lb.entries.length, 2);
+  const [a, b] = lb.entries;
+  assert.deepEqual([a.keys, a.secondaryKeys, a.constant, a.position, a.probability, a.scanDepth, a.insertionOrder], [["Ark"], ["ship"], false, "before", 40, 6, 50]);
+  assert.deepEqual([b.keys, b.constant, b.enabled, b.position, b.probability, b.scanDepth], [[], true, false, "after", 100, undefined]);
+  // V2 character_book style
+  const v2 = parseLorebookObject({ entries: [{ keys: ["x"], secondary_keys: ["y"], content: "c", position: "before_char", extensions: { depth: 3 } }] })!;
+  assert.deepEqual([v2.entries[0].secondaryKeys, v2.entries[0].position], [["y"], "before"]);
+});
+
+test("exported character_book round-trips the World Info fields", () => {
+  const e = { keys: ["Ark"], secondaryKeys: ["ship"], content: "c", enabled: true, constant: true, position: "before", probability: 40, scanDepth: 6, insertionOrder: 2 };
+  const card = toCardV2({ name: "M", alternateGreetings: "[]", tags: "[]" } as RpCharacter, { name: "L", entries: [e] }) as { data: unknown };
+  assert.deepEqual(extractLorebookFromCard(card)!.entries[0], e);
 });

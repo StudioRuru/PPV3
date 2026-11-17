@@ -207,3 +207,17 @@ test("burst photo rows: pending, then linked or failed", () => {
   assert.equal(s.setPhoto(ids2[0], null), null);
   assert.equal(row(ids2[0]).imageId, 0);
 });
+
+test("importLorebook saves a parsed book with every field, in one transaction", () => {
+  const { s } = setup();
+  const id = s.importLorebook({ name: "Ark", entries: [
+    { keys: ["Ark"], secondaryKeys: ["ship"], content: "Colony ship.", enabled: true, constant: false, position: "before", probability: 40, scanDepth: 6, insertionOrder: 5 },
+    { keys: [], secondaryKeys: [], content: "No magic.", enabled: false, constant: true, position: "after", probability: 100, insertionOrder: 1 },
+  ] }, "fallback");
+  const [b, a] = s.entries(id);
+  assert.equal(s.lorebooks().find((l) => l.id === id)!.name, "Ark");
+  assert.deepEqual([a.secondaryKeys, a.position, a.probability, a.scanDepth], [["ship"], "before", 40, 6]);
+  assert.deepEqual([b.constant, b.enabled, b.scanDepth], [true, false, 0]);
+  const f = s.importLorebook({ name: " ", entries: [] }, "fallback");
+  assert.equal(s.lorebooks().find((l) => l.id === f)!.name, "fallback");
+});

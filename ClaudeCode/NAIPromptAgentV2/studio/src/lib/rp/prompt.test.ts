@@ -151,3 +151,10 @@ test("default scene rules ride the final block with names filled; a card's own p
   assert.match(tail(own), /CARD-RULES/);
   assert.doesNotMatch(tail(own), /\[Scene rules\]/);
 });
+
+test("lore: a semantic hit fires without its keyword; disabled semantic entries still don't", () => {
+  const book = [lore({ keys: ["Ark"], content: "ARK-LORE", semantic: true }), lore({ keys: ["Ark"], content: "OFF-LORE", semantic: true, enabled: false })];
+  const r = assembleMessages({ settings: DEFAULT_RP_SETTINGS, character: char(), persona, chat: chat(), history: [{ role: "user", content: "we boarded the vessel" }], lore: book });
+  assert.match(all(r), /ARK-LORE/);
+  assert.doesNotMatch(all(r), /OFF-LORE/);
+});

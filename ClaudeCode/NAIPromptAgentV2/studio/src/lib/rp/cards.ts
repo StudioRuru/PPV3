@@ -138,8 +138,13 @@ export interface ParsedLorebook {
   name: string;
   entries: {
     keys: string[];
+    secondaryKeys: string[];
     content: string;
     enabled: boolean;
+    constant: boolean;
+    position: string; // "before" | "after"
+    probability: number;
+    scanDepth?: number;
     insertionOrder: number;
   }[];
 }
@@ -164,14 +169,26 @@ export function parseLorebookObject(raw: unknown): ParsedLorebook | null {
           : typeof e.order === "number"
             ? (e.order as number)
             : i;
+      const sec = strArray(e.secondary_keys).length ? strArray(e.secondary_keys) : strArray(e.keysecondary);
+      const ext = (e.extensions && typeof e.extensions === "object" ? e.extensions : {}) as Record<string, unknown>;
+      // ST: position 0 = before char, 1 = after; V2: "before_char" | "after_char". Other ST positions (depth/AN) → after.
+      const before = e.position === 0 || e.position === "before_char";
+      const depth = [e.scan_depth, e.scanDepth, e.depth, ext.scan_depth, ext.depth].find((d) => typeof d === "number" && d > 0) as number | undefined;
+      const useProb = e.useProbability ?? ext.useProbability;
+      const prob = typeof e.probability === "number" ? e.probability : typeof ext.probability === "number" ? ext.probability : 100;
       return {
         keys,
+        secondaryKeys: sec,
         content: str(e.content),
-        enabled: e.enabled !== false,
+        enabled: e.enabled !== false && e.disable !== true,
+        constant: e.constant === true,
+        position: before ? "before" : "after",
+        probability: useProb === false ? 100 : Math.max(0, Math.min(100, prob)),
+        scanDepth: depth,
         insertionOrder: order,
       };
     })
-    .filter((e) => e.content.trim() && e.keys.length > 0);
+    .filter((e) => e.content.trim() && (e.keys.length > 0 || e.constant));
 
   if (entries.length === 0) return null;
   return { name: str(obj.name), entries };
@@ -311,7 +328,7 @@ export function toCardV2(c: RpCharacter, lore?: ParsedLorebook | null): object {
       first_mes: c.firstMessage, mes_example: c.exampleDialogue, system_prompt: c.systemPrompt,
       post_history_instructions: c.postHistoryInstructions, alternate_greetings: list(c.alternateGreetings),
       creator_notes: c.creatorNotes, tags: list(c.tags), creator: "", character_version: "", extensions: {},
-      ...(lore ? { character_book: { name: lore.name, entries: lore.entries.map((e, i) => ({ id: i, keys: e.keys, content: e.content, enabled: e.enabled, insertion_order: e.insertionOrder, extensions: {} })), extensions: {} } } : {}),
+      ...(lore ? { character_book: { name: lore.name, entries: lore.entries.map((e, i) => ({ id: i, keys: e.keys, secondary_keys: e.secondaryKeys, content: e.content, enabled: e.enabled, constant: e.constant, insertion_order: e.insertionOrder, position: e.position === "before" ? "before_char" : "after_char", extensions: { probability: e.probability, useProbability: e.probability < 100, ...(e.scanDepth ? { scan_depth: e.scanDepth } : {}) } })), extensions: {} } } : {}),
     },
   };
 }

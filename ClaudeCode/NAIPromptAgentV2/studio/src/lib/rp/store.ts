@@ -1,11 +1,12 @@
 import type Database from "better-sqlite3";
+import type { ParsedLorebook } from "./cards";
 import type { LoreEntry } from "./prompt";
 import { bubbleContent, type Burst } from "./burst";
 import { parseProfile } from "./profile";
 import { camel, snake, type RpCharacter, type RpChat, type RpMessage, type RpPersona } from "./types";
 
-export type RpLorebook = { id: number; name: string; description: string };
-export type RpLoreEntry = LoreEntry & { id: number; lorebookId: number };
+export type RpLorebook = { id: number; name: string; description: string; count?: number };
+export type RpLoreEntry = LoreEntry & { id: number; lorebookId: number; embedding?: Buffer | null; embedModel?: string };
 export type RpVoiceLine = { id: number; characterId: number; text: string; context: string; source: string; embedding: Buffer | null; embedModel: string };
 
 const parseList = (json: string): string[] => { try { const v = JSON.parse(json); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
@@ -72,7 +73,7 @@ export class RpStore {
 
   // Lorebooks
   lorebooks(): RpLorebook[] {
-    return this.db.prepare("SELECT id, name, description FROM rp_lorebooks ORDER BY name").all() as RpLorebook[];
+    return this.db.prepare("SELECT l.id, l.name, l.description, (SELECT COUNT(*) FROM rp_lore_entries e WHERE e.lorebook_id = l.id) AS count FROM rp_lorebooks l ORDER BY l.name").all() as RpLorebook[];
   }
   entries(lorebookId: number): RpLoreEntry[] {
     return (this.db.prepare("SELECT * FROM rp_lore_entries WHERE lorebook_id = ? ORDER BY insertion_order, id").all(lorebookId) as Record<string, unknown>[]).map((r) => {
@@ -92,13 +93,25 @@ export class RpStore {
     if (e.secondaryKeys) row.secondaryKeys = JSON.stringify(e.secondaryKeys);
     if (e.enabled !== undefined) row.enabled = e.enabled ? 1 : 0;
     if (e.constant !== undefined) row.constant = e.constant ? 1 : 0;
+    if (e.id && (e.keys || e.content !== undefined)) Object.assign(row, { embedding: null, embedModel: "" }); // edits invalidate the vector
     return this.upsert("rp_lore_entries", row);
+  }
+  /** A parsed World Info / character_book file → new lorebook + entries, all or nothing. */
+  importLorebook(book: ParsedLorebook, fallbackName: string): number {
+    return this.db.transaction(() => {
+      const lorebookId = this.saveLorebook({ name: book.name.trim() || fallbackName });
+      for (const e of book.entries) this.saveEntry({ ...e, scanDepth: e.scanDepth ?? 0, lorebookId });
+      return lorebookId;
+    })();
+  }
+  setLoreEmbedding(id: number, embedding: Buffer, model: string): void {
+    this.db.prepare("UPDATE rp_lore_entries SET embedding = ?, embed_model = ? WHERE id = ?").run(embedding, model, id);
   }
   deleteEntry(id: number): void {
     this.db.prepare("DELETE FROM rp_lore_entries WHERE id = ?").run(id);
   }
   /** Entries active for a chat: the character's lorebook, its world lorebook and the chat's own, de-duplicated. */
-  loreFor(chat: RpChat, character: RpCharacter | null): LoreEntry[] {
+  loreFor(chat: RpChat, character: RpCharacter | null): RpLoreEntry[] {
     const ids = [...new Set([character?.lorebookId, character?.worldLorebookId, chat.lorebookId].filter((x): x is number => !!x))];
     return ids.flatMap((id) => this.entries(id));
   }
