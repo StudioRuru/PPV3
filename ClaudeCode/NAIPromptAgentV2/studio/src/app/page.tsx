@@ -7,7 +7,7 @@ import { FindSheet } from "@/components/FindSheet";
 import { CameraRoll } from "@/components/CameraRoll";
 import { Closet } from "@/components/Closet";
 import { ComfyScreen } from "@/components/comfy/ComfyScreen";
-import { RpScreen } from "@/components/rp/RpScreen";
+import { morph, RpScreen } from "@/components/rp/RpScreen";
 import { SaveFlash } from "@/components/SaveFlash";
 import { LiquidIsland } from "@/components/LiquidIsland";
 import { TAB_IDS, type Tab } from "@/lib/tabs";
@@ -61,6 +61,8 @@ export default function Studio() {
   const [baseSide, setBaseSide] = useState<Side>("pos");
   const [viewing, setViewing] = useState<number | null>(null); // generation id
   const [tab, setTab] = useState<Tab>("studio");
+  // Every tab change cross-fades (View Transition; instant where unsupported or motion is reduced).
+  const goTab = useCallback((t: Tab) => morph(() => setTab(t)), []);
   const [flash, setFlash] = useState<string | null>(null);
   const clearFlash = useCallback(() => setFlash(null), []);
   // The viewer browses whichever list it was opened from (studio history or the camera roll).
@@ -86,11 +88,11 @@ export default function Studio() {
   async function useFromCloset(blockId: string) {
     const r = await requestJson<{ blocks: Block[] }>("/api/blocks");
     const b = r.ok ? r.data.blocks.find((x) => x.id === blockId) : undefined;
-    if (!b) { setError("That item has no prompt to use yet — fill it in and save first."); setTab("studio"); return; }
+    if (!b) { setError("That item has no prompt to use yet — fill it in and save first."); goTab("studio"); return; }
     setState((s) => (b.kind === "scene" ? loadScene(b, s.rating) : applyBlock(s, b, s.chars.length ? 0 : "base")));
     setNote(b.kind === "scene" ? `Loaded ${b.name}` : `Added ${b.name}`);
     emitMascot("closet_use", { kind: b.kind, name: b.name });
-    setTab("studio");
+    goTab("studio");
   }
 
   async function showGeneration(id: number) {
@@ -147,7 +149,7 @@ export default function Studio() {
     (window as unknown as { studioIntent?: unknown }).studioIntent = (raw: unknown) => {
       const i = parseIntent(raw);
       if (!i) return;
-      if ("tab" in i) setTab(i.tab);
+      if ("tab" in i) goTab(i.tab);
       else window.dispatchEvent(new CustomEvent(i.mascot === "hide" ? "mascot:hide" : "mascot:summon"));
     };
     return () => {
@@ -273,7 +275,7 @@ export default function Studio() {
         if (!s || window.getSelection()?.toString()) return;
         const dir = swipeDirection({ dx: e.clientX - s.x, dy: e.clientY - s.y, ms: e.timeStamp - s.t });
         const i = TAB_IDS.indexOf(tab) + (dir === "next" ? 1 : dir === "prev" ? -1 : 0);
-        if (dir && TAB_IDS[i]) setTab(TAB_IDS[i]);
+        if (dir && TAB_IDS[i]) goTab(TAB_IDS[i]);
       }}
       onPointerCancel={() => { swipe.current = null; }}>
       {/* Studio stays mounted (hidden) on other tabs so the Tagger and drafts keep their state. */}
@@ -295,14 +297,14 @@ export default function Studio() {
         <TaggerPane preset={preset} onTagged={() => setDrawer(true)} onDrop={dropTags}
           onRecipe={(r) => reuse({ state: r.state, params: { ...params, ...r.params } })} onText={setTagText}
           onRecreate={doRecreate} onCharacters={doRecreate} incoming={incoming}
-          onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); setTab("chat"); }} />
+          onScene={(file, tags) => { setSeed({ text: `Make this a scene. Tags: ${tags}`, image: file, tags }); goTab("chat"); }} />
         {/* Plain English in, NovelAI-ready prompt out: the co-pilot's Build-scene mode rewrites it into tags + short V5 phrases. */}
         <form className="flex gap-2" onSubmit={(e) => {
           e.preventDefault();
           const t = new FormData(e.currentTarget).get("scene")?.toString().trim();
           if (!t) return;
           setSeed({ text: `Rewrite this scene as a NovelAI V5 prompt — Danbooru tags first, short plain-English phrases only where no tag fits. Count tags, setting, props and lighting go in base; each person in their own char; uc only for things to avoid:\n${t}`, send: true });
-          setTab("chat"); e.currentTarget.reset();
+          goTab("chat"); e.currentTarget.reset();
         }}>
           <textarea name="scene" rows={2} aria-label="Describe a scene in plain English" placeholder="Describe a scene in plain English…"
             className="bg-surface border-border min-w-0 flex-1 rounded-md border px-3 py-2 text-base" />
@@ -363,7 +365,7 @@ export default function Studio() {
         ) : <div data-mascot-target className="border-border text-muted grid aspect-[832/1216] place-items-center rounded-lg border">Nothing yet</div>}
         <div className="flex items-center justify-between">
           <h2 className="text-muted text-xs font-medium tracking-wide uppercase">History</h2>
-          {history.length > 0 && <button type="button" onClick={() => setTab("roll")} className="text-accent px-1 py-2 text-sm">Camera roll ›</button>}
+          {history.length > 0 && <button type="button" onClick={() => goTab("roll")} className="text-accent px-1 py-2 text-sm">Camera roll ›</button>}
         </div>
         <div data-noswipe><HistoryStrip items={history} onOpen={setCurrent} /></div>
       </section>
@@ -408,12 +410,12 @@ export default function Studio() {
       <UpscaleSheet source={upscale} onClose={() => setUpscale(null)} onDone={showGeneration} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} params={params} onParams={setParams}
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
-      <LiquidIsland tab={tab} onTab={setTab} onSettings={() => setSettings(true)} />
-      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat" || desk} spy={tab === "rp"} onTap={() => setTab("chat")} onTab={setTab} onSettings={() => setSettings(true)} />
+      <LiquidIsland tab={tab} onTab={goTab} onSettings={() => setSettings(true)} />
+      <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat" || desk} spy={tab === "rp"} onTap={() => goTab("chat")} onTab={goTab} onSettings={() => setSettings(true)} />
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}
-        onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); setTab("studio"); }} />
+        onReuse={(g) => { setViewing(null); setCurrent(g); reuse(g); goTab("studio"); }} />
       <GridSheet open={grid} onClose={() => setGrid(false)} state={state} params={params} onApply={setState} onDone={loadHistory} />
     </main>
   );

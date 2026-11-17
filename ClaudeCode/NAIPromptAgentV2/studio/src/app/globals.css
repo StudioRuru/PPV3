@@ -163,9 +163,12 @@ button:active:not(:disabled):not(.sheet-backdrop) { scale: 0.97; transition-dura
 .jar-wobble { animation: wobble 3.2s ease-in-out infinite; transform-box: view-box; transform-origin: 32px 60px; }
 
 /* RP: the character portrait morphs gallery → character page → chat header (View Transitions; see morph() in RpScreen). */
-::view-transition-group(*) { animation-duration: 420ms; animation-timing-function: var(--ease-settle); }
+/* Tabs (goTab in page.tsx) cross-fade the root; reduced motion skips the transition in morph() and here. */
 ::view-transition-old(*), ::view-transition-new(*) { height: 100%; object-fit: cover; }
-::view-transition-old(root) { animation-duration: 180ms; }
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(*) { animation-duration: 320ms; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+}
 /* RP chat styles: close chat = message bubbles; story = book prose. */
 /* Texting: every text is its own bubble, the last one gets the tail. */
 /* Liquid-glass surface (RP composer, ⋯ menu, ↓ Latest pill); fg-tinted so every theme reads. */
