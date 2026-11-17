@@ -25,7 +25,7 @@ final class ShareViewController: UIViewController {
 
     @MainActor private func handle() async {
         let providers = (extensionContext?.inputItems as? [NSExtensionItem] ?? []).flatMap { $0.attachments ?? [] }
-        guard let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }) else { return finish("No image to send.") }
+        guard let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }) else { return await handleLore(providers) }
         do {
             // PNGs keep their bytes (NovelAI recipe metadata lives in them); everything else becomes JPEG (HEIC included).
             if p.hasItemConformingToTypeIdentifier(UTType.png.identifier) {
@@ -39,6 +39,19 @@ final class ShareViewController: UIViewController {
             return finish("Couldn't send: \(error.localizedDescription)")
         }
         openApp { [weak self] opened in self?.finish(opened ? nil : "Saved. Open Studio to tag it.") }
+    }
+
+    /// A .json lorebook (SillyTavern World Info or a card) waits in inbox/lore for the app to POST it.
+    @MainActor private func handleLore(_ providers: [NSItemProvider]) async {
+        guard let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.json.identifier) }) else { return finish("Nothing Studio can use.") }
+        do {
+            let data = try await p.data(for: .json)
+            guard data.count <= 8 << 20 else { return finish("That lorebook is too big (8 MB max).") }
+            try Inbox.dropLore(data, name: p.suggestedName ?? "Imported lore")
+        } catch {
+            return finish("Couldn't send: \(error.localizedDescription)")
+        }
+        openApp { [weak self] opened in self?.finish(opened ? nil : "Lorebook saved. Open Studio to import it.") }
     }
 
     /// ≤2048 px JPEG straight from the file: a full decode of a 48 MP photo would blow the ~120 MB extension limit.

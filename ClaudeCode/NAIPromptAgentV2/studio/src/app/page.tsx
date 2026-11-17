@@ -108,12 +108,22 @@ export default function Studio() {
   useEffect(() => { if (native) postTabbar({ hidden: tab === "rp" && rpOpen, tab }); }, [native, tab, rpOpen]);
 
   useEffect(() => {
-    const w = window as unknown as { webkit?: { messageHandlers?: { studio?: unknown } }; studioImport?: unknown; studioToast?: unknown };
+    const w = window as unknown as { webkit?: { messageHandlers?: { studio?: unknown } }; studioImport?: unknown; studioImportLore?: unknown; studioToast?: unknown };
     setNative(!!w.webkit?.messageHandlers?.studio);
     // iOS share sheet → app → here: the image goes to the Tagger as if picked.
     w.studioImport = async (dataUrl: string, name = "shared.jpg") => {
       const blob = await (await fetch(dataUrl)).blob();
       setIncoming(new File([blob], name, { type: blob.type }));
+    };
+    // Share sheet .json lorebook → library. true = the server answered (file can go); false = keep it for a retry.
+    w.studioImportLore = async (text: string, name: string) => {
+      const fd = new FormData(); fd.append("file", new File([text], name, { type: "application/json" }));
+      let res: Response;
+      try { res = await fetch("/api/rp/lore", { method: "POST", body: fd }); } catch { return false; }
+      if (res.status === 401) return false;
+      const d = await res.json().catch(() => null) as { entries?: number; error?: string } | null;
+      setNote(res.ok ? `Imported ${name} (${d?.entries ?? 0} entries) — pick it from 📖 in a chat` : d?.error ?? `Import failed (${res.status})`);
+      return res.ok || res.status < 500;
     };
     // Native "Saved to Photos" gets the floppy overlay; anything else is a status line.
     w.studioToast = (msg: string) => (msg.startsWith("Saved") ? setFlash(msg) : setNote(msg));

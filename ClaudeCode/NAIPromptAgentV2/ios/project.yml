@@ -63,8 +63,7 @@ targets:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
           NSExtensionAttributes:
-            NSExtensionActivationRule:
-              NSExtensionActivationSupportsImageWithMaxCount: 1
+            NSExtensionActivationRule: 'SUBQUERY(extensionItems, $e, SUBQUERY($e.attachments, $a, ANY $a.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image" || ANY $a.registeredTypeIdentifiers UTI-CONFORMS-TO "public.json").@count == 1).@count == 1'
   NAIStudioWidgets:
     type: app-extension
     platform: iOS

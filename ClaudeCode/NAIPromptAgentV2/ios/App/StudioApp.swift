@@ -327,7 +327,26 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     /// so a share made while logged out (no studioImport yet) waits for the next foreground.
     func importPending() {
         // While loading, didFinish will call us — importing into the outgoing page would lose the file.
-        guard !importing, !webView.isLoading, !showingError, let file = Inbox.pending().first, let data = try? Data(contentsOf: file) else { return }
+        guard !importing, !webView.isLoading, !showingError else { return }
+        if let lore = Inbox.pendingLore().first, let data = try? Data(contentsOf: lore) {
+            importing = true
+            let js = """
+            for (let i = 0; i < 50 && !window.studioImportLore; i++) await new Promise(r => setTimeout(r, 100));
+            if (!window.studioImportLore) return false;
+            return await window.studioImportLore(t, n);
+            """
+            let name = String(lore.lastPathComponent.dropFirst(37))   // drop the "<uuid>-" prefix Inbox.dropLore added
+            webView.callAsyncJavaScript(js, arguments: ["t": String(decoding: data, as: UTF8.self), "n": name], in: nil, in: .page) { [weak self] result in
+                guard let self else { return }
+                self.importing = false
+                if case .success(let ok) = result, ok as? Bool == true {
+                    try? FileManager.default.removeItem(at: lore)
+                    self.importPending()   // next lorebook, then any image
+                }
+            }
+            return
+        }
+        guard let file = Inbox.pending().first, let data = try? Data(contentsOf: file) else { return }
         importing = true
         let mime = file.pathExtension == "png" ? "image/png" : "image/jpeg"
         let js = """

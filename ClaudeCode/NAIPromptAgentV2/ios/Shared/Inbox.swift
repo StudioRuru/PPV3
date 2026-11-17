@@ -11,9 +11,28 @@ enum Inbox {
         return d
     }
 
-    static func pending() -> [URL] {
-        guard let d = dir, let files = try? FileManager.default.contentsOfDirectory(at: d, includingPropertiesForKeys: [.creationDateKey]) else { return [] }
-        return files.sorted { ($0.creationDate ?? .distantPast) < ($1.creationDate ?? .distantPast) }
+    /// Images waiting for the Tagger: regular files only (the lore/ subfolder is not an image).
+    static func pending() -> [URL] { files(in: dir) }
+
+    static var loreDir: URL? {
+        guard let d = dir?.appendingPathComponent("lore", isDirectory: true) else { return nil }
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }
+
+    static func pendingLore() -> [URL] { files(in: loreDir) }
+
+    /// Lorebooks queue up (unlike images): each one is imported in turn.
+    static func dropLore(_ data: Data, name: String) throws {
+        guard let d = loreDir else { throw CocoaError(.fileNoSuchFile) }
+        let safe = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ".json", with: "")
+        try data.write(to: d.appendingPathComponent("\(UUID().uuidString)-\(safe).json"), options: .atomic)
+    }
+
+    private static func files(in d: URL?) -> [URL] {
+        guard let d, let files = try? FileManager.default.contentsOfDirectory(at: d, includingPropertiesForKeys: [.creationDateKey, .isRegularFileKey]) else { return [] }
+        return files.filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true }
+            .sorted { ($0.creationDate ?? .distantPast) < ($1.creationDate ?? .distantPast) }
     }
 
     /// The Tagger shows one image at a time, so a new share replaces anything still waiting.
