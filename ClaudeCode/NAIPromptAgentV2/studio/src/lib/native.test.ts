@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { activityState, changed, isHaptic, makeGate, makeThrottle, parseIntent, postActivity, tabbarMessage } from "./native";
+import { activityState, changed, isHaptic, makeGate, makeThrottle, parseIntent, postActivity, tabbarMessage, loreImportDone, longPressPointer } from "./native";
 
 const base = { tab: "chat" as const, expression: "smug" as const, hidden: false, bust: "/api/mascot/sprites/day/smug?v=1", on: true };
 
@@ -85,4 +85,18 @@ test("isHaptic: whitelist only", () => {
 
 test("tabbarMessage shape", () => {
   assert.deepEqual(tabbarMessage({ hidden: true, tab: "rp" }), { tabbar: { hidden: true, tab: "rp" } });
+});
+
+test("loreImportDone: drop the file once the server judged it; keep it on 401, 5xx, network", () => {
+  assert.equal(loreImportDone(200), true);
+  assert.equal(loreImportDone(400), true);
+  assert.equal(loreImportDone(401), false);
+  assert.equal(loreImportDone(502), false);
+  assert.equal(loreImportDone(null), false);
+});
+
+test("longPressPointer: touch and pen, never mouse (Mac keeps text selection + hover toolbar)", () => {
+  assert.equal(longPressPointer("touch"), true);
+  assert.equal(longPressPointer("pen"), true);
+  assert.equal(longPressPointer("mouse"), false);
 });

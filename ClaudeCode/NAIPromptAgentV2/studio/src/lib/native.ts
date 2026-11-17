@@ -79,3 +79,8 @@ export function postTabbar(o: { hidden: boolean; tab: Tab }) {
   if (typeof window === "undefined") return;
   (window as unknown as Bridge).webkit?.messageHandlers?.studio?.postMessage(tabbarMessage(o));
 }
+
+/** Shared .json lorebook: true once the server judged it (ok or a 4xx reason), so the inbox file can go; 401/5xx/network keep it. */
+export const loreImportDone = (status: number | null) => status !== null && status !== 401 && status < 500;
+/** Long-press menus are for touch; a mouse selects text and gets the hover toolbar instead. */
+export const longPressPointer = (type: string) => type !== "mouse";

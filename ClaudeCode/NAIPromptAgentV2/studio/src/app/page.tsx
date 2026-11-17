@@ -12,7 +12,7 @@ import { SaveFlash } from "@/components/SaveFlash";
 import { LiquidIsland } from "@/components/LiquidIsland";
 import { TAB_IDS, type Tab } from "@/lib/tabs";
 import { EXPRESSIONS, type Expression } from "@/lib/mascot/core";
-import { activityState, makeGate, makeThrottle, parseIntent, postActivity, postTabbar } from "@/lib/native";
+import { activityState, loreImportDone, makeGate, makeThrottle, parseIntent, postActivity, postTabbar } from "@/lib/native";
 import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
 import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
@@ -120,10 +120,10 @@ export default function Studio() {
       const fd = new FormData(); fd.append("file", new File([text], name, { type: "application/json" }));
       let res: Response;
       try { res = await fetch("/api/rp/lore", { method: "POST", body: fd }); } catch { return false; }
-      if (res.status === 401) return false;
+      if (res.status === 401) { setNote("Log in to import the shared lorebook"); return false; }
       const d = await res.json().catch(() => null) as { entries?: number; error?: string } | null;
       setNote(res.ok ? `Imported ${name} (${d?.entries ?? 0} entries) — pick it from 📖 in a chat` : d?.error ?? `Import failed (${res.status})`);
-      return res.ok || res.status < 500;
+      return loreImportDone(res.status);
     };
     // Native "Saved to Photos" gets the floppy overlay; anything else is a status line.
     w.studioToast = (msg: string) => (msg.startsWith("Saved") ? setFlash(msg) : setNote(msg));
@@ -422,6 +422,8 @@ export default function Studio() {
         words={state.positionWords === true} onWords={(positionWords) => setState((s) => ({ ...s, positionWords }))} />
       <LiquidIsland tab={tab} onTab={goTab} onSettings={() => setSettings(true)} />
       <Mascot rating={state.rating} prompt={baseTags.slice(0, 30).join(", ")} away={tab === "chat" || desk} spy={tab === "rp"} onTap={() => goTab("chat")} onTab={goTab} onSettings={() => setSettings(true)} />
+      {/* The studio composer shows notes itself; other tabs (share-sheet imports land anywhere) get a floating one. */}
+      {note && tab !== "studio" && <p role="status" className="glass text-fg fixed inset-x-6 z-40 mx-auto w-fit max-w-md rounded-2xl px-4 py-2.5 text-center text-sm" style={{ bottom: "calc(var(--tabbar-h, 0px) + env(safe-area-inset-bottom) + 5rem)" }}>{note}</p>}
       <SaveFlash text={flash} onDone={clearFlash} />
       <Viewer items={viewerItems ?? (history.some((h) => h.id === current?.id) || !current ? history : [current, ...history])} id={viewing} onId={setViewing} onClose={() => { closeViewer(); setViewerItems(null); }} onSave={save}
         onVary={(g) => { setViewing(null); setVary(g); }} onUpscale={(g) => { setViewing(null); setUpscale(g); }}

@@ -325,10 +325,11 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
 
     /// Feed shared images to the page's Tagger. A file is deleted only after the page accepted it,
     /// so a share made while logged out (no studioImport yet) waits for the next foreground.
-    func importPending() {
+    /// skipLore: a lorebook the page kept (logged out / server down) must not block image shares behind it.
+    func importPending(skipLore: Bool = false) {
         // While loading, didFinish will call us — importing into the outgoing page would lose the file.
         guard !importing, !webView.isLoading, !showingError else { return }
-        if let lore = Inbox.pendingLore().first, let data = try? Data(contentsOf: lore) {
+        if !skipLore, let lore = Inbox.pendingLore().first, let data = try? Data(contentsOf: lore) {
             importing = true
             let js = """
             for (let i = 0; i < 50 && !window.studioImportLore; i++) await new Promise(r => setTimeout(r, 100));
@@ -339,10 +340,9 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
             webView.callAsyncJavaScript(js, arguments: ["t": String(decoding: data, as: UTF8.self), "n": name], in: nil, in: .page) { [weak self] result in
                 guard let self else { return }
                 self.importing = false
-                if case .success(let ok) = result, ok as? Bool == true {
-                    try? FileManager.default.removeItem(at: lore)
-                    self.importPending()   // next lorebook, then any image
-                }
+                let done = { if case .success(let ok) = result { return ok as? Bool == true }; return false }()
+                if done { try? FileManager.default.removeItem(at: lore) }
+                self.importPending(skipLore: !done)   // next lorebook, or straight on to images
             }
             return
         }

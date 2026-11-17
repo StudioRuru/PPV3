@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { inline, mdBlocks } from "@/lib/md";
 import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
-import { postHaptic } from "@/lib/native";
+import { longPressPointer, postHaptic } from "@/lib/native";
 import { spyData, spyDue } from "@/lib/mascot/spy";
 import { substituteMacros } from "@/lib/rp/prompt";
 import { MODES, modeOf } from "@/lib/rp/presets";
@@ -217,10 +217,11 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
 
   /** Long-press (400 ms, <8 px drift) opens the menu; on the latest reply a horizontal drag changes version, past the last regenerates. */
   const gesture = (m: RpMessage, swipe: boolean) => {
+    const unlock = (el: HTMLElement) => { el.style.removeProperty("user-select"); el.style.removeProperty("-webkit-user-select"); el.style.removeProperty("-webkit-touch-callout"); };
     const end = (e: React.PointerEvent, commit: boolean) => {
       const p = press.current; if (!p || p.id !== m.id) return;
       press.current = null; clearTimeout(p.t);
-      p.el.style.removeProperty("user-select"); p.el.style.removeProperty("-webkit-user-select"); p.el.style.removeProperty("-webkit-touch-callout");
+      unlock(p.el);
       p.el.style.transition = "translate 200ms ease"; p.el.style.translate = "";
       const dx = e.clientX - p.x;
       if (!commit || !swipe || p.axis !== "x" || Math.abs(dx) <= 60) return;
@@ -234,15 +235,16 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       onContextMenu: (e: React.MouseEvent) => { if (matchMedia("(pointer: coarse)").matches) e.preventDefault(); },
       onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
         if (busy || m.id <= 0 || editing || e.button !== 0 || (e.target as Element).closest("button,a,input,textarea,select")) return;
-        const el = e.currentTarget;
-        const t = window.setTimeout(() => {
-          press.current = null;
+        const el = e.currentTarget, touch = longPressPointer(e.pointerType);
+        if (!touch && !swipe) return; // mouse: plain text selection; the hover toolbar has the actions
+        const t = !touch ? 0 : window.setTimeout(() => {
+          press.current = null; unlock(el);
           const r = el.getBoundingClientRect();
           setMenu({ id: m.id, top: Math.max(8, Math.min(r.bottom + 6, innerHeight - 330)), left: Math.max(8, Math.min(r.left, innerWidth - 208)) });
           postHaptic("medium"); navigator.vibrate?.(10);
         }, 400);
         press.current = { id: m.id, x: e.clientX, y: e.clientY, axis: null, t, el };
-        el.style.setProperty("user-select", "none"); el.style.setProperty("-webkit-user-select", "none"); el.style.setProperty("-webkit-touch-callout", "none");
+        if (touch) { el.style.setProperty("user-select", "none"); el.style.setProperty("-webkit-user-select", "none"); el.style.setProperty("-webkit-touch-callout", "none"); }
       },
       onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
         const p = press.current; if (!p || p.id !== m.id) return;
@@ -328,9 +330,9 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           );
           const thought = thoughtOf === m.id && <p className="text-muted mt-1 text-xs whitespace-pre-wrap italic">{m.thought}</p>;
           return m.role === "user" ? (
-            <div key={m.id} {...gesture(m, false)} className={`group animate-rise relative space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px] ${style === "text" ? "bg-accent text-accent-fg ml-auto w-fit max-w-[85%] rounded-[18px_18px_5px_18px] px-3.5 py-2.5" : "bg-accent/15 ml-auto w-fit max-w-[78%] rounded-[16px_16px_4px_16px] px-3 py-2 text-[13.5px]"}`}><Prose text={sub(m.content)} />{tools}{m.reaction && <span aria-label={`Reacted ${m.reaction}`} className="bg-surface border-border -mb-4 ml-auto block w-fit rounded-full border px-1.5 text-sm">{m.reaction}</span>}</div>
+            <div key={m.id} {...gesture(m, false)} className={`group animate-rise relative space-y-1.5 ${style === "text" ? "bg-accent text-accent-fg ml-auto w-fit max-w-[85%] rounded-[18px_18px_5px_18px] px-3.5 py-2.5" : "bg-accent/15 ml-auto w-fit max-w-[78%] rounded-[16px_16px_4px_16px] px-3 py-2 text-[13.5px]"}`}><Prose text={sub(m.content)} />{tools}{m.reaction && <span aria-label={`Reacted ${m.reaction}`} className="bg-surface border-border -mb-4 ml-auto block w-fit rounded-full border px-1.5 text-sm">{m.reaction}</span>}</div>
           ) : (
-            <div key={m.id} {...gesture(m, swipeable)} data-noswipe={swipeable || undefined} className={`group animate-rise relative flex gap-2 ${swipeable ? "touch-pan-y" : ""} [content-visibility:auto] [contain-intrinsic-size:auto_200px]`}>
+            <div key={m.id} {...gesture(m, swipeable)} data-noswipe={swipeable || undefined} className={`group animate-rise relative flex gap-2 ${swipeable ? "touch-pan-y" : ""}`}>
               {style === "text" && <Avatar c={character} size="size-8" />}
               <div className={`min-w-0 flex-1 ${style === "text" ? "space-y-1.5 text-[15px] leading-relaxed" : ""}`}>
                 {style !== "text" && <p className="mb-1 flex items-center gap-[7px]"><Avatar c={character} size="size-[22px]" /><span className="text-accent text-[11px] font-semibold tracking-[.06em] uppercase">{m.speaker || name}</span></p>}
