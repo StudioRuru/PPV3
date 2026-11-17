@@ -168,12 +168,15 @@ button:active:not(:disabled):not(.sheet-backdrop) { scale: 0.97; transition-dura
 ::view-transition-old(root) { animation-duration: 180ms; }
 /* RP chat styles: close chat = message bubbles; story = book prose. */
 /* Texting: every text is its own bubble, the last one gets the tail. */
-[data-style="chat"] { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; }
-[data-style="chat"] > p { margin: 0; width: fit-content; max-width: 85%; padding: .5rem .85rem; border-radius: 1.15rem; background: var(--color-surface-2); }
-[data-style="chat"] > p:empty { display: none; }
-[data-style="chat"] > p:nth-last-child(1 of :not(:empty)) { border-bottom-left-radius: .4rem; }
-[data-style="story"] { font-family: ui-serif, "Iowan Old Style", Georgia, serif; font-size: 16.5px; line-height: 1.75; }
-[data-style="story"] > p + p { text-indent: 1.25em; }
+/* Liquid-glass surface (RP composer, ⋯ menu, ↓ Latest pill); fg-tinted so every theme reads. */
+.glass { background: color-mix(in srgb, var(--color-fg) 8%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent); }
+[data-style="text"] { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; }
+[data-style="text"] > p { margin: 0; width: fit-content; max-width: 85%; padding: .5rem .85rem; border-radius: 18px; background: var(--color-surface-2); }
+[data-style="text"] > p:empty { display: none; }
+[data-style="text"] > p:nth-last-child(1 of :not(:empty)) { border-bottom-left-radius: 5px; }
+[data-style="rp"] { font-family: ui-serif, "Iowan Old Style", Georgia, serif; font-size: 14.5px; line-height: 1.62; }
+[data-style="rp"] > p { margin: 0 0 8px; }
+[data-style="rp"] > p:last-child { margin: 0; }
 @keyframes fade { from { opacity: 0; } }
 .animate-fade { animation: fade 260ms var(--ease-out) backwards; }
 /* Counter badge lands with a small settle (no overshoot). */

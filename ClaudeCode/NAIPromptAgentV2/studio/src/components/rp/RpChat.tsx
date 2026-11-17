@@ -8,6 +8,7 @@ import { substituteMacros } from "@/lib/rp/prompt";
 import { MODES, modeOf } from "@/lib/rp/presets";
 import { charName } from "@/lib/rp/profile";
 import { typingMs } from "@/lib/rp/burst";
+import { atBottom } from "@/lib/rp/chat-ui";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
@@ -40,14 +41,16 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [rewind, setRewind] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{ id: number; kind: "like" | "dislike"; note: string } | null>(null);
   const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
-  const [memory, setMemory] = useState<string | null>(null);
   const [tuning, setTuning] = useState(false);
+  const [away, setAway] = useState(false); // scrolled up off the bottom → "↓ Latest" pill
+  const [compact, setCompact] = useState(false); // stage portrait scrolled away → compact header
   // Text mode: a new burst's bubbles appear one at a time, each after a typing pause.
   const [reveal, setReveal] = useState<{ id: string; shown: number } | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const composer = useAutoSize(input);
   const pinned = useRef(true); // follow the stream only while the reader is at the bottom
+  const root = useRef<HTMLElement>(null), stage = useRef<HTMLDivElement>(null), form = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
     const r = await requestJson<View>(`/api/rp/chats/${chatId}`);
@@ -69,9 +72,26 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     return () => window.removeEventListener("mascot:settings", on);
   }, []);
   useEffect(() => {
-    const on = () => { pinned.current = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 120; };
+    const on = () => {
+      const p = atBottom(window.innerHeight, window.scrollY, document.documentElement.scrollHeight);
+      if (p !== pinned.current) { pinned.current = p; setAway(!p); }
+    };
     window.addEventListener("scroll", on, { passive: true });
     return () => window.removeEventListener("scroll", on);
+  }, []);
+  // ponytail: IntersectionObserver, not a scroll-driven animation; switch once WKWebView ships animation-timeline.
+  useEffect(() => {
+    const io = new IntersectionObserver(([e]) => setCompact(!e.isIntersecting), { rootMargin: "-64px 0px 0px 0px" });
+    if (stage.current) io.observe(stage.current);
+    return () => io.disconnect();
+  }, []);
+  // The floating composer's height pads the page bottom and lifts the "↓ Latest" pill.
+  useEffect(() => {
+    const f = form.current;
+    if (!f) return;
+    const ro = new ResizeObserver(() => root.current?.style.setProperty("--composer-h", `${f.offsetHeight}px`));
+    ro.observe(f);
+    return () => ro.disconnect();
   }, []);
   useEffect(() => { if (pinned.current) end.current?.scrollIntoView({ block: "end" }); }, [v?.messages.length, stream?.text]);
 
@@ -169,39 +189,43 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     || (reveal?.id === m.burstId && msgs.filter((x) => x.burstId === m.burstId).indexOf(m) >= reveal.shown));
 
   return (
-    <section aria-label={`Chat with ${name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2">
-      <header className="bg-bg/95 sticky top-0 z-10 -mx-4 flex items-center gap-2 px-4 py-1 backdrop-blur">
+    <section ref={root} data-rp-chat aria-label={`Chat with ${name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2"
+      style={{ paddingBottom: "calc(var(--composer-h, 60px) + env(safe-area-inset-bottom) + 22px)" }}>
+      <header data-compact={compact || undefined} className="group sticky top-0 z-10 -mx-4 flex items-center gap-2 px-4 py-1 transition-colors duration-200 data-[compact]:bg-bg/85 data-[compact]:backdrop-blur">
         <button type="button" onClick={onBack} aria-label="Back to chats" className="border-border grid size-10 place-items-center rounded-full border">‹</button>
-        <Avatar c={character} size="size-9" shared />
-        <div className="min-w-0 flex-1">
-          <h1 style={vt("name", character)} className="w-fit max-w-full truncate text-[15px] font-semibold">{name}</h1>
-          {personas.length > 1 && v ? (
-            <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
-              className="text-muted bg-transparent text-[11px]">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
-          ) : <p className="text-muted truncate text-[11px]">as {persona?.name ?? "User"}</p>}
-          {texting && <p role="status" className="text-accent text-[11px]">typing…</p>}
+        <div aria-hidden={!compact} className="flex min-w-0 flex-1 items-center gap-2 opacity-0 transition-opacity duration-[180ms] group-data-[compact]:opacity-100">
+          <Avatar c={character} size="size-[34px] shadow-[0_0_14px] shadow-accent/50" />
+          <div className="min-w-0">
+            <p className="truncate font-serif text-[15px]">{name}</p>
+            <p role="status" className="text-accent h-4 text-[10.5px]">{busy ? (texting ? "typing…" : "writing…") : ""}</p>
+          </div>
         </div>
-        {v && <div role="radiogroup" aria-label="Mode" className="border-border flex rounded-full border p-0.5">
-          {MODES.map((m) => (
-            <button key={m.id} type="button" role="radio" aria-checked={style === m.id} title={m.blurb} disabled={busy || style === m.id} onClick={() => patch({ op: "chat", style: m.id })}
-              className={`min-h-11 rounded-full px-2.5 text-xs whitespace-nowrap transition-colors ${style === m.id ? "bg-accent text-accent-fg font-semibold" : "text-muted"}`}>{m.label}</button>
-          ))}
-        </div>}
-        {v && <button type="button" onClick={() => setTuning(true)} className={`h-10 rounded-full border px-3 text-sm transition-colors ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
+        {v && <button type="button" onClick={() => setTuning(true)} className={`h-9 rounded-full border px-3 text-xs transition-colors ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
           Tune{enabledMods(v.chat, v.globalMods) ? <span key={enabledMods(v.chat, v.globalMods)} className="animate-pop ml-1">· {enabledMods(v.chat, v.globalMods)}</span> : null}</button>}
-        <button type="button" onClick={onEdit} className="border-border h-10 rounded-full border px-3 text-sm">Card</button>
-      </header>
-
-      {v && (
-        <details className="bg-surface border-border rounded-lg border text-sm" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) setMemory(v.chat.memorySummary); }}>
-          <summary className="text-muted cursor-pointer px-3 py-2 text-xs">📌 Memory {v.chat.memorySummary ? "· story so far" : "· builds as the chat grows"}</summary>
-          <div className="space-y-2 px-3 pb-3">
-            <AutoTextarea value={memory ?? v.chat.memorySummary} onChange={setMemory} />
-            <button type="button" disabled={busy || memory === null || memory === v.chat.memorySummary} onClick={() => patch({ op: "chat", memorySummary: memory })}
-              className="text-accent text-xs font-semibold disabled:opacity-40">Save memory</button>
+        {v && <button type="button" onClick={() => setTuning(true)} aria-label="Lorebooks" className="border-border h-9 rounded-full border px-3 text-xs">📖</button>}
+        <details className="relative">
+          <summary aria-label="More" className="border-border grid size-9 cursor-pointer list-none place-items-center rounded-full border [&::-webkit-details-marker]:hidden">⋯</summary>
+          <div className="glass absolute top-11 right-0 z-20 w-60 space-y-2 rounded-2xl p-2 text-sm">
+            {personas.length > 1 && v ? (
+              <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
+                className="h-10 w-full rounded-lg bg-transparent px-2">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
+            ) : <p className="text-muted px-2 py-1 text-xs">as {persona?.name ?? "User"}</p>}
+            {v && <div role="radiogroup" aria-label="Mode" className="border-border flex rounded-full border p-0.5">
+              {MODES.map((m) => (
+                <button key={m.id} type="button" role="radio" aria-checked={style === m.id} title={m.blurb} disabled={busy || style === m.id} onClick={() => patch({ op: "chat", style: m.id })}
+                  className={`min-h-10 flex-1 rounded-full px-2.5 text-xs whitespace-nowrap transition-colors ${style === m.id ? "bg-accent text-accent-fg font-semibold" : "text-muted"}`}>{m.label}</button>
+              ))}
+            </div>}
+            <button type="button" onClick={onEdit} className="h-10 w-full rounded-lg px-2 text-left">Card</button>
           </div>
         </details>
-      )}
+      </header>
+
+      <div ref={stage} className="-mx-4 flex flex-col items-center gap-1 pb-4 text-center" style={{ background: "radial-gradient(circle at 50% 75%, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 70%)" }}>
+        <Avatar c={character} size="h-[210px] w-[140px] rounded-t-full! rounded-b-2xl! text-5xl bg-linear-to-br from-accent to-cyan text-accent-fg!" shared />
+        <h1 style={vt("name", character)} className="mt-2 font-serif text-[22px]">{name}</h1>
+        {character.scenario && <p className="text-muted line-clamp-1 px-8 text-xs">{sub(character.scenario)}</p>}
+      </div>
 
       <div className="flex-1 space-y-3">
         {msgs.map((m) => {
@@ -247,13 +271,14 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             </div>
           );
           return m.role === "user" ? (
-            <div key={m.id} className={`animate-rise space-y-1.5 text-sm ${style === "text" ? "bg-accent/15 ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2.5" : "bg-surface-2 ml-10 rounded-lg p-2.5"}`}><Prose text={sub(m.content)} />{actions}{m.reaction && <span aria-label={`Reacted ${m.reaction}`} className="bg-surface border-border -mb-4 ml-auto block w-fit rounded-full border px-1.5 text-sm">{m.reaction}</span>}</div>
+            <div key={m.id} className={`animate-rise space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px] ${style === "text" ? "bg-accent text-accent-fg ml-auto w-fit max-w-[85%] rounded-[18px_18px_5px_18px] px-3.5 py-2.5" : "bg-accent/15 ml-auto w-fit max-w-[78%] rounded-[16px_16px_4px_16px] px-3 py-2 text-[13.5px]"}`}><Prose text={sub(m.content)} />{actions}{m.reaction && <span aria-label={`Reacted ${m.reaction}`} className="bg-surface border-border -mb-4 ml-auto block w-fit rounded-full border px-1.5 text-sm">{m.reaction}</span>}</div>
           ) : (
-            <div key={m.id} className="animate-rise flex gap-2">
-              <Avatar c={character} size="size-8" />
-              <div className="min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">
-                {m.speaker && <p className="text-muted flex items-center gap-1.5 text-[11px] font-semibold"><i aria-hidden="true" className="size-2 rounded-full" style={{ background: `hsl(${[...m.speaker].reduce((h, c) => h * 31 + c.charCodeAt(0), 7) % 360} 65% 55%)` }} />{m.speaker}</p>}
-                <div key={replacing ? "stream" : m.activeSwipeIndex} data-style={style || undefined} className={`animate-fade space-y-1.5 ${replacing ? "stream-caret" : ""}`}>
+            <div key={m.id} className={`animate-rise flex gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_200px]`}>
+              {style === "text" && <Avatar c={character} size="size-8" />}
+              <div className={`min-w-0 flex-1 ${style === "text" ? "space-y-1.5 text-[15px] leading-relaxed" : ""}`}>
+                {style !== "text" && <p className="mb-1 flex items-center gap-[7px]"><Avatar c={character} size="size-[22px]" /><span className="text-accent text-[11px] font-semibold tracking-[.06em] uppercase">{m.speaker || name}</span></p>}
+                {style === "text" && m.speaker && <p className="text-muted flex items-center gap-1.5 text-[11px] font-semibold"><i aria-hidden="true" className="size-2 rounded-full" style={{ background: `hsl(${[...m.speaker].reduce((h, c) => h * 31 + c.charCodeAt(0), 7) % 360} 65% 55%)` }} />{m.speaker}</p>}
+                <div key={replacing ? "stream" : m.activeSwipeIndex} data-style={style || undefined} className={`animate-fade ${style === "text" ? "space-y-1.5" : "border-accent/35 border-l-2 pl-3"} ${replacing ? "stream-caret" : ""}`}>
                   {m.imageId === null || replacing ? <Prose text={sub(replacing ? stream!.text || "…" : m.content)} />
                     : m.imageFile ? <button type="button" onClick={() => setZoom(m.imageFile!)} className="block w-fit"><img src={`/api/rp/files/images/${m.imageFile}`} alt="Photo" className="max-h-80 rounded-2xl" /></button>
                     : <p className="text-muted bg-surface-2 w-fit rounded-2xl px-3.5 py-2.5 text-sm">{m.imageId === 0 ? "📷 photo failed" : "📷 sending…"}</p>}
@@ -296,9 +321,9 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           </div>
         )}
         {stream && stream.replacing === undefined && style !== "text" && (
-          <div className="animate-rise flex gap-2">
-            <Avatar c={character} size="size-8" />
-            <div data-style={style || undefined} className="stream-caret min-w-0 flex-1 space-y-1.5 text-[15px] leading-relaxed">{stream.text ? <Prose text={sub(stream.text)} /> : <p className="thinking text-muted text-sm">…</p>}</div>
+          <div className="animate-rise">
+            <p className="mb-1 flex items-center gap-[7px]"><Avatar c={character} size="size-[22px]" /><span className="text-accent text-[11px] font-semibold tracking-[.06em] uppercase">{name}</span></p>
+            <div data-style={style || undefined} className="stream-caret border-accent/35 min-w-0 border-l-2 pl-3">{stream.text ? <Prose text={sub(stream.text)} /> : <p className="thinking text-muted text-sm">…</p>}</div>
           </div>
         )}
         {status && (
@@ -314,12 +339,16 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       <div ref={end} />
       </div>
 
-      <form data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 flex gap-2 border-t px-4 py-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
+      {away && (busy || !!stream) && <button type="button" onClick={() => { pinned.current = true; setAway(false); end.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }}
+        className="glass text-accent-ink animate-rise fixed bottom-[calc(var(--composer-h,60px)+env(safe-area-inset-bottom)+22px)] left-1/2 z-20 -translate-x-1/2 rounded-full px-3 py-1.5 text-xs">↓ Latest</button>}
+      <form ref={form} data-composer className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-20 mx-auto flex max-w-3xl items-end gap-2"
         onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <textarea ref={composer} value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder={`Message ${name}…`}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); submit(); } }}
-          className="bg-bg border-border focus:border-accent transition-colors max-h-[35dvh] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-2 py-2.5 text-base" />
-        <button type="submit" disabled={busy || !input.trim()} className="bg-accent text-accent-fg h-11 w-16 self-end rounded-md font-semibold disabled:opacity-50">Send</button>
+          className="glass focus:border-accent max-h-[calc(5lh+20px)] min-w-0 flex-1 resize-none overflow-y-auto rounded-[22px] px-3.5 py-2.5 text-base transition-colors" />
+        <button type="submit" aria-label="Send" disabled={busy || !input.trim()} className="bg-accent text-accent-fg grid size-10 shrink-0 place-items-center rounded-full disabled:opacity-50">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+        </button>
       </form>
       {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} thinking={v.thinking} agency={character.agency} sub={sub} onPatch={patch} />}
       {sheet}

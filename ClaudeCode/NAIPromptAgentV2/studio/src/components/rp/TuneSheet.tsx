@@ -56,7 +56,8 @@ export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, s
   const touched = useRef(false), thinkTouched = useRef(false);
   const [books, setBooks] = useState<RpLorebook[]>([]);
   const [bookId, setBookId] = useState(chat.lorebookId);
-  useEffect(() => { if (open) { setBookId(chat.lorebookId); requestJson<{ lorebooks: RpLorebook[] }>("/api/rp/lore").then((r) => r.ok && setBooks(r.data.lorebooks)); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- refresh on open only
+  const [memory, setMemory] = useState(chat.memorySummary);
+  useEffect(() => { if (open) { setBookId(chat.lorebookId); setMemory(chat.memorySummary); requestJson<{ lorebooks: RpLorebook[] }>("/api/rp/lore").then((r) => r.ok && setBooks(r.data.lorebooks)); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- refresh on open only
   useEffect(() => { if (open) { setD(fromChat(chat, agency, globalMods, thinking)); touched.current = false; thinkTouched.current = false; } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on open only
 
   useEffect(() => {
@@ -103,6 +104,15 @@ export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, s
 
         <h3 className="text-muted text-xs font-semibold tracking-wide uppercase">Mods</h3>
         <ModList mods={d.mods} onChange={(mods) => edit({ mods })} sub={sub} />
+
+        <details className="border-border rounded-lg border text-sm">
+          <summary className="text-muted cursor-pointer px-3 py-2 text-xs">📌 Memory {chat.memorySummary ? "· story so far" : "· builds as the chat grows"}</summary>
+          <div className="space-y-1.5 px-3 pb-3">
+            <AutoTextarea value={memory} onChange={setMemory} />
+            <button type="button" disabled={memory === chat.memorySummary} onClick={() => onPatch({ op: "chat", memorySummary: memory })}
+              className="text-accent text-xs font-semibold disabled:opacity-40">Save memory</button>
+          </div>
+        </details>
 
         <label className="block text-sm"><span>Author&rsquo;s note</span>
           <span className="text-faint block text-xs">Slipped in a few messages back every turn — steer the scene without saying it in chat.</span>
