@@ -13,7 +13,7 @@ import type { StudioCard } from "../src/lib/rp/studio-types";
 
 const argv = process.argv.slice(2);
 const i = argv.indexOf("--models");
-const MODELS = (i >= 0 ? argv[i + 1] : "kobold:Omega-Arsenal-26B-A4B-Final.i1-Q4_K_M_hb16,gemma4-26b-apex:latest").split(",");
+const MODELS = (i >= 0 ? argv[i + 1] : "kobold:Omega-Arsenal-26B-A4B-Final.i1-Q4_K_M_hb16").split(",");
 
 const CONCEPTS = [
   "A burned-out former idol who now runs a tiny ramen stall at night; sarcastic to customers, secretly still practices her old dance routines after closing.",

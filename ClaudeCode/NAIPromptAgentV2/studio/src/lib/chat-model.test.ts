@@ -4,7 +4,7 @@ import { COMPANION_RULES, companionSystem, modelFor } from "./chat-model";
 
 test("modelFor: miyabi on the heavy tier, Aru on the everyday brain", () => {
   const none = () => null;
-  assert.equal(modelFor("miyabi", none, "brain"), "gemma4-26b-apex:latest");
+  assert.equal(modelFor("miyabi", none, "brain"), "kobold:Omega-Arsenal-26B-A4B-Final.i1-Q4_K_M_hb16");
   assert.equal(modelFor("miyabi", (k) => (k === "model.heavy" ? "cydonia" : null), "brain"), "cydonia");
   assert.equal(modelFor("aru", () => "x", "brain"), undefined);
 });

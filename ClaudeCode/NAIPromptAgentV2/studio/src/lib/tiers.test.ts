@@ -7,9 +7,9 @@ test("tierModel: defaults, then settings override", () => {
   assert.equal(tierModel("everyday", none, "brain"), "brain");
   assert.equal(tierModel("quick", none, "brain"), QUICK_DEFAULT);
   assert.equal(tierModel("quick", (k) => (k === "model.quick" ? "m" : null), "brain"), "m");
-  assert.equal(tierModel("heavy", none, "brain"), "gemma4-26b-apex:latest");
+  assert.equal(tierModel("heavy", none, "brain"), "kobold:Omega-Arsenal-26B-A4B-Final.i1-Q4_K_M_hb16");
   assert.equal(tierModel("heavy", (k) => (k === "model.heavy" ? "cydonia-24b:latest" : null), "brain"), "cydonia-24b:latest");
-  assert.equal(tierModel("heavy", () => "  ", "brain"), "gemma4-26b-apex:latest");
+  assert.equal(tierModel("heavy", () => "  ", "brain"), "kobold:Omega-Arsenal-26B-A4B-Final.i1-Q4_K_M_hb16");
 });
 
 const fake = (opts: { active?: boolean; slowUp?: Promise<void> } = {}) => {

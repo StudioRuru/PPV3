@@ -1,6 +1,6 @@
 // RP eval bench: scripted chats through the real prompt builder, scored by src/lib/rp/bench.ts.
 //   npx tsx scripts/rp-bench.mts --label baseline [--model cydonia-24b] [--runs 2] [--set temperature=1 --set min_p=0.1]
-//                                [--judge gemma4-26b-apex] [--vs ../data/bench/<file>.json] [--think]
+//                                [--judge <ollama model>] [--vs ../data/bench/<file>.json] [--think]
 // Point OLLAMA_URL at a pod to bench a model that only lives there.
 import Database from "better-sqlite3";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -15,7 +15,7 @@ import { scoreReply, summarize, type ReplyScore } from "../src/lib/rp/bench";
 
 const argv = process.argv.slice(2);
 const flag = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
-const model = flag("model") ?? "gemma4-26b-apex";
+const model = flag("model") ?? "kobold:Omega-Arsenal-26B-A4B-Final.i1-Q4_K_M_hb16";
 const think = argv.includes("--think");
 const label = flag("label") ?? model.replace(/[^a-z0-9]+/gi, "-");
 const runs = Number(flag("runs") ?? 1);
