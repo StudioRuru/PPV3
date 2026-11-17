@@ -33,6 +33,15 @@ test("podBody: Ollama options map to llama-server, llama.cpp samplers pass throu
   assert.ok(isPod("pod:x") && !isPod("gemma4-26b-apex") && !isPod(undefined));
 });
 
+test("podBody: a kobold: model drops its prefix and gets DRY by default; options still win", async () => {
+  const { podBody, isPod, isKobold } = await import("../llm");
+  const b = podBody([], "kobold:koboldcpp/omega", { dry_multiplier: 0 });
+  assert.equal(b.model, "koboldcpp/omega");
+  assert.equal(b.dry_multiplier, 0);
+  assert.equal(b.dry_base, 1.75);
+  assert.ok(isKobold("kobold:x") && !isPod("kobold:x") && !isKobold("pod:x"));
+});
+
 test("scoreReply text style uses bursts", () => {
   assert.equal(scoreReply("a\n---\nb\n---\nc", [], { style: "text", length: 3, user: "Kai" }).lengthOk, true);
   assert.equal(scoreReply("[react:😭]\nok\n---\nfine", [], { style: "text", length: 2, user: "Kai" }).styleBreak, false);

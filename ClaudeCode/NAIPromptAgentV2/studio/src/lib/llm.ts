@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import sharp from "sharp";
-import { BRAIN_MODEL, CAPTION_URL, OLLAMA_URL, RP_POD_URL, TIPO_URL } from "./env";
+import { BRAIN_MODEL, CAPTION_URL, KOBOLD_BIN, KOBOLD_MODEL, KOBOLD_URL, OLLAMA_URL, RP_POD_URL, TIPO_URL } from "./env";
 import type { ChatMsg } from "./copilot-prompt";
 import { HeavyGate } from "./tiers";
 
@@ -63,7 +63,25 @@ async function unloadOthers(): Promise<void> {
   for (const m of (ps?.models ?? []) as { name: string }[]) {
     if (m.name !== BRAIN_MODEL) await post(`${OLLAMA_URL}/api/generate`, { model: m.name, prompt: "", keep_alive: 0 }, 60_000).catch(() => null);
   }
+  await stopKobold();
 }
+
+// --moecpu 4: Omega Q4_K_M runs out of GPU memory fully offloaded (18 GB Metal limit on 24 GB); 4 MoE layers on the CPU fix it.
+/** KoboldCpp holds its whole model while it runs, so it's started for a kobold: reply and stopped when the gate restores. */
+async function ensureKobold(): Promise<void> {
+  if (await ping(`${KOBOLD_URL}/v1/models`)) return;
+  const { port, hostname } = new URL(KOBOLD_URL);
+  spawn(KOBOLD_BIN, ["--model", KOBOLD_MODEL, "--host", hostname, "--port", port, "--contextsize", "16384", "--jinja", "--jinjathink", "false", "--moecpu", "4", "--skiplauncher", "--quiet"],
+    { detached: true, stdio: "ignore" }).unref();
+  for (let i = 0; i < 180; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if (await ping(`${KOBOLD_URL}/v1/models`)) return;
+  }
+  throw new Error("KoboldCpp didn't start within 3 minutes");
+}
+
+// ponytail: matches by binary path, so a Kobold the owner started by hand is stopped too.
+export const stopKobold = () => new Promise<void>((resolve) => spawn("pkill", ["-f", KOBOLD_BIN]).on("close", () => resolve()).on("error", () => resolve()));
 
 /** One shared pause for heavy-model calls (see HeavyGate). On globalThis so a dev hot-reload doesn't forget a pause. */
 const g = globalThis as unknown as { __heavyGate?: HeavyGate };
@@ -93,16 +111,20 @@ export function chatBody(system: string, messages: ChatMsg[] | { role: string; c
 
 /** A model served by the rented RP pod rather than the Mac's Ollama. */
 export const isPod = (model?: string) => !!model?.startsWith("pod:");
+/** A model on the Mac's KoboldCpp: same OpenAI API as the pod, but local, so it still takes the heavy gate. */
+export const isKobold = (model?: string) => !!model?.startsWith("kobold:");
+// DRY (repetition of phrases, not tokens) — the reason to run Kobold at all; a chat's own options override it.
+const KOBOLD_DEFAULTS = { dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 2 };
 
 /** OpenAI-style body for llama-server; Ollama option names map over, and llama.cpp-only samplers (dry_*, xtc_*) pass through. */
 export function podBody(messages: { role: string; content: string }[], model: string, options: Record<string, unknown> = {}, stop?: string[]): Record<string, unknown> {
   const { num_predict, num_ctx: _ctx, ...rest } = options;
-  return { model: model.slice(4), stream: true, messages, ...rest, ...(num_predict ? { max_tokens: num_predict } : {}), ...(stop?.length ? { stop } : {}) };
+  return { model: model.slice(model.indexOf(":") + 1), stream: true, messages, ...(isKobold(model) ? KOBOLD_DEFAULTS : {}), ...rest, ...(num_predict ? { max_tokens: num_predict } : {}), ...(stop?.length ? { stop } : {}) };
 }
 
 async function* podStream(messages: { role: string; content: string }[], opts: StreamOpts): AsyncGenerator<string> {
-  const r = await post(`${RP_POD_URL}/v1/chat/completions`, podBody(messages, opts.model!, opts.options, opts.stop), 600_000);
-  if (!r.ok || !r.body) throw new Error(`RP pod ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const r = await post(`${isKobold(opts.model) ? KOBOLD_URL : RP_POD_URL}/v1/chat/completions`, podBody(messages, opts.model!, opts.options, opts.stop), 600_000);
+  if (!r.ok || !r.body) throw new Error(`${isKobold(opts.model) ? "KoboldCpp" : "RP pod"} ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const dec = new TextDecoder();
   let buf = "";
   for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) {
@@ -121,7 +143,8 @@ async function* podStream(messages: { role: string; content: string }[], opts: S
 }
 
 export async function* chatStream(system: string, messages: ChatMsg[] | { role: string; content: string }[], opts: StreamOpts = {}): AsyncGenerator<string> {
-  if (isPod(opts.model)) {
+  if (isPod(opts.model) || isKobold(opts.model)) {
+    if (isKobold(opts.model)) await ensureKobold();
     yield* podStream(opts.system === false ? messages : [{ role: "system", content: system }, ...messages], opts);
     return;
   }

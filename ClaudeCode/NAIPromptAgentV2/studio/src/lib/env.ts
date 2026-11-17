@@ -16,6 +16,11 @@ export const TAGGER_URL = (process.env.TAGGER_URL || "http://127.0.0.1:8190").re
 export const OLLAMA_URL = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
 /** RP model pod (llama.cpp server) through the SSH tunnel; its models show up as "pod:<alias>". */
 export const RP_POD_URL = (process.env.RP_POD_URL || "http://127.0.0.1:8091").replace(/\/$/, "");
+/** Local KoboldCpp (DRY/XTC/phrase bans that Ollama lacks); its model shows up as "kobold:<id>". */
+export const KOBOLD_URL = (process.env.KOBOLD_URL || "http://127.0.0.1:5001").replace(/\/$/, "");
+/** KoboldCpp binary + the one GGUF it serves; the studio starts it on demand and stops it with the heavy gate. */
+export const KOBOLD_BIN = process.env.KOBOLD_BIN || `${process.env.HOME}/ClaudeCode/koboldcpp/koboldcpp-mac-arm64`;
+export const KOBOLD_MODEL = process.env.KOBOLD_MODEL || `${process.env.HOME}/ClaudeCode/koboldcpp/models/Omega-Arsenal-26B-A4B-Final.i1-Q4_K_M_hb16.gguf`;
 export const BRAIN_MODEL = process.env.BRAIN_MODEL || "gemma4-12b-heretic-vision:latest";
 export const CAPTION_URL = (process.env.CAPTION_URL || "http://127.0.0.1:8191").replace(/\/$/, "");
 export const TIPO_URL = (process.env.TIPO_URL || "http://127.0.0.1:8193").replace(/\/$/, "");

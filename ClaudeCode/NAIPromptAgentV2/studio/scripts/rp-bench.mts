@@ -8,7 +8,7 @@ import { migrateRp } from "../src/lib/rp/schema";
 import { RpStore } from "../src/lib/rp/store";
 import { buildTurn } from "../src/lib/rp/turn";
 import { DEFAULT_RP_SETTINGS } from "../src/lib/rp/types";
-import { chatStream, embed, heavyGate, power } from "../src/lib/llm";
+import { chatStream, embed, heavyGate, power, stopKobold } from "../src/lib/llm";
 import { stripThoughtEcho, thinkRequest, withThought } from "../src/lib/rp/think";
 import { OLLAMA_URL } from "../src/lib/env";
 import { scoreReply, summarize, type ReplyScore } from "../src/lib/rp/bench";
@@ -70,6 +70,7 @@ async function judge(c: Case, log: string): Promise<number | null> {
 }
 
 const all: ReplyScore[] = []; const judged: number[] = []; const perCase: Record<string, unknown> = {}; const transcripts: Record<string, string[]> = {};
+const pending: { c: Case; key: string; scores: ReplyScore[]; log: string[] }[] = [];
 const t0 = Date.now();
 await heavyGate.run(async () => {
   for (const c of CASES) for (let run = 0; run < runs; run++) {
@@ -96,13 +97,18 @@ await heavyGate.run(async () => {
       s.append(chat, "assistant", text);
       process.stdout.write(".");
     }
-    const j = await judge(c, log.join("\n\n"));
-    if (j !== null) judged.push(j);
     all.push(...scores);
-    perCase[`${c.name}#${run}`] = { ...summarize(scores, j === null ? [] : [j]) };
+    pending.push({ c, key: `${c.name}#${run}`, scores, log });
     transcripts[`${c.name}#${run}`] = log;
   }
 });
+// Judged after all replies: a local Kobold model and the Ollama judge don't fit in memory together.
+await stopKobold();
+for (const { c, key, scores, log } of pending) {
+  const j = await judge(c, log.join("\n\n"));
+  if (j !== null) judged.push(j);
+  perCase[key] = { ...summarize(scores, j === null ? [] : [j]) };
+}
 if (heavyGate.state === "heavy") await power("up");
 
 const summary = { ...summarize(all, judged), secPerReply: Math.round((Date.now() - t0) / all.length / 100) / 10 };

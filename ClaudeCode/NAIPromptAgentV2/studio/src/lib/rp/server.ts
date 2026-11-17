@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { db, getSetting, setSetting } from "@/lib/db";
-import { BRAIN_MODEL, DATA_DIR, OLLAMA_URL, RP_POD_URL } from "@/lib/env";
+import { BRAIN_MODEL, DATA_DIR, KOBOLD_MODEL, OLLAMA_URL, RP_POD_URL } from "@/lib/env";
 import { chatStream, heavyGate, toModelImage } from "@/lib/llm";
 import { tierModel } from "@/lib/tiers";
 import { serializeModsJson } from "./mods";
@@ -27,12 +27,12 @@ export function saveRpSettings(patch: Partial<RpSettings>): RpSettings {
 export const heavyModel = () => tierModel("heavy", getSetting, BRAIN_MODEL);
 
 let tags: { at: number; names: string[] } = { at: 0, names: [] };
-/** Installed Ollama models plus the RP pod's ("pod:<alias>", only while its tunnel is up), cached 60 s. */
+/** Installed Ollama models plus the RP pod's ("pod:<alias>", only while its tunnel is up) and KoboldCpp's ("kobold:<gguf name>", started on demand), cached 60 s. */
 export async function installedModels(): Promise<string[]> {
   if (Date.now() - tags.at < 60_000) return tags.names;
   const get = (u: string) => fetch(u, { signal: AbortSignal.timeout(3000) }).then((r) => r.json(), () => null);
   const [r, pod] = await Promise.all([get(`${OLLAMA_URL}/api/tags`), get(`${RP_POD_URL}/v1/models`)]);
-  tags = { at: Date.now(), names: [...(r?.models ?? []).map((m: { name: string }) => m.name), ...(pod?.data ?? []).map((m: { id: string }) => `pod:${m.id}`)] };
+  tags = { at: Date.now(), names: [...(r?.models ?? []).map((m: { name: string }) => m.name), ...(pod?.data ?? []).map((m: { id: string }) => `pod:${m.id}`), ...(fs.existsSync(KOBOLD_MODEL) ? [`kobold:${path.basename(KOBOLD_MODEL, ".gguf")}`] : [])] };
   return tags.names;
 }
 
