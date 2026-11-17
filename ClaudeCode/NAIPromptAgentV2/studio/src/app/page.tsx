@@ -12,7 +12,7 @@ import { SaveFlash } from "@/components/SaveFlash";
 import { LiquidIsland } from "@/components/LiquidIsland";
 import { TAB_IDS, type Tab } from "@/lib/tabs";
 import { EXPRESSIONS, type Expression } from "@/lib/mascot/core";
-import { activityState, makeGate, makeThrottle, parseIntent, postActivity } from "@/lib/native";
+import { activityState, makeGate, makeThrottle, parseIntent, postActivity, postTabbar } from "@/lib/native";
 import { NO_SWIPE, swipeDirection } from "@/lib/swipe";
 import { GridSheet } from "@/components/GridSheet";
 import { Viewer } from "@/components/Viewer";
@@ -100,6 +100,10 @@ export default function Studio() {
   const [note, setNote] = useState<string | null>(null);
   // Set when running inside the iOS shell (WKWebView with the "studio" message handler).
   const [native, setNative] = useState(false);
+  const [rpOpen, setRpOpen] = useState(false);
+  // Native glass tab bar (iOS shell): hidden inside an open RP chat, selection kept in sync.
+  // ponytail: the Chat tab always has a thread open (no list view), so its bar stays up and the composer sits on it.
+  useEffect(() => { if (native) postTabbar({ hidden: tab === "rp" && rpOpen, tab }); }, [native, tab, rpOpen]);
 
   useEffect(() => {
     const w = window as unknown as { webkit?: { messageHandlers?: { studio?: unknown } }; studioImport?: unknown; studioToast?: unknown };
@@ -254,7 +258,7 @@ export default function Studio() {
   }
 
   return (
-    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+6.5rem)]" : tab === "chat" || tab === "rp" || tab === "comfy" ? "pb-0" : "pb-[calc(env(safe-area-inset-bottom)+2.5rem)]"}`}
+    <main className={`mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-2 ${tab === "studio" ? "pb-[calc(env(safe-area-inset-bottom)+6.5rem+var(--tabbar-h,0px))]" : tab === "chat" ? "pb-0" : tab === "rp" || tab === "comfy" ? "pb-[var(--tabbar-h,0px)]" : "pb-[calc(env(safe-area-inset-bottom)+2.5rem+var(--tabbar-h,0px))]"}`}
       // --pt: below the top pill on screens without a Dynamic Island (inset ≤ 50px → +2.5rem); island screens 3rem, clearing the island touch strip (inset + 2 .. inset + 46).
       // Chat/RP: no bottom padding — their sticky composers pad the safe area themselves and size to 100dvh − var(--pt) − inset-top.
       style={{ touchAction: "pan-y", "--pt": "calc(3rem + clamp(0px, (50.01px - env(safe-area-inset-top)) * 9999, 0.5rem))", paddingTop: "var(--pt)" } as React.CSSProperties}
@@ -375,14 +379,14 @@ export default function Studio() {
         <ChatScreen active={tab === "chat"} state={state} seed={seed} onApply={(ops) => setState((s) => applyOps(s, ops))} />
       </div>
       <div className={tab === "rp" ? "lg:col-span-2" : "hidden"}>
-        <RpScreen active={tab === "rp"} />
+        <RpScreen active={tab === "rp"} onOpenChange={setRpOpen} />
       </div>
       <div className={tab === "closet" ? "lg:col-span-2" : "hidden"}>
         <Closet active={tab === "closet"} onUse={useFromCloset}
           prompt={[...state.base, ...state.chars.flatMap((c) => c.lines)].filter((l) => l.enabled).flatMap((l) => splitTags(l.text))} />
       </div>
 
-      <div data-composer className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}>
+      <div data-composer className={`bg-bg/90 border-border fixed inset-x-0 z-20 border-t px-3 py-2 backdrop-blur ${tab === "studio" ? "" : "hidden"}`} style={{ bottom: "var(--tabbar-h, 0px)", paddingBottom: "calc(max(0px, env(safe-area-inset-bottom) - var(--tabbar-h, 0px)) + 0.5rem)" }}>
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           {undo ? <p role="status" className="flex flex-1 items-center gap-3 text-sm">Prompt recreated
               <button type="button" onClick={() => { setState(undo); setUndo(null); }} className="text-accent font-semibold">Undo</button></p>

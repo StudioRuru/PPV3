@@ -442,7 +442,7 @@ export function ChatScreen({ active, state, onApply, seed }: { active: boolean; 
       </div>
 
       {/* Composer: sticks to the bottom, padded clear of the home indicator */}
-      <div data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 backdrop-blur" style={{ bottom: 0, paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}>
+      <div data-composer className="bg-bg/95 border-border sticky z-10 -mx-4 space-y-2 border-t px-4 pt-2 backdrop-blur" style={{ bottom: "var(--tabbar-h, 0px)", paddingBottom: "calc(max(0px, env(safe-area-inset-bottom) - var(--tabbar-h, 0px)) + 0.5rem)" }}>
         {/* Typing: the mode chips step aside so the keyboard leaves room for messages. */}
         <div data-noswipe className={`gap-1.5 overflow-x-auto ${focused || companion ? "hidden" : "flex"}`}>
           {MODES.map(([k, label]) => (

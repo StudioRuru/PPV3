@@ -48,9 +48,10 @@ const ago = (t: number | null) => {
 type View = { kind: "gallery" } | { kind: "character"; id: number } | { kind: "chat"; id: number; chatId: number };
 
 /** RP tab: character gallery → a character's chats → the chat. Cards are edited in the character sheet. */
-export function RpScreen({ active }: { active: boolean }) {
+export function RpScreen({ active, onOpenChange }: { active: boolean; onOpenChange?: (open: boolean) => void }) {
   const [chars, setChars] = useState<GalleryChar[]>([]);
   const [view, setView] = useState<View>({ kind: "gallery" });
+  useEffect(() => { onOpenChange?.(view.kind === "chat"); }, [view.kind]); // eslint-disable-line react-hooks/exhaustive-deps -- report on view change only
   const [chats, setChats] = useState<Chat[]>([]);
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [importing, setImporting] = useState(false);

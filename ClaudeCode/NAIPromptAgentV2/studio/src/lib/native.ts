@@ -72,3 +72,10 @@ export function postHaptic(haptic: Haptic) {
   if (typeof window === "undefined") return;
   (window as unknown as Bridge).webkit?.messageHandlers?.studio?.postMessage({ haptic });
 }
+
+/** Web → iOS: hide the native tab bar inside an open chat; `tab` keeps its selection in sync. */
+export const tabbarMessage = (o: { hidden: boolean; tab: Tab }) => ({ tabbar: { hidden: o.hidden, tab: o.tab } });
+export function postTabbar(o: { hidden: boolean; tab: Tab }) {
+  if (typeof window === "undefined") return;
+  (window as unknown as Bridge).webkit?.messageHandlers?.studio?.postMessage(tabbarMessage(o));
+}

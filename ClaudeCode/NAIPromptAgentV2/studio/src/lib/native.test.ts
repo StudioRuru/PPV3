@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { activityState, changed, isHaptic, makeGate, makeThrottle, parseIntent, postActivity } from "./native";
+import { activityState, changed, isHaptic, makeGate, makeThrottle, parseIntent, postActivity, tabbarMessage } from "./native";
 
 const base = { tab: "chat" as const, expression: "smug" as const, hidden: false, bust: "/api/mascot/sprites/day/smug?v=1", on: true };
 
@@ -81,4 +81,8 @@ test("isHaptic: whitelist only", () => {
   assert.equal(isHaptic("selection"), true);
   assert.equal(isHaptic("heavy"), false);
   assert.equal(isHaptic(1), false);
+});
+
+test("tabbarMessage shape", () => {
+  assert.deepEqual(tabbarMessage({ hidden: true, tab: "rp" }), { tabbar: { hidden: true, tab: "rp" } });
 });

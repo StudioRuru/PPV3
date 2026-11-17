@@ -49,21 +49,82 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-final class StudioViewController: UIViewController {
+final class StudioViewController: UIViewController, UITabBarDelegate {
+    /// Mirrors studio/src/lib/tabs.ts. ponytail: duplicated list; a new web tab needs a row here too.
+    static let tabs: [(id: String, title: String, symbol: String)] = [
+        ("studio", "Studio", "paintbrush.pointed"), ("comfy", "Comfy", "point.3.connected.trianglepath.dotted"),
+        ("roll", "Roll", "camera"), ("closet", "Closet", "hanger"),
+        ("chat", "Chat", "bubble.left"), ("rp", "RP", "theatermasks"),
+    ]
+    private let bar = UITabBar()
+    private var webHidden = false, keyboardUp = false
+
     /// The web view ends at the keyboard's top, so the page shrinks instead of WebKit scrolling it (sticky headers stay put).
+    /// The glass tab bar floats over the page's bottom edge; the page pads itself by --tabbar-h.
     override func loadView() {
         view = UIView()
         let web = WebHost.shared.webView
         web.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(web)
         view.keyboardLayoutGuide.usesBottomSafeArea = false
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        bar.delegate = self
+        bar.items = Self.tabs.enumerated().map { UITabBarItem(title: $1.title, image: UIImage(systemName: $1.symbol), tag: $0) }
+        bar.selectedItem = bar.items?.first
+        view.addSubview(bar)
         NSLayoutConstraint.activate([
             web.topAnchor.constraint(equalTo: view.topAnchor),
             web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             web.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            bar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        WebHost.shared.onTabbar = { [weak self] hidden, tab in self?.apply(hidden: hidden, tab: tab) }
+        // Like Messages: the bar steps aside while typing.
+        let nc = NotificationCenter.default
+        nc.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.keyboardUp = true; self?.sync() }
+        }
+        nc.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.keyboardUp = false; self?.sync() }
+        }
     }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        publishHeight()
+    }
+
+    func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
+        UISelectionFeedbackGenerator().selectionChanged()
+        WebHost.shared.sendIntent(["tab": Self.tabs[item.tag].id])
+    }
+
+    /// Web → bar: selection follows the page (no delegate call, so no intent echo); hidden inside an open RP chat.
+    private func apply(hidden: Bool, tab: String) {
+        if let i = Self.tabs.firstIndex(where: { $0.id == tab }) { bar.selectedItem = bar.items?[i] }
+        webHidden = hidden
+        sync()
+    }
+
+    private func sync() {
+        let hide = webHidden || keyboardUp
+        guard hide != bar.isHidden || bar.alpha != (hide ? 0 : 1) else { return }
+        if !hide { bar.isHidden = false }
+        UIView.animate(withDuration: 0.25, animations: { self.bar.alpha = hide ? 0 : 1 }) { _ in
+            if hide == (self.webHidden || self.keyboardUp) { self.bar.isHidden = hide }
+        }
+        publishHeight()
+    }
+
+    /// --tabbar-h on <html>: the bar's height (incl. home-indicator inset) while shown, else 0.
+    private func publishHeight() {
+        let h = (webHidden || keyboardUp) ? 0 : bar.frame.height
+        WebHost.shared.webView.callAsyncJavaScript("document.documentElement.style.setProperty('--tabbar-h', h + 'px')", arguments: ["h": h], in: nil, in: .page)
+    }
+
     override var preferredStatusBarStyle: UIStatusBarStyle { WebHost.shared.lightTheme ? .darkContent : .lightContent }
 }
 
@@ -77,6 +138,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     private var showingError = false
     private var outbox: [[String: String]] = []   // tab intents from URLs, oldest first (island taps wait in IntentQueue)
     private var delivering = false
+    var onTabbar: ((Bool, String) -> Void)?
 
     override init() {
         let config = WKWebViewConfiguration()
@@ -145,7 +207,10 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
         showError("Can't reach the Studio at \(server).")
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { importPending(); deliverIntents() }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        importPending(); deliverIntents()
+        webView.window?.rootViewController?.view.setNeedsLayout()   // a fresh page needs --tabbar-h again
+    }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { load() }
 
@@ -215,6 +280,10 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
             return ActivityController.shared.apply(u)
         }
         if let h = (message.body as? [String: Any])?["haptic"] as? String, sameOrigin(message.frameInfo.request.url) { return play(h) }
+        if let t = (message.body as? [String: Any])?["tabbar"] as? [String: Any], sameOrigin(message.frameInfo.request.url),
+           let hidden = t["hidden"] as? Bool, let tab = t["tab"] as? String, StudioViewController.tabs.contains(where: { $0.id == tab }) {
+            onTabbar?(hidden, tab); return
+        }
         guard let body = message.body as? [String: Any], let path = body["save"] as? String,
               let url = URL(string: path, relativeTo: webView.url)?.absoluteURL, sameOrigin(url), sameOrigin(message.frameInfo.request.url) else { return }
         Task { await save(url) }
