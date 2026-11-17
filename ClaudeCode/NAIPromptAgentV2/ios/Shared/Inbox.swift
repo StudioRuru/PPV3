@@ -25,11 +25,16 @@ enum Inbox {
     /// Lorebooks queue up (unlike images): each one is imported in turn.
     static func dropLore(_ data: Data, name: String) throws {
         guard let d = loreDir else { throw CocoaError(.fileNoSuchFile) }
-        let safe = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ".json", with: "")
-        try data.write(to: d.appendingPathComponent("\(UUID().uuidString)-\(safe).json"), options: .atomic)
+        try data.write(to: d.appendingPathComponent("\(UUID().uuidString)-\(loreName(name)).json"), options: .atomic)
     }
 
-    private static func files(in d: URL?) -> [URL] {
+    /// File-safe display name: no "/", trailing ".json" (any case) dropped.
+    static func loreName(_ name: String) -> String {
+        let safe = name.replacingOccurrences(of: "/", with: "-")
+        return safe.lowercased().hasSuffix(".json") ? String(safe.dropLast(5)) : safe
+    }
+
+    static func files(in d: URL?) -> [URL] {
         guard let d, let files = try? FileManager.default.contentsOfDirectory(at: d, includingPropertiesForKeys: [.creationDateKey, .isRegularFileKey]) else { return [] }
         return files.filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true }
             .sorted { ($0.creationDate ?? .distantPast) < ($1.creationDate ?? .distantPast) }

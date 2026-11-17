@@ -56,6 +56,11 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const end = useRef<HTMLDivElement>(null);
   const composer = useAutoSize(input);
   const pinned = useRef(true); // follow the stream only while the reader is at the bottom
+  const more = useRef<HTMLDetailsElement>(null); // ⋯ menu: closes on an outside tap or after a choice
+  useEffect(() => {
+    const f = (e: PointerEvent) => { const d = more.current; if (d?.open && !d.contains(e.target as Node)) d.open = false; };
+    addEventListener("pointerdown", f); return () => removeEventListener("pointerdown", f);
+  }, []);
   const root = useRef<HTMLElement>(null), stage = useRef<HTMLDivElement>(null), form = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
@@ -65,6 +70,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   useEffect(() => { load(); }, [load]);
   // Text mode photos render after the reply: re-fetch every 3 s while any is pending, for up to 90 s.
   const pending = v?.messages.some((m) => m.imageId === -1);
+  const wasPending = useRef(false);
+  useEffect(() => { if (wasPending.current && !pending) postHaptic("success"); wasPending.current = !!pending; }, [pending]);
   useEffect(() => {
     if (!pending) return;
     const t = setInterval(load, 3000), stop = setTimeout(() => clearInterval(t), 90_000);
@@ -111,6 +118,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const name = charName(character);
   const sub = (t: string) => substituteMacros(t, name, persona?.name || "User");
   const busy = !!stream || !!reveal;
+  useEffect(() => { if (busy) setMenu(null); }, [busy]);
   useEffect(() => {
     if (!reveal) return;
     const rows = (v?.messages ?? []).filter((m) => m.burstId === reveal.id);
@@ -212,7 +220,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       { icon: "👍", label: "Like", run: () => rate(m.id, "like"), off: !!rated[m.id] },
       { icon: "👎", label: "Dislike", run: () => rate(m.id, "dislike"), off: !!rated[m.id] }] : []),
     ...(m.thought ? [{ icon: "💭", label: "Thought", run: () => setThoughtOf(thoughtOf === m.id ? null : m.id) }] : []),
-    { icon: "⧉", label: "Copy", run: () => { navigator.clipboard?.writeText(m.content); } },
+    { icon: "⧉", label: "Copy", run: () => { navigator.clipboard?.writeText(sub(m.content)); } },
   ] as { icon: string; label: string; run: () => void; off?: boolean }[];
 
   /** Long-press (400 ms, <8 px drift) opens the menu; on the latest reply a horizontal drag changes version, past the last regenerates. */
@@ -228,8 +236,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       const at = style === "text" ? burstHead ?? m : m, count = style === "text" ? at.burstSwipes?.length ?? 1 : at.swipes.length;
       const r = swipeTarget({ index: at.activeSwipeIndex, count, dir: dx < 0 ? 1 : -1, busy });
       if (r === null) return;
-      postHaptic("selection");
-      if (r === "regenerate") send({ regenerate: m.id }); else patch({ op: style === "text" ? "burstSwipe" : "swipe", msgId: at.id, index: r });
+      if (r === "regenerate") send({ regenerate: m.id }); // send() buzzes itself
+      else { postHaptic("selection"); patch({ op: style === "text" ? "burstSwipe" : "swipe", msgId: at.id, index: r }); }
     };
     return {
       onContextMenu: (e: React.MouseEvent) => { if (matchMedia("(pointer: coarse)").matches) e.preventDefault(); },
@@ -269,17 +277,18 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           <Avatar c={character} size="size-[34px] shadow-[0_0_14px] shadow-accent/50" />
           <div className="min-w-0">
             <p className="truncate font-serif text-[15px]">{name}</p>
-            <p role="status" className="text-accent h-4 text-[10.5px]">{busy ? (texting ? "typing…" : "writing…") : ""}</p>
+            <p className="text-accent h-4 text-[10.5px]">{busy ? (texting ? "typing…" : "writing…") : ""}</p>
           </div>
         </div>
+        <p role="status" className="sr-only">{busy ? `${name} is ${texting ? "typing" : "writing"}…` : ""}</p>
         {v && <button type="button" onClick={() => setTuning(true)} className={`h-9 rounded-full border px-3 text-xs transition-colors ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
           Tune{enabledMods(v.chat, v.globalMods) ? <span key={enabledMods(v.chat, v.globalMods)} className="animate-pop ml-1">· {enabledMods(v.chat, v.globalMods)}</span> : null}</button>}
         {v && <button type="button" onClick={() => setLore(true)} aria-label="Lorebooks" className="border-border h-9 rounded-full border px-3 text-xs">📖 {loreCount([character.lorebookId, character.worldLorebookId, v.chat.lorebookId])}</button>}
-        <details className="relative">
+        <details ref={more} className="relative" onClick={(e) => { if ((e.target as Element).closest("div button")) more.current!.open = false; }}>
           <summary aria-label="More" className="border-border grid size-9 cursor-pointer list-none place-items-center rounded-full border [&::-webkit-details-marker]:hidden">⋯</summary>
           <div className="glass absolute top-11 right-0 z-20 w-60 space-y-2 rounded-2xl p-2 text-sm">
             {personas.length > 1 && v ? (
-              <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => patch({ op: "chat", personaId: Number(e.target.value) || null })} aria-label="You are"
+              <select value={v.chat.personaId ?? ""} disabled={busy} onChange={(e) => { more.current!.open = false; patch({ op: "chat", personaId: Number(e.target.value) || null }); }} aria-label="You are"
                 className="h-10 w-full rounded-lg bg-transparent px-2">{personas.map((p) => <option key={p.id} value={p.id}>as {p.name}</option>)}</select>
             ) : <p className="text-muted px-2 py-1 text-xs">as {persona?.name ?? "User"}</p>}
             {v && <div role="radiogroup" aria-label="Mode" className="border-border flex rounded-full border p-0.5">
@@ -313,7 +322,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             </div>
           );
           const tools = !busy && m.id > 0 && (
-            <div role="toolbar" aria-label="Message actions" className="glass absolute top-0 right-0 z-10 hidden rounded-full p-0.5 text-xs group-focus-within:flex group-hover:flex">
+            <div role="toolbar" aria-label="Message actions" className="glass absolute top-0 right-0 z-10 hidden rounded-full p-0.5 text-xs group-has-[:focus-visible]:flex group-hover:flex">
               {items(m).map((it) => <button key={it.label} type="button" title={it.label} aria-label={it.label} disabled={it.off} onClick={it.run} className="grid size-8 place-items-center rounded-full disabled:opacity-30">{it.icon}</button>)}
             </div>
           );
@@ -417,7 +426,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         </div>
       </>}
       {v && <LoreSheet open={lore} onClose={() => setLore(false)} character={character} chat={v.chat} onPatch={patch} />}
-      {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} thinking={v.thinking} agency={character.agency} sub={sub} onPatch={patch} />}
+      {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} thinking={v.thinking} agency={character.agency} sub={sub} busy={busy} onPatch={patch} />}
       {sheet}
     </section>
   );

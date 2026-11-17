@@ -47,8 +47,8 @@ const fromChat = (c: RpChat, agency: number | null, globalMods?: string, thinkin
 });
 
 /** Per-chat steering: reply mood sliders, Mods (hypnosis, bimbofication…), author's note. Saves itself ~0.4 s after a change. */
-export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, sub, onPatch }: {
-  open: boolean; onClose: () => void; chat: RpChat; globalMods?: string; thinking?: boolean; agency: number | null; sub: (t: string) => string; onPatch: (body: object) => Promise<boolean>;
+export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, sub, busy, onPatch }: {
+  open: boolean; onClose: () => void; chat: RpChat; globalMods?: string; thinking?: boolean; agency: number | null; sub: (t: string) => string; busy?: boolean; onPatch: (body: object) => Promise<boolean>;
 }) {
   const [d, setD] = useState(() => fromChat(chat, agency, globalMods, thinking));
   const touched = useRef(false), thinkTouched = useRef(false);
@@ -96,7 +96,7 @@ export function TuneSheet({ open, onClose, chat, globalMods, thinking, agency, s
           <summary className="text-muted cursor-pointer px-3 py-2 text-xs">📌 Memory {chat.memorySummary ? "· story so far" : "· builds as the chat grows"}</summary>
           <div className="space-y-1.5 px-3 pb-3">
             <AutoTextarea value={memory} onChange={setMemory} />
-            <button type="button" disabled={memory === chat.memorySummary} onClick={() => onPatch({ op: "chat", memorySummary: memory })}
+            <button type="button" disabled={busy || memory === chat.memorySummary} onClick={() => onPatch({ op: "chat", memorySummary: memory })}
               className="text-accent text-xs font-semibold disabled:opacity-40">Save memory</button>
           </div>
         </details>

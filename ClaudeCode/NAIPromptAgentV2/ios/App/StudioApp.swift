@@ -50,7 +50,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 }
 
 final class StudioViewController: UIViewController, UITabBarDelegate {
-    /// Mirrors studio/src/lib/tabs.ts. ponytail: duplicated list; a new web tab needs a row here too.
+    /// Mirrors studio/src/lib/tabs.ts; native.test.ts fails if the two drift.
     static let tabs: [(id: String, title: String, symbol: String)] = [
         ("studio", "Studio", "paintbrush.pointed"), ("comfy", "Comfy", "point.3.connected.trianglepath.dotted"),
         ("roll", "Roll", "camera"), ("closet", "Closet", "hanger"),
@@ -58,6 +58,7 @@ final class StudioViewController: UIViewController, UITabBarDelegate {
     ]
     private let bar = UITabBar()
     private var webHidden = false, keyboardUp = false
+    private var publishedHeight: CGFloat = -1
 
     /// The web view ends at the keyboard's top, so the page shrinks instead of WebKit scrolling it (sticky headers stay put).
     /// The glass tab bar floats over the page's bottom edge; the page pads itself by --tabbar-h.
@@ -119,9 +120,13 @@ final class StudioViewController: UIViewController, UITabBarDelegate {
         publishHeight()
     }
 
+    func republishHeight() { publishedHeight = -1; publishHeight() }
+
     /// --tabbar-h on <html>: the bar's height (incl. home-indicator inset) while shown, else 0.
     private func publishHeight() {
         let h = (webHidden || keyboardUp) ? 0 : bar.frame.height
+        guard h != publishedHeight else { return }   // layout passes repeat; only changes reach the page
+        publishedHeight = h
         WebHost.shared.webView.callAsyncJavaScript("document.documentElement.style.setProperty('--tabbar-h', h + 'px')", arguments: ["h": h], in: nil, in: .page)
     }
 
@@ -209,7 +214,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         importPending(); deliverIntents()
-        webView.window?.rootViewController?.view.setNeedsLayout()   // a fresh page needs --tabbar-h again
+        (webView.window?.rootViewController as? StudioViewController)?.republishHeight()   // a fresh page needs --tabbar-h again
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { load() }
@@ -329,7 +334,11 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
     func importPending(skipLore: Bool = false) {
         // While loading, didFinish will call us — importing into the outgoing page would lose the file.
         guard !importing, !webView.isLoading, !showingError else { return }
-        if !skipLore, let lore = Inbox.pendingLore().first, let data = try? Data(contentsOf: lore) {
+        if !skipLore, let lore = Inbox.pendingLore().first {
+            guard let data = try? Data(contentsOf: lore) else {   // unreadable: drop it rather than retry forever
+                try? FileManager.default.removeItem(at: lore)
+                return importPending()
+            }
             importing = true
             let js = """
             for (let i = 0; i < 50 && !window.studioImportLore; i++) await new Promise(r => setTimeout(r, 100));

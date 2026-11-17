@@ -100,3 +100,11 @@ test("longPressPointer: touch and pen, never mouse (Mac keeps text selection + h
   assert.equal(longPressPointer("pen"), true);
   assert.equal(longPressPointer("mouse"), false);
 });
+
+test("Swift tab bar mirrors TABS (ids, order, short labels)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { TABS } = await import("./tabs");
+  const swift = readFileSync(`${process.cwd()}/../ios/App/StudioApp.swift`, "utf8").split("static let tabs")[1].split("]\n")[0];
+  const rows = [...swift.matchAll(/\("(\w+)", "([^"]+)", "[^"]+"\)/g)].map((m) => [m[1], m[2]]);
+  assert.deepEqual(rows, TABS.map((t) => [t.id, t.short]));
+});

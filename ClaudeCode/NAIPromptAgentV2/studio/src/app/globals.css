@@ -172,7 +172,7 @@ button:active:not(:disabled):not(.sheet-backdrop) { scale: 0.97; transition-dura
 /* RP chat styles: close chat = message bubbles; story = book prose. */
 /* Texting: every text is its own bubble, the last one gets the tail. */
 /* Liquid-glass surface (RP composer, ⋯ menu, ↓ Latest pill); fg-tinted so every theme reads. */
-.glass { background: color-mix(in srgb, var(--color-fg) 8%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent); }
+@layer components { .glass { background: color-mix(in srgb, var(--color-fg) 8%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent); } }
 [data-style="text"] { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; }
 [data-style="text"] > p { margin: 0; width: fit-content; max-width: 85%; padding: .5rem .85rem; border-radius: 18px; background: var(--color-surface-2); }
 [data-style="text"] > p:empty { display: none; }

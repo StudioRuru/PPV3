@@ -18,7 +18,10 @@ export function LoreSheet({ open, onClose, character, chat, onPatch }: {
   const load = () => requestJson<{ lorebooks: RpLorebook[] }>("/api/rp/lore").then((r) => r.ok && setBooks(r.data.lorebooks));
   useEffect(() => { if (open) { setBookId(chat.lorebookId); setMsg({}); load(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- refresh on open only
 
-  const pick = (v: number | null) => { setBookId(v); onPatch({ op: "chat", lorebookId: v }).then((ok) => postHaptic(ok ? "success" : "error")); };
+  const pick = (v: number | null) => {
+    const prev = bookId; setBookId(v);
+    onPatch({ op: "chat", lorebookId: v }).then((ok) => { postHaptic(ok ? "success" : "error"); if (!ok) setBookId(prev); });
+  };
   async function importBook(f?: File) {
     if (!f) return;
     setMsg({ note: "Importing…" });
@@ -41,7 +44,7 @@ export function LoreSheet({ open, onClose, character, chat, onPatch }: {
           {card.length ? card.map((c) => (
             <div key={c.label} className="glass flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm">
               <span className="min-w-0 flex-1 truncate">{c.book?.name ?? `Lorebook #${c.id}`}<span className="text-faint block text-xs">{c.label}</span></span>
-              <span className="text-faint text-xs">{c.book?.count ?? 0} entries</span>
+              <span className="text-faint text-xs">{c.book ? `${c.book.count ?? 0} entries` : "…"}</span>
             </div>
           )) : <p className="text-faint text-sm">None on this card</p>}
         </section>
