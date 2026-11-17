@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { activityState, changed, makeGate, makeThrottle, parseIntent, postActivity } from "./native";
+import { activityState, changed, isHaptic, makeGate, makeThrottle, parseIntent, postActivity } from "./native";
 
 const base = { tab: "chat" as const, expression: "smug" as const, hidden: false, bust: "/api/mascot/sprites/day/smug?v=1", on: true };
 
@@ -74,4 +74,11 @@ test("throttle flush sends the pending change now, once", () => {
   assert.deepEqual(sent, ["studio", "roll"]);
   th.cancel(); th(activityState({ ...base, tab: "chat" })); th.flush();
   assert.deepEqual(sent, ["studio", "roll"]);
+});
+
+test("isHaptic: whitelist only", () => {
+  assert.equal(isHaptic("light"), true);
+  assert.equal(isHaptic("selection"), true);
+  assert.equal(isHaptic("heavy"), false);
+  assert.equal(isHaptic(1), false);
 });

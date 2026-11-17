@@ -63,3 +63,12 @@ export function postActivity(activity: ActivityState) {
   if (typeof window === "undefined") return;
   (window as unknown as Bridge).webkit?.messageHandlers?.studio?.postMessage({ activity });
 }
+
+/** Web → iOS haptic tap, posted as `{ haptic }`. No-op outside the app. */
+export type Haptic = "light" | "medium" | "success" | "error" | "selection";
+const HAPTICS: readonly unknown[] = ["light", "medium", "success", "error", "selection"];
+export const isHaptic = (v: unknown): v is Haptic => HAPTICS.includes(v);
+export function postHaptic(haptic: Haptic) {
+  if (typeof window === "undefined") return;
+  (window as unknown as Bridge).webkit?.messageHandlers?.studio?.postMessage({ haptic });
+}

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { requestJson } from "@/lib/net";
+import { postHaptic } from "@/lib/native";
 import { charName } from "@/lib/rp/profile";
 import type { RpLorebook } from "@/lib/rp/store";
 import type { RpChat } from "@/lib/rp/types";
@@ -17,13 +18,13 @@ export function LoreSheet({ open, onClose, character, chat, onPatch }: {
   const load = () => requestJson<{ lorebooks: RpLorebook[] }>("/api/rp/lore").then((r) => r.ok && setBooks(r.data.lorebooks));
   useEffect(() => { if (open) { setBookId(chat.lorebookId); setMsg({}); load(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- refresh on open only
 
-  const pick = (v: number | null) => { setBookId(v); onPatch({ op: "chat", lorebookId: v }); };
+  const pick = (v: number | null) => { setBookId(v); onPatch({ op: "chat", lorebookId: v }).then((ok) => postHaptic(ok ? "success" : "error")); };
   async function importBook(f?: File) {
     if (!f) return;
     setMsg({ note: "Importing…" });
     const fd = new FormData(); fd.append("file", f);
     const r = await requestJson<{ id: number; entries: number }>("/api/rp/lore", { method: "POST", body: fd });
-    if (!r.ok) { setMsg({ error: r.error }); return; }
+    if (!r.ok) { postHaptic("error"); setMsg({ error: r.error }); return; }
     setMsg({ note: `Imported ${r.data.entries} entries — now on for this chat.` });
     pick(r.data.id); load();
   }

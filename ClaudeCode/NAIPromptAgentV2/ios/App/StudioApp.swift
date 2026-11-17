@@ -186,6 +186,18 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
 
     // MARK: Bridge
 
+    /// Web `postHaptic` → native tap. Unknown kinds are ignored.
+    private func play(_ kind: String) {
+        switch kind {
+        case "light": UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        case "medium": UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        case "success": UINotificationFeedbackGenerator().notificationOccurred(.success)
+        case "error": UINotificationFeedbackGenerator().notificationOccurred(.error)
+        case "selection": UISelectionFeedbackGenerator().selectionChanged()
+        default: break
+        }
+    }
+
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         // The page's theme script reports its theme: status-bar style + the colour behind bounces.
         if let theme = (message.body as? [String: Any])?["theme"] as? [String: Any], sameOrigin(message.frameInfo.request.url) {
@@ -202,6 +214,7 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKD
             }) else { return }
             return ActivityController.shared.apply(u)
         }
+        if let h = (message.body as? [String: Any])?["haptic"] as? String, sameOrigin(message.frameInfo.request.url) { return play(h) }
         guard let body = message.body as? [String: Any], let path = body["save"] as? String,
               let url = URL(string: path, relativeTo: webView.url)?.absoluteURL, sameOrigin(url), sameOrigin(message.frameInfo.request.url) else { return }
         Task { await save(url) }

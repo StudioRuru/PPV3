@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { inline, mdBlocks } from "@/lib/md";
 import { emitMascot } from "@/lib/mascot/bus";
 import { requestJson } from "@/lib/net";
+import { postHaptic } from "@/lib/native";
 import { spyData, spyDue } from "@/lib/mascot/spy";
 import { substituteMacros } from "@/lib/rp/prompt";
 import { MODES, modeOf } from "@/lib/rp/presets";
@@ -46,6 +47,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
   const [tuning, setTuning] = useState(false);
   const [lore, setLore] = useState(false);
+  useEffect(() => { if (error) postHaptic("error"); }, [error]);
   const [away, setAway] = useState(false); // scrolled up off the bottom → "↓ Latest" pill
   const [compact, setCompact] = useState(false); // stage portrait scrolled away → compact header
   // Text mode: a new burst's bubbles appear one at a time, each after a typing pause.
@@ -136,6 +138,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   async function send(body: { text?: string; regenerate?: number; wild?: boolean; retry?: boolean; nudge?: boolean }) {
     if (!v || busy) return;
     pinned.current = true;
+    if (!body.nudge) postHaptic("light");
     setError(null); setStatus("Thinking…");
     setStream({ text: "", replacing: body.regenerate });
     if (body.text) setV({ ...v, messages: [...v.messages, { id: -1, chatId, role: "user", content: body.text, swipes: [], activeSwipeIndex: 0, createdAt: Date.now(), updatedAt: Date.now(), thought: "", burstId: null, burstSwipes: null, speaker: "", reaction: "", imageId: null }] });
@@ -156,7 +159,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         setStatus(null); setStream({ text, replacing: body.regenerate });
       }
       const warn = /\n\n⚠️ ([^\n]*)$/.exec(text);
-      if (warn) setError(warn[1]);
+      if (warn) setError(warn[1]); else if (!body.nudge) postHaptic("success");
     } catch (e) {
       if (!body.nudge) setError((e as Error).message); // a refused nudge is silent
       // Not sent (conflict, offline…): give the typed text back instead of losing it.
@@ -198,7 +201,6 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const hidden = (m: RpMessage) => !!m.burstId && ((style === "text" && stream?.replacing !== undefined && m.burstId === lastBurst)
     || (reveal?.id === m.burstId && msgs.filter((x) => x.burstId === m.burstId).indexOf(m) >= reveal.shown));
 
-  const onHaptic = (_k: "selection" | "medium") => {}; // ponytail: no-op until the haptics bridge task wires postHaptic
   /** One action list, two renderers: the long-press glass menu (touch) and the hover toolbar (Mac). */
   const items = (m: RpMessage) => [
     { icon: "✎", label: "Edit", run: () => setEditing({ id: m.id, text: m.content }) },
@@ -225,7 +227,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
       const at = style === "text" ? burstHead ?? m : m, count = style === "text" ? at.burstSwipes?.length ?? 1 : at.swipes.length;
       const r = swipeTarget({ index: at.activeSwipeIndex, count, dir: dx < 0 ? 1 : -1, busy });
       if (r === null) return;
-      onHaptic("selection");
+      postHaptic("selection");
       if (r === "regenerate") send({ regenerate: m.id }); else patch({ op: style === "text" ? "burstSwipe" : "swipe", msgId: at.id, index: r });
     };
     return {
@@ -237,7 +239,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           press.current = null;
           const r = el.getBoundingClientRect();
           setMenu({ id: m.id, top: Math.max(8, Math.min(r.bottom + 6, innerHeight - 330)), left: Math.max(8, Math.min(r.left, innerWidth - 208)) });
-          onHaptic("medium"); navigator.vibrate?.(10);
+          postHaptic("medium"); navigator.vibrate?.(10);
         }, 400);
         press.current = { id: m.id, x: e.clientX, y: e.clientY, axis: null, t, el };
         el.style.setProperty("user-select", "none"); el.style.setProperty("-webkit-user-select", "none"); el.style.setProperty("-webkit-touch-callout", "none");
