@@ -3,11 +3,20 @@ import { useEffect, useRef, useState } from "react";
 import { fixSchedule, SAMPLERS, schedulesFor, type NaiParams } from "@/lib/nai-body";
 import { requestJson } from "@/lib/net";
 import { resolveMods, type ModState } from "@/lib/rp/mods";
+import { DEFAULT_RP_SETTINGS, type RpSettings } from "@/lib/rp/types";
 import { getTheme, setTheme, THEMES, type ThemePref } from "@/lib/theme";
 import { MascotSettings } from "./mascot/MascotSettings";
 import { ModList } from "./rp/TuneSheet";
 import { Sheet } from "./Sheet";
 import { useAnlas } from "./VariationSheet";
+
+type SamplerKey = "temperature" | "topP" | "minP" | "repeatPenalty" | "dryMultiplier";
+const RP_SAMPLERS: [SamplerKey, string, number, number, number, string][] = [
+  ["temperature", "Temperature", 0.3, 1.6, 0.05, "higher = wilder"], ["topP", "Top P", 0.5, 1, 0.01, "1 = off"],
+  ["minP", "Min P", 0, 0.3, 0.01, "trims unlikely words"], ["repeatPenalty", "Repeat penalty", 1, 1.3, 0.01, "1 = off"],
+  ["dryMultiplier", "DRY", 0, 2, 0.05, "anti-repeat phrases · Kobold only"],
+];
+const pickSamplers = (s: RpSettings) => Object.fromEntries(RP_SAMPLERS.map(([k]) => [k, s[k]])) as Pick<RpSettings, SamplerKey>;
 
 export const DEFAULTS_KEY = "studio-defaults-v1";
 export type GenDefaults = Pick<NaiParams, "sampler" | "noiseSchedule" | "cfgRescale">;
@@ -27,7 +36,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
   const [purge, setPurge] = useState<{ days: number | null; count: number } | null>(null);
   const [taste, setTaste] = useState<{ profile: { favoured: string[]; avoided: string[]; notes: string[] }; pinned: { id: number; text: string }[] } | null>(null);
   const [forget, setForget] = useState(false);
-  const [models, setModels] = useState<{ heavy: string; quick: string; models: string[]; settings: { mods: string } } | null>(null);
+  const [models, setModels] = useState<{ heavy: string; quick: string; models: string[]; settings: RpSettings } | null>(null);
   const [mods, setMods] = useState<Record<string, ModState> | null>(null);
   const modsSave = useRef<ReturnType<typeof setTimeout>>(undefined);
   function editMods(next: Record<string, ModState>) { // optimistic; saved ~0.4 s after the last change
@@ -43,7 +52,14 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     const r = await post({ autoDeleteDays: days });
     if (r.ok) setRetention(r.data.autoDeleteDays);
   }
-  async function saveModel(body: { heavy?: string; quick?: string; settings?: { mods: string } }) {
+  const [samp, setSamp] = useState<Pick<RpSettings, SamplerKey> | null>(null);
+  const sampSave = useRef<ReturnType<typeof setTimeout>>(undefined);
+  function editSamp(next: Pick<RpSettings, SamplerKey>) {
+    setSamp(next);
+    clearTimeout(sampSave.current);
+    sampSave.current = setTimeout(() => saveModel({ settings: next }), 400);
+  }
+  async function saveModel(body: { heavy?: string; quick?: string; settings?: Partial<RpSettings> }) {
     const r = await requestJson<NonNullable<typeof models>>("/api/rp/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (r.ok) setModels(r.data);
   }
@@ -65,7 +81,7 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
     requestJson<{ danbooru: boolean }>("/api/status").then((r) => setDanbooru(r.ok ? r.data.danbooru : null));
     requestJson<{ autoDeleteDays: number | null }>("/api/settings").then((r) => r.ok && setRetention(r.data.autoDeleteDays));
     requestJson<NonNullable<typeof taste>>("/api/taste").then((r) => r.ok && setTaste(r.data));
-    requestJson<NonNullable<typeof models>>("/api/rp/settings").then((r) => { if (r.ok) { setModels(r.data); setMods(resolveMods(r.data.settings.mods, null)); } });
+    requestJson<NonNullable<typeof models>>("/api/rp/settings").then((r) => { if (r.ok) { setModels(r.data); setMods(resolveMods(r.data.settings.mods, null)); setSamp(pickSamplers(r.data.settings)); } });
     requestJson<NonNullable<typeof gpu>>("/api/comfy/settings").then((r) => r.ok && setGpu(r.data));
   }, [open]);
 
@@ -192,6 +208,23 @@ export function SettingsSheet({ open, onClose, params, onParams, words, onWords 
             {mods ? <ModList mods={mods} onChange={editMods} sub={(t) => t.replaceAll("{{char}}", "the character").replaceAll("{{user}}", "you")} />
               : <p className="text-faint text-xs">…</p>}
           </div>
+        </section>
+
+        <section>
+          <h3 className={h3}>Roleplay samplers</h3>
+          <p className="text-faint mb-2 text-xs">Every chat, unless a character overrides them. Omega&rsquo;s card suggests temperature 1.0, top P 0.92.</p>
+          {samp ? <div data-noswipe className="space-y-1">
+            {RP_SAMPLERS.map(([k, label, min, max, step, hint]) => (
+              <label key={k} className="block text-sm">
+                <span className="flex justify-between"><span>{label}<span className="text-faint ml-2 text-xs">{hint}</span></span><span className="text-accent font-mono text-xs">{samp[k].toFixed(2)}</span></span>
+                <input type="range" min={min} max={max} step={step} value={samp[k]} onChange={(e) => editSamp({ ...samp, [k]: Number(e.target.value) })} className="accent-accent h-11 w-full" />
+              </label>
+            ))}
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => editSamp({ ...samp, temperature: 1, topP: 0.92 })} className="border-border h-10 flex-1 rounded-md border text-sm">Omega card</button>
+              <button type="button" onClick={() => editSamp(pickSamplers(DEFAULT_RP_SETTINGS))} className="border-border h-10 flex-1 rounded-md border text-sm">Reset</button>
+            </div>
+          </div> : <p className="text-faint text-xs">…</p>}
         </section>
 
         <section>

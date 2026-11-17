@@ -33,7 +33,5 @@ export function stripThoughtEcho(reply: string, thought: string): string {
 }
 
 /** Chat override, then the mode setting; a status card (`status`) thinks unless the chat turned it off. */
-// ponytail: name match for models that bench worse with the plan step (tutu 7.7 vs 8.5); a per-model setting if the list grows.
-const NO_THINK = /tutu/i;
-export const thinkOn = (chat: Pick<RpChat, "think">, mode: Mode, settings: RpSettings, status = false, model = ""): boolean =>
-  chat.think != null ? chat.think === 1 : !NO_THINK.test(model) && (settings.thinkByMode?.[mode] === true || status);
+export const thinkOn = (chat: Pick<RpChat, "think">, mode: Mode, settings: RpSettings, status = false): boolean =>
+  chat.think != null ? chat.think === 1 : settings.thinkByMode?.[mode] === true || status;

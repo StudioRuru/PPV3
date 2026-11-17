@@ -538,6 +538,7 @@ export function settingsToOptions(settings: Settings, stop?: string[]): SamplerO
     repeat_penalty: settings.repeatPenalty,
     min_p: settings.minP,
     num_ctx: settings.numCtx,
+    dry_multiplier: settings.dryMultiplier, // Kobold/pod only; Ollama ignores it
     num_predict: lengthNumPredict(settings.replyLength),
     ...(stop && stop.length ? { stop } : {}),
   };

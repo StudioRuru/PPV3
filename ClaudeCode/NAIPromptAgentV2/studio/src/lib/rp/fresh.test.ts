@@ -65,9 +65,7 @@ test("thinkOn: a status card turns thinking on unless the chat turned it off; th
   const chat = (think: number | null) => ({ think }) as RpChat;
   assert.equal(thinkOn(chat(null), "rp", DEFAULT_RP_SETTINGS, true), true);
   assert.equal(thinkOn(chat(0), "rp", DEFAULT_RP_SETTINGS, true), false);
-  // Tutu benches worse with thinking (7.7 vs 8.5): off by default, but a chat can still turn it on.
-  assert.equal(thinkOn(chat(null), "rp", { ...DEFAULT_RP_SETTINGS, thinkByMode: { rp: true, text: true } }, true, "broken-tutu-24b"), false);
-  assert.equal(thinkOn(chat(1), "rp", DEFAULT_RP_SETTINGS, false, "broken-tutu-24b"), true);
+  assert.equal(thinkOn(chat(1), "rp", DEFAULT_RP_SETTINGS, false), true);
   const turn = { model: "m", truncated: false, options: {}, messages: [{ role: "user" as const, content: "hi" }] };
   assert.match(thinkRequest(turn, "Hewitt", true).messages.at(-1)!.content, /changed/);
   assert.doesNotMatch(thinkRequest(turn, "Hewitt").messages.at(-1)!.content, /changed/);

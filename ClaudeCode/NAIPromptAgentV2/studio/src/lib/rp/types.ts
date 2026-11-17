@@ -52,7 +52,7 @@ export type RpMessage = {
 /** Global RP settings (Delfino's settings row, the fields RP still uses). Stored as JSON under settings key `rp:settings`. */
 export type RpSettings = {
   systemPromptTemplate: string; jailbreakPrompt: string;
-  temperature: number; topP: number; topK: number; repeatPenalty: number; minP: number; numCtx: number;
+  temperature: number; topP: number; topK: number; repeatPenalty: number; minP: number; numCtx: number; dryMultiplier: number;
   replyLength: number; replySpice: number; replyAgency: number; mods: string; loreBudgetPct: number; embedModel: string;
   thinkByMode: Record<Mode, boolean>;
 };
@@ -62,7 +62,7 @@ export type Mode = "text" | "rp";
 
 export const DEFAULT_RP_SETTINGS: RpSettings = {
   systemPromptTemplate: DEFAULT_SYSTEM_PROMPT, jailbreakPrompt: DEFAULT_SCENE_RULES,
-  temperature: 0.8, topP: 0.95, topK: 40, repeatPenalty: 1.1, minP: 0.05, numCtx: 16384,
+  temperature: 0.8, topP: 0.95, topK: 40, repeatPenalty: 1.1, minP: 0.05, numCtx: 16384, dryMultiplier: 0.8,
   replyLength: 2, replySpice: 2, replyAgency: 2, mods: "{}", loreBudgetPct: 25, embedModel: "bge-m3:latest",
   thinkByMode: { text: false, rp: false },
 };
@@ -71,7 +71,7 @@ export const DEFAULT_RP_SETTINGS: RpSettings = {
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string; images?: string[] };
 export type SamplerOptions = {
   temperature?: number; top_p?: number; top_k?: number; repeat_penalty?: number; min_p?: number;
-  num_ctx?: number; num_predict?: number; stop?: string[]; seed?: number;
+  num_ctx?: number; num_predict?: number; dry_multiplier?: number; stop?: string[]; seed?: number;
 };
 
 const toCamel = (k: string) => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
