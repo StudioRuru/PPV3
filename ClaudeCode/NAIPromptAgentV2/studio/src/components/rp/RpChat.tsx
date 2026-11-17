@@ -8,7 +8,7 @@ import { substituteMacros } from "@/lib/rp/prompt";
 import { MODES, modeOf } from "@/lib/rp/presets";
 import { charName } from "@/lib/rp/profile";
 import { typingMs } from "@/lib/rp/burst";
-import { atBottom } from "@/lib/rp/chat-ui";
+import { atBottom, swipeAxis, swipeTarget } from "@/lib/rp/chat-ui";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
@@ -39,6 +39,8 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
   const [thoughtOf, setThoughtOf] = useState<number | null>(null);
   const [rewind, setRewind] = useState<number | null>(null);
+  const [menu, setMenu] = useState<{ id: number; top: number; left: number } | null>(null); // long-press glass menu
+  const press = useRef<{ id: number; x: number; y: number; axis: "x" | "y" | null; t: number; el: HTMLElement } | null>(null);
   const [feedback, setFeedback] = useState<{ id: number; kind: "like" | "dislike"; note: string } | null>(null);
   const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
   const [tuning, setTuning] = useState(false);
@@ -85,6 +87,12 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
     if (stage.current) io.observe(stage.current);
     return () => io.disconnect();
   }, []);
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null), key = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    addEventListener("scroll", close, { passive: true }); addEventListener("keydown", key);
+    return () => { removeEventListener("scroll", close); removeEventListener("keydown", key); };
+  }, [menu]);
   // The floating composer's height pads the page bottom and lifts the "↓ Latest" pill.
   useEffect(() => {
     const f = form.current;
@@ -188,6 +196,64 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const hidden = (m: RpMessage) => !!m.burstId && ((style === "text" && stream?.replacing !== undefined && m.burstId === lastBurst)
     || (reveal?.id === m.burstId && msgs.filter((x) => x.burstId === m.burstId).indexOf(m) >= reveal.shown));
 
+  const onHaptic = (_k: "selection" | "medium") => {}; // ponytail: no-op until the haptics bridge task wires postHaptic
+  /** One action list, two renderers: the long-press glass menu (touch) and the hover toolbar (Mac). */
+  const items = (m: RpMessage) => [
+    { icon: "✎", label: "Edit", run: () => setEditing({ id: m.id, text: m.content }) },
+    ...(m.role === "assistant" && m.id === lastId ? [
+      { icon: "↻", label: "Regenerate", run: () => send({ regenerate: m.id }) },
+      { icon: "🎲", label: "Wild", run: () => send({ regenerate: m.id, wild: true }) }] : []),
+    ...(m.id !== lastId ? [{ icon: "⤺", label: "Rewind here", run: () => setRewind(m.id) }] : []),
+    ...(m.role === "assistant" ? [
+      { icon: "👍", label: "Like", run: () => rate(m.id, "like"), off: !!rated[m.id] },
+      { icon: "👎", label: "Dislike", run: () => rate(m.id, "dislike"), off: !!rated[m.id] }] : []),
+    ...(m.thought ? [{ icon: "💭", label: "Thought", run: () => setThoughtOf(thoughtOf === m.id ? null : m.id) }] : []),
+    { icon: "⧉", label: "Copy", run: () => { navigator.clipboard?.writeText(m.content); } },
+  ] as { icon: string; label: string; run: () => void; off?: boolean }[];
+
+  /** Long-press (400 ms, <8 px drift) opens the menu; on the latest reply a horizontal drag changes version, past the last regenerates. */
+  const gesture = (m: RpMessage, swipe: boolean) => {
+    const end = (e: React.PointerEvent, commit: boolean) => {
+      const p = press.current; if (!p || p.id !== m.id) return;
+      press.current = null; clearTimeout(p.t);
+      p.el.style.removeProperty("user-select"); p.el.style.removeProperty("-webkit-user-select"); p.el.style.removeProperty("-webkit-touch-callout");
+      p.el.style.transition = "translate 200ms ease"; p.el.style.translate = "";
+      const dx = e.clientX - p.x;
+      if (!commit || !swipe || p.axis !== "x" || Math.abs(dx) <= 60) return;
+      const at = style === "text" ? burstHead ?? m : m, count = style === "text" ? at.burstSwipes?.length ?? 1 : at.swipes.length;
+      const r = swipeTarget({ index: at.activeSwipeIndex, count, dir: dx < 0 ? 1 : -1, busy });
+      if (r === null) return;
+      onHaptic("selection");
+      if (r === "regenerate") send({ regenerate: m.id }); else patch({ op: style === "text" ? "burstSwipe" : "swipe", msgId: at.id, index: r });
+    };
+    return {
+      onContextMenu: (e: React.MouseEvent) => { if (matchMedia("(pointer: coarse)").matches) e.preventDefault(); },
+      onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+        if (busy || m.id <= 0 || editing || e.button !== 0 || (e.target as Element).closest("button,a,input,textarea,select")) return;
+        const el = e.currentTarget;
+        const t = window.setTimeout(() => {
+          press.current = null;
+          const r = el.getBoundingClientRect();
+          setMenu({ id: m.id, top: Math.max(8, Math.min(r.bottom + 6, innerHeight - 330)), left: Math.max(8, Math.min(r.left, innerWidth - 208)) });
+          onHaptic("medium"); navigator.vibrate?.(10);
+        }, 400);
+        press.current = { id: m.id, x: e.clientX, y: e.clientY, axis: null, t, el };
+        el.style.setProperty("user-select", "none"); el.style.setProperty("-webkit-user-select", "none"); el.style.setProperty("-webkit-touch-callout", "none");
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+        const p = press.current; if (!p || p.id !== m.id) return;
+        const dx = e.clientX - p.x, dy = e.clientY - p.y;
+        if (Math.hypot(dx, dy) > 8) clearTimeout(p.t);
+        if (!swipe || p.axis === "y") return;
+        if (!p.axis) { p.axis = swipeAxis(dx, dy); if (p.axis === "x") p.el.setPointerCapture(e.pointerId); }
+        if (p.axis === "x") { p.el.style.transition = "none"; p.el.style.translate = `${dx * 0.4}px`; }
+      },
+      onPointerUp: (e: React.PointerEvent) => end(e, true),
+      onPointerCancel: (e: React.PointerEvent) => end(e, false),
+    };
+  };
+  const menuMsg = menu && msgs.find((m) => m.id === menu.id);
+
   return (
     <section ref={root} data-rp-chat aria-label={`Chat with ${name}`} className="flex min-h-[calc(100dvh_-_var(--pt)_-_env(safe-area-inset-top))] flex-col gap-2"
       style={{ paddingBottom: "calc(var(--composer-h, 60px) + env(safe-area-inset-bottom) + 22px)" }}>
@@ -240,40 +306,27 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
               </div>
             </div>
           );
-          const actions = !busy && m.id > 0 && (
-            <div className="text-faint -ml-2 flex flex-wrap items-center text-xs [&>button]:min-h-10 [&>button]:px-2">
-              {m.role === "assistant" && m.swipes.length > 1 && (
-                <span data-noswipe className="flex items-center gap-1 font-mono">
-                  <button type="button" aria-label="Previous version" disabled={m.activeSwipeIndex === 0} onClick={() => patch({ op: "swipe", msgId: m.id, index: m.activeSwipeIndex - 1 })} className="grid size-8 place-items-center disabled:opacity-30">‹</button>
-                  {m.activeSwipeIndex + 1}/{m.swipes.length}
-                  <button type="button" aria-label="Next version" disabled={m.activeSwipeIndex >= m.swipes.length - 1} onClick={() => patch({ op: "swipe", msgId: m.id, index: m.activeSwipeIndex + 1 })} className="grid size-8 place-items-center disabled:opacity-30">›</button>
-                </span>
-              )}
-              {m.id === lastId && burstHead && (burstHead.burstSwipes?.length ?? 0) > 1 && (
-                <span data-noswipe className="flex items-center gap-1 font-mono">
-                  <button type="button" aria-label="Previous set" disabled={burstHead.activeSwipeIndex === 0} onClick={() => patch({ op: "burstSwipe", msgId: burstHead.id, index: burstHead.activeSwipeIndex - 1 })} className="grid size-8 place-items-center disabled:opacity-30">‹</button>
-                  {burstHead.activeSwipeIndex + 1}/{burstHead.burstSwipes!.length}
-                  <button type="button" aria-label="Next set" disabled={burstHead.activeSwipeIndex >= burstHead.burstSwipes!.length - 1} onClick={() => patch({ op: "burstSwipe", msgId: burstHead.id, index: burstHead.activeSwipeIndex + 1 })} className="grid size-8 place-items-center disabled:opacity-30">›</button>
-                </span>
-              )}
-              {m.role === "assistant" && <>
-                <button type="button" aria-label="Like reply" aria-pressed={rated[m.id] === "like"} disabled={!!rated[m.id]} onClick={() => rate(m.id, "like")} className={rated[m.id] === "like" ? "text-ok" : ""}>👍</button>
-                <button type="button" aria-label="Dislike reply" aria-pressed={rated[m.id] === "dislike"} disabled={!!rated[m.id]} onClick={() => rate(m.id, "dislike")} className={rated[m.id] === "dislike" ? "text-danger" : ""}>👎</button>
-              </>}
-              {m.role === "assistant" && m.id === lastId && <>
-                <button type="button" onClick={() => send({ regenerate: m.id })}>Regenerate</button>
-                <button type="button" onClick={() => send({ regenerate: m.id, wild: true })} title="A much bolder, unpredictable take">🎲 Wild</button>
-              </>}
-              <button type="button" onClick={() => setEditing({ id: m.id, text: m.content })}>Edit</button>
-              {m.id !== lastId && <button type="button" onClick={() => setRewind(m.id)}>Rewind here</button>}
-              {m.thought && <button type="button" aria-expanded={thoughtOf === m.id} onClick={() => setThoughtOf(thoughtOf === m.id ? null : m.id)}>💭 Thought</button>}
-              {thoughtOf === m.id && <p className="text-muted basis-full px-2 pb-1 whitespace-pre-wrap italic">{m.thought}</p>}
+          const tools = !busy && m.id > 0 && (
+            <div role="toolbar" aria-label="Message actions" className="glass absolute top-0 right-0 z-10 hidden rounded-full p-0.5 text-xs group-focus-within:flex group-hover:flex">
+              {items(m).map((it) => <button key={it.label} type="button" title={it.label} aria-label={it.label} disabled={it.off} onClick={it.run} className="grid size-8 place-items-center rounded-full disabled:opacity-30">{it.icon}</button>)}
             </div>
           );
+          const swipeable = m.role === "assistant" && m.id === lastId && m.id > 0;
+          const ver = style === "text" ? (m.id === lastId && burstHead ? { at: burstHead, n: burstHead.burstSwipes?.length ?? 1, op: "burstSwipe" } : null)
+            : m.role === "assistant" ? { at: m, n: m.swipes.length, op: "swipe" } : null;
+          const versions = ver && ver.n > 1 && (
+            <div data-noswipe className="text-faint mt-1.5 flex items-center gap-1 text-[10px]">
+              <button type="button" aria-label="Previous version" disabled={busy || ver.at.activeSwipeIndex === 0} onClick={() => patch({ op: ver.op, msgId: ver.at.id, index: ver.at.activeSwipeIndex - 1 })} className="grid size-7 place-items-center text-sm disabled:opacity-30">‹</button>
+              {ver.n <= 8 && Array.from({ length: ver.n }, (_, k) => <i key={k} aria-hidden="true" className={`h-1.5 rounded-full transition-all duration-200 ${k === ver.at.activeSwipeIndex ? "bg-accent w-4" : "bg-border w-1.5"}`} />)}
+              <span className="ml-1 font-mono">{ver.at.activeSwipeIndex + 1} / {ver.n}</span>
+              <button type="button" aria-label="Next version" disabled={busy || ver.at.activeSwipeIndex >= ver.n - 1} onClick={() => patch({ op: ver.op, msgId: ver.at.id, index: ver.at.activeSwipeIndex + 1 })} className="grid size-7 place-items-center text-sm disabled:opacity-30">›</button>
+            </div>
+          );
+          const thought = thoughtOf === m.id && <p className="text-muted mt-1 text-xs whitespace-pre-wrap italic">{m.thought}</p>;
           return m.role === "user" ? (
-            <div key={m.id} className={`animate-rise space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px] ${style === "text" ? "bg-accent text-accent-fg ml-auto w-fit max-w-[85%] rounded-[18px_18px_5px_18px] px-3.5 py-2.5" : "bg-accent/15 ml-auto w-fit max-w-[78%] rounded-[16px_16px_4px_16px] px-3 py-2 text-[13.5px]"}`}><Prose text={sub(m.content)} />{actions}{m.reaction && <span aria-label={`Reacted ${m.reaction}`} className="bg-surface border-border -mb-4 ml-auto block w-fit rounded-full border px-1.5 text-sm">{m.reaction}</span>}</div>
+            <div key={m.id} {...gesture(m, false)} className={`group animate-rise relative space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px] ${style === "text" ? "bg-accent text-accent-fg ml-auto w-fit max-w-[85%] rounded-[18px_18px_5px_18px] px-3.5 py-2.5" : "bg-accent/15 ml-auto w-fit max-w-[78%] rounded-[16px_16px_4px_16px] px-3 py-2 text-[13.5px]"}`}><Prose text={sub(m.content)} />{tools}{m.reaction && <span aria-label={`Reacted ${m.reaction}`} className="bg-surface border-border -mb-4 ml-auto block w-fit rounded-full border px-1.5 text-sm">{m.reaction}</span>}</div>
           ) : (
-            <div key={m.id} className={`animate-rise flex gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_200px]`}>
+            <div key={m.id} {...gesture(m, swipeable)} data-noswipe={swipeable || undefined} className={`group animate-rise relative flex gap-2 ${swipeable ? "touch-pan-y" : ""} [content-visibility:auto] [contain-intrinsic-size:auto_200px]`}>
               {style === "text" && <Avatar c={character} size="size-8" />}
               <div className={`min-w-0 flex-1 ${style === "text" ? "space-y-1.5 text-[15px] leading-relaxed" : ""}`}>
                 {style !== "text" && <p className="mb-1 flex items-center gap-[7px]"><Avatar c={character} size="size-[22px]" /><span className="text-accent text-[11px] font-semibold tracking-[.06em] uppercase">{m.speaker || name}</span></p>}
@@ -283,7 +336,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
                     : m.imageFile ? <button type="button" onClick={() => setZoom(m.imageFile!)} className="block w-fit"><img src={`/api/rp/files/images/${m.imageFile}`} alt="Photo" className="max-h-80 rounded-2xl" /></button>
                     : <p className="text-muted bg-surface-2 w-fit rounded-2xl px-3.5 py-2.5 text-sm">{m.imageId === 0 ? "📷 photo failed" : "📷 sending…"}</p>}
                 </div>
-                {actions}
+                {versions}{thought}{tools}
                 {feedback?.id === m.id && (
                   <div className="bg-surface border-border animate-rise space-y-2 rounded-lg border p-2.5">
                     <p className="text-xs">{feedback.kind === "like" ? "What worked?" : "What was off?"} <span className="text-faint">(your companion learns how you like stories)</span></p>
@@ -350,6 +403,13 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
           <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
         </button>
       </form>
+      {menuMsg && !busy && <>
+        <button type="button" aria-label="Close menu" onClick={() => setMenu(null)} className="fixed inset-0 z-30 cursor-default" />
+        <div role="menu" aria-label="Message actions" className="glass animate-rise fixed z-40 w-[200px] rounded-2xl p-1.5 text-sm" style={{ top: menu.top, left: menu.left }}>
+          {items(menuMsg).map((it) => <button key={it.label} type="button" role="menuitem" disabled={it.off} onClick={() => { setMenu(null); it.run(); }}
+            className="hover:bg-fg/10 flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 text-left disabled:opacity-40"><span aria-hidden="true" className="w-5 text-center">{it.icon}</span>{it.label}</button>)}
+        </div>
+      </>}
       {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} thinking={v.thinking} agency={character.agency} sub={sub} onPatch={patch} />}
       {sheet}
     </section>
