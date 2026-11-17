@@ -8,7 +8,8 @@ import { substituteMacros } from "@/lib/rp/prompt";
 import { MODES, modeOf } from "@/lib/rp/presets";
 import { charName } from "@/lib/rp/profile";
 import { typingMs } from "@/lib/rp/burst";
-import { atBottom, swipeAxis, swipeTarget } from "@/lib/rp/chat-ui";
+import { atBottom, loreCount, swipeAxis, swipeTarget } from "@/lib/rp/chat-ui";
+import { LoreSheet } from "./LoreSheet";
 import type { RpChat as Chat, RpMessage, RpPersona } from "@/lib/rp/types";
 import { AutoTextarea, useAutoSize } from "../TagInput";
 import { enabledMods, TuneSheet } from "./TuneSheet";
@@ -44,6 +45,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
   const [feedback, setFeedback] = useState<{ id: number; kind: "like" | "dislike"; note: string } | null>(null);
   const [rated, setRated] = useState<Record<number, "like" | "dislike">>({});
   const [tuning, setTuning] = useState(false);
+  const [lore, setLore] = useState(false);
   const [away, setAway] = useState(false); // scrolled up off the bottom → "↓ Latest" pill
   const [compact, setCompact] = useState(false); // stage portrait scrolled away → compact header
   // Text mode: a new burst's bubbles appear one at a time, each after a typing pause.
@@ -268,7 +270,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
         </div>
         {v && <button type="button" onClick={() => setTuning(true)} className={`h-9 rounded-full border px-3 text-xs transition-colors ${enabledMods(v.chat, v.globalMods) ? "border-accent text-accent" : "border-border"}`}>
           Tune{enabledMods(v.chat, v.globalMods) ? <span key={enabledMods(v.chat, v.globalMods)} className="animate-pop ml-1">· {enabledMods(v.chat, v.globalMods)}</span> : null}</button>}
-        {v && <button type="button" onClick={() => setTuning(true)} aria-label="Lorebooks" className="border-border h-9 rounded-full border px-3 text-xs">📖</button>}
+        {v && <button type="button" onClick={() => setLore(true)} aria-label="Lorebooks" className="border-border h-9 rounded-full border px-3 text-xs">📖 {loreCount([character.lorebookId, character.worldLorebookId, v.chat.lorebookId])}</button>}
         <details className="relative">
           <summary aria-label="More" className="border-border grid size-9 cursor-pointer list-none place-items-center rounded-full border [&::-webkit-details-marker]:hidden">⋯</summary>
           <div className="glass absolute top-11 right-0 z-20 w-60 space-y-2 rounded-2xl p-2 text-sm">
@@ -410,6 +412,7 @@ export function RpChat({ character, chatId, personas, onBack, onEdit, sheet }: {
             className="hover:bg-fg/10 flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 text-left disabled:opacity-40"><span aria-hidden="true" className="w-5 text-center">{it.icon}</span>{it.label}</button>)}
         </div>
       </>}
+      {v && <LoreSheet open={lore} onClose={() => setLore(false)} character={character} chat={v.chat} onPatch={patch} />}
       {v && <TuneSheet open={tuning} onClose={() => setTuning(false)} chat={v.chat} globalMods={v.globalMods} thinking={v.thinking} agency={character.agency} sub={sub} onPatch={patch} />}
       {sheet}
     </section>
