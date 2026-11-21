@@ -171,6 +171,19 @@ test("hibernate skips detach when not ACTIVE/SHUTOFF", async () => {
   assert.ok(calls.some((c) => c.path.endsWith("/hibernate")));
 });
 
+test("hibernate from SHUTOFF starts, skips detach, still hibernates", async () => {
+  const { f, calls } = fake({
+    "GET /core/virtual-machines/8": st("SHUTOFF"),
+    "GET /core/volumes": vols,
+    "GET /core/virtual-machines/8/start": {},
+    "GET /core/virtual-machines/8/hibernate": {},
+  });
+  assert.deepEqual(await hyperstack("K", f, { pollMs: 1 }).hibernate("8", "vol"), { detached: false });
+  assert.ok(!calls.some((c) => c.path.endsWith("/detach-volumes")));
+  assert.ok(calls.some((c) => c.path.endsWith("/start")));
+  assert.ok(calls.some((c) => c.path.endsWith("/hibernate")));
+});
+
 test("hibernate detaches when ACTIVE", async () => {
   const { f, calls } = fake({
     "GET /core/virtual-machines/7": st("ACTIVE"),

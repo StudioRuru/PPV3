@@ -7,7 +7,7 @@ const RESTORE_WAIT_MS = 5 * 60_000;
 export const TRANSITIONAL: ReadonlySet<string> = new Set(["RESTORING", "HIBERNATING", "BUILD", "STARTING", "REBOOT", "RESIZING", "SHUTTING_DOWN"]);
 export const canDetach = (status: string | null) => status === "ACTIVE" || status === "SHUTOFF";
 // One log line per VM per operation, so a retry loop can't spam on the same failure.
-const warned = new Set<string>();
+const warned = new Set<string>(); // never cleared on purpose: one log line per VM per op for the process's life
 const warnOnce = (key: string, msg: string) => { if (!warned.has(key)) { warned.add(key); console.warn(msg); } };
 
 export type Offer = { env: string; region: string; flavor: string; gpu: string; vramGb: number; usdHr: number };
@@ -126,9 +126,9 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
 
     /** Detaches only in a detachable state but always hibernates (billing safety); the engine re-enters on tick until `detached`. */
     async hibernate(id: string, volumeName?: string): Promise<{ detached: boolean }> {
-      const s = await status(id);
-      // SHUTOFF still bills and can't hibernate: start it first.
-      if (s === "SHUTOFF") await start(id);
+      let s = await status(id);
+      // SHUTOFF still bills and can't hibernate: start it first (it is STARTING now, so no detach).
+      if (s === "SHUTOFF") { await start(id); s = "STARTING"; }
       // A hibernated VM keeps its volumes, which strands the models if its card goes out of stock: detach first (restore re-attaches; the pod mounts on boot).
       const v = volumeName && canDetach(s) ? await findVolume(volumeName) : null;
       let detached = false;
