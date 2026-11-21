@@ -8,7 +8,7 @@ const ORDER: Target[] = ["anime", "photo", "video"];
 const btn = "border-border h-9 rounded-full border px-4 text-sm";
 
 /** Scene sub-tab: plain-text scene in, model-ready prompt out; the chat lives server-side (GET on mount, DELETE = New scene). */
-export function ScenePane({ onSendPhoto, onSendVideo }: { onSendPhoto(out: SceneOut): void; onSendVideo(out: SceneOut): void }) {
+export function ScenePane({ onSendPhoto, onSendVideo }: { onSendPhoto(out: SceneOut): Promise<string | null>; onSendVideo(out: SceneOut): void }) {
   const [turns, setTurns] = useState<SceneTurn[]>([]);
   const [target, setTarget] = useState<Target>("anime");
   const [model, setModel] = useState("");
@@ -18,6 +18,8 @@ export function ScenePane({ onSendPhoto, onSendVideo }: { onSendPhoto(out: Scene
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
   const end = useRef<HTMLDivElement>(null);
+  const flight = useRef(false); // one send or reset at a time
+  const [sendErr, setSendErr] = useState<string | null>(null);
   const busy = live !== null;
 
   useEffect(() => {
@@ -33,35 +35,52 @@ export function ScenePane({ onSendPhoto, onSendVideo }: { onSendPhoto(out: Scene
 
   async function send() {
     const text = input.trim();
-    if (!text || busy) return;
-    setInput(""); setError(null); setLive("");
+    if (!text || flight.current) return;
+    flight.current = true;
+    setInput(""); setError(null); setSendErr(null); setLive("");
     setTurns((t) => [...t, { role: "user", content: text }]);
-    let raw = "";
+    let raw = "", started = false;
     try {
       const res = await fetch("/api/comfy/scene", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, target, ...(model ? { model } : {}) }) });
-      if (!res.ok || !res.body) throw new Error(res.status === 400 ? "That message or model was rejected (4,000 characters max)." : `Request failed (${res.status})`);
+      if (!res.ok || !res.body) {
+        const body = await res.text().catch(() => "");
+        let msg = "";
+        try { const j = JSON.parse(body); msg = typeof j.error === "string" ? j.error : ""; } catch { /* not JSON */ }
+        throw new Error(res.status === 400 ? msg || "Request rejected" : `Request failed (${res.status})`);
+      }
+      started = true;
       const rd = res.body.getReader(), dec = new TextDecoder();
       for (;;) {
         const { done, value } = await rd.read();
         if (done) break;
         raw += dec.decode(value, { stream: true });
-        if (alive.current) setLive(raw.split("\u0000")[0]);
+        if (alive.current) setLive(raw.split("\u0000")[0].split(/```json/i)[0]);
       }
       const { prose, out, dropped } = splitSceneStream(raw);
       if (alive.current) setTurns((t) => [...t, { role: "assistant", content: prose, ...(out ? { out } : {}), ...(dropped.length ? { dropped } : {}) }]);
     } catch (e) {
-      if (alive.current) setError(e instanceof Error ? e.message : "Request failed");
+      if (alive.current) {
+        setError(e instanceof Error ? e.message : "Request failed");
+        if (!started) { setTurns((t) => t.slice(0, -1)); setInput(text); } // nothing was sent: undo the bubble
+      }
     } finally {
+      flight.current = false;
       if (alive.current) setLive(null);
     }
   }
 
   async function reset() {
-    if (busy) return;
-    const r = await requestJson<{ ok: boolean }>("/api/comfy/scene", { method: "DELETE" });
-    if (!r.ok) return setError(r.error);
-    setTurns([]); setError(null);
+    if (flight.current) return;
+    flight.current = true;
+    try {
+      const r = await requestJson<{ ok: boolean }>("/api/comfy/scene", { method: "DELETE" });
+      if (!r.ok) return setError(r.error);
+      setTurns([]); setError(null); setSendErr(null);
+    } finally { flight.current = false; }
   }
+
+  const sendPhoto = async (o: SceneOut) => setSendErr(await onSendPhoto(o));
+  const sendVideo = (o: SceneOut) => { setSendErr(null); onSendVideo(o); };
 
   return (
     <div className="space-y-3">
@@ -84,12 +103,13 @@ export function ScenePane({ onSendPhoto, onSendVideo }: { onSendPhoto(out: Scene
         {turns.length === 0 && live === null && <p className="text-muted text-sm">Describe a scene. I will write the prompt for the {TARGETS[target].label} target.</p>}
         {turns.map((m, i) => m.role === "user"
           ? <p key={i} className="bg-accent-soft ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2 text-sm break-words whitespace-pre-wrap">{m.content}</p>
-          : <Reply key={i} turn={m} onSendPhoto={onSendPhoto} onSendVideo={onSendVideo} />)}
+          : <Reply key={i} turn={m} onSendPhoto={sendPhoto} onSendVideo={sendVideo} />)}
         {live !== null && (
           <div className="stream-caret border-accent/35 min-w-0 border-l-2 pl-3">
             {live ? <p className="text-sm break-words whitespace-pre-wrap">{live}</p> : <p className="thinking text-muted text-sm">…</p>}
           </div>
         )}
+        {sendErr && <p role="alert" className="text-danger text-sm break-words">⚠️ {sendErr}</p>}
         {error && <p role="alert" className="text-danger text-sm break-words">⚠️ {error}</p>}
         <div ref={end} />
       </div>
@@ -107,7 +127,7 @@ export function ScenePane({ onSendPhoto, onSendVideo }: { onSendPhoto(out: Scene
   );
 }
 
-function Reply({ turn, onSendPhoto, onSendVideo }: { turn: SceneTurn; onSendPhoto(o: SceneOut): void; onSendVideo(o: SceneOut): void }) {
+function Reply({ turn, onSendPhoto, onSendVideo }: { turn: SceneTurn; onSendPhoto(o: SceneOut): void | Promise<void>; onSendVideo(o: SceneOut): void }) {
   const out = turn.out;
   return (
     <div className="border-accent/35 min-w-0 space-y-2 border-l-2 pl-3">

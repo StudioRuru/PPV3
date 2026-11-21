@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { EngineView } from "@/lib/comfy/engine";
-import { defaultPhoto, defaultVideo, loadVideo as loadVideoDraft } from "@/lib/comfy/photo-draft";
+import { defaultPhoto, defaultVideo, photoTune, loadVideo as loadVideoDraft } from "@/lib/comfy/photo-draft";
 import { DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, validatePhoto, type PhotoRecipe, type VideoRecipe } from "@/lib/comfy/recipe";
 import { TARGETS, videoSeconds, type SceneOut } from "@/lib/comfy/scene";
 import { resolveModel } from "@/lib/comfy/scene-ui";
@@ -48,18 +48,21 @@ export function ComfyScreen({ active, onDesk }: { active: boolean; onDesk?: (on:
   };
 
   // Scene "Send": resolve the target's model hint against the installed checkpoints (R2), then push into the pane.
-  const sendPhoto = async (out: SceneOut) => {
+  // Returns an error message for ScenePane to show inline, or null on success.
+  const sendPhoto = async (out: SceneOut): Promise<string | null> => {
     const m = await requestJson<{ checkpoints: string[]; loras: string[] } | { pending: true }>("/api/comfy/models");
-    if (!m.ok || "pending" in m.data) return setError("Start the GPU first so the installed models can be matched.");
+    if (!m.ok) return "Couldn't load installed models — try again.";
+    if ("pending" in m.data) return "Start the GPU first so the installed models can be matched.";
     try {
-      const d = defaultPhoto(m.data.checkpoints);
-      const recipe = validatePhoto({ ...d, model: resolveModel(TARGETS[out.target].model, m.data.checkpoints, d.model), prompt: out.prompt, negative: out.negative ?? DEFAULT_PHOTO_NEGATIVE, loras: out.loras }, m.data);
-      setError(null); setLoadPhoto({ recipe, nonce: Date.now() }); setSub("photo");
-    } catch (e) { setError(e instanceof Error ? e.message : "Couldn't load that scene into Photo."); }
+      const model = resolveModel(TARGETS[out.target].model, m.data.checkpoints, m.data.checkpoints[0] ?? "");
+      const recipe = validatePhoto({ ...defaultPhoto(m.data.checkpoints), ...photoTune(model), model, prompt: out.prompt, negative: out.negative ?? DEFAULT_PHOTO_NEGATIVE, loras: out.loras }, m.data);
+      setLoadPhoto({ recipe, nonce: Date.now() }); setSub("photo");
+      return null;
+    } catch (e) { return e instanceof Error ? e.message : "Couldn't load that scene into Photo."; }
   };
   // validateVideo rejects start:null, so it runs at Generate as usual.
   const sendVideo = (out: SceneOut) => {
-    const recipe: VideoRecipe = { ...(loadVideoDraft() ?? defaultVideo()), mode: "animate", prompt: out.prompt, negative: out.negative ?? DEFAULT_VIDEO_NEGATIVE, loras: out.loras, seconds: videoSeconds(out.beats?.length ?? 1), start: null };
+    const recipe: VideoRecipe = { ...(loadVideoDraft() ?? defaultVideo()), mode: "animate", prompt: out.prompt, negative: out.negative ?? DEFAULT_VIDEO_NEGATIVE, loras: out.loras, seconds: videoSeconds(out.beats?.length ?? 1), start: null, end: null };
     setLoadVideo({ recipe, nonce: Date.now(), tool: "start" }); setSub("video");
   };
 
