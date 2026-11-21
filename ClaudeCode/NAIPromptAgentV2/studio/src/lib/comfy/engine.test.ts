@@ -612,3 +612,18 @@ test("retry models while the sync is pending does not start a second sync", asyn
   assert.equal(calls, 1);
   done();
 });
+
+test("a stop after a settled hibernate and a fresh warm still defers while the new VM is in BUILD", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "RESTORING");
+  await s.e.stop("main", "manual"); // deferred: hibSince set
+  s.vms.set("vm1", "HIBERNATED");
+  await s.e.tick(); // confirmed off
+  s.tick(3 * H);
+  await s.e.warm(); // restored, in BUILD
+  s.log.length = 0;
+  await s.e.stop("main", "manual");
+  assert.deepEqual(s.log, []);
+  assert.equal(getVm(s.db, "main")?.status, "hibernating:manual");
+});

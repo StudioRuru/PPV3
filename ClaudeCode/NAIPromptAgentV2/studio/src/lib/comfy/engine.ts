@@ -66,6 +66,7 @@ export function engine(d: Deps) {
   const isStopping = (v: VmRow) => isFailing(v) || v.status.startsWith("hibernating:");
   const reasonOf = (v: VmRow) => (isStopping(v) ? v.status.slice(v.status.indexOf(":") + 1) : "reconciled");
   /** One alarm, from every failing stop and every orphan we could not remove. */
+  const clearStop = (c: Card) => { hibSince.delete(c); deferred.delete(c); }; // a settled or fresh VM starts with no stop bookkeeping
   const syncAlarm = () => setState(db, { alarm: orphans.size || CARDS.some((c) => { const v = getVm(db, c); return v && isFailing(v); }) ? ALARM : detachWarn.size ? DETACH_ALARM : null });
 
   const mkSteps = (card: Card): Step[] => STEP_IDS.filter((id) => !(card === "boost" && id === "disk")).map((id) => ({ id, state: "wait", startedAt: null, endedAt: null, error: null }));
@@ -175,6 +176,7 @@ export function engine(d: Deps) {
       const ok = canStart({ runs: runs(db), s: readSettings(db), now });
       if (!ok.ok) throw new Refused(ok.why);
       detachWarn.delete(card);
+      clearStop(card);
       let row: VmRow;
       let o: Offer | null = null;
       if (vm) {
@@ -283,8 +285,8 @@ export function engine(d: Deps) {
       if (isFailing(vm)) { await stop(card, reasonOf(vm)); continue; }
       try {
         const s = await hs.status(vm.vmId);
-        if (s === null) { closeRun(db, card, now, isStopping(vm) ? reasonOf(vm) : "vanished"); dropVm(db, card); writeDeadline(card, null); continue; }
-        if (s === "HIBERNATED") { closeRun(db, card, now, reasonOf(vm)); setStatus(vm, "hibernated"); continue; }
+        if (s === null) { clearStop(card); closeRun(db, card, now, isStopping(vm) ? reasonOf(vm) : "vanished"); dropVm(db, card); writeDeadline(card, null); continue; }
+        if (s === "HIBERNATED") { clearStop(card); closeRun(db, card, now, reasonOf(vm)); setStatus(vm, "hibernated"); continue; }
         if (isStopping(vm)) { // hibernate was accepted: confirm, else retry
           if (!hibSince.has(card)) hibSince.set(card, now);
           if (deferred.has(card)) { if (s === "ACTIVE" || s === "ERROR" || s === "SHUTOFF" || now - hibSince.get(card)! > 10 * 60_000) await stop(card, reasonOf(vm)); continue; } // waiting for the VM to settle
@@ -334,8 +336,8 @@ export function engine(d: Deps) {
       const vm = getVm(db, card);
       if (!vm) continue;
       const o = ours.find((x) => x.id === vm.vmId);
-      if (!o) { closeRun(db, card, d.now(), "vanished"); dropVm(db, card); continue; }
-      if (o.status === "HIBERNATED") { closeRun(db, card, d.now(), reasonOf(vm)); setStatus(vm, "hibernated"); }
+      if (!o) { clearStop(card); closeRun(db, card, d.now(), "vanished"); dropVm(db, card); continue; }
+      if (o.status === "HIBERNATED") { clearStop(card); closeRun(db, card, d.now(), reasonOf(vm)); setStatus(vm, "hibernated"); }
       else if (o.status === "ACTIVE" && (vm.status === "hibernated" || vm.status === "starting")) {
         setStatus(vm, "warming");
         if (!openRunOf(card)) openRun(db, card, vm.vmId, vm.usdHr, d.now());
