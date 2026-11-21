@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { EngineView } from "@/lib/comfy/engine";
+import type { EngineView, StepId } from "@/lib/comfy/engine";
 import type { Card } from "@/lib/comfy/store";
 import { alarmText, gpuLabel } from "@/lib/comfy/view";
 
-export type EngineAction = { action: "warm" | "stop" | "flush"; card?: Card } | { action: "boost"; on: boolean } | { action: "keepWarm"; until: number };
+export type EngineAction = { action: "warm" | "stop" | "flush"; card?: Card } | { action: "boost"; on: boolean } | { action: "keepWarm"; until: number } | { action: "retry"; card: Card; step: StepId };
 
 /** "HH:MM" today (or tomorrow if already past) as epoch ms. The server clamps it to the keep-warm max. */
 export function timeToEpoch(hhmm: string, now: number): number | null {

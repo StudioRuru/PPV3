@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEngine, Refused } from "@/lib/comfy/engine";
+import { getEngine, Refused, STEP_IDS, type StepId } from "@/lib/comfy/engine";
 import { stopJobs } from "@/lib/comfy/jobs";
 import type { Card } from "@/lib/comfy/store";
 
@@ -10,7 +10,7 @@ export function GET() {
 }
 
 export async function POST(req: Request) {
-  const b = (await req.json().catch(() => ({}))) as { action?: string; card?: Card; on?: boolean; until?: number };
+  const b = (await req.json().catch(() => ({}))) as { action?: string; card?: Card; on?: boolean; until?: number; step?: StepId };
   const e = getEngine();
   const card: Card = b.card === "boost" ? "boost" : "main";
   try {
@@ -31,6 +31,9 @@ export async function POST(req: Request) {
       case "keepWarm":
         if (typeof b.until !== "number" || !Number.isFinite(b.until)) return NextResponse.json({ error: "until required" }, { status: 400 });
         return NextResponse.json(e.keepWarm(b.until));
+      case "retry":
+        if (!b.step || !STEP_IDS.includes(b.step)) return NextResponse.json({ error: "unknown step" }, { status: 400 });
+        return NextResponse.json(await e.retry(card, b.step));
       default: return NextResponse.json({ error: "unknown action" }, { status: 400 });
     }
   } catch (err) {
