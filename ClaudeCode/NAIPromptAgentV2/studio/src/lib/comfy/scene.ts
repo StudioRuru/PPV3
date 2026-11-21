@@ -3,7 +3,7 @@ import { fits, type Family } from "./recipe";
 import { addTriggers } from "./triggers";
 
 export type Target = "anime" | "photo" | "video";
-// Video LoRAs are Wan-family, which Family doesn't list (lora-info reports "wan" at runtime).
+// Wan LoRAs are detected by isWanLora in loras.ts; the Task 7 route passes them with family "wan" (Ruling R8).
 type Fam = Family | "wan";
 type SceneLora = { name: string; family: Fam; words: string[] };
 export type SceneOut = { target: Target; prompt: string; negative?: string; beats?: { from: number; to: number; text: string }[]; loras: { name: string; strength: number }[] };
@@ -36,14 +36,18 @@ export function scenePrompt(target: Target, loras: SceneLora[], readRef: (file: 
 }
 
 export function parseScene(text: string): { prose: string; out: unknown | null } {
-  const blocks = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
+  const blocks = [...text.matchAll(/```json\s*([\s\S]*?)```/gi)];
   const last = blocks.at(-1);
   if (!last) return { prose: text, out: null };
   const prose = text.slice(0, last.index) + text.slice(last.index! + last[0].length);
   try { return { prose: prose.trim(), out: JSON.parse(last[1]) }; } catch { return { prose: prose.trim(), out: null }; }
 }
 
-const bare = (t: string) => t.trim().replace(/^[({]+/, "").replace(/[)}]+$/, "").replace(/:\s*-?\d+(\.\d+)?$/, "").trim();
+// Unwraps NAI braces and a (x:1.3) weight wrapper only; a tag's own parens like kaga_(kancolle) stay.
+const bare = (t: string) => {
+  const x = t.trim().replace(/^\{+|\}+$/g, "").trim();
+  return (x.match(/^\((.+):-?\d+(\.\d+)?\)$/)?.[1] ?? x).trim();
+};
 const dbl = (t: string) => /^\{\{.*\}\}$/.test(t);
 const sgl = (t: string) => !dbl(t) && /^\{.*\}$/.test(t);
 
@@ -81,7 +85,7 @@ export function cleanScene(raw: unknown, ctx: { target: Target; known: Set<strin
   let prompt = typeof r.prompt === "string" ? r.prompt.trim() : "";
   let outBeats: SceneOut["beats"];
   if (target === "anime") {
-    const kept = prompt.split(",").map((t) => t.trim()).filter(Boolean).filter((t) => {
+    const kept = prompt.split(",").map((t) => t.trim()).filter((t) => bare(t)).filter((t) => {
       const ok = ctx.known.has(bare(t).toLowerCase().replace(/ /g, "_"));
       if (!ok) dropped.push(bare(t));
       return ok;
@@ -93,14 +97,16 @@ export function cleanScene(raw: unknown, ctx: { target: Target; known: Set<strin
     outBeats = texts.slice(0, 2).map((text, k) => ({ from: 5 * k, to: 5 * k + 5, text: /[.!?]$/.test(text) ? text : text + "." }));
     if (outBeats.length) prompt = outBeats.map((b) => b.text).join(" ");
   }
-  if (!prompt.trim()) return null;
+  if (!prompt) return null;
   const loras: SceneOut["loras"] = [];
   for (const l of Array.isArray(r.loras) ? r.loras : []) {
     const o = asObj(l);
-    const name = String(o?.name ?? "");
+    const name = String(o?.name ?? "").trim();
+    if (!name || loras.some((x) => x.name === name)) continue;
     const info = ctx.loras.find((x) => x.name === name);
+    // fits compares with ===, so "wan" only ever matches the video target.
     if (!info || !fits({ family: info.family as Family, words: info.words, weight: null }, TARGETS[target].family as Family)) { dropped.push(name); continue; }
-    loras.push({ name, strength: Math.min(1.5, Math.max(0, Number(o?.strength) || 0)) });
+    loras.push({ name, strength: Math.min(1.5, Math.max(0, Number(o?.strength) || 0.8)) });
     prompt = addTriggers(prompt, info.words).prompt;
   }
   const negative = typeof r.negative === "string" && r.negative.trim() ? r.negative.trim() : undefined;

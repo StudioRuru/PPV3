@@ -37,6 +37,21 @@ test("video drops beat 3+", () => {
   assert.deepEqual(r.dropped, ["beat 3+"]);
 });
 test("cleanScene returns null for non-object or empty prompt", () => { assert.equal(cleanScene("x", ctx), null); assert.equal(cleanScene({ prompt: " " , loras: [] }, { ...ctx, target: "photo" }), null); });
+test("real tags with parens survive; weight wrapper unwraps", () => {
+  const known = new Set(["kaga_(kancolle)", "long_hair"]);
+  const r = cleanScene({ prompt: "kaga_(kancolle), (long_hair:1.3), {}, {{ }}", loras: [] }, { ...ctx, known })!;
+  assert.deepEqual(r.dropped, []);
+  assert.ok(r.out.prompt.includes("kaga_(kancolle)"));
+  assert.equal(naiToComfy(["kaga_(kancolle)"]), "kaga_(kancolle)");
+  assert.equal(naiToComfy(["{kaga_(kancolle)}"]), "(kaga_(kancolle):1.1)");
+});
+test("JSON fence is case-insensitive", () => assert.deepEqual(parseScene("x\n```JSON\n{\"a\":1}\n```").out, { a: 1 }));
+test("LoRAs: dedupe, blank skipped, default strength", () => {
+  const r = cleanScene({ prompt: "photo", loras: [{ name: "a" }, { name: "a", strength: 1 }, { name: " " }, {}] }, { target: "photo", known: new Set(), loras: [{ name: "a", family: "krea2", words: ["t"] }] })!;
+  assert.deepEqual(r.out.loras, [{ name: "a", strength: 0.8 }]);
+  assert.deepEqual(r.dropped, []);
+  assert.equal(r.out.prompt, "t, photo");
+});
 test("scenePrompt inlines refs, LoRAs and ends with revise rule", () => {
   const p = scenePrompt("anime", [{ name: "sdxlA", family: "sdxl", words: ["trig"] }, { name: "wanB", family: "wan", words: [] }], (f) => `REF:${f}`);
   assert.ok(p.includes("REF:tag-guide.md") && p.includes("sdxlA") && p.includes("trig") && !p.includes("wanB") && p.includes("```json"));
