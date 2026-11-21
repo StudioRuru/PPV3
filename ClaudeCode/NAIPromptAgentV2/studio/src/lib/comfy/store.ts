@@ -126,6 +126,12 @@ export function listPoses(db: Db): { id: number; name: string; keypoints: number
 const get = (db: Db, k: string): string | null => (db.prepare("SELECT value FROM settings WHERE key = ?").get(`comfy.${k}`) as { value: string } | undefined)?.value ?? null;
 const put = (db: Db, k: string, v: string) =>
   db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(`comfy.${k}`, v);
+export function getJson<T>(db: Db, k: string): T | null {
+  const v = get(db, k);
+  if (v === null) return null;
+  try { return JSON.parse(v) as T; } catch { return null; }
+}
+export function putJson(db: Db, k: string, v: unknown): void { put(db, k, JSON.stringify(v)); }
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const num = (db: Db, k: string, def: number, lo: number, hi: number) => {
   const v = get(db, k);
