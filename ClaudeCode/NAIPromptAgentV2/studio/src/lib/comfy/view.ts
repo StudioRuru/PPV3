@@ -1,5 +1,5 @@
 // Imported by client components: type-only imports from server modules.
-import type { EngineView, StepId } from "./engine";
+import type { EngineView, Step, StepId } from "./engine";
 
 /** Hyperstack flavor ("n3-L40x1", "n3-RTX-A6000x1") → short GPU name ("L40", "A6000"). */
 export function gpuName(flavor: string | null): string {
@@ -30,4 +30,11 @@ export function stepError(step: StepId, raw: string): string {
     : /link is dead/.test(r) ? r
     : `${step} step failed: ${r.split("\n").find((l) => l.trim())?.trim() ?? "unknown error"}`;
   return msg.slice(0, 120);
+}
+
+export const STEP_LABEL: Record<StepId, string> = { links: "Links", gpu: "GPU", disk: "Disk", network: "Network", comfy: "ComfyUI", ready: "Ready", models: "Models" };
+
+/** Checklist row text: seconds from start to end (or now); "" until the step has started. */
+export function stepElapsed(s: Step, now: number): string {
+  return s.startedAt == null ? "" : `${Math.max(0, Math.round(((s.endedAt ?? now) - s.startedAt) / 1000))}s`;
 }
