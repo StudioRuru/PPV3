@@ -73,7 +73,14 @@ export function naiToComfy(tags: string[]): string {
   }).join(", ");
 }
 
-export const videoSeconds = (n: number) => Math.min(10, Math.max(1, n * 5));
+export type SceneTurn = { role: "user" | "assistant"; content: string; out?: SceneOut; dropped?: string[] };
+export type SceneChat = { target: Target; model: string; turns: SceneTurn[] };
+
+/** Last 12 turns for the model; assistant turns carry their cleaned JSON so a revision builds on the last prompt. */
+export const sceneHistory = (turns: SceneTurn[]): { role: string; content: string }[] =>
+  turns.slice(-12).map((t) => ({ role: t.role, content: t.role === "assistant" && t.out ? `${t.content}\n\n\`\`\`json\n${JSON.stringify(t.out)}\n\`\`\`` : t.content }));
+
+export const videoSeconds =(n: number) => Math.min(10, Math.max(1, n * 5));
 
 const asObj = (x: unknown): Record<string, unknown> | null => (x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
 

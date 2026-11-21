@@ -81,7 +81,30 @@ export async function pushLoras(host: string, dir = LORA_DIR): Promise<string[]>
 /** Wan LoRAs touch `blocks.N.self_attn|cross_attn|ffn`; Qwen (`transformer_blocks`) and SDXL (`down_blocks`) never do. */
 export const isWanLora = (keys: string[]): boolean => keys.some((k) => /(^|[._])blocks[._]\d+[._](self_attn|cross_attn|ffn)/.test(k) && !/transformer_blocks|down_blocks|up_blocks|mid_block/.test(k));
 
-const KEYS_PY = `import json,struct,glob,os
+const wanFile = new Map<string, boolean>();
+/** Whether a Mac-side LoRA is a Wan one: reads its safetensors header tensor names (cached by name+size). */
+export async function localIsWan(name: string, dir = LORA_DIR): Promise<boolean> {
+  const file = path.join(dir, name);
+  try {
+    const key = `${name}:${(await fsp.stat(file)).size}`;
+    const hit = wanFile.get(key);
+    if (hit !== undefined) return hit;
+    const fd = await fsp.open(file);
+    try {
+      const head = Buffer.alloc(8);
+      await fd.read(head, 0, 8, 0);
+      const n = Number(head.readBigUInt64LE(0));
+      if (n < 2 || n > 100_000_000) return false;
+      const buf = Buffer.alloc(n);
+      await fd.read(buf, 0, n, 8);
+      const v = isWanLora(Object.keys(JSON.parse(buf.toString("utf8"))));
+      wanFile.set(key, v);
+      return v;
+    } finally { await fd.close(); }
+  } catch { return false; }
+}
+
+const KEYS_PY =`import json,struct,glob,os
 o={}
 for f in glob.glob("${REMOTE}/**/*.safetensors",recursive=True):
   try:
