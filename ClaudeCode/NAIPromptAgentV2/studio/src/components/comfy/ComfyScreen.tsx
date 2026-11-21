@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { EngineView } from "@/lib/comfy/engine";
-import { defaultVideo, loadVideo as loadVideoDraft } from "@/lib/comfy/photo-draft";
-import type { PhotoRecipe, VideoRecipe } from "@/lib/comfy/recipe";
+import { defaultPhoto, defaultVideo, loadVideo as loadVideoDraft } from "@/lib/comfy/photo-draft";
+import { DEFAULT_PHOTO_NEGATIVE, DEFAULT_VIDEO_NEGATIVE, validatePhoto, type PhotoRecipe, type VideoRecipe } from "@/lib/comfy/recipe";
+import { TARGETS, videoSeconds, type SceneOut } from "@/lib/comfy/scene";
+import { resolveModel } from "@/lib/comfy/scene-ui";
 import { asStartFrame, reuseTarget } from "@/lib/comfy/reuse";
 import type { Item } from "@/lib/comfy/store";
 import { requestJson } from "@/lib/net";
@@ -10,11 +12,12 @@ import { useWide } from "./useWide";
 import { PhotoPane } from "./PhotoPane";
 import { LibraryPane } from "./LibraryPane";
 import { VideoPane } from "./VideoPane";
+import { ScenePane } from "./ScenePane";
 import { SpritesScreen } from "./sprites/SpritesScreen";
 import { GpuLine, type EngineAction } from "./GpuLine";
 
-type Sub = "photo" | "video" | "sprites" | "library";
-const SUBS: { id: Sub; label: string }[] = [{ id: "photo", label: "Photo" }, { id: "video", label: "Video" }, { id: "sprites", label: "Sprites" }, { id: "library", label: "Library" }];
+type Sub = "scene" | "photo" | "video" | "sprites" | "library";
+const SUBS: { id: Sub; label: string }[] = [{ id: "scene", label: "Scene" }, { id: "photo", label: "Photo" }, { id: "video", label: "Video" }, { id: "sprites", label: "Sprites" }, { id: "library", label: "Library" }];
 const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** ComfyUI tab: GPU status line + sub-tabs. Opening the tab pre-warms the GPU once; the prompt and drawer work whatever the GPU is doing. */
@@ -27,7 +30,7 @@ export function ComfyScreen({ active, onDesk }: { active: boolean; onDesk?: (on:
   const [lastPhoto, setLastPhoto] = useState<{ id: number; file: string } | null>(null);
   const [prompt, setPrompt] = useState("");
   const [loadPhoto, setLoadPhoto] = useState<{ recipe: PhotoRecipe; nonce: number }>();
-  const [loadVideo, setLoadVideo] = useState<{ recipe: VideoRecipe; nonce: number; thumb?: string }>();
+  const [loadVideo, setLoadVideo] = useState<{ recipe: VideoRecipe; nonce: number; thumb?: string; tool?: "start" }>();
   const warmed = useRef(false);
   const wide = useWide();
   const bleed = wide && sub === "photo"; // desktop Photo uses the full window, not the 6xl column
@@ -42,6 +45,22 @@ export function ComfyScreen({ active, onDesk }: { active: boolean; onDesk?: (on:
   const animate = (it: Item) => {
     setLoadVideo({ recipe: asStartFrame(it, loadVideoDraft() ?? defaultVideo()), nonce: Date.now(), thumb: `/api/comfy/file/${it.file}` });
     setSub("video");
+  };
+
+  // Scene "Send": resolve the target's model hint against the installed checkpoints (R2), then push into the pane.
+  const sendPhoto = async (out: SceneOut) => {
+    const m = await requestJson<{ checkpoints: string[]; loras: string[] } | { pending: true }>("/api/comfy/models");
+    if (!m.ok || "pending" in m.data) return setError("Start the GPU first so the installed models can be matched.");
+    try {
+      const d = defaultPhoto(m.data.checkpoints);
+      const recipe = validatePhoto({ ...d, model: resolveModel(TARGETS[out.target].model, m.data.checkpoints, d.model), prompt: out.prompt, negative: out.negative ?? DEFAULT_PHOTO_NEGATIVE, loras: out.loras }, m.data);
+      setError(null); setLoadPhoto({ recipe, nonce: Date.now() }); setSub("photo");
+    } catch (e) { setError(e instanceof Error ? e.message : "Couldn't load that scene into Photo."); }
+  };
+  // validateVideo rejects start:null, so it runs at Generate as usual.
+  const sendVideo = (out: SceneOut) => {
+    const recipe: VideoRecipe = { ...(loadVideoDraft() ?? defaultVideo()), mode: "animate", prompt: out.prompt, negative: out.negative ?? DEFAULT_VIDEO_NEGATIVE, loras: out.loras, seconds: videoSeconds(out.beats?.length ?? 1), start: null };
+    setLoadVideo({ recipe, nonce: Date.now(), tool: "start" }); setSub("video");
   };
 
   // Errors from warm/actions stay until the next action succeeds; a poll only clears (or sets) its own error.
@@ -83,6 +102,7 @@ export function ComfyScreen({ active, onDesk }: { active: boolean; onDesk?: (on:
             className={`h-9 rounded-full border px-4 text-sm ${sub === s.id ? "bg-accent text-accent-fg border-accent font-semibold" : "border-border text-muted"}`}>{s.label}</button>
         ))}
       </div>
+      <div className={sub === "scene" ? "" : "hidden"}><ScenePane onSendPhoto={sendPhoto} onSendVideo={sendVideo} /></div>
       <div className={sub === "photo" ? "space-y-3" : "hidden"}>
         <PhotoPane active={active && sub === "photo"} view={view} prompt={prompt} onPrompt={setPrompt} onShot={setLastPhoto} load={loadPhoto} />
       </div>
