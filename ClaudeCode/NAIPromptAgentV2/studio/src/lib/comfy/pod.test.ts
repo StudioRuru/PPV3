@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import YAML from "yaml";
-import { readManifest, renderCloudInit, podHost, releaseModels, syncModels, tailnetIp, COMFY_PORT } from "./pod";
+import { readManifest, renderCloudInit, podHost, releaseModels, syncModels, tailnetIp, COMFY_PORT, waitSsh, withRetry, isNetError, fetchedCount, listVolume, hostFor, type Run } from "./pod";
 
 const secrets = { tsAuthKey: "tskey-test", hfToken: "hf_test", civitaiToken: "civ_test" };
 
@@ -40,16 +40,16 @@ test("boost cloud-init only carries boost models", () => {
 
 test("releaseModels kills whatever holds the models mount (e.g. an in-flight sync's sha256sum) before unmounting", async () => {
   let cmd = "";
-  await releaseModels("main", async (_c, args) => { cmd = args.at(-1)!; return ""; });
+  await releaseModels("main", "100.1.2.3", async (_c, args) => { cmd = args.at(-1)!; return ""; });
   assert.ok(cmd.indexOf("fuser -km /opt/comfy/models") >= 0 && cmd.indexOf("fuser") < cmd.indexOf("umount"), cmd);
 });
 
 test("syncModels sends the manifest on stdin to the right host", async () => {
   const calls: { cmd: string; args: string[]; stdin: string }[] = [];
-  const out = await syncModels("boost", async (cmd, args, stdin) => { calls.push({ cmd, args, stdin }); return "ok"; });
+  const out = await syncModels("boost", "100.1.2.3", async (cmd, args, stdin) => { calls.push({ cmd, args, stdin }); return "ok"; });
   assert.equal(out, "ok");
   assert.equal(calls[0].cmd, "ssh");
-  assert.ok(calls[0].args.includes("root@nai-comfy-boost"));
+  assert.ok(calls[0].args.includes("root@100.1.2.3"));
   const a = calls[0].args.join(" ");
   for (const o of ["BatchMode=yes", "StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"]) assert.ok(a.includes(o), o);
   assert.ok(calls[0].args.join(" ").endsWith("bash /opt/comfy/fetch-models.sh"));
@@ -78,3 +78,31 @@ test("ssh options keep known-host warnings out of command output", async () => {
   const { SSH_OPTS } = await import("./pod");
   assert.ok(SSH_OPTS.join(" ").includes("LogLevel=ERROR"));
 });
+
+const timedOut = () => new Error("ssh: connect to host 100.1.2.3 port 22: Connection timed out");
+test("waitSsh retries until ssh answers", async () => {
+  let n = 0; const run: Run = async () => { if (++n < 3) throw timedOut(); return ""; };
+  await waitSsh("100.1.2.3", run, async () => {});
+  assert.equal(n, 3);
+});
+test("waitSsh gives up after the schedule", async () => {
+  let n = 0; const run: Run = async () => { n++; throw timedOut(); };
+  await assert.rejects(waitSsh("100.1.2.3", run, async () => {}), /SSH never answered on 100\.1\.2\.3/);
+  assert.equal(n, 7);
+});
+test("withRetry does not retry a download failure", async () => {
+  let n = 0;
+  await assert.rejects(withRetry(async () => { n++; throw new Error("FAILED diffusion_models/x"); }, isNetError, async () => {}), /FAILED/);
+  assert.equal(n, 1);
+});
+test("withRetry retries a resolve failure twice", async () => {
+  let n = 0;
+  await assert.rejects(withRetry(async () => { n++; throw new Error("Could not resolve hostname nai-comfy-main"); }, isNetError, async () => {}), /resolve/);
+  assert.equal(n, 3);
+});
+test("fetchedCount counts get lines", () => assert.equal(fetchedCount("skip a/b\nget c/d\nget e/f\nmodels ok\n"), 2));
+test("listVolume parses find output", async () => {
+  const v = await listVolume("100.1.2.3", async () => "loras/a b.safetensors 12\nvae/x.pt 3\n");
+  assert.deepEqual(v, [{ name: "loras/a b.safetensors", size: 12 }, { name: "vae/x.pt", size: 3 }]);
+});
+test("hostFor prefers the tailnet IP", () => { assert.equal(hostFor("main", "100.1.2.3"), "100.1.2.3"); assert.equal(hostFor("main", null), "nai-comfy-main"); });

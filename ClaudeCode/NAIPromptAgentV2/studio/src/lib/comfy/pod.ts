@@ -57,7 +57,7 @@ export async function tailnetIp(host: string, status: () => Promise<string> = ts
 const tsStatus = () => new Promise<string>((resolve, reject) =>
   execFile(process.env.TAILSCALE_BIN || "/usr/local/bin/tailscale", ["status", "--json"], { timeout: 10_000 }, (e, out) => (e ? reject(e) : resolve(out))));
 
-type Run = (cmd: string, args: string[], stdin: string) => Promise<string>;
+export type Run = (cmd: string, args: string[], stdin: string) => Promise<string>;
 const sshRun: Run = (cmd, args, stdin) =>
   new Promise((resolve, reject) => {
     const p = spawn(cmd, args);
@@ -69,12 +69,43 @@ const sshRun: Run = (cmd, args, stdin) =>
     p.stdin.end(stdin);
   });
 
-/** Pushes the card's manifest to the pod over Tailscale SSH and downloads any missing models. */
-export function syncModels(card: Card, run: Run = sshRun): Promise<string> {
-  return run("ssh", [...SSH_OPTS, `root@${podHost(card)}`, "bash", "/opt/comfy/fetch-models.sh"], forCard(card));
+/** The pod's tailnet IP when known: the MagicDNS name goes stale after a flush ("Could not resolve hostname"). */
+export const hostFor = (card: Card, ip?: string | null) => ip || podHost(card);
+
+/** Pushes the card's manifest to the pod over Tailscale SSH and downloads any missing models. Returns the script's stdout. */
+export function syncModels(card: Card, host: string, run: Run = sshRun): Promise<string> {
+  return run("ssh", [...SSH_OPTS, `root@${host}`, "bash", "/opt/comfy/fetch-models.sh"], forCard(card));
 }
 
 /** Stops comfy, kills anything else on the volume (an in-flight model sync) and unmounts it so hibernate's detach doesn't yank a mounted filesystem. */
-export function releaseModels(card: Card, run: Run = sshRun): Promise<string> {
-  return run("ssh", [...SSH_OPTS, "-o", "ConnectTimeout=15", `root@${podHost(card)}`, "systemctl stop comfy; fuser -km /opt/comfy/models; sync; umount /opt/comfy/models"], "");
+export async function releaseModels(card: Card, host: string, run: Run = sshRun): Promise<void> {
+  await run("ssh", [...SSH_OPTS, "-o", "ConnectTimeout=15", `root@${host}`, "systemctl stop comfy; fuser -km /opt/comfy/models; sync; umount /opt/comfy/models"], "");
+}
+
+const nap = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const SSH_WAIT = [5_000, 10_000, 20_000, 40_000, 40_000, 40_000]; // ~2.6 min for sshd after the tailnet comes up
+
+/** Resolves once sshd answers; sync used to fire before it was up. */
+export async function waitSsh(host: string, run: Run = sshRun, sleep: (ms: number) => Promise<void> = nap): Promise<void> {
+  for (let i = 0; i <= SSH_WAIT.length; i++) {
+    try { await run("ssh", [...SSH_OPTS, "-o", "ConnectTimeout=10", `root@${host}`, "true"], ""); return; } catch { if (i < SSH_WAIT.length) await sleep(SSH_WAIT[i]); }
+  }
+  throw new Error(`SSH never answered on ${host}`);
+}
+
+/** A transport failure worth retrying. A `FAILED kind/name` download from fetch-models.sh is not one. */
+export const isNetError = (e: unknown): boolean => /Could not resolve hostname|Connection (timed out|refused|reset)|port 22|kex_exchange|Broken pipe/i.test(e instanceof Error ? e.message : String(e));
+
+export async function withRetry<T>(fn: () => Promise<T>, isNet: (e: unknown) => boolean, sleep: (ms: number) => Promise<void> = nap, delays = [10_000, 30_000]): Promise<T> {
+  for (let i = 0; ; i++) {
+    try { return await fn(); } catch (e) { if (i >= delays.length || !isNet(e)) throw e; await sleep(delays[i]); }
+  }
+}
+
+export const fetchedCount = (stdout: string): number => stdout.split("\n").filter((l) => l.startsWith("get ")).length;
+
+/** Files on the pod's models volume as `kind/filename` + bytes. */
+export async function listVolume(host: string, run: Run = sshRun): Promise<{ name: string; size: number }[]> {
+  const out = await run("ssh", [...SSH_OPTS, `root@${host}`, "find /opt/comfy/models -type f -printf '%P %s\\n'"], "");
+  return out.split("\n").flatMap((l) => { const m = l.match(/^(.+) (\d+)$/); return m ? [{ name: m[1], size: Number(m[2]) }] : []; });
 }

@@ -3,7 +3,7 @@ import { type Card, type VmRow, comfyDb, getVm, putVm, dropVm, openRun, closeRun
 import { type Hyperstack, type Offer, NoCapacity, hyperstack } from "./hyperstack";
 import { canStart, clampKeepWarm, dayStart, runCost, spentSince, stopReason } from "./spend";
 import { pushLoras } from "./loras";
-import { COMFY_PORT, modelsVolume, podHost, releaseModels, renderCloudInit, syncModels, tailnetIp } from "./pod";
+import { COMFY_PORT, hostFor, isNetError, modelsVolume, podHost, releaseModels, renderCloudInit, syncModels, tailnetIp, waitSsh, withRetry } from "./pod";
 import { dropModels, ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
 import { trainStatus, training } from "./train";
@@ -14,7 +14,7 @@ export type EngineView = {
   /** A hibernated VM holds the downloaded models (storage-only cost) until flushed. */
   kept: boolean;
 };
-export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null>; sync?: (card: Card) => Promise<unknown>; release?: (card: Card) => Promise<unknown> };
+export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null>; sync?: (card: Card) => Promise<string>; release?: (card: Card) => Promise<unknown> };
 /** warm() refused by the spend policy; `message` is the user-facing sentence. */
 export class Refused extends Error {}
 
@@ -35,7 +35,8 @@ export function engine(d: Deps) {
   let reconciled = false;
   let tickN = 0;
   const addr = new Map<Card, string>(); // the live pod's tailnet IP, refreshed each tick while ACTIVE
-  const base = (card: Card) => `http://${addr.get(card) ?? podHost(card)}:${COMFY_PORT}`;
+  const host = (card: Card) => hostFor(card, addr.get(card));
+  const base = (card: Card) => `http://${host(card)}:${COMFY_PORT}`;
   const dlKey = (c: Card) => `comfy.deadline.${c}`;
   const readDeadline = (c: Card): number | null => {
     const r = db.prepare("SELECT value FROM settings WHERE key = ?").get(dlKey(c)) as { value: string } | undefined;
@@ -212,7 +213,7 @@ export function engine(d: Deps) {
       // A cold boot downloads ~80 GB: booting counts as busy for up to WARM_MAX_MS, then idle may stop a pod that never came up.
       const run = runs(db).find((r) => r.card === card && r.stoppedAt === null);
       const booting = vm.status !== "ready" && !!run && now - run.startedAt < WARM_MAX_MS;
-      if (card === "main" && vm.status === "ready" && training()) await trainStatus().catch((e) => console.error("[comfy] train status failed:", e)); // ends the run even with the app closed
+      if (card === "main" && vm.status === "ready" && training()) await trainStatus(host(card)).catch((e) => console.error("[comfy] train status failed:", e)); // ends the run even with the app closed
       const busyJob = booting || (card === "main" && training()) || !!db.prepare("SELECT 1 FROM comfy_jobs WHERE status = 'running' AND card = ?").get(card);
       const st = getState(db);
       const why = stopReason({ runs: runs(db), s: readSettings(db), lastActivity: st.lastActivity, keepWarmUntil: st.keepWarmUntil, busy: busyJob, deadline: readDeadline(card), now });
@@ -263,11 +264,15 @@ export function engine(d: Deps) {
     return view().boost;
   }
 
-  return { warm, keepWarm, setBoost, stop, tick, reconcile, view, base };
+  return { warm, keepWarm, setBoost, stop, tick, reconcile, view, base, host };
 }
 
 type Engine = ReturnType<typeof engine>;
 export function getEngine(): Engine {
   const g = globalThis as { __comfyEngine?: Engine };
-  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h), sync: (c) => syncModels(c).then(() => (c === "main" ? pushLoras() : null)).then(dropModels), release: (c) => releaseModels(c) }));
+  if (g.__comfyEngine) return g.__comfyEngine;
+  const e: Engine = engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h),
+    sync: async (c) => { const h = e.host(c); await waitSsh(h); const out = await withRetry(() => syncModels(c, h), isNetError); if (c === "main") await pushLoras(h); dropModels(); return out; },
+    release: (c) => releaseModels(c, e.host(c)) });
+  return (g.__comfyEngine = e);
 }

@@ -11,7 +11,7 @@ const main: Offer = { env: "e", region: "r", flavor: "f48", gpu: "L40", vramGb: 
 const h100: Offer = { env: "e", region: "r", flavor: "fh", gpu: "H100-80G-PCIe", vramGb: 80, usdHr: 2 };
 const a100: Offer = { env: "e", region: "r", flavor: "fa", gpu: "A100-80G-PCIe", vramGb: 80, usdHr: 1.5 };
 
-function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>, sync?: (card: string) => Promise<unknown>, release?: (card: string) => Promise<unknown>) {
+function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>, sync?: (card: string) => Promise<string>, release?: (card: string) => Promise<unknown>) {
   const db = new Database(":memory:");
   migrate(db);
   let now = T0;

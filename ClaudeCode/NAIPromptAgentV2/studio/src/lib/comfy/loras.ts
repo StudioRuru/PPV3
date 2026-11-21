@@ -64,7 +64,7 @@ export function ssh(host: string, cmd: string, stdin?: Readable): Promise<string
 }
 
 /** Copies imports the main pod lacks (by size) onto its models volume. Returns the names sent. */
-export async function pushLoras(host = podHost("main"), dir = LORA_DIR): Promise<string[]> {
+export async function pushLoras(host: string, dir = LORA_DIR): Promise<string[]> {
   const mine = await listLoras(dir);
   if (!mine.length) return [];
   const have = new Map((await ssh(host, `mkdir -p ${REMOTE} && cd ${REMOTE} && stat -c '%s %n' -- *.safetensors 2>/dev/null || true`))
@@ -91,7 +91,7 @@ print(json.dumps(o))`;
 const wan = new Map<string, boolean>();
 
 /** Of the pod's LoRAs, the ones a Wan video can use (unreadable files are kept, image LoRAs dropped). A Qwen LoRA on Wan silently loads nothing. */
-export async function videoLoras(names: string[], host = podHost("main")): Promise<string[]> {
+export async function videoLoras(names: string[], host: string): Promise<string[]> {
   if (names.some((n) => !wan.has(n))) {
     try {
       const keys = JSON.parse((await ssh(host, "python3 -", Readable.from([KEYS_PY]))).trim().split("\n").pop() ?? "{}") as Record<string, string[]>;
