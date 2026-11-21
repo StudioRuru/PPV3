@@ -32,11 +32,11 @@ export async function preflight(card: Card, deps: { db: Db; manifest: ManifestEn
 }
 
 export async function headUrl(url: string): Promise<number> {
-  const host = new URL(url).hostname;
-  const headers: Record<string, string> = {};
-  if (host.endsWith("huggingface.co") && HF_TOKEN) headers.Authorization = `Bearer ${HF_TOKEN}`;
-  else if (/(^|\.)civitai\.[a-z]+$/.test(host) && CIVITAI_TOKEN) headers.Authorization = `Bearer ${CIVITAI_TOKEN}`;
   try {
+    const host = new URL(url).hostname;
+    const headers: Record<string, string> = {};
+    if (/(^|\.)huggingface\.co$/.test(host) && HF_TOKEN) headers.Authorization = `Bearer ${HF_TOKEN}`;
+    else if (/(^|\.)civitai\.[a-z]+$/.test(host) && CIVITAI_TOKEN) headers.Authorization = `Bearer ${CIVITAI_TOKEN}`;
     return (await fetch(url, { method: "HEAD", redirect: "follow", headers, signal: AbortSignal.timeout(15_000) })).status;
   } catch { return 599; }
 }

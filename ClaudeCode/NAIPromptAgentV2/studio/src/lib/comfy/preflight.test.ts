@@ -34,6 +34,15 @@ test("good result cached 24 h", async () => {
   assert.equal(n, 2);
 });
 
+test("saveVolumeList clears the good-link cache", async () => {
+  const db = memDb(); let n = 0;
+  const deps = { db, manifest: [e("a.safetensors", 1)], head: async () => (n++, 200), now: 1 };
+  await preflight("main", deps);
+  saveVolumeList(db, "main", []);
+  await preflight("main", deps);
+  assert.equal(n, 2);
+});
+
 test("size mismatch counts as missing", async () => {
   const db = memDb(); saveVolumeList(db, "main", [{ name: "diffusion_models/a.safetensors", size: 9 }]);
   const seen: string[] = [];
