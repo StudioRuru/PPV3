@@ -41,9 +41,20 @@ test("real tags with parens survive; weight wrapper unwraps", () => {
   const known = new Set(["kaga_(kancolle)", "long_hair"]);
   const r = cleanScene({ prompt: "kaga_(kancolle), (long_hair:1.3), {}, {{ }}", loras: [] }, { ...ctx, known })!;
   assert.deepEqual(r.dropped, []);
-  assert.ok(r.out.prompt.includes("kaga_(kancolle)"));
-  assert.equal(naiToComfy(["kaga_(kancolle)"]), "kaga_(kancolle)");
-  assert.equal(naiToComfy(["{kaga_(kancolle)}"]), "(kaga_(kancolle):1.1)");
+  assert.equal(r.out.prompt, "kaga \\(kancolle\\), (long hair:1.3)");
+  assert.equal(naiToComfy(["kaga_(kancolle)"]), "kaga \\(kancolle\\)");
+  assert.equal(naiToComfy(["{kaga_(kancolle)}"]), "(kaga \\(kancolle\\):1.1)");
+});
+test("NAI numeric weights unwrap for lookup and map onto the brace budget", () => {
+  const known = new Set(["silver_hair", "cafe", "long_hair", "smile"]);
+  const r = cleanScene({ prompt: "1.15::silver hair::, 0.9::cafe::, 1.3::long hair, smile::", loras: [] }, { ...ctx, known })!;
+  assert.deepEqual(r.dropped, []);
+  assert.equal(r.out.prompt, "(silver hair:1.1), cafe, (long hair:1.2), (smile:1.2)");
+});
+test("a beat with several sentences stays one segment", () => {
+  const r = cleanScene({ prompt: "", beats: [{ text: "She sits. She looks up." }, { text: "She stands." }], loras: [] }, { target: "video", known: new Set(), loras: [] })!;
+  assert.deepEqual(beats(r.out.prompt, 2), r.out.beats!.map((b) => b.text));
+  assert.deepEqual(beats(r.out.prompt, 2), ["She sits, She looks up.", "She stands."]);
 });
 test("JSON fence is case-insensitive", () => assert.deepEqual(parseScene("x\n```JSON\n{\"a\":1}\n```").out, { a: 1 }));
 test("LoRAs: dedupe, blank skipped, default strength", () => {

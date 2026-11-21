@@ -64,14 +64,23 @@ export function budget(tags: string[]): string[] {
   });
 }
 
+/** ComfyUI reads bare parens as weights: a tag's own parens are escaped, kaga_(kancolle) -> kaga \(kancolle\). */
+const comfyText = (x: string) => x.replace(/_/g, " ").replace(/[()]/g, "\\$&");
+
 export function naiToComfy(tags: string[]): string {
   return tags.map((t) => {
+    const cw = t.match(/^\((.+):(-?\d+(?:\.\d+)?)\)$/); // already a Comfy (x:1.3) wrapper
+    if (cw) return `(${comfyText(cw[1].trim())}:${cw[2]})`;
     const w = dbl(t) ? 1.2 : sgl(t) ? 1.1 : 0;
-    const x = w ? bare(t) : t;
-    const text = x.includes("(") ? x : x.replace(/_/g, " ");
+    const text = comfyText(w ? bare(t) : t);
     return w ? `(${text}:${w})` : text;
   }).join(", ");
 }
+
+/** NAI V4.5 numeric weights `1.15::x, y::` become braces the budget understands: >=1.2 {{x}}, >1 {x}, <=1 bare. */
+const naiWeights = (prompt: string) =>
+  prompt.replace(/(-?\d+(?:\.\d+)?)::([\s\S]*?)(?:::|$)/g, (_, w: string, body: string) =>
+    body.split(",").map((x) => x.trim()).filter(Boolean).map((x) => (+w >= 1.2 ? `{{${x}}}` : +w > 1 ? `{${x}}` : x)).join(", "));
 
 export type SceneTurn = { role: "user" | "assistant"; content: string; out?: SceneOut; dropped?: string[] };
 export type SceneChat = { target: Target; model: string; turns: SceneTurn[] };
@@ -92,7 +101,7 @@ export function cleanScene(raw: unknown, ctx: { target: Target; known: Set<strin
   let prompt = typeof r.prompt === "string" ? r.prompt.trim() : "";
   let outBeats: SceneOut["beats"];
   if (target === "anime") {
-    const kept = prompt.split(",").map((t) => t.trim()).filter((t) => bare(t)).filter((t) => {
+    const kept = naiWeights(prompt).split(",").map((t) => t.trim()).filter((t) => bare(t)).filter((t) => {
       const ok = ctx.known.has(bare(t).toLowerCase().replace(/ /g, "_"));
       if (!ok) dropped.push(bare(t));
       return ok;
@@ -101,7 +110,8 @@ export function cleanScene(raw: unknown, ctx: { target: Target; known: Set<strin
   } else if (target === "video" && Array.isArray(r.beats)) {
     const texts = r.beats.map((b) => String(asObj(b)?.text ?? "").trim()).filter(Boolean);
     if (texts.length > 2) dropped.push("beat 3+");
-    outBeats = texts.slice(0, 2).map((text, k) => ({ from: 5 * k, to: 5 * k + 5, text: /[.!?]$/.test(text) ? text : text + "." }));
+    // beats() splits the video prompt by sentence, so each beat must be exactly one sentence.
+    outBeats = texts.slice(0, 2).map((t) => t.replace(/[.!?]+\s+(?=\S)/g, ", ")).map((text, k) => ({ from: 5 * k, to: 5 * k + 5, text: /[.!?]$/.test(text) ? text : text + "." }));
     if (outBeats.length) prompt = outBeats.map((b) => b.text).join(" ");
   }
   if (!prompt) return null;

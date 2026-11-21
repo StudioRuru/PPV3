@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       try {
         await (heavy ? heavyGate.run(answer) : answer());
       } catch (e) {
-        console.error("[comfy] scene failed:", e);
+        console.error("[comfy] scene failed:", e instanceof Error ? e.message : "unknown");
         const m = e instanceof Offline ? "Model offline." : /paused|busy/i.test((e as Error).message) ? "The model is busy — try again" : "The scene model failed — try again or pick another model";
         put(`\n\n⚠️ ${m}`);
       }
