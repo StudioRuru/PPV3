@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { DATA_DIR } from "../env";
-import { SSH_OPTS, podHost } from "./pod";
+import { SSH_OPTS } from "./pod";
 
 /** LoRAs imported from the phone. Kept on the Mac; copied to the main pod's persistent models volume. */
 export const LORA_DIR = path.join(DATA_DIR, "comfy-loras");

@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { DATA_DIR } from "../env";
 import { LORA_DIR, ssh } from "./loras";
-import { SSH_OPTS, podHost } from "./pod";
+import { SSH_OPTS } from "./pod";
 
 /** One LoRA training run at a time, on the main pod, with ostris/ai-toolkit (installed by pod/comfy/install.sh). */
 export type Arch = "sdxl" | "qwen" | "moss" | "wan22";

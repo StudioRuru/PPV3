@@ -94,7 +94,7 @@ export async function waitSsh(host: string, run: Run = sshRun, sleep: (ms: numbe
 }
 
 /** A transport failure worth retrying. A `FAILED kind/name` download from fetch-models.sh is not one. */
-export const isNetError = (e: unknown): boolean => /Could not resolve hostname|Connection (timed out|refused|reset)|port 22|kex_exchange|Broken pipe/i.test(e instanceof Error ? e.message : String(e));
+export const isNetError = (e: unknown): boolean => !/FAILED /.test(String((e as Error)?.message ?? e)) && /Could not resolve hostname|Connection (timed out|refused|reset)|port 22|kex_exchange|Broken pipe/i.test(e instanceof Error ? e.message : String(e));
 
 export async function withRetry<T>(fn: () => Promise<T>, isNet: (e: unknown) => boolean, sleep: (ms: number) => Promise<void> = nap, delays = [10_000, 30_000]): Promise<T> {
   for (let i = 0; ; i++) {

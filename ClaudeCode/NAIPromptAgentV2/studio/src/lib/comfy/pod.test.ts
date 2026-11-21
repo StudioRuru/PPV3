@@ -106,3 +106,7 @@ test("listVolume parses find output", async () => {
   assert.deepEqual(v, [{ name: "loras/a b.safetensors", size: 12 }, { name: "vae/x.pt", size: 3 }]);
 });
 test("hostFor prefers the tailnet IP", () => { assert.equal(hostFor("main", "100.1.2.3"), "100.1.2.3"); assert.equal(hostFor("main", null), "nai-comfy-main"); });
+test("isNetError ignores a download failure even when curl timed out", () => {
+  assert.equal(isNetError(new Error("ssh exited 1: curl: (28) Connection timed out\nFAILED diffusion_models/x")), false);
+  assert.equal(isNetError(new Error("Connection timed out")), true);
+});
