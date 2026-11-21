@@ -312,10 +312,11 @@ export function engine(d: Deps) {
           next = (await d.ping(base(card)).catch(() => false)) ? "ready" : "warming";
           setStep(card, "comfy", next === "ready" ? "ok" : "run");
           setStep(card, "ready", next === "ready" ? "ok" : "wait");
-          if (next === "ready") waitSince.delete(card);
+          // Only the tailnet join has a deadline: ComfyUI starts after a model download of up to ~115 GB, so it stays on WARM_MAX.
+          if (ip || next === "ready") waitSince.delete(card); // ready via the MagicDNS fallback counts as joined
           else if (!waitSince.has(card)) waitSince.set(card, now);
           else if (now - waitSince.get(card)! >= READY_WAIT_MS) {
-            setStep(card, ip ? "comfy" : "network", "fail", { error: ip ? "ComfyUI never answered" : "The pod never joined the tailnet" });
+            setStep(card, "network", "fail", { error: "The pod never joined the tailnet" });
             stuck = true;
           }
         }

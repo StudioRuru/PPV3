@@ -45,6 +45,13 @@ test("real tags with parens survive; weight wrapper unwraps", () => {
   assert.equal(naiToComfy(["kaga_(kancolle)"]), "kaga \\(kancolle\\)");
   assert.equal(naiToComfy(["{kaga_(kancolle)}"]), "(kaga \\(kancolle\\):1.1)");
 });
+test("a revision echoing our escaped prompt round-trips unchanged", () => {
+  const known = new Set(["kaga_(kancolle)", "long_hair"]);
+  const first = cleanScene({ prompt: "kaga_(kancolle), {long_hair}", loras: [] }, { ...ctx, known })!;
+  const again = cleanScene({ prompt: first.out.prompt, loras: [] }, { ...ctx, known })!;
+  assert.deepEqual(again.dropped, []);
+  assert.equal(again.out.prompt, first.out.prompt);
+});
 test("NAI numeric weights unwrap for lookup and map onto the brace budget", () => {
   const known = new Set(["silver_hair", "cafe", "long_hair", "smile"]);
   const r = cleanScene({ prompt: "1.15::silver hair::, 0.9::cafe::, 1.3::long hair, smile::", loras: [] }, { ...ctx, known })!;

@@ -676,14 +676,14 @@ test("ACTIVE but never on the tailnet: network fails at 15 min and the VM hibern
   assert.equal(s.e.view().main.phase, "starting");
 });
 
-test("ACTIVE on the tailnet but ComfyUI never answers: comfy fails at 15 min and the VM hibernates", async () => {
+test("ACTIVE on the tailnet, ComfyUI still downloading models at 16 min: keeps warming (WARM_MAX applies)", async () => {
   const s = setup(undefined, async () => "100.0.0.2");
   await s.e.warm();
   s.vms.set("vm1", "ACTIVE");
   await s.e.tick();
   s.tick(16 * 60_000);
   await s.e.tick();
-  assert.equal(getVm(s.db, "main")?.status, "hibernated");
+  assert.notEqual(getVm(s.db, "main")?.status, "hibernated");
   assert.equal(stepOf(s, "network")?.state, "ok");
-  assert.equal(stepOf(s, "comfy")?.state, "fail");
+  assert.equal(stepOf(s, "comfy")?.state, "run");
 });

@@ -101,7 +101,8 @@ export function cleanScene(raw: unknown, ctx: { target: Target; known: Set<strin
   let prompt = typeof r.prompt === "string" ? r.prompt.trim() : "";
   let outBeats: SceneOut["beats"];
   if (target === "anime") {
-    const kept = naiWeights(prompt).split(",").map((t) => t.trim()).filter((t) => bare(t)).filter((t) => {
+    // A revision echoes our own Comfy escapes (kaga \(kancolle\)): unescape so the lookup matches and naiToComfy escapes once.
+    const kept = naiWeights(prompt).split(",").map((t) => t.trim().replace(/\\([()])/g, "$1")).filter((t) => bare(t)).filter((t) => {
       const ok = ctx.known.has(bare(t).toLowerCase().replace(/ /g, "_"));
       if (!ok) dropped.push(bare(t));
       return ok;
