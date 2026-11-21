@@ -33,6 +33,8 @@ const ALARM = "GPU still billing — retrying stop";
 const DETACH_ALARM = "Stopped without detaching the models volume — it may show RESERVED; contact Hyperstack if the next start fails";
 const CARDS: Card[] = ["main", "boost"];
 const WARM_MAX_MS = 90 * 60_000;
+const READY_WAIT_MS = 15 * 60_000; // ACTIVE but no tailnet / ComfyUI this long: fail the step and stop billing
+const STUCK = "stuck"; // stop reason for a failed ready-wait; its checklist outlives the stop so the failure shows
 const PHASE = { starting: "starting", warming: "warming", ready: "ready" } as const;
 
 export function engine(d: Deps) {
@@ -47,6 +49,7 @@ export function engine(d: Deps) {
   const deferred = new Set<Card>(); // a stop waiting for a transitional VM to settle (not a failure: no alarm)
   const detachWarn = new Set<Card>(); // hibernated without detaching the models volume
   const steps = new Map<Card, Step[]>(); // launch checklist, reset on each warm
+  const waitSince = new Map<Card, number>(); // first tick the VM was ACTIVE but not yet ready
   let reconciled = false;
   let tickN = 0;
   const addr = new Map<Card, string>(); // the live pod's tailnet IP, refreshed each tick while ACTIVE
@@ -66,7 +69,7 @@ export function engine(d: Deps) {
   const isStopping = (v: VmRow) => isFailing(v) || v.status.startsWith("hibernating:");
   const reasonOf = (v: VmRow) => (isStopping(v) ? v.status.slice(v.status.indexOf(":") + 1) : "reconciled");
   /** One alarm, from every failing stop and every orphan we could not remove. */
-  const clearStop = (c: Card) => { hibSince.delete(c); deferred.delete(c); }; // a settled or fresh VM starts with no stop bookkeeping
+  const clearStop = (c: Card) => { hibSince.delete(c); deferred.delete(c); waitSince.delete(c); }; // a settled or fresh VM starts with no stop bookkeeping
   const syncAlarm = () => setState(db, { alarm: orphans.size || CARDS.some((c) => { const v = getVm(db, c); return v && isFailing(v); }) ? ALARM : detachWarn.size ? DETACH_ALARM : null });
 
   const mkSteps = (card: Card): Step[] => STEP_IDS.filter((id) => !(card === "boost" && id === "disk")).map((id) => ({ id, state: "wait", startedAt: null, endedAt: null, error: null }));
@@ -107,7 +110,7 @@ export function engine(d: Deps) {
     const arr = steps.get(card);
     d.sync!(card).then(async (out) => {
       setStep(card, "models", "ok", { note: `fetched ${fetchedCount(out ?? "")} files` }, arr);
-      if (d.listVolume) {
+      if (d.listVolume && modelsVolume(card)) { // boost has no persistent volume: a saved list would go stale on flush
         try { saveVolumeList(db, card, await d.listVolume(card)); } catch (e) { console.error(`[comfy] volume list failed on ${card}:`, e instanceof Error ? e.message : "unknown"); }
       }
     }, (e) => { // retried on the next boot, or by the models retry
@@ -217,7 +220,7 @@ export function engine(d: Deps) {
       if (e instanceof Refused) throw e;
       if (restoreOnly) { setStep(card, "gpu", "fail", { error: stepError("gpu", e instanceof Error ? e.message : "unknown") }); return out(); }
       if (!getVm(db, card)) reconciled = false; // a timed-out create may still exist at Hyperstack: reconcile before the next one
-      if (!(e instanceof NoCapacity)) throw e;
+      if (!(e instanceof NoCapacity)) { setStep(card, "gpu", "fail", { error: stepError("gpu", e instanceof Error ? e.message : "unknown") }); throw e; }
       unavailable.add(card);
       setStep(card, "gpu", "fail", { error: "No GPU in stock" });
     } finally {
@@ -241,7 +244,8 @@ export function engine(d: Deps) {
     const finish = (hibernated: boolean) => {
       hibSince.delete(card);
       deferred.delete(card);
-      steps.delete(card);
+      waitSince.delete(card);
+      if (reason !== STUCK) steps.delete(card);
       closeRun(db, card, d.now(), reason);
       if (hibernated) setStatus(vm, "hibernated"); else { dropVm(db, card); writeDeadline(card, null); detachWarn.delete(card); }
     };
@@ -256,15 +260,16 @@ export function engine(d: Deps) {
         if (!hibSince.has(card)) hibSince.set(card, d.now());
         if (!deferred.has(card)) console.log(`[comfy] ${card} stop deferred: VM is ${s}`);
         deferred.add(card);
-        setStatus(vm, `hibernating:${reason}`);
+        if (!isFailing(vm)) setStatus(vm, `hibernating:${reason}`); // a failed retry keeps its alarm until the VM settles
         return;
       } else {
         // hibernate detaches the models volume: unmount it first or ext4 aborts its journal mid-write. Unreachable pod: hibernate anyway, billing wins.
         if (modelsVolume(card) && d.release) await d.release(card).catch((e) => console.warn("comfy models unmount failed:", e instanceof Error ? e.message : "unknown"));
-        if (deferred.delete(card)) hibSince.set(card, d.now()); // the confirm window starts when hibernate is issued, not at the deferral
+        deferred.delete(card);
+        hibSince.set(card, d.now()); // the confirm window starts at each hibernate issued: a stuck VM is retried every 10 min, not every tick
         const h = await hs.hibernate(vm.vmId, modelsVolume(card)?.name);
         if (h?.detached === false && modelsVolume(card)) detachWarn.add(card);
-        if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else { if (!isStopping(vm)) hibSince.set(card, d.now()); setStatus(vm, `${isFailing(vm) ? "stopping" : "hibernating"}:${reason}`); } // tick confirms; a retry that is still unconfirmed keeps the alarm
+        if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else { setStatus(vm, `${isFailing(vm) ? "stopping" : "hibernating"}:${reason}`); } // tick confirms; a retry that is still unconfirmed keeps the alarm
       }
     } catch {
       setStatus(vm, `stopping:${reason}`);
@@ -282,6 +287,7 @@ export function engine(d: Deps) {
       if (busy.has(card)) continue;
       let vm = getVm(db, card);
       if (!vm || vm.status === "hibernated") continue;
+      let stuck = false;
       if (isFailing(vm)) { await stop(card, reasonOf(vm)); continue; }
       try {
         const s = await hs.status(vm.vmId);
@@ -306,12 +312,19 @@ export function engine(d: Deps) {
           next = (await d.ping(base(card)).catch(() => false)) ? "ready" : "warming";
           setStep(card, "comfy", next === "ready" ? "ok" : "run");
           setStep(card, "ready", next === "ready" ? "ok" : "wait");
+          if (next === "ready") waitSince.delete(card);
+          else if (!waitSince.has(card)) waitSince.set(card, now);
+          else if (now - waitSince.get(card)! >= READY_WAIT_MS) {
+            setStep(card, ip ? "comfy" : "network", "fail", { error: ip ? "ComfyUI never answered" : "The pod never joined the tailnet" });
+            stuck = true;
+          }
         }
         if (next === "ready" && vm.status !== "ready") setState(db, { lastActivity: now }); // idle counts from ready, not from the warm click
         if (next !== vm.status) { setStatus(vm, next); vm = { ...vm, status: next }; }
         if (next === "ready" && d.sync && !synced.has(card)) { synced.add(card); runSync(card); }
         if (next !== "ready") { synced.delete(card); setStep(card, "models", "wait"); }
       } catch { if (isStopping(vm)) continue; /* status flaked: still evaluate the stop policy below */ }
+      if (stuck) { await stop(card, STUCK); continue; } // never answered: hibernate now, not at WARM_MAX
       // A cold boot downloads ~80 GB: booting counts as busy for up to WARM_MAX_MS, then idle may stop a pod that never came up.
       const run = runs(db).find((r) => r.card === card && r.stoppedAt === null);
       const booting = vm.status !== "ready" && !!run && now - run.startedAt < WARM_MAX_MS;
@@ -372,6 +385,8 @@ export function engine(d: Deps) {
     const live = vm && vm.status !== "hibernated";
     if (step === "links") return warm(card); // re-runs the preflight, then starts if it passes
     if (step === "gpu" && vm?.status === "hibernated") return warm(card, true);
+    if (step === "gpu" && !vm) return warm(card); // a create that failed: start again (spend policy and preflight still apply)
+    if ((step === "network" || step === "comfy") && vm?.status === "hibernated") return warm(card); // stopped as stuck: boot again
     const failed = steps.get(card)?.find((x) => x.id === step)?.state === "fail"; // a step still running must not be started twice
     if (step === "disk" && live && failed && modelsVolume(card)) attach(card, vm.vmId, modelsVolume(card)!.name);
     if (step === "network" || step === "comfy") setStep(card, step, "wait"); // the tick re-evaluates

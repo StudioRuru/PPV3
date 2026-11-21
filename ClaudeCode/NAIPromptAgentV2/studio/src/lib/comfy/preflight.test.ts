@@ -55,3 +55,10 @@ test("no saved list checks every entry", async () => {
   await preflight("boost", { db, manifest: [e("a", 1, ["https://a"], ["boost"]), e("b", 1, ["https://b"], ["boost"]), e("c", 1, ["https://c"])], head: async (u) => (seen.push(u), 200), now: 1 });
   assert.deepEqual(seen, ["https://a", "https://b"]);
 });
+
+test("boost ignores a saved volume list and checks every entry", async () => {
+  const db = memDb(); saveVolumeList(db, "boost", [{ name: "diffusion_models/a", size: 1 }]);
+  const seen: string[] = [];
+  await preflight("boost", { db, manifest: [e("a", 1, ["https://a"], ["boost"])], head: async (u) => (seen.push(u), 200), now: 1 });
+  assert.deepEqual(seen, ["https://a"]);
+});

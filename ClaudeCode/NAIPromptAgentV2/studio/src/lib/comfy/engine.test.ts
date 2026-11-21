@@ -17,7 +17,7 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
   let now = T0;
   const log: string[] = [];
   const vms = new Map<string, string>(); // id -> status
-  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, restoreFails: false, removeNoop: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[], createStatus: "BUILD" };
+  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, restoreFails: false, removeNoop: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[], createStatus: "BUILD", detached: true, restoreErr: null as Error | null };
   let n = 0;
   const hs = {
     offers: async (min: number) => o.offers.filter((x) => x.vramGb >= min).sort((a, b) => a.usdHr - b.usdHr),
@@ -26,8 +26,8 @@ function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<
     findVolume: async () => o.vol,
     ensureVolume: async (name: string, env: string, gb: number) => { o.vols.push(`ensure ${name} ${env} ${gb}`); },
     status: async (id: string) => vms.get(id) ?? null,
-    hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); },
-    restore: async (id: string) => { if (o.restoreFails) throw new NoCapacity("Not Enough Stock", 400); vms.set(id, o.createStatus); log.push(`restore ${id}`); },
+    hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); return { detached: o.detached }; },
+    restore: async (id: string) => { if (o.restoreErr) throw o.restoreErr; if (o.restoreFails) throw new NoCapacity("Not Enough Stock", 400); vms.set(id, o.createStatus); log.push(`restore ${id}`); },
     start: async () => {},
     remove: async (id: string) => { if (o.removeFails) throw new Error("rm"); if (!o.removeNoop) vms.delete(id); log.push(`remove ${id}`); },
     listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
@@ -626,4 +626,64 @@ test("a stop after a settled hibernate and a fresh warm still defers while the n
   await s.e.stop("main", "manual");
   assert.deepEqual(s.log, []);
   assert.equal(getVm(s.db, "main")?.status, "hibernating:manual");
+});
+
+test("a VM stuck transitional keeps its alarm on and is re-hibernated every 10 min, not every tick", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.o.noop = true; // hibernate accepted, VM never settles
+  s.o.detached = false; // Hyperstack can't detach mid-transition
+  s.vms.set("vm1", "RESTORING");
+  await s.e.stop("main", "manual");
+  const seen: (string | null)[] = [];
+  for (let i = 0; i < 45; i++) { s.tick(60_000); await s.e.tick(); seen.push(s.e.view().main.alarm); }
+  const first = seen.findIndex((a) => a !== null);
+  assert.ok(first >= 0 && first <= 11);
+  assert.deepEqual(seen.slice(first).filter((a) => a === null), []); // never flaps off
+  assert.ok(s.log.filter((l) => l.startsWith("hibernate")).length <= 5);
+  s.vms.set("vm1", "HIBERNATED");
+  await s.e.tick();
+  assert.equal(s.e.view().main.alarm, "Stopped without detaching the models volume — it may show RESERVED; contact Hyperstack if the next start fails");
+});
+
+test("a non-NoCapacity restore error fails the gpu step before rethrowing", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.stop("main", "manual");
+  assert.equal(getVm(s.db, "main")?.status, "hibernated");
+  s.o.restoreErr = new Error("hyperstack vm1: 400 bad request");
+  await assert.rejects(s.e.warm(), /400/);
+  assert.equal(stepOf(s, "gpu")?.state, "fail");
+  assert.match(stepOf(s, "gpu")?.error ?? "", /400/);
+});
+
+test("ACTIVE but never on the tailnet: network fails at 15 min and the VM hibernates, failure kept", async () => {
+  const s = setup(undefined, async () => null);
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.tick();
+  s.tick(14 * 60_000);
+  await s.e.tick();
+  assert.equal(stepOf(s, "network")?.state, "run");
+  s.tick(2 * 60_000);
+  await s.e.tick();
+  assert.equal(getVm(s.db, "main")?.status, "hibernated");
+  assert.equal(s.e.view().main.phase, "off");
+  assert.equal(stepOf(s, "network")?.state, "fail");
+  assert.equal(runs(s.db).at(-1)?.stoppedAt !== null, true);
+  await s.e.retry("main", "network"); // boots again
+  assert.equal(s.e.view().main.phase, "starting");
+});
+
+test("ACTIVE on the tailnet but ComfyUI never answers: comfy fails at 15 min and the VM hibernates", async () => {
+  const s = setup(undefined, async () => "100.0.0.2");
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.tick();
+  s.tick(16 * 60_000);
+  await s.e.tick();
+  assert.equal(getVm(s.db, "main")?.status, "hibernated");
+  assert.equal(stepOf(s, "network")?.state, "ok");
+  assert.equal(stepOf(s, "comfy")?.state, "fail");
 });

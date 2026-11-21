@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Card, getJson, putJson } from "./store";
-import type { ManifestEntry } from "./pod";
+import { type ManifestEntry, modelsVolume } from "./pod";
 import { HF_TOKEN, CIVITAI_TOKEN } from "../env";
 
 type Db = Database.Database;
@@ -19,7 +19,8 @@ export async function preflight(card: Card, deps: { db: Db; manifest: ManifestEn
   const { db, manifest, head, now } = deps;
   const last = getJson<number>(db, "preflight." + card);
   if (typeof last === "number" && now - last < DAY) return [];
-  const have = new Set((getJson<VolFile[]>(db, "volume." + card) ?? []).map((f) => `${f.name}:${f.size}`));
+  // Only a card with a persistent models volume keeps files across a flush; boost checks every entry.
+  const have = new Set(((modelsVolume(card) && getJson<VolFile[]>(db, "volume." + card)) || []).map((f) => `${f.name}:${f.size}`));
   const dead: Dead[] = [];
   for (const m of manifest.filter((x) => x.cards.includes(card) && !have.has(`${x.kind}/${x.filename}:${x.size}`))) {
     const codes = await Promise.all(m.urls.map(head));
