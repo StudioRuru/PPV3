@@ -560,7 +560,7 @@ test("stop during RESTORING does not call hibernate until the VM settles", async
   s.log.length = 0;
   await s.e.stop("main", "manual");
   assert.deepEqual(s.log, []);
-  assert.equal(getVm(s.db, "main")?.status, "stopping:manual");
+  assert.equal(getVm(s.db, "main")?.status, "hibernating:manual"); // waiting, not failing
   s.vms.set("vm1", "ACTIVE");
   await s.e.tick();
   assert.deepEqual(s.log, ["hibernate vm1"]);
@@ -570,11 +570,45 @@ test("restart mid-start synthesizes steps from the phase", async () => {
   const s = setup();
   await s.e.warm();
   s.vms.set("vm1", "ACTIVE");
-  const row = getVm(s.db, "main")!;
   s.db.prepare("UPDATE comfy_vms SET status = 'warming' WHERE card = 'main'").run();
   const e2 = engine({ db: s.db, hs: {} as unknown as Hyperstack, ping: async () => false, now: () => T0 });
   const st = e2.view().main.steps!;
-  assert.equal(row.card, "main");
   assert.equal(st.find((x) => x.id === "gpu")?.state, "ok");
   assert.equal(st.find((x) => x.id === "network")?.state, "run");
+});
+
+test("a deferred stop raises no alarm, and the real hibernate is not retried every tick", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "RESTORING");
+  await s.e.stop("main", "manual");
+  for (let i = 0; i < 3; i++) { s.tick(3 * 60_000); await s.e.tick(); }
+  assert.equal(s.e.view().main.alarm, null);
+  assert.equal(s.e.view().main.phase, "stopping");
+  assert.deepEqual(s.log.filter((l) => l.startsWith("hibernate")), []);
+  s.o.noop = true; // hibernate accepted, VM goes HIBERNATING
+  s.vms.set("vm1", "ACTIVE");
+  s.tick(60_000);
+  await s.e.tick();
+  s.vms.set("vm1", "HIBERNATING");
+  s.tick(60_000);
+  await s.e.tick();
+  s.tick(60_000);
+  await s.e.tick();
+  assert.equal(s.log.filter((l) => l.startsWith("hibernate")).length, 1);
+  assert.equal(s.e.view().main.alarm, null);
+});
+
+test("retry models while the sync is pending does not start a second sync", async () => {
+  let calls = 0;
+  let done!: () => void;
+  const s = setup(undefined, undefined, () => { calls++; return new Promise<string>((r) => (done = () => r("get x"))); });
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.o.pingOk = true;
+  await s.e.tick();
+  await s.e.retry("main", "models");
+  await s.e.tick();
+  assert.equal(calls, 1);
+  done();
 });
