@@ -59,18 +59,21 @@ export async function POST(req: NextRequest) {
       const put = (t: string) => { try { ctl.enqueue(enc.encode(t)); } catch { /* client gone: keep going so the turn is saved */ } };
       const answer = async () => {
         let reply = "";
-        for await (const t of chatStream(system, messages, { model: heavy ? model : undefined })) { reply += t; put(t); }
+        for await (const t of chatStream(system, messages, { model: heavy ? model : undefined })) { const s = t.replaceAll("\0", ""); reply += s; put(s); }
         const { prose, out: raw } = parseScene(reply);
         const cleaned = cleanScene(raw, { target, known: knownTags(), loras });
         const dropped = cleaned?.dropped ?? [];
-        const turns = [...chat.turns, { role: "user" as const, content: text }, { role: "assistant" as const, content: prose, ...(cleaned && { out: cleaned.out }), ...(dropped.length && { dropped }) }].slice(-30);
+        // Fresh read narrows the lost-turn race between concurrent POSTs.
+        const turns = [...(getJson<SceneChat>(db, KEY) ?? chat).turns, { role: "user" as const, content: text }, { role: "assistant" as const, content: prose, ...(cleaned && { out: cleaned.out }), ...(dropped.length && { dropped }) }].slice(-30);
         putJson(db, KEY, { target, model, turns });
         put(`\n\u0000${JSON.stringify({ out: cleaned?.out ?? null, dropped })}`);
       };
       try {
         await (heavy ? heavyGate.run(answer) : answer());
       } catch (e) {
-        put(`\n\n⚠️ ${e instanceof Offline ? "Model offline." : (e as Error).message}`);
+        console.error("[comfy] scene failed:", e);
+        const m = e instanceof Offline ? "Model offline." : /paused|busy/i.test((e as Error).message) ? "The model is busy — try again" : "The scene model failed — try again or pick another model";
+        put(`\n\n⚠️ ${m}`);
       }
       try { ctl.close(); } catch { /* client already gone */ }
     },

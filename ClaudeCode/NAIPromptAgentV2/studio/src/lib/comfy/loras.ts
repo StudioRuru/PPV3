@@ -94,7 +94,7 @@ export async function localIsWan(name: string, dir = LORA_DIR): Promise<boolean>
       const head = Buffer.alloc(8);
       await fd.read(head, 0, 8, 0);
       const n = Number(head.readBigUInt64LE(0));
-      if (n < 2 || n > 100_000_000) return false;
+      if (n < 2 || n > 16_000_000) return false;
       const buf = Buffer.alloc(n);
       await fd.read(buf, 0, n, 8);
       const v = isWanLora(Object.keys(JSON.parse(buf.toString("utf8"))));
@@ -104,7 +104,7 @@ export async function localIsWan(name: string, dir = LORA_DIR): Promise<boolean>
   } catch { return false; }
 }
 
-const KEYS_PY =`import json,struct,glob,os
+const KEYS_PY = `import json,struct,glob,os
 o={}
 for f in glob.glob("${REMOTE}/**/*.safetensors",recursive=True):
   try:

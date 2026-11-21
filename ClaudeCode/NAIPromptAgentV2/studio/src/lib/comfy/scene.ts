@@ -10,7 +10,7 @@ export type SceneOut = { target: Target; prompt: string; negative?: string; beat
 
 /** `model` is a matcher hint (R2); the UI resolves it against installed models. */
 export const TARGETS: Record<Target, { label: string; family: Fam; model: string; refs: string[] }> = {
-  anime: { label: "Anime", family: "sdxl", model: "wai", refs: ["tag-guide.md", "auto-weighting.md", "negative-prompts.md", "scene-themes.md"] },
+  anime: { label: "Anime", family: "sdxl", model: "wai", refs: ["tag-guide.md", "auto-weighting.md", "negative-prompts.md"] },
   photo: { label: "Photo", family: "krea2", model: "krea2", refs: ["natural-language-hybrid.md"] },
   video: { label: "Video", family: "wan", model: "wan", refs: ["natural-language-hybrid.md"] },
 };
@@ -80,7 +80,7 @@ export type SceneChat = { target: Target; model: string; turns: SceneTurn[] };
 export const sceneHistory = (turns: SceneTurn[]): { role: string; content: string }[] =>
   turns.slice(-12).map((t) => ({ role: t.role, content: t.role === "assistant" && t.out ? `${t.content}\n\n\`\`\`json\n${JSON.stringify(t.out)}\n\`\`\`` : t.content }));
 
-export const videoSeconds =(n: number) => Math.min(10, Math.max(1, n * 5));
+export const videoSeconds = (n: number) => Math.min(10, Math.max(1, n * 5));
 
 const asObj = (x: unknown): Record<string, unknown> | null => (x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
 
