@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { DATA_DIR } from "../env";
-import { SSH_OPTS, podHost } from "./pod";
+import { SSH_OPTS } from "./pod";
 
 /** LoRAs imported from the phone. Kept on the Mac; copied to the main pod's persistent models volume. */
 export const LORA_DIR = path.join(DATA_DIR, "comfy-loras");
@@ -64,7 +64,7 @@ export function ssh(host: string, cmd: string, stdin?: Readable): Promise<string
 }
 
 /** Copies imports the main pod lacks (by size) onto its models volume. Returns the names sent. */
-export async function pushLoras(host = podHost("main"), dir = LORA_DIR): Promise<string[]> {
+export async function pushLoras(host: string, dir = LORA_DIR): Promise<string[]> {
   const mine = await listLoras(dir);
   if (!mine.length) return [];
   const have = new Map((await ssh(host, `mkdir -p ${REMOTE} && cd ${REMOTE} && stat -c '%s %n' -- *.safetensors 2>/dev/null || true`))
@@ -81,6 +81,29 @@ export async function pushLoras(host = podHost("main"), dir = LORA_DIR): Promise
 /** Wan LoRAs touch `blocks.N.self_attn|cross_attn|ffn`; Qwen (`transformer_blocks`) and SDXL (`down_blocks`) never do. */
 export const isWanLora = (keys: string[]): boolean => keys.some((k) => /(^|[._])blocks[._]\d+[._](self_attn|cross_attn|ffn)/.test(k) && !/transformer_blocks|down_blocks|up_blocks|mid_block/.test(k));
 
+const wanFile = new Map<string, boolean>();
+/** Whether a Mac-side LoRA is a Wan one: reads its safetensors header tensor names (cached by name+size). */
+export async function localIsWan(name: string, dir = LORA_DIR): Promise<boolean> {
+  const file = path.join(dir, name);
+  try {
+    const key = `${name}:${(await fsp.stat(file)).size}`;
+    const hit = wanFile.get(key);
+    if (hit !== undefined) return hit;
+    const fd = await fsp.open(file);
+    try {
+      const head = Buffer.alloc(8);
+      await fd.read(head, 0, 8, 0);
+      const n = Number(head.readBigUInt64LE(0));
+      if (n < 2 || n > 16_000_000) return false;
+      const buf = Buffer.alloc(n);
+      await fd.read(buf, 0, n, 8);
+      const v = isWanLora(Object.keys(JSON.parse(buf.toString("utf8"))));
+      wanFile.set(key, v);
+      return v;
+    } finally { await fd.close(); }
+  } catch { return false; }
+}
+
 const KEYS_PY = `import json,struct,glob,os
 o={}
 for f in glob.glob("${REMOTE}/**/*.safetensors",recursive=True):
@@ -91,7 +114,7 @@ print(json.dumps(o))`;
 const wan = new Map<string, boolean>();
 
 /** Of the pod's LoRAs, the ones a Wan video can use (unreadable files are kept, image LoRAs dropped). A Qwen LoRA on Wan silently loads nothing. */
-export async function videoLoras(names: string[], host = podHost("main")): Promise<string[]> {
+export async function videoLoras(names: string[], host: string): Promise<string[]> {
   if (names.some((n) => !wan.has(n))) {
     try {
       const keys = JSON.parse((await ssh(host, "python3 -", Readable.from([KEYS_PY]))).trim().split("\n").pop() ?? "{}") as Record<string, string[]>;

@@ -19,7 +19,7 @@ const post = (body: object) => ({ method: "POST", headers: { "Content-Type": "ap
 const thumb = (i: LibItem) => `/api/comfy/file/${i.kind === "clip" ? i.poster ?? i.file : i.file}`;
 
 /** Video sub-tab: mode chips, start frame, canvas with the finished clip, and the drawer (Motion · Library picker). */
-export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineView | null; boostView: EngineView | null; lastPhoto: { id: number; file: string } | null; load?: { recipe: VideoRecipe; nonce: number; thumb?: string } }) {
+export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineView | null; boostView: EngineView | null; lastPhoto: { id: number; file: string } | null; load?: { recipe: VideoRecipe; nonce: number; thumb?: string; tool?: "start" } }) {
   const [r, setR] = useState<VideoRecipe>(defaultVideo);
   const [ready, setReady] = useState(false);
   const [tool, setTool] = useState<Tool>("motion");
@@ -44,6 +44,7 @@ export function VideoPane({ view, boostView, lastPhoto, load }: { view: EngineVi
   useEffect(() => {
     if (!load) return;
     setR(load.recipe); setStartThumb(load.thumb ?? null); setClip(null); setError(null);
+    if (load.tool) openTool(load.tool); // Scene "Send to Video": open the start-frame drawer once per nonce
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load?.nonce]);
   useEffect(() => { if (ready) saveVideo(r); }, [r, ready]);

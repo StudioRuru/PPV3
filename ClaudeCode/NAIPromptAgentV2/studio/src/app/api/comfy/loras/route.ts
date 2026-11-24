@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest) {
   }
   if (getEngine().view().main.phase !== "ready") return NextResponse.json({ name, pushed: false });
   try {
-    await pushLoras();
+    await pushLoras(getEngine().host("main"));
     dropModels();
     return NextResponse.json({ name, pushed: true });
   } catch (e) {

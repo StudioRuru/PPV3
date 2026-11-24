@@ -1,26 +1,40 @@
 import type Database from "better-sqlite3";
-import { type Card, type VmRow, comfyDb, getVm, putVm, dropVm, openRun, closeRun, runs, readSettings, getState, setState } from "./store";
-import { type Hyperstack, type Offer, NoCapacity, hyperstack } from "./hyperstack";
+import { type Card, type VmRow, comfyDb, getJson, getVm, putVm, dropVm, openRun, closeRun, runs, readSettings, getState, setState } from "./store";
+import { type Hyperstack, type Offer, NoCapacity, TRANSITIONAL, hyperstack } from "./hyperstack";
 import { canStart, clampKeepWarm, dayStart, runCost, spentSince, stopReason } from "./spend";
 import { pushLoras } from "./loras";
-import { COMFY_PORT, modelsVolume, podHost, releaseModels, renderCloudInit, syncModels, tailnetIp } from "./pod";
+import { COMFY_PORT, fetchedCount, hostFor, isNetError, listVolume, modelsVolume, podHost, readManifest, releaseModels, renderCloudInit, syncModels, tailnetIp, waitSsh, withRetry } from "./pod";
 import { dropModels, ping } from "./client";
 import { COMFY_TS_AUTHKEY, CIVITAI_TOKEN, HF_TOKEN, HYPERSTACK_API_KEY, HYPERSTACK_KEY_NAME } from "@/lib/env";
 import { trainStatus, training } from "./train";
+import { deadMessage, headUrl, preflight, saveVolumeList } from "./preflight";
+import { stepError } from "./view";
+
+export type StepId = "links" | "gpu" | "disk" | "network" | "comfy" | "ready" | "models";
+export type Step = { id: StepId; state: "wait" | "run" | "ok" | "fail"; startedAt: number | null; endedAt: number | null; error: string | null; note?: string };
+export const STEP_IDS: StepId[] = ["links", "gpu", "disk", "network", "comfy", "ready", "models"];
 
 export type EngineView = {
   card: Card; phase: "off" | "starting" | "warming" | "ready" | "stopping" | "unavailable"; gpu: string | null; since: number | null;
   usdHr: number; runCost: number; today: number; boost: "off" | "on" | "unavailable"; keepWarmUntil: number; alarm: string | null; deadline: number | null;
   /** A hibernated VM holds the downloaded models (storage-only cost) until flushed. */
   kept: boolean;
+  /** Launch checklist; null while off, and once ready with the models synced. */
+  steps: Step[] | null;
 };
-export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null>; sync?: (card: Card) => Promise<unknown>; release?: (card: Card) => Promise<unknown> };
+export type Deps = { db: Database.Database; hs: Hyperstack; ping: (base: string) => Promise<boolean>; now: () => number; resolve?: (host: string) => Promise<string | null>; sync?: (card: Card) => Promise<string>; release?: (card: Card) => Promise<unknown>;
+  /** A dead-link message; `block` fails the warm before any VM exists, otherwise it is only a warning on the links step. */
+  preflight?: (card: Card) => Promise<{ msg: string; block: boolean } | null>;
+  listVolume?: (card: Card) => Promise<{ name: string; size: number }[]> };
 /** warm() refused by the spend policy; `message` is the user-facing sentence. */
 export class Refused extends Error {}
 
 const ALARM = "GPU still billing — retrying stop";
+const DETACH_ALARM = "Stopped without detaching the models volume — it may show RESERVED; contact Hyperstack if the next start fails";
 const CARDS: Card[] = ["main", "boost"];
 const WARM_MAX_MS = 90 * 60_000;
+const READY_WAIT_MS = 15 * 60_000; // ACTIVE but no tailnet / ComfyUI this long: fail the step and stop billing
+const STUCK = "stuck"; // stop reason for a failed ready-wait; its checklist outlives the stop so the failure shows
 const PHASE = { starting: "starting", warming: "warming", ready: "ready" } as const;
 
 export function engine(d: Deps) {
@@ -32,10 +46,15 @@ export function engine(d: Deps) {
   const orphans = new Set<string>(); // labelled VMs the db doesn't know whose remove failed
   const hibSince = new Map<Card, number>(); // when a hibernate was accepted but not yet confirmed
   const synced = new Set<Card>(); // manifest pushed to this card's live pod since it came up (restore never re-runs cloud-init)
+  const deferred = new Set<Card>(); // a stop waiting for a transitional VM to settle (not a failure: no alarm)
+  const detachWarn = new Set<Card>(); // hibernated without detaching the models volume
+  const steps = new Map<Card, Step[]>(); // launch checklist, reset on each warm
+  const waitSince = new Map<Card, number>(); // first tick the VM was ACTIVE but not yet ready
   let reconciled = false;
   let tickN = 0;
   const addr = new Map<Card, string>(); // the live pod's tailnet IP, refreshed each tick while ACTIVE
-  const base = (card: Card) => `http://${addr.get(card) ?? podHost(card)}:${COMFY_PORT}`;
+  const host = (card: Card) => hostFor(card, addr.get(card));
+  const base = (card: Card) => `http://${host(card)}:${COMFY_PORT}`;
   const dlKey = (c: Card) => `comfy.deadline.${c}`;
   const readDeadline = (c: Card): number | null => {
     const r = db.prepare("SELECT value FROM settings WHERE key = ?").get(dlKey(c)) as { value: string } | undefined;
@@ -50,8 +69,56 @@ export function engine(d: Deps) {
   const isStopping = (v: VmRow) => isFailing(v) || v.status.startsWith("hibernating:");
   const reasonOf = (v: VmRow) => (isStopping(v) ? v.status.slice(v.status.indexOf(":") + 1) : "reconciled");
   /** One alarm, from every failing stop and every orphan we could not remove. */
-  const syncAlarm = () => setState(db, { alarm: orphans.size || CARDS.some((c) => { const v = getVm(db, c); return v && isFailing(v); }) ? ALARM : null });
+  const clearStop = (c: Card) => { hibSince.delete(c); deferred.delete(c); waitSince.delete(c); }; // a settled or fresh VM starts with no stop bookkeeping
+  const syncAlarm = () => setState(db, { alarm: orphans.size || CARDS.some((c) => { const v = getVm(db, c); return v && isFailing(v); }) ? ALARM : detachWarn.size ? DETACH_ALARM : null });
 
+  const mkSteps = (card: Card): Step[] => STEP_IDS.filter((id) => !(card === "boost" && id === "disk")).map((id) => ({ id, state: "wait", startedAt: null, endedAt: null, error: null }));
+  /** After a restart the in-memory checklist is gone: rebuild it from the phase, every earlier step ok. */
+  function stepsOf(card: Card, status: string): Step[] {
+    let arr = steps.get(card);
+    if (arr) return arr;
+    arr = mkSteps(card);
+    const cur = arr.findIndex((x) => x.id === ({ starting: "gpu", warming: "network", ready: "models" } as Record<string, StepId>)[status]); // first step not yet ok
+    const t = d.now();
+    arr.forEach((x, i) => { if (i <= cur) { x.state = i < cur ? "ok" : status === "ready" ? "wait" : "run"; x.startedAt = t; if (i < cur) x.endedAt = t; } });
+    steps.set(card, arr);
+    return arr;
+  }
+  /** `arr` pins background results to the checklist they were launched for, so a newer warm's isn't touched. */
+  function setStep(card: Card, id: StepId, state: Step["state"], extra: { error?: string; note?: string } = {}, arr = steps.get(card)) {
+    const s = arr?.find((x) => x.id === id);
+    if (!s || (s.state === state && !extra.error && extra.note === undefined)) return;
+    const t = d.now();
+    if (state === "run") s.startedAt = t;
+    s.startedAt ??= t;
+    s.endedAt = state === "ok" || state === "fail" ? t : null;
+    s.state = state;
+    s.error = extra.error ?? null;
+    if (extra.note !== undefined) s.note = extra.note;
+  }
+  const attach = (card: Card, vmId: string, volume: string) => {
+    setStep(card, "disk", "run");
+    const arr = steps.get(card);
+    hs.attachWhenActive(vmId, volume).then(() => setStep(card, "disk", "ok", {}, arr), (e) => {
+      const m = e instanceof Error ? e.message : "unknown";
+      console.error("comfy models volume attach failed:", m);
+      setStep(card, "disk", "fail", { error: stepError("disk", m) }, arr);
+    });
+  };
+  function runSync(card: Card) {
+    setStep(card, "models", "run");
+    const arr = steps.get(card);
+    d.sync!(card).then(async (out) => {
+      setStep(card, "models", "ok", { note: `fetched ${fetchedCount(out ?? "")} files` }, arr);
+      if (d.listVolume && modelsVolume(card)) { // boost has no persistent volume: a saved list would go stale on flush
+        try { saveVolumeList(db, card, await d.listVolume(card)); } catch (e) { console.error(`[comfy] volume list failed on ${card}:`, e instanceof Error ? e.message : "unknown"); }
+      }
+    }, (e) => { // retried on the next boot, or by the models retry
+      const m = e instanceof Error ? e.message : "unknown";
+      console.error(`[comfy] model sync failed on ${card}:`, m);
+      setStep(card, "models", "fail", { error: stepError("models", m) }, arr);
+    });
+  }
   function view1(card: Card, boost: EngineView["boost"]): EngineView {
     const now = d.now();
     const vm = getVm(db, card);
@@ -62,10 +129,16 @@ export function engine(d: Deps) {
     if (vm && vm.status in PHASE) phase = PHASE[vm.status as keyof typeof PHASE];
     else if (vm && isStopping(vm)) phase = "stopping";
     else if (unavailable.has(card)) phase = "unavailable";
+    let st2: Step[] | null = null;
+    if (vm && vm.status in PHASE) st2 = stepsOf(card, vm.status);
+    else st2 = steps.get(card) ?? null;
+    const live = phase === "starting" || phase === "warming" || phase === "ready";
+    if (st2 && !(live || (phase !== "stopping" && st2.some((x) => x.state === "fail")))) st2 = null; // off/unavailable show only a failure
+    if (st2 && phase === "ready" && st2.find((x) => x.id === "models")?.state === "ok") st2 = null;
     return {
       card, phase, gpu: vm?.flavor ?? null, since: run?.startedAt ?? null, usdHr: vm?.usdHr ?? 0,
       runCost: run ? runCost(run, now) : 0, today: spentSince(all, dayStart(now), now), boost,
-      keepWarmUntil: st.keepWarmUntil, alarm: st.alarm, deadline: readDeadline(card), kept: vm?.status === "hibernated",
+      keepWarmUntil: st.keepWarmUntil, alarm: st.alarm, deadline: readDeadline(card), kept: vm?.status === "hibernated", steps: st2 && st2.map((x) => ({ ...x })),
     };
   }
   function view() {
@@ -80,30 +153,40 @@ export function engine(d: Deps) {
     return (await hs.offers(48)).filter((o) => !vol || o.env === vol.env)[0] ?? null;
   }
 
-  async function warm(card: Card = "main"): Promise<EngineView> {
-    try { return await warmInner(card); } finally {
+  async function warm(card: Card = "main", restoreOnly = false): Promise<EngineView> {
+    try { return await warmInner(card, restoreOnly); } finally {
       const why = pendingStop.get(card);
       if (why !== undefined && !busy.has(card)) { pendingStop.delete(card); await stop(card, why); }
     }
   }
-  async function warmInner(card: Card): Promise<EngineView> {
+  /** `restoreOnly` (gpu retry): restore the hibernated VM, never swap or create; a failure lands on the gpu step. */
+  async function warmInner(card: Card, restoreOnly: boolean): Promise<EngineView> {
     const now = d.now();
     setState(db, { lastActivity: now });
     const out = () => view()[card];
     if (busy.has(card)) return out();
     const vm = getVm(db, card);
     if (vm && vm.status !== "hibernated") return out(); // starting / warming / ready / stopping: nothing to start
-    const ok = canStart({ runs: runs(db), s: readSettings(db), now });
-    if (!ok.ok) throw new Refused(ok.why);
-    busy.add(card);
+    busy.add(card); // also covers the preflight await below
     try {
+      if (restoreOnly) { if (!steps.has(card)) steps.set(card, mkSteps(card)); } else {
+        steps.set(card, mkSteps(card));
+        setStep(card, "links", "run");
+        const pf = d.preflight ? await d.preflight(card).catch(() => null) : null; // a failed check must not block a start
+        if (pf?.block) { setStep(card, "links", "fail", { error: stepError("links", pf.msg) }); throw new Refused(pf.msg); }
+        setStep(card, "links", "ok", pf ? { note: stepError("links", pf.msg) } : {});
+      }
+      const ok = canStart({ runs: runs(db), s: readSettings(db), now });
+      if (!ok.ok) throw new Refused(ok.why);
+      detachWarn.delete(card);
+      clearStop(card);
       let row: VmRow;
       let o: Offer | null = null;
       if (vm) {
         try { await hs.restore(vm.vmId); } catch (e) {
           // The hibernated card is out of stock: the models live on the volume, so swap to the cheapest card in stock.
           // ponytail: no swap back once a pricier card is kept; flush to re-pick the cheapest.
-          if (!(e instanceof NoCapacity) || !modelsVolume(card) || !(o = await pick(card))) throw e;
+          if (restoreOnly || !(e instanceof NoCapacity) || !modelsVolume(card) || !(o = await pick(card))) throw e;
           await hs.remove(vm.vmId);
           // Hyperstack can accept the delete of a hibernated VM yet keep it, and the models volume with it: keep the row.
           if ((await hs.status(vm.vmId)) === "HIBERNATED") throw new NoCapacity(`hyperstack ${vm.vmId}: still hibernated after delete`, 409);
@@ -112,29 +195,34 @@ export function engine(d: Deps) {
       }
       if (vm && !o) {
         const vol = modelsVolume(card);
-        if (vol) hs.attachWhenActive(vm.vmId, vol.name).catch((e) => console.error("comfy models volume attach failed:", e instanceof Error ? e.message : "unknown"));
+        if (vol) attach(card, vm.vmId, vol.name);
         row = { ...vm, status: "starting" };
       }
       else {
         o ??= await pick(card);
-        if (!o) { unavailable.add(card); return out(); }
+        if (!o) { unavailable.add(card); setStep(card, "gpu", "fail", { error: "No GPU in stock" }); return out(); }
         const secrets = { tsAuthKey: COMFY_TS_AUTHKEY, hfToken: HF_TOKEN, civitaiToken: CIVITAI_TOKEN };
         const vol = modelsVolume(card);
         if (vol) await hs.ensureVolume(vol.name, o.env, vol.gb);
         const id = await hs.create(o, podHost(card), renderCloudInit(card, secrets), HYPERSTACK_KEY_NAME);
         // Background: the pod blocks on the disk, so a failed attach just never reaches ready (the deadline stops it).
-        if (vol) hs.attachWhenActive(id, vol.name).catch((e) => console.error("comfy models volume attach failed:", e instanceof Error ? e.message : "unknown"));
+        if (vol) attach(card, id, vol.name);
         row = { card, vmId: id, env: o.env, flavor: o.flavor, host: podHost(card), usdHr: o.usdHr, status: "starting" };
       }
       putVm(db, row);
       openRun(db, card, row.vmId, row.usdHr, now);
+      setStep(card, "gpu", "run");
+      syncAlarm();
       unavailable.delete(card);
       const min = Number(process.env.COMFY_DEV_DEADLINE_MIN);
       writeDeadline(card, min > 0 ? now + min * 60_000 : null);
     } catch (e) {
+      if (e instanceof Refused) throw e;
+      if (restoreOnly) { setStep(card, "gpu", "fail", { error: stepError("gpu", e instanceof Error ? e.message : "unknown") }); return out(); }
       if (!getVm(db, card)) reconciled = false; // a timed-out create may still exist at Hyperstack: reconcile before the next one
-      if (!(e instanceof NoCapacity)) throw e;
+      if (!(e instanceof NoCapacity)) { setStep(card, "gpu", "fail", { error: stepError("gpu", e instanceof Error ? e.message : "unknown") }); throw e; }
       unavailable.add(card);
+      setStep(card, "gpu", "fail", { error: "No GPU in stock" });
     } finally {
       busy.delete(card);
     }
@@ -155,8 +243,11 @@ export function engine(d: Deps) {
     if (!vm || (vm.status === "hibernated" && reason !== "flush")) return;
     const finish = (hibernated: boolean) => {
       hibSince.delete(card);
+      deferred.delete(card);
+      waitSince.delete(card);
+      if (reason !== STUCK) steps.delete(card);
       closeRun(db, card, d.now(), reason);
-      if (hibernated) setStatus(vm, "hibernated"); else { dropVm(db, card); writeDeadline(card, null); }
+      if (hibernated) setStatus(vm, "hibernated"); else { dropVm(db, card); writeDeadline(card, null); detachWarn.delete(card); }
     };
     try {
       const del = reason === "flush"; // every other stop hibernates, keeping the models on disk
@@ -164,11 +255,21 @@ export function engine(d: Deps) {
       if (s === null) finish(false); // already gone
       else if (del) { await hs.remove(vm.vmId); finish(false); }
       else if (s === "HIBERNATED") finish(true);
-      else {
+      else if (TRANSITIONAL.has(s) && d.now() - (hibSince.get(card) ?? d.now()) < 10 * 60_000) {
+        // Hyperstack answers 426 to a hibernate mid-transition: wait for the tick to re-enter once it settles (or after 10 min, hibernate anyway).
+        if (!hibSince.has(card)) hibSince.set(card, d.now());
+        if (!deferred.has(card)) console.log(`[comfy] ${card} stop deferred: VM is ${s}`);
+        deferred.add(card);
+        if (!isFailing(vm)) setStatus(vm, `hibernating:${reason}`); // a failed retry keeps its alarm until the VM settles
+        return;
+      } else {
         // hibernate detaches the models volume: unmount it first or ext4 aborts its journal mid-write. Unreachable pod: hibernate anyway, billing wins.
         if (modelsVolume(card) && d.release) await d.release(card).catch((e) => console.warn("comfy models unmount failed:", e instanceof Error ? e.message : "unknown"));
-        await hs.hibernate(vm.vmId, modelsVolume(card)?.name);
-        if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else { if (!isStopping(vm)) hibSince.set(card, d.now()); setStatus(vm, `${isStopping(vm) ? "stopping" : "hibernating"}:${reason}`); } // tick confirms; a retry that is still unconfirmed keeps the alarm
+        deferred.delete(card);
+        hibSince.set(card, d.now()); // the confirm window starts at each hibernate issued: a stuck VM is retried every 10 min, not every tick
+        const h = await hs.hibernate(vm.vmId, modelsVolume(card)?.name);
+        if (h?.detached === false && modelsVolume(card)) detachWarn.add(card);
+        if ((await hs.status(vm.vmId)) === "HIBERNATED") finish(true); else { setStatus(vm, `${isFailing(vm) ? "stopping" : "hibernating"}:${reason}`); } // tick confirms; a retry that is still unconfirmed keeps the alarm
       }
     } catch {
       setStatus(vm, `stopping:${reason}`);
@@ -186,33 +287,49 @@ export function engine(d: Deps) {
       if (busy.has(card)) continue;
       let vm = getVm(db, card);
       if (!vm || vm.status === "hibernated") continue;
+      let stuck = false;
       if (isFailing(vm)) { await stop(card, reasonOf(vm)); continue; }
       try {
         const s = await hs.status(vm.vmId);
-        if (s === null) { closeRun(db, card, now, isStopping(vm) ? reasonOf(vm) : "vanished"); dropVm(db, card); writeDeadline(card, null); continue; }
-        if (s === "HIBERNATED") { closeRun(db, card, now, reasonOf(vm)); setStatus(vm, "hibernated"); continue; }
+        if (s === null) { clearStop(card); closeRun(db, card, now, isStopping(vm) ? reasonOf(vm) : "vanished"); dropVm(db, card); writeDeadline(card, null); continue; }
+        if (s === "HIBERNATED") { clearStop(card); closeRun(db, card, now, reasonOf(vm)); setStatus(vm, "hibernated"); continue; }
         if (isStopping(vm)) { // hibernate was accepted: confirm, else retry
           if (!hibSince.has(card)) hibSince.set(card, now);
+          if (deferred.has(card)) { if (s === "ACTIVE" || s === "ERROR" || s === "SHUTOFF" || now - hibSince.get(card)! > 10 * 60_000) await stop(card, reasonOf(vm)); continue; } // waiting for the VM to settle
           const stuck = now - hibSince.get(card)! > 10 * 60_000; // HIBERNATING for too long
           if (stuck || s === "ACTIVE" || s === "ERROR" || s === "SHUTOFF") { setStatus(vm, `stopping:${reasonOf(vm)}`); syncAlarm(); await stop(card, reasonOf(vm)); }
           continue;
         }
         if (s === "SHUTOFF") { await stop(card, "shutoff"); continue; } // still bills
+        stepsOf(card, vm.status);
         let next = "starting";
+        if (s === "ERROR") setStep(card, "gpu", "fail", { error: "The VM went into ERROR" });
         if (s === "ACTIVE") {
+          setStep(card, "gpu", "ok");
           const ip = d.resolve ? await d.resolve(podHost(card)).catch(() => null) : null;
           if (ip) addr.set(card, ip); else addr.delete(card);
+          setStep(card, "network", ip ? "ok" : "run");
           next = (await d.ping(base(card)).catch(() => false)) ? "ready" : "warming";
+          setStep(card, "comfy", next === "ready" ? "ok" : "run");
+          setStep(card, "ready", next === "ready" ? "ok" : "wait");
+          // Only the tailnet join has a deadline: ComfyUI starts after a model download of up to ~115 GB, so it stays on WARM_MAX.
+          if (ip || next === "ready") waitSince.delete(card); // ready via the MagicDNS fallback counts as joined
+          else if (!waitSince.has(card)) waitSince.set(card, now);
+          else if (now - waitSince.get(card)! >= READY_WAIT_MS) {
+            setStep(card, "network", "fail", { error: "The pod never joined the tailnet" });
+            stuck = true;
+          }
         }
         if (next === "ready" && vm.status !== "ready") setState(db, { lastActivity: now }); // idle counts from ready, not from the warm click
         if (next !== vm.status) { setStatus(vm, next); vm = { ...vm, status: next }; }
-        if (next === "ready" && d.sync && !synced.has(card)) { synced.add(card); void d.sync(card).catch((e) => console.error(`[comfy] model sync failed on ${card}:`, e)); } // retried on the next boot
-        if (next !== "ready") synced.delete(card);
+        if (next === "ready" && d.sync && !synced.has(card)) { synced.add(card); runSync(card); }
+        if (next !== "ready") { synced.delete(card); setStep(card, "models", "wait"); }
       } catch { if (isStopping(vm)) continue; /* status flaked: still evaluate the stop policy below */ }
+      if (stuck) { await stop(card, STUCK); continue; } // never answered: hibernate now, not at WARM_MAX
       // A cold boot downloads ~80 GB: booting counts as busy for up to WARM_MAX_MS, then idle may stop a pod that never came up.
       const run = runs(db).find((r) => r.card === card && r.stoppedAt === null);
       const booting = vm.status !== "ready" && !!run && now - run.startedAt < WARM_MAX_MS;
-      if (card === "main" && vm.status === "ready" && training()) await trainStatus().catch((e) => console.error("[comfy] train status failed:", e)); // ends the run even with the app closed
+      if (card === "main" && vm.status === "ready" && training()) await trainStatus(host(card)).catch((e) => console.error("[comfy] train status failed:", e)); // ends the run even with the app closed
       const busyJob = booting || (card === "main" && training()) || !!db.prepare("SELECT 1 FROM comfy_jobs WHERE status = 'running' AND card = ?").get(card);
       const st = getState(db);
       const why = stopReason({ runs: runs(db), s: readSettings(db), lastActivity: st.lastActivity, keepWarmUntil: st.keepWarmUntil, busy: busyJob, deadline: readDeadline(card), now });
@@ -233,8 +350,8 @@ export function engine(d: Deps) {
       const vm = getVm(db, card);
       if (!vm) continue;
       const o = ours.find((x) => x.id === vm.vmId);
-      if (!o) { closeRun(db, card, d.now(), "vanished"); dropVm(db, card); continue; }
-      if (o.status === "HIBERNATED") { closeRun(db, card, d.now(), reasonOf(vm)); setStatus(vm, "hibernated"); }
+      if (!o) { clearStop(card); closeRun(db, card, d.now(), "vanished"); dropVm(db, card); continue; }
+      if (o.status === "HIBERNATED") { clearStop(card); closeRun(db, card, d.now(), reasonOf(vm)); setStatus(vm, "hibernated"); }
       else if (o.status === "ACTIVE" && (vm.status === "hibernated" || vm.status === "starting")) {
         setStatus(vm, "warming");
         if (!openRunOf(card)) openRun(db, card, vm.vmId, vm.usdHr, d.now());
@@ -263,11 +380,37 @@ export function engine(d: Deps) {
     return view().boost;
   }
 
-  return { warm, keepWarm, setBoost, stop, tick, reconcile, view, base };
+  /** Re-runs one failed step; never recreates the VM. */
+  async function retry(card: Card, step: StepId): Promise<EngineView> {
+    const vm = getVm(db, card);
+    const live = vm && vm.status !== "hibernated";
+    if (step === "links") return warm(card); // re-runs the preflight, then starts if it passes
+    if (step === "gpu" && vm?.status === "hibernated") return warm(card, true);
+    if (step === "gpu" && !vm) return warm(card); // a create that failed: start again (spend policy and preflight still apply)
+    if ((step === "network" || step === "comfy") && vm?.status === "hibernated") return warm(card); // stopped as stuck: boot again
+    const failed = steps.get(card)?.find((x) => x.id === step)?.state === "fail"; // a step still running must not be started twice
+    if (step === "disk" && live && failed && modelsVolume(card)) attach(card, vm.vmId, modelsVolume(card)!.name);
+    if (step === "network" || step === "comfy") setStep(card, step, "wait"); // the tick re-evaluates
+    if (step === "models" && failed) { synced.delete(card); setStep(card, "models", "wait"); }
+    return view()[card];
+  }
+
+  return { warm, retry, keepWarm, setBoost, stop, tick, reconcile, view, base, host };
 }
 
 type Engine = ReturnType<typeof engine>;
 export function getEngine(): Engine {
   const g = globalThis as { __comfyEngine?: Engine };
-  return (g.__comfyEngine ??= engine({ db: comfyDb(), hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h), sync: (c) => syncModels(c).then(() => (c === "main" ? pushLoras() : null)).then(dropModels), release: (c) => releaseModels(c) }));
+  if (g.__comfyEngine) return g.__comfyEngine;
+  const db = comfyDb();
+  const e: Engine = engine({ db, hs: hyperstack(HYPERSTACK_API_KEY), ping: (b) => ping(b), now: Date.now, resolve: (h) => tailnetIp(h),
+    sync: async (c) => { const h = e.host(c); await waitSsh(h); const out = await withRetry(() => syncModels(c, h), isNetError); if (c === "main") await pushLoras(h); dropModels(); return out; },
+    release: (c) => releaseModels(c, e.host(c)),
+    listVolume: (c) => listVolume(e.host(c)),
+    // The Krea2 link is dead upstream and a fresh deploy has no saved volume list yet, so main only warns until its first sync has recorded what the volume holds.
+    preflight: async (c) => {
+      const dead = await preflight(c, { db, manifest: readManifest(), head: headUrl, now: Date.now() });
+      return dead.length ? { msg: deadMessage(dead), block: !(c === "main" && getJson(db, "volume.main") == null) } : null;
+    } });
+  return (g.__comfyEngine = e);
 }

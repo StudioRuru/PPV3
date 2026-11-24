@@ -4,6 +4,12 @@ const LABEL = "nai-comfy";
 const CAPACITY = /capacity|stock|available|insufficient/i;
 const RESTORE_WAIT_MS = 5 * 60_000;
 
+export const TRANSITIONAL: ReadonlySet<string> = new Set(["RESTORING", "HIBERNATING", "BUILD", "STARTING", "REBOOT", "RESIZING", "SHUTTING_DOWN"]);
+export const canDetach = (status: string | null) => status === "ACTIVE" || status === "SHUTOFF";
+// One log line per VM per operation, so a retry loop can't spam on the same failure.
+const warned = new Set<string>(); // never cleared on purpose: one log line per VM per op for the process's life
+const warnOnce = (key: string, msg: string) => { if (!warned.has(key)) { warned.add(key); console.warn(msg); } };
+
 export type Offer = { env: string; region: string; flavor: string; gpu: string; vramGb: number; usdHr: number };
 export class HyperstackError extends Error {
   constructor(msg: string, public status: number) { super(msg); this.name = new.target.name; }
@@ -104,31 +110,39 @@ export function hyperstack(apiKey: string, f: typeof fetch = fetch, opts: { poll
     /** create's volume_name can't see data volumes, so attach once the VM is ACTIVE; the pod waits for the disk. */
     async attachWhenActive(vmId: string, volumeName: string): Promise<void> {
       const t0 = Date.now();
+      let seen = false;
       for (let s = await status(vmId); s !== "ACTIVE"; s = await status(vmId)) {
-        if (s === null || s === "ERROR" || Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack ${vmId}: ${s ?? "gone"} before the models volume attached`, 408);
+        // A just-created VM can 404 briefly; once seen, null means it is gone.
+        if ((s === null && seen) || s === "ERROR" || Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack ${vmId}: ${s ?? "gone"} before the models volume attached`, 408);
+        seen ||= s !== null;
         await sleep(pollMs);
       }
       const v = await findVolume(volumeName);
       if (!v) throw new HyperstackError(`hyperstack volume ${volumeName}: missing`, 404);
-      await call("POST", `/core/virtual-machines/${vmId}/attach-volumes`, { volume_ids: [v.id] });
+      await call("POST", `/core/virtual-machines/${vmId}/attach-volumes`, { volume_ids: [v.id] }).catch((e) => {
+        if (!(e instanceof HyperstackError && e.status === 400 && /already attached/i.test(e.message))) throw e;
+      });
     },
 
-    async hibernate(id: string, volumeName?: string): Promise<void> {
-      // SHUTOFF still bills and can't hibernate: start it first.
-      if ((await status(id)) === "SHUTOFF") await start(id);
+    /** Detaches only in a detachable state but always hibernates (billing safety); the engine re-enters on tick until `detached`. */
+    async hibernate(id: string, volumeName?: string): Promise<{ detached: boolean }> {
+      let s = await status(id);
+      // SHUTOFF still bills and can't hibernate: start it first (it is STARTING now, so no detach).
+      if (s === "SHUTOFF") { await start(id); s = "STARTING"; }
       // A hibernated VM keeps its volumes, which strands the models if its card goes out of stock: detach first (restore re-attaches; the pod mounts on boot).
-      const v = volumeName ? await findVolume(volumeName) : null;
-      if (v) await call("POST", `/core/virtual-machines/${id}/detach-volumes`, { volume_ids: [v.id] }).catch((e) => console.warn("comfy models volume detach failed:", e instanceof Error ? e.message : "unknown"));
+      const v = volumeName && canDetach(s) ? await findVolume(volumeName) : null;
+      let detached = false;
+      if (v) await call("POST", `/core/virtual-machines/${id}/detach-volumes`, { volume_ids: [v.id] }).then(() => { detached = true; }, (e) => warnOnce(`${id}:detach`, `comfy models volume detach failed: ${e instanceof Error ? e.message : "unknown"}`));
+      else if (volumeName) warnOnce(`${id}:detach-skip`, `comfy models volume detach skipped: VM ${s ?? "gone"}`);
       await call("GET", `/core/virtual-machines/${id}/hibernate`, undefined, [404]);
+      return { detached };
     },
 
     async restore(id: string): Promise<void> {
-      if ((await status(id)) === "HIBERNATING") {
-        const t0 = Date.now();
-        while ((await status(id)) !== "HIBERNATED") {
-          if (Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack ${id}: still HIBERNATING after 5 min`, 408);
-          await sleep(pollMs);
-        }
+      const t0 = Date.now();
+      for (let s = await status(id); s !== null && TRANSITIONAL.has(s); s = await status(id)) {
+        if (Date.now() - t0 > RESTORE_WAIT_MS) throw new HyperstackError(`hyperstack ${id}: still ${s} after 5 min`, 408);
+        await sleep(pollMs);
       }
       await call("GET", `/core/virtual-machines/${id}/hibernate-restore`);
     },

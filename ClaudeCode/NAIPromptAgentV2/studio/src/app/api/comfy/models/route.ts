@@ -11,7 +11,7 @@ export async function GET() {
   if (eng.view().main.phase !== "ready") return NextResponse.json({ pending: true });
   try {
     const m = await cachedModels(eng.base("main"));
-    return NextResponse.json({ ...m, videoLoras: await videoLoras(m.loras) });
+    return NextResponse.json({ ...m, videoLoras: await videoLoras(m.loras, eng.host("main")) });
   } catch {
     return NextResponse.json({ pending: true });
   }

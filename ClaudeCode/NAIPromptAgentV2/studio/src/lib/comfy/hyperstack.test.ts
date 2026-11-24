@@ -121,3 +121,77 @@ test("errors never include the api key", async () => {
     return true;
   });
 });
+
+const st = (s: string) => ({ body: { instance: { status: s } } });
+const vols = { body: { volumes: [{ id: 5, name: "vol", status: "available", environment: { name: "e" } }] } };
+
+test("attach waits through RESTORING then attaches", async () => {
+  const { f, calls } = fake({
+    "GET /core/virtual-machines/7": [st("RESTORING"), st("ACTIVE")],
+    "GET /core/volumes": vols,
+    "POST /core/virtual-machines/7/attach-volumes": { status: 200 },
+  });
+  await hyperstack("K", f, { pollMs: 1 }).attachWhenActive("7", "vol");
+  assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/attach-volumes")));
+});
+
+test("attach 400 'already attached' is success", async () => {
+  const { f } = fake({
+    "GET /core/virtual-machines/7": st("ACTIVE"),
+    "GET /core/volumes": vols,
+    "POST /core/virtual-machines/7/attach-volumes": { status: 400, body: { message: "There are already attached Volumes" } },
+  });
+  await hyperstack("K", f, { pollMs: 1 }).attachWhenActive("7", "vol");
+});
+
+test("attach throws on ERROR", async () => {
+  const { f } = fake({ "GET /core/virtual-machines/7": st("ERROR") });
+  await assert.rejects(hyperstack("K", f, { pollMs: 1 }).attachWhenActive("7", "vol"), /ERROR/);
+});
+
+test("restore waits out a transitional state before calling", async () => {
+  const { f, calls } = fake({
+    "GET /core/virtual-machines/7": [st("HIBERNATING"), st("HIBERNATING"), st("HIBERNATED")],
+    "GET /core/virtual-machines/7/hibernate-restore": {},
+  });
+  await hyperstack("K", f, { pollMs: 1 }).restore("7");
+  const r = calls.filter((c) => c.path.endsWith("/hibernate-restore"));
+  assert.equal(r.length, 1);
+  assert.equal(calls.indexOf(r[0]), 3);
+});
+
+test("hibernate skips detach when not ACTIVE/SHUTOFF", async () => {
+  const { f, calls } = fake({
+    "GET /core/virtual-machines/7": st("RESTORING"),
+    "GET /core/volumes": vols,
+    "GET /core/virtual-machines/7/hibernate": {},
+  });
+  assert.deepEqual(await hyperstack("K", f, { pollMs: 1 }).hibernate("7", "vol"), { detached: false });
+  assert.ok(!calls.some((c) => c.path.endsWith("/detach-volumes")));
+  assert.ok(calls.some((c) => c.path.endsWith("/hibernate")));
+});
+
+test("hibernate from SHUTOFF starts, skips detach, still hibernates", async () => {
+  const { f, calls } = fake({
+    "GET /core/virtual-machines/8": st("SHUTOFF"),
+    "GET /core/volumes": vols,
+    "GET /core/virtual-machines/8/start": {},
+    "GET /core/virtual-machines/8/hibernate": {},
+  });
+  assert.deepEqual(await hyperstack("K", f, { pollMs: 1 }).hibernate("8", "vol"), { detached: false });
+  assert.ok(!calls.some((c) => c.path.endsWith("/detach-volumes")));
+  assert.ok(calls.some((c) => c.path.endsWith("/start")));
+  assert.ok(calls.some((c) => c.path.endsWith("/hibernate")));
+});
+
+test("hibernate detaches when ACTIVE", async () => {
+  const { f, calls } = fake({
+    "GET /core/virtual-machines/7": st("ACTIVE"),
+    "GET /core/volumes": vols,
+    "POST /core/virtual-machines/7/detach-volumes": {},
+    "GET /core/virtual-machines/7/hibernate": {},
+  });
+  assert.deepEqual(await hyperstack("K", f, { pollMs: 1 }).hibernate("7", "vol"), { detached: true });
+  const p = calls.map((c) => c.path);
+  assert.ok(p.indexOf("/core/virtual-machines/7/detach-volumes") < p.indexOf("/core/virtual-machines/7/hibernate"));
+});

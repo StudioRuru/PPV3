@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { DATA_DIR } from "../env";
 import { LORA_DIR, ssh } from "./loras";
-import { SSH_OPTS, podHost } from "./pod";
+import { SSH_OPTS } from "./pod";
 
 /** One LoRA training run at a time, on the main pod, with ostris/ai-toolkit (installed by pod/comfy/install.sh). */
 export type Arch = "sdxl" | "qwen" | "moss" | "wan22";
@@ -105,7 +105,7 @@ function tarTo(host: string, local: string, remote: string): Promise<void> {
   });
 }
 
-export async function startTrain(o: { name: string; arch: Arch; kind: TrainKind; images: Buffer[]; captions?: string[] }, host = podHost("main")): Promise<Run> {
+export async function startTrain(o: { name: string; arch: Arch; kind: TrainKind; images: Buffer[]; captions?: string[] }, host: string): Promise<Run> {
   if (training()) throw new Error("A LoRA is already training.");
   const run: Run = { id: `${Date.now()}`, name: o.name, arch: o.arch, kind: o.kind, steps: STEPS[o.arch], startedAt: Date.now() };
   const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "train-"));
@@ -136,7 +136,8 @@ export function singleFlight<T>(fn: () => Promise<T>): () => Promise<T> {
 
 /** Polls the pod; when the run ends, copies the LoRA back to the Mac so pushLoras restores it on a fresh pod.
  *  Single-flight: two overlapping polls (panel + another tab) would both copy into the same .part file, and the loser's failed rename overwrote done with an error. */
-export const trainStatus = singleFlight(() => checkTrain(podHost("main")));
+const flights = new Map<string, () => Promise<(Run & { progress: number }) | null>>();
+export const trainStatus = (host: string) => (flights.get(host) ?? flights.set(host, singleFlight(() => checkTrain(host))).get(host)!)();
 
 async function checkTrain(host: string): Promise<(Run & { progress: number }) | null> {
   const run = readRun();

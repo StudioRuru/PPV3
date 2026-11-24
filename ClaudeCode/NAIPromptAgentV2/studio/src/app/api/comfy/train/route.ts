@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (await denied(req)) return bad("Unauthorized", 401);
   if (getEngine().view().main.phase !== "ready") return NextResponse.json({ run: null, offline: true });
   try {
-    const run = await trainStatus();
+    const run = await trainStatus(getEngine().host("main"));
     if (run?.done) dropModels(); // LoRA list picks up the new file
     return NextResponse.json({ run });
   } catch (e) {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     await freeVram(getEngine().base("main")).catch(() => {}); // the trainer needs the VRAM
-    return NextResponse.json({ run: await startTrain({ name, arch, kind, images }) });
+    return NextResponse.json({ run: await startTrain({ name, arch, kind, images }, getEngine().host("main")) });
   } catch (e) {
     return bad(e instanceof Error ? e.message : "Couldn't start training.", 409);
   }
@@ -70,7 +70,7 @@ async function trainset(req: NextRequest) {
   if (getEngine().view().main.phase !== "ready") return bad("Start the GPU first.", 409);
   try {
     await freeVram(getEngine().base("main")).catch(() => {});
-    return NextResponse.json({ run: await startTrain({ name, arch: b.arch, kind, ...payload }) });
+    return NextResponse.json({ run: await startTrain({ name, arch: b.arch, kind, ...payload }, getEngine().host("main")) });
   } catch (e) {
     return bad(e instanceof Error ? e.message : "Couldn't start training.", 409);
   }

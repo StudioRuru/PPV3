@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { EngineView } from "./engine";
-import { alarmText, gpuLabel, gpuName } from "./view";
+import { alarmText, gpuLabel, gpuName, stepError, stepElapsed, STEP_LABEL } from "./view";
 
 const v = (o: Partial<EngineView> = {}): EngineView => ({
-  card: "main", phase: "off", gpu: null, since: null, usdHr: 1, runCost: 0, today: 0, boost: "off", keepWarmUntil: 0, alarm: null, deadline: null, kept: false, ...o,
+  card: "main", phase: "off", gpu: null, since: null, usdHr: 1, runCost: 0, today: 0, boost: "off", keepWarmUntil: 0, alarm: null, deadline: null, kept: false, steps: null, ...o,
 });
 
 test("warming shows seconds since start", () => {
@@ -38,4 +38,19 @@ test("short GPU name derives from the flavor", () => {
 test("stopping label and warming without a start time", () => {
   assert.equal(gpuLabel(v({ phase: "stopping", gpu: "n3-L40x1" }), 0), "○ L40 stopping…");
   assert.equal(gpuLabel(v({ phase: "warming", gpu: "n3-L40x1", since: null }), 5000), "● L40 warming…");
+});
+
+test("stepError maps known failures", () => {
+  assert.match(stepError("network", "ssh: Could not resolve hostname nai-comfy-main"), /network|tailnet/i);
+  assert.match(stepError("disk", "RESERVED"), /RESERVED/);
+  assert.ok(!stepError("links", "Bearer abc123").includes("abc123"));
+  assert.ok(stepError("models", "x".repeat(500)).length <= 120);
+});
+
+test("stepElapsed: running uses now, finished uses endedAt, waiting is blank", () => {
+  const st = { id: "gpu", state: "run", startedAt: 1000, endedAt: null, error: null } as const;
+  assert.equal(stepElapsed(st, 13_400), "12s");
+  assert.equal(stepElapsed({ ...st, state: "ok", endedAt: 5000 }, 99_000), "4s");
+  assert.equal(stepElapsed({ ...st, state: "wait", startedAt: null }, 5), "");
+  assert.equal(STEP_LABEL.comfy, "ComfyUI");
 });

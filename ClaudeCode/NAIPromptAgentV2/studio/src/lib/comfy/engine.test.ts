@@ -11,29 +11,29 @@ const main: Offer = { env: "e", region: "r", flavor: "f48", gpu: "L40", vramGb: 
 const h100: Offer = { env: "e", region: "r", flavor: "fh", gpu: "H100-80G-PCIe", vramGb: 80, usdHr: 2 };
 const a100: Offer = { env: "e", region: "r", flavor: "fa", gpu: "A100-80G-PCIe", vramGb: 80, usdHr: 1.5 };
 
-function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>, sync?: (card: string) => Promise<unknown>, release?: (card: string) => Promise<unknown>) {
+function setup(offers: Offer[] = [main, h100], resolve?: (h: string) => Promise<string | null>, sync?: (card: string) => Promise<string>, release?: (card: string) => Promise<unknown>, extra: Partial<Parameters<typeof engine>[0]> = {}) {
   const db = new Database(":memory:");
   migrate(db);
   let now = T0;
   const log: string[] = [];
   const vms = new Map<string, string>(); // id -> status
-  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, restoreFails: false, removeNoop: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[] };
+  const o = { stopFails: false, pingOk: false, offers, noop: false, listFails: false, removeFails: false, restoreFails: false, removeNoop: false, gate: null as Promise<void> | null, vol: null as { env: string } | null, vols: [] as string[], createStatus: "BUILD", detached: true, restoreErr: null as Error | null };
   let n = 0;
   const hs = {
     offers: async (min: number) => o.offers.filter((x) => x.vramGb >= min).sort((a, b) => a.usdHr - b.usdHr),
-    create: async (_o: Offer, name: string) => { if (o.gate) await o.gate; const id = `vm${++n}`; vms.set(id, "BUILD"); log.push(`create ${name}`); o.vols.push(`create ${_o.env}`); return id; },
+    create: async (_o: Offer, name: string) => { if (o.gate) await o.gate; const id = `vm${++n}`; vms.set(id, o.createStatus); log.push(`create ${name}`); o.vols.push(`create ${_o.env}`); return id; },
     attachWhenActive: async (id: string, vol: string) => { o.vols.push(`attach ${id} ${vol}`); },
     findVolume: async () => o.vol,
     ensureVolume: async (name: string, env: string, gb: number) => { o.vols.push(`ensure ${name} ${env} ${gb}`); },
     status: async (id: string) => vms.get(id) ?? null,
-    hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); },
-    restore: async (id: string) => { if (o.restoreFails) throw new NoCapacity("Not Enough Stock", 400); vms.set(id, "BUILD"); log.push(`restore ${id}`); },
+    hibernate: async (id: string) => { if (o.stopFails) throw new Error("boom"); if (!o.noop) vms.set(id, "HIBERNATED"); log.push(`hibernate ${id}`); return { detached: o.detached }; },
+    restore: async (id: string) => { if (o.restoreErr) throw o.restoreErr; if (o.restoreFails) throw new NoCapacity("Not Enough Stock", 400); vms.set(id, o.createStatus); log.push(`restore ${id}`); },
     start: async () => {},
     remove: async (id: string) => { if (o.removeFails) throw new Error("rm"); if (!o.removeNoop) vms.delete(id); log.push(`remove ${id}`); },
     listOurs: async () => { if (o.listFails) throw new Error("ls"); return [...vms].map(([id, status]) => ({ id, status })); },
   } as unknown as Hyperstack;
   const pinged: string[] = [];
-  const e = engine({ db, hs, ping: async (b) => { pinged.push(b); return o.pingOk; }, now: () => now, resolve, sync, release });
+  const e = engine({ db, hs, ping: async (b) => { pinged.push(b); return o.pingOk; }, now: () => now, resolve, sync, release, ...extra });
   return { db, e, vms, log, o, pinged, tick: (ms: number) => { now += ms; }, at: () => now };
 }
 
@@ -98,6 +98,7 @@ test("a pod that never comes up is idle-stopped after 90 min", async () => {
 
 test("warm on a hibernated VM restores instead of creating", async () => {
   const s = setup();
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   await s.e.warm();
   await s.e.stop("main", "manual");
   assert.equal(s.e.view().main.phase, "off");
@@ -109,6 +110,7 @@ test("warm on a hibernated VM restores instead of creating", async () => {
 
 test("hibernated card out of stock: swaps to the cheapest in-stock card on the same volume", async () => {
   const s = setup([main, a100]);
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   s.o.vol = { env: "e" };
   await s.e.warm();
   await s.e.stop("main", "manual");
@@ -124,6 +126,7 @@ test("hibernated card out of stock: swaps to the cheapest in-stock card on the s
 
 test("swap whose delete Hyperstack ignores keeps the hibernated row and goes unavailable", async () => {
   const s = setup([main, a100]);
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   s.o.vol = { env: "e" };
   await s.e.warm();
   await s.e.stop("main", "manual");
@@ -139,6 +142,7 @@ test("swap whose delete Hyperstack ignores keeps the hibernated row and goes una
 
 test("restore re-attaches the models volume detached at hibernate", async () => {
   const s = setup();
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   s.o.vol = { env: "e" };
   await s.e.warm();
   await s.e.stop("main", "manual");
@@ -150,6 +154,7 @@ test("restore re-attaches the models volume detached at hibernate", async () => 
 test("hibernate unmounts the models volume before Hyperstack detaches it; an unreachable pod still hibernates", async () => {
   const order: string[] = [];
   const s = setup(undefined, undefined, undefined, async (c) => { order.push(`release ${c}`); });
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   await s.e.warm();
   s.log.length = 0;
   await s.e.stop("main", "manual");
@@ -158,6 +163,7 @@ test("hibernate unmounts the models volume before Hyperstack detaches it; an unr
   await s.e.stop("boost", "manual");
   assert.deepEqual(order, ["release main"]); // boost has no volume
   const u = setup(undefined, undefined, undefined, async () => { throw new Error("ssh"); });
+  u.o.createStatus = "ACTIVE";
   await u.e.warm();
   await u.e.stop("main", "manual");
   assert.equal(u.vms.get("vm1"), "HIBERNATED");
@@ -165,6 +171,7 @@ test("hibernate unmounts the models volume before Hyperstack detaches it; an unr
 
 test("hibernated card out of stock with nothing else in stock stays kept and unavailable", async () => {
   const s = setup();
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   await s.e.warm();
   await s.e.stop("main", "manual");
   s.o.offers = [];
@@ -326,6 +333,7 @@ test("boost with no H100 offer -> boost unavailable, main unaffected", async () 
 
 test("boost picks an H100 and boost off stops it", async () => {
   const s = setup();
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   const v = await s.e.setBoost(true);
   assert.equal(v.boost, "on");
   assert.equal(getVm(s.db, "boost")?.flavor, "fh");
@@ -402,6 +410,7 @@ test("retry when the VM is already HIBERNATED succeeds and allows warm again", a
 
 test("stop during an in-flight warm runs right after create returns", async () => {
   const s = setup();
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   let release!: () => void;
   s.o.gate = new Promise<void>((r) => (release = r));
   const w = s.e.warm();
@@ -414,6 +423,7 @@ test("stop during an in-flight warm runs right after create returns", async () =
 
 test("dev deadline env still hibernates on a non-deadline stop", async () => {
   const s = setup();
+  s.o.createStatus = "ACTIVE"; // a VM in BUILD is transitional: stop waits for the tick
   process.env.COMFY_DEV_DEADLINE_MIN = "30";
   try { await s.e.warm(); await s.e.stop("main", "manual"); } finally { delete process.env.COMFY_DEV_DEADLINE_MIN; }
   assert.equal(s.vms.get("vm1"), "HIBERNATED");
@@ -484,4 +494,196 @@ test("hibernating for over 10 minutes raises the alarm and retries", async () =>
   await s.e.tick();
   assert.ok(s.e.view().main.alarm);
   assert.equal(s.log.filter((l) => l.startsWith("hibernate")).length, 2);
+});
+
+const stepOf = (s: ReturnType<typeof setup>, id: string, card: "main" | "boost" = "main") => s.e.view()[card].steps?.find((x) => x.id === id);
+
+test("dead link blocks warm before any VM is created", async () => {
+  const s = setup(undefined, undefined, undefined, undefined, { preflight: async () => ({ msg: "Krea2 checkpoint link is dead", block: true }) });
+  await assert.rejects(s.e.warm(), Refused);
+  assert.deepEqual(s.log, []);
+  assert.equal(getVm(s.db, "main"), null);
+  const v = s.e.view().main;
+  assert.equal(v.phase, "off");
+  assert.equal(v.steps?.[0].id, "links");
+  assert.equal(v.steps?.[0].state, "fail");
+});
+
+test("a non-blocking preflight warning warms normally and shows on the links step", async () => {
+  const s = setup(undefined, undefined, undefined, undefined, { preflight: async () => ({ msg: "Krea2 checkpoint link is dead", block: false }) });
+  assert.equal((await s.e.warm()).phase, "starting");
+  assert.equal(s.log.length, 1);
+  assert.equal(stepOf(s, "links")?.state, "ok");
+  assert.equal(stepOf(s, "links")?.note, "Krea2 checkpoint link is dead");
+});
+
+test("steps advance gpu, comfy, ready; models trails and the checklist clears when all ok", async () => {
+  const listed: string[] = [];
+  const s = setup(undefined, async () => "100.0.0.2", async () => "get a/b\nmodels ok", undefined, { listVolume: async (c) => { listed.push(c); return [{ name: "a/b", size: 1 }]; } });
+  await s.e.warm();
+  assert.equal(stepOf(s, "gpu")?.state, "run");
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.tick();
+  assert.equal(stepOf(s, "gpu")?.state, "ok");
+  assert.equal(stepOf(s, "network")?.state, "ok");
+  assert.equal(stepOf(s, "comfy")?.state, "run");
+  s.o.pingOk = true;
+  await s.e.tick();
+  assert.equal(s.e.view().main.phase, "ready");
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(listed, ["main"]);
+  assert.equal(s.e.view().main.steps, null);
+});
+
+test("failed sync keeps the card ready and shows models fail; retry re-runs sync without recreating", async () => {
+  let calls = 0;
+  const s = setup(undefined, undefined, async () => { if (++calls === 1) throw new Error("FAILED loras/x.safetensors"); return "get x"; });
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.o.pingOk = true;
+  await s.e.tick();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(s.e.view().main.phase, "ready");
+  assert.equal(stepOf(s, "models")?.state, "fail");
+  await s.e.retry("main", "models");
+  await s.e.tick();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(calls, 2);
+  assert.equal(s.log.filter((l) => l.startsWith("create")).length, 1);
+  assert.equal(s.e.view().main.steps, null);
+});
+
+test("stop during RESTORING does not call hibernate until the VM settles", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "RESTORING");
+  s.log.length = 0;
+  await s.e.stop("main", "manual");
+  assert.deepEqual(s.log, []);
+  assert.equal(getVm(s.db, "main")?.status, "hibernating:manual"); // waiting, not failing
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.tick();
+  assert.deepEqual(s.log, ["hibernate vm1"]);
+});
+
+test("restart mid-start synthesizes steps from the phase", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.db.prepare("UPDATE comfy_vms SET status = 'warming' WHERE card = 'main'").run();
+  const e2 = engine({ db: s.db, hs: {} as unknown as Hyperstack, ping: async () => false, now: () => T0 });
+  const st = e2.view().main.steps!;
+  assert.equal(st.find((x) => x.id === "gpu")?.state, "ok");
+  assert.equal(st.find((x) => x.id === "network")?.state, "run");
+});
+
+test("a deferred stop raises no alarm, and the real hibernate is not retried every tick", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "RESTORING");
+  await s.e.stop("main", "manual");
+  for (let i = 0; i < 3; i++) { s.tick(3 * 60_000); await s.e.tick(); }
+  assert.equal(s.e.view().main.alarm, null);
+  assert.equal(s.e.view().main.phase, "stopping");
+  assert.deepEqual(s.log.filter((l) => l.startsWith("hibernate")), []);
+  s.o.noop = true; // hibernate accepted, VM goes HIBERNATING
+  s.vms.set("vm1", "ACTIVE");
+  s.tick(60_000);
+  await s.e.tick();
+  s.vms.set("vm1", "HIBERNATING");
+  s.tick(60_000);
+  await s.e.tick();
+  s.tick(60_000);
+  await s.e.tick();
+  assert.equal(s.log.filter((l) => l.startsWith("hibernate")).length, 1);
+  assert.equal(s.e.view().main.alarm, null);
+});
+
+test("retry models while the sync is pending does not start a second sync", async () => {
+  let calls = 0;
+  let done!: () => void;
+  const s = setup(undefined, undefined, () => { calls++; return new Promise<string>((r) => (done = () => r("get x"))); });
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  s.o.pingOk = true;
+  await s.e.tick();
+  await s.e.retry("main", "models");
+  await s.e.tick();
+  assert.equal(calls, 1);
+  done();
+});
+
+test("a stop after a settled hibernate and a fresh warm still defers while the new VM is in BUILD", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "RESTORING");
+  await s.e.stop("main", "manual"); // deferred: hibSince set
+  s.vms.set("vm1", "HIBERNATED");
+  await s.e.tick(); // confirmed off
+  s.tick(3 * H);
+  await s.e.warm(); // restored, in BUILD
+  s.log.length = 0;
+  await s.e.stop("main", "manual");
+  assert.deepEqual(s.log, []);
+  assert.equal(getVm(s.db, "main")?.status, "hibernating:manual");
+});
+
+test("a VM stuck transitional keeps its alarm on and is re-hibernated every 10 min, not every tick", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.o.noop = true; // hibernate accepted, VM never settles
+  s.o.detached = false; // Hyperstack can't detach mid-transition
+  s.vms.set("vm1", "RESTORING");
+  await s.e.stop("main", "manual");
+  const seen: (string | null)[] = [];
+  for (let i = 0; i < 45; i++) { s.tick(60_000); await s.e.tick(); seen.push(s.e.view().main.alarm); }
+  const first = seen.findIndex((a) => a !== null);
+  assert.ok(first >= 0 && first <= 11);
+  assert.deepEqual(seen.slice(first).filter((a) => a === null), []); // never flaps off
+  assert.ok(s.log.filter((l) => l.startsWith("hibernate")).length <= 5);
+  s.vms.set("vm1", "HIBERNATED");
+  await s.e.tick();
+  assert.equal(s.e.view().main.alarm, "Stopped without detaching the models volume — it may show RESERVED; contact Hyperstack if the next start fails");
+});
+
+test("a non-NoCapacity restore error fails the gpu step before rethrowing", async () => {
+  const s = setup();
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.stop("main", "manual");
+  assert.equal(getVm(s.db, "main")?.status, "hibernated");
+  s.o.restoreErr = new Error("hyperstack vm1: 400 bad request");
+  await assert.rejects(s.e.warm(), /400/);
+  assert.equal(stepOf(s, "gpu")?.state, "fail");
+  assert.match(stepOf(s, "gpu")?.error ?? "", /400/);
+});
+
+test("ACTIVE but never on the tailnet: network fails at 15 min and the VM hibernates, failure kept", async () => {
+  const s = setup(undefined, async () => null);
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.tick();
+  s.tick(14 * 60_000);
+  await s.e.tick();
+  assert.equal(stepOf(s, "network")?.state, "run");
+  s.tick(2 * 60_000);
+  await s.e.tick();
+  assert.equal(getVm(s.db, "main")?.status, "hibernated");
+  assert.equal(s.e.view().main.phase, "off");
+  assert.equal(stepOf(s, "network")?.state, "fail");
+  assert.equal(runs(s.db).at(-1)?.stoppedAt !== null, true);
+  await s.e.retry("main", "network"); // boots again
+  assert.equal(s.e.view().main.phase, "starting");
+});
+
+test("ACTIVE on the tailnet, ComfyUI still downloading models at 16 min: keeps warming (WARM_MAX applies)", async () => {
+  const s = setup(undefined, async () => "100.0.0.2");
+  await s.e.warm();
+  s.vms.set("vm1", "ACTIVE");
+  await s.e.tick();
+  s.tick(16 * 60_000);
+  await s.e.tick();
+  assert.notEqual(getVm(s.db, "main")?.status, "hibernated");
+  assert.equal(stepOf(s, "network")?.state, "ok");
+  assert.equal(stepOf(s, "comfy")?.state, "run");
 });
